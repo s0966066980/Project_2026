@@ -119,6 +119,20 @@ def update_intervention_result(intervention_id: str, result: dict) -> dict | Non
     return updated
 
 
+def find_latest_open_intervention(session_id: str) -> dict | None:
+    if not session_id:
+        return None
+    rows = _read_list(INTERVENTION_LOGS_PATH)
+    for row in reversed(rows):
+        if str(row.get("session_id", "")) != str(session_id):
+            continue
+        result = row.get("result") if isinstance(row.get("result"), dict) else {}
+        if result.get("checkout_success"):
+            continue
+        return row
+    return None
+
+
 def get_intervention_logs(session_id: str = "", limit: int = 200) -> list:
     rows = _read_list(INTERVENTION_LOGS_PATH)
     if session_id:

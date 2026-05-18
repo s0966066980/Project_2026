@@ -208,6 +208,8 @@ http://127.0.0.1:8000
 
 後台「儀表板」新增「互動障礙與介入成效」區塊，可查看總介入次數、介入成功率、最常見 `barrier_state`、最常見 `intervention_action`、常見卡關頁面與最近 20 筆介入紀錄。這些資料可作為專利 PoC 的技術效果驗證，例如觀察卡關頁面是否集中、介入後付款 / 結帳完成率是否提升，以及是否能減少真人客服介入。
 
+當顧客完成 `/api/checkout` 時，系統會自動尋找該 session 最近一筆尚未完成的 intervention，回寫 `checkout_success`、`payment_success`、`time_to_checkout_sec` 與 `resolved_by_checkout`。這讓「偵測 → 介入 → 成效回饋」形成閉環，後台統計可以直接反映介入後是否完成付款與結帳。
+
 ### AI 推播
 
 - 推播只顯示 Ollama 最終給客人的自然描述。

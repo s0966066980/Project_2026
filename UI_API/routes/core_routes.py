@@ -1,12 +1,47 @@
 import asyncio
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Body, Form
 from fastapi.responses import FileResponse
 
 import config
 import database
-from repositories import log_repository, session_repository
+from repositories import interaction_event_repository, log_repository, session_repository
+
+
+def _seconds_since_timestamp(timestamp: str) -> int:
+    if not timestamp:
+        return 0
+    try:
+        started_at = datetime.fromisoformat(str(timestamp))
+        return max(0, int((datetime.now() - started_at).total_seconds()))
+    except Exception:
+        return 0
+
+
+def _build_checkout_intervention_result(open_log: dict, checkout_success: bool) -> dict:
+    result = dict(open_log.get("result") if isinstance(open_log.get("result"), dict) else {})
+    result.update({
+        "checkout_success": bool(checkout_success),
+        "payment_success": bool(checkout_success),
+        "time_to_checkout_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
+        "resolved_by_checkout": bool(checkout_success),
+    })
+    if not checkout_success:
+        result["resolved_by_checkout"] = False
+    return result
+
+
+def _mark_latest_intervention_checkout(session_id: str, checkout_success: bool = True) -> dict | None:
+    open_log = interaction_event_repository.find_latest_open_intervention(session_id)
+    if not open_log:
+        return None
+    intervention_id = str(open_log.get("intervention_id") or "")
+    if not intervention_id:
+        return None
+    result = _build_checkout_intervention_result(open_log, checkout_success)
+    return interaction_event_repository.update_intervention_result(intervention_id, result)
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -121,6 +156,13 @@ def create_router(deps: dict) -> APIRouter:
             )
         except asyncio.TimeoutError:
             log_entry = {"skipped": True}
+
+        intervention_result = await asyncio.to_thread(
+            _mark_latest_intervention_checkout, session_id, True
+        )
+        if intervention_result:
+            log_entry = dict(log_entry or {})
+            log_entry["intervention_result"] = intervention_result
 
         session_repository.archive_session(session_id)
         deps["emotion_cache"].pop(session_id, None)
