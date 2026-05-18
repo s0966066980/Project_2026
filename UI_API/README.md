@@ -206,6 +206,8 @@ http://127.0.0.1:8000
 
 完整 UI 自動改版仍是預留 hook；目前後端會回傳 JSON 決策，前端只做初步提示與推播暫停。
 
+後台「儀表板」新增「互動障礙與介入成效」區塊，可查看總介入次數、介入成功率、最常見 `barrier_state`、最常見 `intervention_action`、常見卡關頁面與最近 20 筆介入紀錄。這些資料可作為專利 PoC 的技術效果驗證，例如觀察卡關頁面是否集中、介入後付款 / 結帳完成率是否提升，以及是否能減少真人客服介入。
+
 ### AI 推播
 
 - 推播只顯示 Ollama 最終給客人的自然描述。
@@ -344,6 +346,7 @@ rag:
 | `POST /api/barrier_state` | 融合事件、語音、情緒與 UI context，推論互動障礙狀態與介入動作 |
 | `POST /api/intervention_result` | 回寫服務介入後的付款、結帳或店員介入結果 |
 | `GET /api/intervention_logs/{session_id}` | 取得該 session 的服務介入紀錄 |
+| `GET /api/intervention_stats` | 統計介入成功率、障礙狀態分布、介入動作分布與常見卡關頁面 |
 
 ---
 

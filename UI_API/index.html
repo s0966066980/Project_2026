@@ -317,6 +317,80 @@
           <tbody id="logsTableBody" class="divide-y" style="border-color:var(--border)"></tbody>
         </table>
       </div>
+
+      <div class="mt-8">
+        <div class="flex items-end justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">互動障礙與介入成效</h2>
+            <p class="text-sm" style="color:var(--text2)">統計 POS 卡關狀態、介入動作與後續付款 / 結帳結果。</p>
+          </div>
+          <button onclick="loadInterventionStats()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--accent2);border:1px solid var(--border)">
+            <i class="fas fa-sync-alt mr-1"></i>重新整理
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">總介入次數</p>
+            <p class="text-3xl font-extrabold" id="intervention-total">0</p>
+          </div>
+          <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">介入成功率</p>
+            <p class="text-3xl font-extrabold" style="color:var(--success)" id="intervention-success-rate">0%</p>
+          </div>
+          <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">最常見狀態</p>
+            <p class="text-xl font-extrabold truncate" id="intervention-top-state">-</p>
+          </div>
+          <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">最常見動作</p>
+            <p class="text-xl font-extrabold truncate" id="intervention-top-action">-</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-sm font-bold mb-3" style="color:var(--text)">barrier_state 分布</p>
+            <div id="barrierStateCounts" class="space-y-2 text-sm"></div>
+          </div>
+          <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-sm font-bold mb-3" style="color:var(--text)">intervention_action 分布</p>
+            <div id="interventionActionCounts" class="space-y-2 text-sm"></div>
+          </div>
+          <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
+            <p class="text-sm font-bold mb-3" style="color:var(--text)">常見卡關頁面</p>
+            <div id="pageIssueCounts" class="space-y-2 text-sm"></div>
+          </div>
+        </div>
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+          <table class="w-full text-sm">
+            <thead style="background:var(--surface2)">
+              <tr>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">時間</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">頁面</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">barrier_state</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">action</th>
+                <th class="p-3 text-center font-semibold" style="color:var(--text2)">結果</th>
+              </tr>
+            </thead>
+            <tbody id="interventionLogsBody" class="divide-y" style="border-color:var(--border)"></tbody>
+          </table>
+        </div>
+        <div class="rounded-2xl overflow-hidden mt-4" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="px-4 py-3" style="background:var(--surface2)">
+            <p class="text-sm font-bold" style="color:var(--text)">最近 POS 操作事件</p>
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">時間</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">頁面</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">事件</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">按鈕 / 來源</th>
+              </tr>
+            </thead>
+            <tbody id="interactionEventsBody" class="divide-y" style="border-color:var(--border)"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- 功能模組 -->
@@ -626,7 +700,7 @@
 
 <audio id="ttsAudio" class="hidden"></audio>
 
-<script type="module" src="/static/app.js?v=interaction-20260518"></script>
+<script type="module" src="/static/app.js?v=intervention-dashboard-20260518"></script>
 
 </body>
 </html>

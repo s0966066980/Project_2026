@@ -1,4 +1,5 @@
 import asyncio
+from collections import Counter
 
 from fastapi import APIRouter, Body
 
@@ -6,6 +7,65 @@ from repositories import interaction_event_repository
 from services import barrier_state_service
 from services import interaction_event_service
 from services import intervention_service
+
+
+def _is_successful_intervention(log: dict) -> bool:
+    result = log.get("result") if isinstance(log.get("result"), dict) else {}
+    return bool(result.get("checkout_success") or result.get("payment_success"))
+
+
+ISSUE_EVENT_TYPES = {
+    "page_dwell_timeout",
+    "back_navigation",
+    "invalid_touch",
+    "payment_failed",
+    "checkout_error",
+    "coupon_error",
+    "customer_service_failed",
+    "voice_order_failed",
+}
+
+
+def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
+    barrier_counts = Counter()
+    action_counts = Counter()
+    page_counts = Counter()
+    event_rows = events or []
+
+    for log in logs:
+        if not isinstance(log, dict):
+            continue
+        barrier = log.get("barrier_result") if isinstance(log.get("barrier_result"), dict) else {}
+        intervention = log.get("intervention") if isinstance(log.get("intervention"), dict) else {}
+        ui_context = log.get("ui_context") if isinstance(log.get("ui_context"), dict) else {}
+
+        barrier_state = str(barrier.get("barrier_state") or "unknown")
+        action = str(intervention.get("action") or "unknown")
+        page_id = str(ui_context.get("page_id") or "unknown")
+        barrier_counts[barrier_state] += 1
+        action_counts[action] += 1
+        page_counts[page_id] += 1
+
+    for event in event_rows:
+        if not isinstance(event, dict):
+            continue
+        if str(event.get("event_type") or "") not in ISSUE_EVENT_TYPES:
+            continue
+        page_id = str(event.get("page_id") or "unknown")
+        page_counts[page_id] += 1
+
+    total = len([row for row in logs if isinstance(row, dict)])
+    success_count = sum(1 for row in logs if isinstance(row, dict) and _is_successful_intervention(row))
+    return {
+        "total_interventions": total,
+        "success_count": success_count,
+        "success_rate": round(success_count / total, 4) if total else 0,
+        "barrier_state_counts": dict(barrier_counts),
+        "action_counts": dict(action_counts),
+        "page_issue_counts": dict(page_counts),
+        "recent_logs": list(reversed(logs[-20:])),
+        "recent_events": list(reversed(event_rows[-20:])),
+    }
 
 
 def create_router(deps: dict | None = None) -> APIRouter:
@@ -108,5 +168,15 @@ def create_router(deps: dict | None = None) -> APIRouter:
             interaction_event_repository.get_intervention_logs, session_id, limit
         )
         return {"status": "success", "session_id": session_id, "logs": logs}
+
+    @router.get("/intervention_stats")
+    async def get_intervention_stats():
+        logs = await asyncio.to_thread(
+            interaction_event_repository.get_intervention_logs, "", 3000
+        )
+        events = await asyncio.to_thread(
+            interaction_event_repository.get_interaction_events, "", 3000
+        )
+        return {"status": "success", **_build_intervention_stats(logs, events)}
 
     return router

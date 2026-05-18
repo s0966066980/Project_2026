@@ -132,3 +132,7 @@ export async function barrierState(payload) {
     body: JSON.stringify(payload || {})
   }));
 }
+
+export async function getInterventionStats() {
+  return asJson(await fetch(`${API_BASE}/api/intervention_stats`));
+}

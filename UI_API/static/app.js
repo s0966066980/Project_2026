@@ -1,5 +1,5 @@
-import * as api from './api.js?v=interaction-20260518';
-import { API_BASE } from './api.js?v=interaction-20260518';
+import * as api from './api.js?v=intervention-dashboard-20260518';
+import { API_BASE } from './api.js?v=intervention-dashboard-20260518';
 import {
   ui,
   escapeHTML,
@@ -7,15 +7,15 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=interaction-20260518';
+} from './ui.js?v=intervention-dashboard-20260518';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=interaction-20260518';
-import { createCartManager } from './cart.js?v=interaction-20260518';
-import { createRecommendationManager } from './recommendation.js?v=interaction-20260518';
+} from './media.js?v=intervention-dashboard-20260518';
+import { createCartManager } from './cart.js?v=intervention-dashboard-20260518';
+import { createRecommendationManager } from './recommendation.js?v=intervention-dashboard-20260518';
 
 // =========================================================
 // Controller 狀態
@@ -1231,7 +1231,111 @@ ui.confirmPayBtn?.addEventListener('click', () => {
 // =========================================================
 // 後台
 // =========================================================
-function loadAdminData() { loadLogs(); loadSettings(); loadAdminMenu(); loadRagData(); loadCustomerServiceData(); loadEmotionClips(); }
+function loadAdminData() {
+  loadLogs();
+  loadInterventionStats();
+  loadSettings();
+  loadAdminMenu();
+  loadRagData();
+  loadCustomerServiceData();
+  loadEmotionClips();
+}
+
+function topCountLabel(counts = {}) {
+  const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+  if (!entries.length) return '-';
+  return `${entries[0][0]} (${entries[0][1]})`;
+}
+
+function renderCountList(containerId, counts = {}) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+  if (!entries.length) {
+    box.innerHTML = `<p class="text-sm" style="color:var(--text2)">尚無資料。</p>`;
+    return;
+  }
+  const max = Math.max(...entries.map(([, count]) => Number(count) || 0), 1);
+  box.innerHTML = entries.slice(0, 8).map(([label, count]) => {
+    const value = Number(count) || 0;
+    const width = Math.max(6, Math.round((value / max) * 100));
+    return `
+      <div>
+        <div class="flex justify-between gap-3 mb-1">
+          <span class="truncate" style="color:var(--text)">${escapeHTML(label)}</span>
+          <b style="color:var(--accent2)">${value}</b>
+        </div>
+        <div class="h-2 rounded-full overflow-hidden" style="background:var(--surface2)">
+          <i class="block h-full rounded-full" style="width:${width}%;background:var(--accent)"></i>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadInterventionStats() {
+  try {
+    const data = await api.getInterventionStats();
+    if (data.status !== 'success') throw new Error(data.message || 'stats failed');
+    const total = Number(data.total_interventions || 0);
+    const successRate = Math.round(Number(data.success_rate || 0) * 100);
+    document.getElementById('intervention-total').textContent = total;
+    document.getElementById('intervention-success-rate').textContent = `${successRate}%`;
+    document.getElementById('intervention-top-state').textContent = topCountLabel(data.barrier_state_counts);
+    document.getElementById('intervention-top-action').textContent = topCountLabel(data.action_counts);
+    renderCountList('barrierStateCounts', data.barrier_state_counts);
+    renderCountList('interventionActionCounts', data.action_counts);
+    renderCountList('pageIssueCounts', data.page_issue_counts);
+
+    const tbody = document.getElementById('interventionLogsBody');
+    if (!tbody) return;
+    const logs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
+    tbody.innerHTML = '';
+    logs.forEach(log => {
+      const barrier = log.barrier_result || {};
+      const intervention = log.intervention || {};
+      const uiContext = log.ui_context || {};
+      const result = log.result || {};
+      const success = Boolean(result.checkout_success || result.payment_success);
+      const resultBadge = success
+        ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">完成</span>`
+        : `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">待觀察</span>`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-3 text-xs" style="color:var(--text2)">${log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}</td>
+        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(uiContext.page_id || '-')}</td>
+        <td class="p-3 text-xs font-mono" style="color:var(--accent2)">${escapeHTML(barrier.barrier_state || '-')}</td>
+        <td class="p-3 text-xs font-mono" style="color:var(--info)">${escapeHTML(intervention.action || '-')}</td>
+        <td class="p-3 text-center">${resultBadge}</td>`;
+      tbody.appendChild(tr);
+    });
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-sm" style="color:var(--text2)">尚無介入紀錄。</td></tr>`;
+    }
+
+    const eventsBody = document.getElementById('interactionEventsBody');
+    if (!eventsBody) return;
+    const events = Array.isArray(data.recent_events) ? data.recent_events : [];
+    eventsBody.innerHTML = '';
+    events.forEach(event => {
+      const metadata = event.metadata || {};
+      const source = event.button_id || metadata.source || metadata.reason || '-';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-3 text-xs" style="color:var(--text2)">${event.timestamp ? new Date(event.timestamp).toLocaleString() : '-'}</td>
+        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(event.page_id || '-')}</td>
+        <td class="p-3 text-xs font-mono" style="color:var(--accent2)">${escapeHTML(event.event_type || '-')}</td>
+        <td class="p-3 text-xs" style="color:var(--text2)">${escapeHTML(source)}</td>`;
+      eventsBody.appendChild(tr);
+    });
+    if (!events.length) {
+      eventsBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-sm" style="color:var(--text2)">尚無 POS 操作事件。</td></tr>`;
+    }
+  } catch {
+    renderCountList('barrierStateCounts', {});
+    renderCountList('interventionActionCounts', {});
+    renderCountList('pageIssueCounts', {});
+  }
+}
 
 async function loadLogs() {
   try {
@@ -1632,6 +1736,7 @@ Object.assign(window, {
   closeVoiceBubble,
   switchMainView,
   switchAdminTab,
+  loadInterventionStats,
   loadEmotionClips,
   loadCustomerServiceData,
   clearPushLogs,
