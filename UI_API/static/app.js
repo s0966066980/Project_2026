@@ -1179,12 +1179,13 @@ function closeOrderConfirmModal() {
 
 ui.checkoutBtn.onclick = () => {
   if (!cartManager.getCartIds().length) return;
+  openOrderConfirmModal();
   trackInteractionEvent({
+    page_id: 'payment_page',
     event_type: 'enter_payment_page',
     button_id: 'checkoutBtn',
     metadata: { cart_ids: cartManager.getCartIds() }
   });
-  openOrderConfirmModal();
 };
 
 function leaveOrderConfirm(buttonId) {
