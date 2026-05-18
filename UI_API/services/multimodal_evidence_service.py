@@ -19,6 +19,8 @@ def build_multimodal_evidence(
     risk_result: dict | None = None,
     ui_context: dict | None = None,
     interaction_context: str = "",
+    emotion_available: bool = True,
+    emotion_error: str = "",
 ) -> dict:
     emotion = _safe_dict(emotion_structured)
     person = _safe_dict(person_check)
@@ -43,6 +45,9 @@ def build_multimodal_evidence(
             "emotion_display": emotion.get("emotion_display", ""),
             "emotion_evidence": emotion.get("emotion_evidence", ""),
             "emotion_distribution": _safe_dict(emotion.get("emotion_distribution")),
+            "emotion_available": bool(emotion_available),
+            "emotion_error": _short_text(emotion_error, 300),
+            "model_source": "Emotion-LLaMA",
         },
         "pos_evidence": {
             "page_id": str(ui.get("page_id") or "unknown"),

@@ -9,6 +9,7 @@ import ai_services
 from repositories import interaction_event_repository
 from services import barrier_state_service
 from services import customer_service as customer_emotion_service
+from services import interaction_event_service
 from services import intervention_service
 from services import multimodal_evidence_service
 from utils.file_utils import write_binary_file
@@ -38,11 +39,27 @@ def create_router(deps: dict) -> APIRouter:
         try:
             risk_result = _loads_dict(risk_result_json)
             ui_context = _loads_dict(ui_context_json)
+            recent_events = await asyncio.to_thread(
+                interaction_event_repository.get_recent_session_events, session_id
+            )
+            if not risk_result:
+                risk_result = interaction_event_service.calculate_interaction_risk(
+                    recent_events, ui_context
+                )
+            if not interaction_context:
+                interaction_context = interaction_event_service.build_interaction_context(
+                    recent_events, risk_result
+                )
 
             suffix = os.path.splitext(video.filename or ".webm")[1] or ".webm"
+            video_bytes = await video.read()
+            if len(video_bytes) < 2000:
+                return {
+                    "status": "skipped",
+                    "message": "multimodal video chunk too small",
+                }
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 temp_video_path = tmp.name
-            video_bytes = await video.read()
             await asyncio.to_thread(write_binary_file, temp_video_path, video_bytes)
 
             media_signals = await ai_services.async_analyze_emotion_media_signals(temp_video_path)
@@ -70,6 +87,8 @@ def create_router(deps: dict) -> APIRouter:
                     risk_result=risk_result,
                 )
             raw_emotion = emotion_data.get("emotion_raw", "") or "無法辨識具體情緒。"
+            emotion_available = emotion_data.get("emotion_available", True)
+            emotion_error = emotion_data.get("emotion_error", "")
             emotion_structured = await customer_emotion_service.emotion_to_structured_display(
                 raw_emotion,
                 person_check,
@@ -85,11 +104,13 @@ def create_router(deps: dict) -> APIRouter:
                 risk_result=risk_result,
                 ui_context=ui_context,
                 interaction_context=interaction_context,
+                emotion_available=emotion_available,
+                emotion_error=emotion_error,
             )
             barrier_result = barrier_state_service.infer_barrier_state(
                 emotion_structured=emotion_structured,
                 speech_text=speech_text,
-                pos_events=[],
+                pos_events=recent_events,
                 ui_context=ui_context,
                 media_signals=media_signals,
                 risk_result=risk_result,
@@ -112,6 +133,8 @@ def create_router(deps: dict) -> APIRouter:
             return {
                 "status": "success",
                 "speech_text": speech_text[:120],
+                "emotion_available": emotion_available,
+                "emotion_error": emotion_error,
                 "emotion_structured": emotion_structured,
                 "multimodal_evidence": multimodal_evidence,
                 "risk_result": risk_result,
@@ -119,6 +142,8 @@ def create_router(deps: dict) -> APIRouter:
                 "intervention": intervention,
                 "intervention_log": intervention_log,
             }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
         finally:
             if temp_video_path and os.path.exists(temp_video_path):
                 try:

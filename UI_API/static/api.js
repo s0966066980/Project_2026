@@ -41,6 +41,13 @@ export async function pingState(formData) {
   return asJson(await fetch(`${API_BASE}/api/ping_state`, { method: 'POST', body: formData }));
 }
 
+export async function triggeredMultimodalAnalysis(formData) {
+  return asJson(await fetch(`${API_BASE}/api/triggered_multimodal_analysis`, {
+    method: 'POST',
+    body: formData
+  }));
+}
+
 export async function autoRecommend(formData) {
   return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData }));
 }
