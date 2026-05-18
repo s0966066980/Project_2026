@@ -231,7 +231,7 @@ UI_API/
 
 1. 前端上報 POS 操作事件到 `/api/interaction_event`。
 2. 後端計算互動障礙風險分數。
-3. 若達門檻，前端可呼叫 `/api/barrier_state` 或 `/api/triggered_multimodal_analysis`。
+3. 若達門檻，系統可先使用 `/api/barrier_state` 進行輕量狀態推理；若需要納入短片段影像、語音與 Emotion-LLaMA 證據，可呼叫 `/api/triggered_multimodal_analysis`。
 4. `/api/triggered_multimodal_analysis` 只處理短片段，不做持續影像分析。
 5. 後端整合：
    - recent POS events
@@ -247,6 +247,13 @@ UI_API/
 10. checkout 成功後回寫介入結果，形成成效回饋閉環。
 
 `/api/triggered_multimodal_analysis` 會略過太小的 video chunk，避免空音訊或不完整片段造成推論錯誤。
+
+### 目前實作狀態
+
+- `/api/interaction_event` 已串接 POS 操作事件。
+- `/api/barrier_state` 已可做輕量互動障礙推理。
+- `/api/triggered_multimodal_analysis` 已提供後端事件觸發式多模態分析能力。
+- 前端可進一步串接 `triggered_multimodal_analysis`，使高風險事件直接觸發完整多模態證據分析。
 
 ---
 
