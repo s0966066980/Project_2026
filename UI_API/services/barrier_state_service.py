@@ -85,7 +85,10 @@ def infer_barrier_state(
     coupon_error_count = _sum_field(events, "coupon_error_count")
 
     barrier_state = "normal_operation"
-    if page_id == "payment_page" and (risk_score >= 5 or payment_fail_count >= 1):
+    if _contains_any(speech, ["客訴", "投訴", "不爽", "太誇張", "我要找人", "經理", "爛"]):
+        barrier_state = "potential_complaint"
+        evidence.append("speech contains complaint intent")
+    elif page_id == "payment_page" and (risk_score >= 5 or payment_fail_count >= 1):
         barrier_state = "payment_confusion"
         evidence.extend(["page_id=payment_page", "payment risk triggered"])
     elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]) and risk_score >= 1:
@@ -100,7 +103,10 @@ def infer_barrier_state(
     elif _contains_any(speech, ["太慢", "等很久", "快一點", "趕時間"]):
         barrier_state = "impatience_detected"
         evidence.append("speech contains impatience")
-    elif emotion_label in {"生氣", "焦躁"} and risk_score >= 5:
+    elif emotion_label == "生氣" and risk_score >= 5:
+        barrier_state = "service_needed" if risk_score >= 8 else "potential_complaint"
+        evidence.append(f"emotion_label={emotion_label}")
+    elif emotion_label == "焦躁" and risk_score >= 5:
         barrier_state = "service_needed" if risk_score >= 8 else "impatience_detected"
         evidence.append(f"emotion_label={emotion_label}")
     elif emotion_label == "猶豫" and page_id == "menu_page":

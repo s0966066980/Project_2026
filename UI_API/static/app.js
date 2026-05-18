@@ -1285,7 +1285,10 @@ async function loadInterventionStats() {
     document.getElementById('intervention-top-action').textContent = topCountLabel(data.action_counts);
     renderCountList('barrierStateCounts', data.barrier_state_counts);
     renderCountList('interventionActionCounts', data.action_counts);
-    renderCountList('pageIssueCounts', data.page_issue_counts);
+    renderCountList(
+      'pageIssueCounts',
+      data.event_page_issue_counts || data.intervention_page_counts || data.page_issue_counts
+    );
 
     const tbody = document.getElementById('interventionLogsBody');
     if (!tbody) return;

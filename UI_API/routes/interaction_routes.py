@@ -29,7 +29,8 @@ ISSUE_EVENT_TYPES = {
 def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
     barrier_counts = Counter()
     action_counts = Counter()
-    page_counts = Counter()
+    intervention_page_counts = Counter()
+    event_page_issue_counts = Counter()
     event_rows = events or []
 
     for log in logs:
@@ -44,7 +45,7 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         page_id = str(ui_context.get("page_id") or "unknown")
         barrier_counts[barrier_state] += 1
         action_counts[action] += 1
-        page_counts[page_id] += 1
+        intervention_page_counts[page_id] += 1
 
     for event in event_rows:
         if not isinstance(event, dict):
@@ -52,17 +53,20 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         if str(event.get("event_type") or "") not in ISSUE_EVENT_TYPES:
             continue
         page_id = str(event.get("page_id") or "unknown")
-        page_counts[page_id] += 1
+        event_page_issue_counts[page_id] += 1
 
     total = len([row for row in logs if isinstance(row, dict)])
     success_count = sum(1 for row in logs if isinstance(row, dict) and _is_successful_intervention(row))
+    combined_page_counts = intervention_page_counts + event_page_issue_counts
     return {
         "total_interventions": total,
         "success_count": success_count,
         "success_rate": round(success_count / total, 4) if total else 0,
         "barrier_state_counts": dict(barrier_counts),
         "action_counts": dict(action_counts),
-        "page_issue_counts": dict(page_counts),
+        "intervention_page_counts": dict(intervention_page_counts),
+        "event_page_issue_counts": dict(event_page_issue_counts),
+        "page_issue_counts": dict(combined_page_counts),
         "recent_logs": list(reversed(logs[-20:])),
         "recent_events": list(reversed(event_rows[-20:])),
     }
