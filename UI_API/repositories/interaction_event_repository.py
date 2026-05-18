@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -9,6 +10,8 @@ import config
 INTERACTION_EVENTS_PATH = os.path.join(config.LEARNING_DATA_DIR, "interaction_events.json")
 INTERVENTION_LOGS_PATH = os.path.join(config.LEARNING_DATA_DIR, "intervention_logs.json")
 MAX_RECORDS = 3000
+SAFE_METADATA_KEYS = {"source", "reason", "action", "payment", "fulfillment", "from", "to"}
+SAFE_UI_CONTEXT_KEYS = {"page_id", "cart_count", "promotion_paused", "service_open"}
 
 
 def _now_iso() -> str:
@@ -64,6 +67,48 @@ def _as_number(value, default=0):
         return default
 
 
+def _safe_button_id(value) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "", str(value or ""))
+    return cleaned[:80]
+
+
+def _safe_scalar(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:120]
+    return None
+
+
+def _safe_metadata(metadata: dict) -> dict:
+    if not isinstance(metadata, dict):
+        return {}
+    safe = {}
+    for key in SAFE_METADATA_KEYS:
+        if key not in metadata:
+            continue
+        value = _safe_scalar(metadata.get(key))
+        if value is not None:
+            safe[key] = value
+    return safe
+
+
+def _safe_ui_context(record: dict) -> dict:
+    raw_context = record.get("ui_context") if isinstance(record.get("ui_context"), dict) else {}
+    safe = {
+        "page_id": str(raw_context.get("page_id") or record.get("page_id") or "unknown")
+    }
+    for key in SAFE_UI_CONTEXT_KEYS - {"page_id"}:
+        if key not in raw_context:
+            continue
+        value = _safe_scalar(raw_context.get(key))
+        if value is not None:
+            safe[key] = value
+    return safe
+
+
 def _privacy_event_vector(record: dict) -> dict:
     if not config.get("PRIVACY_STORE_EVENT_VECTOR_ONLY", True):
         return record
@@ -71,7 +116,7 @@ def _privacy_event_vector(record: dict) -> dict:
         "session_id": str(record.get("session_id") or "unknown"),
         "page_id": str(record.get("page_id") or "unknown"),
         "event_type": str(record.get("event_type") or "unknown"),
-        "button_id": "",
+        "button_id": _safe_button_id(record.get("button_id")),
         "dwell_time_sec": _as_number(record.get("dwell_time_sec")),
         "back_count": _as_number(record.get("back_count")),
         "invalid_touch_count": _as_number(record.get("invalid_touch_count")),
@@ -79,10 +124,8 @@ def _privacy_event_vector(record: dict) -> dict:
         "coupon_error_count": _as_number(record.get("coupon_error_count")),
         "cart_edit_count": _as_number(record.get("cart_edit_count")),
         "idle_time_sec": _as_number(record.get("idle_time_sec")),
-        "metadata": {},
-        "ui_context": {
-            "page_id": str((record.get("ui_context") or {}).get("page_id") or record.get("page_id") or "unknown")
-        },
+        "metadata": _safe_metadata(record.get("metadata")),
+        "ui_context": _safe_ui_context(record),
     }
 
 
