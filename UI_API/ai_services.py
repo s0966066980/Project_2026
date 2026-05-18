@@ -252,25 +252,48 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
 def safe_transcribe_with_language(file_path: str) -> dict:
     return _run_async_from_sync(async_safe_transcribe_with_language(file_path))
 
-def _build_emotion_llama_prompt(speech_text: str = "", media_signals: dict | None = None) -> str:
+def _build_emotion_llama_prompt(
+    speech_text: str = "",
+    media_signals: dict | None = None,
+    interaction_context: str = "",
+    ui_context: dict | None = None,
+    risk_result: dict | None = None,
+) -> str:
     speech = (speech_text or "").strip() or "(no clear speech recognized)"
     template = config.get("EMOTION_LLAMA_PROMPT", "") or ""
     signals = media_signals or {}
+    ui = ui_context or {}
+    risk = risk_result or {}
     signal_text = (
         f"\nSignal hints: audio_mean_db={signals.get('audio_mean_db', 'unknown')}, "
         f"audio_silent={signals.get('audio_silent', 'unknown')}, "
         f"motion_level={signals.get('motion_level', 'unknown')}."
     )
+    page_id = str(ui.get("page_id") or "unknown")
+    trigger_reasons = risk.get("trigger_reasons") if isinstance(risk.get("trigger_reasons"), list) else []
+    pos_context = (
+        "\n\nPOS context for evidence only:\n"
+        f"- Current POS page: {page_id}\n"
+        f"- On payment page: {str(page_id == 'payment_page').lower()}\n"
+        f"- On menu page: {str(page_id == 'menu_page').lower()}\n"
+        f"- On coupon page: {str(page_id == 'coupon_page').lower()}\n"
+        f"- Interaction risk score: {risk.get('risk_score', 'unknown')}\n"
+        f"- Trigger reasons: {', '.join(str(item) for item in trigger_reasons) or 'none'}\n"
+        f"- Interaction context: {(interaction_context or '').strip()[:800] or 'none'}\n"
+        "Instruction: do not make service decisions or recommend interventions. "
+        "Only provide emotional and behavioral evidence from visible behavior, voice tone, speech content, and POS context."
+    )
     if "{speech_text}" in template:
-        return template.replace("{speech_text}", speech) + signal_text
+        return template.replace("{speech_text}", speech) + signal_text + pos_context
     if "[reason]" in template or "[emotion]" in template:
-        return f"The person in video says: {speech}\n{template}{signal_text}"
+        return f"The person in video says: {speech}\n{template}{signal_text}{pos_context}"
     return (
         f"The person in video says: {speech}\n"
         "[reason] What are the facial expressions, body language, gestures, and vocal tone used in the video? "
         "What is the intended meaning behind the words? Which emotion does this reflect? "
         "If the audio is quiet or there are few words, use visible facial expressions, subtle gestures, posture, and body language."
         + signal_text
+        + pos_context
     )
 
 
@@ -378,10 +401,23 @@ def analyze_emotion_media_signals(video_path: str) -> dict:
     return _run_async_from_sync(async_analyze_emotion_media_signals(video_path))
 
 
-async def async_get_emotion_from_llama(video_path: str, speech_text: str = "", media_signals: dict | None = None) -> dict:
+async def async_get_emotion_from_llama(
+    video_path: str,
+    speech_text: str = "",
+    media_signals: dict | None = None,
+    interaction_context: str = "",
+    ui_context: dict | None = None,
+    risk_result: dict | None = None,
+) -> dict:
     prepared_path, cleanup_path = await async_prepare_emotion_video(video_path)
     try:
-        prompt = _build_emotion_llama_prompt(speech_text, media_signals)
+        prompt = _build_emotion_llama_prompt(
+            speech_text,
+            media_signals,
+            interaction_context=interaction_context,
+            ui_context=ui_context,
+            risk_result=risk_result,
+        )
         payload = {"data": [prepared_path, prompt]}
         base_url = config.EMOTION_LLAMA_GRADIO_URL.rstrip('/')
         for endpoint in [f"{base_url}/api/predict/", f"{base_url}/api/predict", f"{base_url}/run/predict"]:
@@ -425,8 +461,24 @@ async def async_get_emotion_from_llama(video_path: str, speech_text: str = "", m
                 pass
 
 
-def get_emotion_from_llama(video_path: str, speech_text: str = "", media_signals: dict | None = None) -> dict:
-    return _run_async_from_sync(async_get_emotion_from_llama(video_path, speech_text, media_signals))
+def get_emotion_from_llama(
+    video_path: str,
+    speech_text: str = "",
+    media_signals: dict | None = None,
+    interaction_context: str = "",
+    ui_context: dict | None = None,
+    risk_result: dict | None = None,
+) -> dict:
+    return _run_async_from_sync(
+        async_get_emotion_from_llama(
+            video_path,
+            speech_text,
+            media_signals,
+            interaction_context=interaction_context,
+            ui_context=ui_context,
+            risk_result=risk_result,
+        )
+    )
 
 def _load_yolo_detector():
     global _yolo_detector, _yolo_detector_key

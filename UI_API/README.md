@@ -60,7 +60,8 @@ UI_API/
 │   ├── customer_service_routes.py
 │   ├── recommendation_routes.py
 │   ├── emotion_routes.py
-│   └── interaction_routes.py
+│   ├── interaction_routes.py
+│   └── multimodal_routes.py
 ├── services/
 │   ├── customer_service.py
 │   ├── recommendation_service.py
@@ -68,7 +69,8 @@ UI_API/
 │   ├── voice_order_service.py
 │   ├── interaction_event_service.py
 │   ├── barrier_state_service.py
-│   └── intervention_service.py
+│   ├── intervention_service.py
+│   └── multimodal_evidence_service.py
 ├── repositories/
 │   ├── log_repository.py
 │   ├── menu_repository.py
@@ -360,6 +362,7 @@ rag:
 | `GET /api/interaction_events/{session_id}` | 取得該 session 的互動事件 |
 | `POST /api/interaction_risk` | 依最近事件重新計算互動障礙風險 |
 | `POST /api/barrier_state` | 融合事件、語音、情緒與 UI context，推論互動障礙狀態與介入動作 |
+| `POST /api/triggered_multimodal_analysis` | 事件觸發式多模態分析；整合短片段、Whisper、Emotion-LLaMA、POS context、barrier_state 與 intervention |
 | `POST /api/intervention_result` | 回寫服務介入後的付款、結帳或店員介入結果 |
 | `GET /api/intervention_logs/{session_id}` | 取得該 session 的服務介入紀錄 |
 | `GET /api/intervention_stats` | 統計介入成功率、障礙狀態分布、介入動作分布與常見卡關頁面 |
@@ -368,7 +371,7 @@ rag:
 
 ## 專利化技術流程
 
-本系統不是單純情緒辨識。Emotion-LLaMA 只是多模態訊號之一，核心流程是將 POS 操作行為轉換成可觸發、可執行、可回饋的服務介入策略。
+本系統不是單純情緒辨識。Emotion-LLaMA 不是專利核心，而是多模態證據來源之一；核心流程是將 POS 操作行為轉換成可觸發、可執行、可回饋的服務介入策略。
 
 流程如下：
 
@@ -379,6 +382,8 @@ rag:
 5. `Barrier State Engine` 將 `emotion_label` 與操作脈絡轉換為 `barrier_state`，例如付款卡關、操作困惑、優惠券卡關、等待不耐或需要真人協助。
 6. `Intervention Engine` 將 `barrier_state` 轉換為 `intervention_action`，例如付款教學、優惠券提示、簡化介面、熱門組合推薦或店員通知。
 7. `intervention_result` 會保存付款是否成功、結帳是否成功、是否通知店員與完成結帳時間，形成後續調整門檻與策略的回饋閉環。
+
+`/api/triggered_multimodal_analysis` 是事件觸發式多模態分析入口。前端或後端可在互動障礙風險達門檻後，送入短片段與 POS context；系統會建立 `multimodal_evidence`，再推論 `barrier_state` 與 `intervention_action`。此設計避免常態保存或分析影像，可降低持續影像分析成本與隱私風險。
 
 更完整的專利設計草稿請見 `PATENT_DESIGN.md`。
 

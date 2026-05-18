@@ -17,6 +17,7 @@ from routes import (
     recommendation_routes,
     voice_routes,
     monitor_routes,
+    multimodal_routes,
     interaction_routes,
 )
 
@@ -121,6 +122,7 @@ app.include_router(recommendation_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
 app.include_router(monitor_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
+app.include_router(multimodal_routes.create_router(_deps))
 
 
 if __name__ == "__main__":

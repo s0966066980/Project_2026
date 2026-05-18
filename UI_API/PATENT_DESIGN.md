@@ -34,6 +34,8 @@
 
 多模態推理結果不是單純情緒標籤，而是 `barrier_state`，例如付款卡關、優惠券卡關、操作困惑、菜單猶豫、等待不耐、需要真人協助或資訊不足。
 
+Emotion-LLaMA 在本系統中不是專利核心，而是證據產生器之一。其輸出會與 POS 操作事件、UI context、Whisper 語音文字、人物偵測與媒體訊號整合成 `multimodal_evidence`，再由 Barrier State Engine 轉換成互動障礙狀態。Emotion-LLaMA 不直接決定服務介入動作，介入動作由事件風險與障礙狀態共同決定。
+
 系統再根據 `barrier_state` 產生 `intervention_action`，例如：
 
 - 顯示付款教學。
@@ -146,3 +148,11 @@ intervention_feedback
 短片段可包含觸發前後的影像、語音、語音文字、人物偵測結果、動作幅度、音量訊號、當前 UI 頁面與 POS 操作事件。系統以該短片段推論 `barrier_state`，再產生對應的 `intervention_action`。
 
 若隱私設定禁止保存原始片段，系統仍可在記憶體中完成短片段分析，分析後只保存匿名化 metadata。若隱私設定允許保存原始片段，系統可在保留時間到期後自動清除原始檔，保留後續統計所需的事件向量與介入結果。
+
+## 9. 事件觸發式多模態分析 API 實施例
+
+在一實施例中，系統提供 `/api/triggered_multimodal_analysis`。該 API 僅在互動障礙風險達門檻後被呼叫，輸入包含短影片片段、互動風險結果、UI context 與 POS 操作摘要。系統先分析音量、動作與人物偵測，再進行 Whisper 語音辨識與 Emotion-LLaMA 證據擷取。
+
+Emotion-LLaMA prompt 會附帶目前 POS 頁面、風險分數、觸發原因與互動摘要，但明確限制模型不得做服務決策，只能提供情緒與行為證據。後續由 Barrier State Engine 與 Intervention Engine 產生 `barrier_state` 與 `intervention_action`。
+
+此 API 可在不持續分析所有影像的前提下，保留多模態判斷能力；若隱私設定不保存原始片段，系統只回傳或保存 `multimodal_evidence`、`barrier_state`、`intervention_action` 與 `intervention_result`，降低影像資料長期保存風險。
