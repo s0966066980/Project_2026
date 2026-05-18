@@ -43,37 +43,29 @@ def normalize_interaction_event(payload: dict) -> dict:
     return event
 
 
+def _max_field(events: list, field: str):
+    values = []
+    for event in events or []:
+        if not isinstance(event, dict):
+            continue
+        values.append(_as_float(event.get(field)) if field.endswith("_sec") else _as_int(event.get(field)))
+    return max(values) if values else 0
+
+
+def _latest_page_id(events: list, ui_context: dict | None):
+    context_page = str((ui_context or {}).get("page_id") or "")
+    if context_page:
+        return context_page
+    for event in reversed(events or []):
+        if isinstance(event, dict) and event.get("page_id"):
+            return str(event.get("page_id"))
+    return "unknown"
+
+
 def _event_score(event: dict) -> tuple[int, list[str]]:
     score = 0
     reasons = []
     event_type = str(event.get("event_type") or "")
-    page_id = str(event.get("page_id") or "")
-
-    payment_fail_count = _as_int(event.get("payment_fail_count"))
-    coupon_error_count = _as_int(event.get("coupon_error_count"))
-    back_count = _as_int(event.get("back_count"))
-    invalid_touch_count = _as_int(event.get("invalid_touch_count"))
-    dwell_time_sec = _as_float(event.get("dwell_time_sec"))
-    idle_time_sec = _as_float(event.get("idle_time_sec"))
-
-    if payment_fail_count >= 1:
-        score += 3
-        reasons.append("payment_fail_count >= 1")
-    if coupon_error_count >= 1:
-        score += 2
-        reasons.append("coupon_error_count >= 1")
-    if back_count >= 2:
-        score += 2
-        reasons.append("back_count >= 2")
-    if invalid_touch_count >= 3:
-        score += 1
-        reasons.append("invalid_touch_count >= 3")
-    if dwell_time_sec > 30:
-        score += 2
-        reasons.append("dwell_time_sec > 30")
-    if idle_time_sec > 20:
-        score += 1
-        reasons.append("idle_time_sec > 20")
 
     if event_type == "payment_failed":
         score += 3
@@ -84,33 +76,70 @@ def _event_score(event: dict) -> tuple[int, list[str]]:
     elif event_type == "invalid_touch":
         score += 1
         reasons.append("event_type=invalid_touch")
-
-    if page_id == "payment_page" and dwell_time_sec > 25:
-        score += 2
-        reasons.append("payment_page dwell_time_sec > 25")
-    if page_id == "checkout_page" and back_count >= 1:
+    elif event_type == "checkout_error":
+        score += 3
+        reasons.append("event_type=checkout_error")
+    elif event_type == "voice_order_failed":
         score += 1
-        reasons.append("checkout_page back_count >= 1")
+        reasons.append("event_type=voice_order_failed")
+    elif event_type == "customer_service_failed":
+        score += 1
+        reasons.append("event_type=customer_service_failed")
 
     return score, reasons
 
 
 def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> dict:
-    safe_events = events if isinstance(events, list) else []
+    safe_events = [event for event in (events if isinstance(events, list) else []) if isinstance(event, dict)]
     threshold = _as_int(config.get("INTERACTION_TRIGGER_THRESHOLD", 5), 5)
     total_score = 0
     reasons = []
     seen = set()
 
+    def add_reason(reason: str):
+        if reason not in seen:
+            seen.add(reason)
+            reasons.append(reason)
+
     for event in safe_events:
-        if not isinstance(event, dict):
-            continue
         score, event_reasons = _event_score(event)
         total_score += score
         for reason in event_reasons:
-            if reason not in seen:
-                seen.add(reason)
-                reasons.append(reason)
+            add_reason(reason)
+
+    max_payment_fail_count = _max_field(safe_events, "payment_fail_count")
+    max_coupon_error_count = _max_field(safe_events, "coupon_error_count")
+    max_back_count = _max_field(safe_events, "back_count")
+    max_invalid_touch_count = _max_field(safe_events, "invalid_touch_count")
+    max_dwell_time_sec = _max_field(safe_events, "dwell_time_sec")
+    max_idle_time_sec = _max_field(safe_events, "idle_time_sec")
+    latest_page_id = _latest_page_id(safe_events, ui_context)
+
+    if max_payment_fail_count >= 1:
+        total_score += 3
+        add_reason("max_payment_fail_count >= 1")
+    if max_coupon_error_count >= 1:
+        total_score += 2
+        add_reason("max_coupon_error_count >= 1")
+    if max_back_count >= 2:
+        total_score += 2
+        add_reason("max_back_count >= 2")
+    if max_invalid_touch_count >= 3:
+        total_score += 1
+        add_reason("max_invalid_touch_count >= 3")
+    if max_dwell_time_sec > 30:
+        total_score += 2
+        add_reason("max_dwell_time_sec > 30")
+    if max_idle_time_sec > 20:
+        total_score += 1
+        add_reason("max_idle_time_sec > 20")
+
+    if latest_page_id == "payment_page" and max_dwell_time_sec > 25:
+        total_score += 2
+        add_reason("latest_page_id=payment_page and max_dwell_time_sec > 25")
+    if latest_page_id == "checkout_page" and max_back_count >= 1:
+        total_score += 1
+        add_reason("latest_page_id=checkout_page and max_back_count >= 1")
 
     risk_result = {
         "risk_score": total_score,
