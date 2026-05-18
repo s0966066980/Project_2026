@@ -45,6 +45,37 @@ def _save_clip_index(session_id: str, clips: list):
         json.dump(clips, f, ensure_ascii=False, indent=2)
 
 
+def _clip_created_ts(clip: dict) -> float:
+    try:
+        return time.mktime(time.strptime(str(clip.get("created_at", "")), "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        return 0.0
+
+
+def _cleanup_expired_raw_clips(session_id: str, clips: list) -> list:
+    retention_min = float(config.get("PRIVACY_RAW_CLIP_RETENTION_MINUTES", 10) or 10)
+    if retention_min <= 0:
+        return clips
+    now = time.time()
+    clip_dir = emotion_clip_dir(session_id)
+    for clip in clips:
+        if not isinstance(clip, dict) or not clip.get("raw_clip_saved"):
+            continue
+        created_ts = _clip_created_ts(clip)
+        if not created_ts or now - created_ts <= retention_min * 60:
+            continue
+        old_path = os.path.join(clip_dir, safe_clip_id(clip.get("clip_id", "")))
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+        clip["raw_clip_saved"] = False
+        clip["raw_clip_expired"] = True
+        clip["url"] = ""
+    return clips
+
+
 def save_clip(
     session_id: str,
     source_video_path: str,
@@ -63,11 +94,14 @@ def save_clip(
     stamp = int(time.time() * 1000)
     clip_id = f"{stamp}_{secrets.token_hex(4)}.webm"
     dest_path = os.path.join(clip_dir, clip_id)
-    try:
-        shutil.copyfile(source_video_path, dest_path)
-    except Exception as e:
-        print(f"⚠️ 情緒影片片段保存失敗: {e}")
-        return None
+    save_raw_clip = bool(config.get("PRIVACY_SAVE_RAW_CLIP", False))
+    raw_clip_saved = False
+    if save_raw_clip:
+        try:
+            shutil.copyfile(source_video_path, dest_path)
+            raw_clip_saved = True
+        except Exception as e:
+            print(f"⚠️ 情緒影片片段保存失敗，改為只保存分析 metadata: {e}")
 
     clip = {
         "clip_id": clip_id,
@@ -87,9 +121,12 @@ def save_clip(
         "frames_checked": int((person_check or {}).get("frames_checked") or 0),
         "detector": (person_check or {}).get("detector", ""),
         "boxes": (person_check or {}).get("boxes", []),
-        "url": f"/api/emotion_clips/{safe_session}/media/{clip_id}",
+        "raw_clip_saved": raw_clip_saved,
+        "raw_clip_retention_minutes": config.get("PRIVACY_RAW_CLIP_RETENTION_MINUTES", 10),
+        "event_vector_only": bool(config.get("PRIVACY_STORE_EVENT_VECTOR_ONLY", True)),
+        "url": f"/api/emotion_clips/{safe_session}/media/{clip_id}" if raw_clip_saved else "",
     }
-    clips = load_clip_index(safe_session)
+    clips = _cleanup_expired_raw_clips(safe_session, load_clip_index(safe_session))
     clips.append(clip)
     max_clips = max(1, int(config.get("EMOTION_CLIP_MAX_PER_SESSION", 30)))
     while len(clips) > max_clips:

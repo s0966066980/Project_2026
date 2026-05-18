@@ -57,9 +57,38 @@ def _parse_event_ts(row: dict) -> float:
         return 0.0
 
 
+def _as_number(value, default=0):
+    try:
+        return int(float(value or default))
+    except Exception:
+        return default
+
+
+def _privacy_event_vector(record: dict) -> dict:
+    if not config.get("PRIVACY_STORE_EVENT_VECTOR_ONLY", True):
+        return record
+    return {
+        "session_id": str(record.get("session_id") or "unknown"),
+        "page_id": str(record.get("page_id") or "unknown"),
+        "event_type": str(record.get("event_type") or "unknown"),
+        "button_id": "",
+        "dwell_time_sec": _as_number(record.get("dwell_time_sec")),
+        "back_count": _as_number(record.get("back_count")),
+        "invalid_touch_count": _as_number(record.get("invalid_touch_count")),
+        "payment_fail_count": _as_number(record.get("payment_fail_count")),
+        "coupon_error_count": _as_number(record.get("coupon_error_count")),
+        "cart_edit_count": _as_number(record.get("cart_edit_count")),
+        "idle_time_sec": _as_number(record.get("idle_time_sec")),
+        "metadata": {},
+        "ui_context": {
+            "page_id": str((record.get("ui_context") or {}).get("page_id") or record.get("page_id") or "unknown")
+        },
+    }
+
+
 def append_interaction_event(event: dict) -> dict:
     rows = _read_list(INTERACTION_EVENTS_PATH)
-    record = dict(event or {})
+    record = _privacy_event_vector(dict(event or {}))
     session_id = str(record.get("session_id") or "unknown")
     ts_ms = _timestamp_ms()
     record.setdefault("timestamp", _now_iso())

@@ -1,5 +1,5 @@
-import * as api from './api.js?v=intervention-dashboard-20260518';
-import { API_BASE } from './api.js?v=intervention-dashboard-20260518';
+import * as api from './api.js?v=privacy-20260518';
+import { API_BASE } from './api.js?v=privacy-20260518';
 import {
   ui,
   escapeHTML,
@@ -7,15 +7,15 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=intervention-dashboard-20260518';
+} from './ui.js?v=privacy-20260518';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=intervention-dashboard-20260518';
-import { createCartManager } from './cart.js?v=intervention-dashboard-20260518';
-import { createRecommendationManager } from './recommendation.js?v=intervention-dashboard-20260518';
+} from './media.js?v=privacy-20260518';
+import { createCartManager } from './cart.js?v=privacy-20260518';
+import { createRecommendationManager } from './recommendation.js?v=privacy-20260518';
 
 // =========================================================
 // Controller 狀態
@@ -1427,15 +1427,21 @@ async function loadEmotionClips() {
     [...clips].reverse().forEach((clip, idx) => {
       const item = document.createElement('div');
       item.className = 'emotion-clip-item';
-      const url = `${API_BASE}${clip.url}`;
+      const url = clip.url ? `${API_BASE}${clip.url}` : '';
       const personLabel = clip.person_detected ? '偵測到人物' : '未偵測到人物';
       const hitCount = clip.person_hits ?? clip.face_hits ?? 0;
       const signals = clip.media_signals || {};
       const signalText = signals.motion_level
         ? `音量 ${signals.audio_mean_db ?? '-'} dB / 動作 ${signals.motion_level}`
         : '';
+      const mediaHtml = url
+        ? `<video controls muted playsinline preload="metadata" src="${escapeHTML(url)}"></video>`
+        : `<div class="clip-media-placeholder">
+            <i class="fas fa-shield-alt"></i>
+            <span>已依隱私設定只保存分析資料</span>
+          </div>`;
       item.innerHTML = `
-        <video controls muted playsinline preload="metadata" src="${escapeHTML(url)}"></video>
+        ${mediaHtml}
         <div class="clip-meta">
           <div class="font-bold" style="color:var(--text)">片段 ${clips.length - idx}</div>
           <div style="color:var(--text2)">${escapeHTML(new Date(clip.created_at).toLocaleString())}</div>
@@ -1448,6 +1454,7 @@ async function loadEmotionClips() {
             <span>${escapeHTML(personLabel)}</span>
             <span>${escapeHTML(clip.detector || 'detector')}</span>
             <span>person ${escapeHTML(hitCount)} / ${escapeHTML(clip.frames_checked ?? 0)}</span>
+            ${clip.raw_clip_saved ? '<span>raw saved</span>' : '<span>metadata only</span>'}
           </div>
         </div>`;
       box.appendChild(item);

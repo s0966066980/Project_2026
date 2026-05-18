@@ -210,6 +210,20 @@ http://127.0.0.1:8000
 
 當顧客完成 `/api/checkout` 時，系統會自動尋找該 session 最近一筆尚未完成的 intervention，回寫 `checkout_success`、`payment_success`、`time_to_checkout_sec` 與 `resolved_by_checkout`。這讓「偵測 → 介入 → 成效回饋」形成閉環，後台統計可以直接反映介入後是否完成付款與結帳。
 
+### 隱私與低算力策略
+
+本系統採用低算力、低隱私風險、事件觸發式短片段分析架構。平時只保存 POS 操作事件、頁面狀態與互動統計，不持續保存顧客原始影像。
+
+只有當 `INTERACTION_TRIGGER_THRESHOLD` 達到門檻時，系統才會把短時間事件脈絡、語音文字、Emotion-LLaMA 結構化分析與 UI context 組合成 `barrier_state`。短片段分析可用 `INTERACTION_PRE_EVENT_BUFFER_SEC` 與 `INTERACTION_POST_EVENT_BUFFER_SEC` 描述觸發前後的事件窗口，避免長時間連續分析。
+
+隱私相關設定：
+
+- `PRIVACY_SAVE_RAW_CLIP=false`：預設不保存原始情緒影像片段，只保存分析 metadata。
+- `PRIVACY_RAW_CLIP_RETENTION_MINUTES=10`：若開啟原始片段保存，原始檔可按保留時間清理。
+- `PRIVACY_STORE_EVENT_VECTOR_ONLY=true`：可只保留匿名化事件向量、`barrier_state` 與 `intervention_result`，降低個資與影像保存風險。
+
+既有 emotion clip 功能仍保留；若需要後台播放原始片段，可在設定中開啟 `PRIVACY_SAVE_RAW_CLIP=true`。
+
 ### AI 推播
 
 - 推播只顯示 Ollama 最終給客人的自然描述。
