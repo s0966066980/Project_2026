@@ -1,0 +1,23 @@
+[
+    {
+        "timestamp": "2026-04-21 15:11:44",
+        "source": "Video Upload",
+        "description": "the woman's facial expression, which is a mixture of surprise and fear, suggests that she has been startled or caught off guard by something, possibly the sudden appearance of a man in her office",
+        "dfew_category": "Surprise",
+        "emollm_advice": "(EmoLLM API 未啟動或連線失敗，使用備用規則)"
+    },
+    {
+        "timestamp": "2026-04-21 15:12:26",
+        "source": "Video Upload",
+        "description": "the woman in the image is depicted with a neutral expression, her eyes are downcast and her mouth is slightly open, giving off an impression of a serious or contemplative mood her facial features are not particularly expressive, which suggests that she may be feeling a sense of calmness or introspection",
+        "dfew_category": "Neutral",
+        "emollm_advice": "(EmoLLM API 未啟動或連線失敗，使用備用規則)"
+    },
+    {
+        "timestamp": "2026-04-21 15:12:37",
+        "source": "Video Upload",
+        "description": "in the video, a woman is sitting on a couch, looking directly at the camera with a neutral expression her eyes are focused on the camera, and her mouth is slightly open, giving an impression of being engaged in conversation the tone of her voice is calm and measured, as if she is reciting a poem or sharing a personal story the content of her speech appears to be a personal reflection, possibly about her life experiences or emotions",
+        "dfew_category": "Neutral",
+        "emollm_advice": "(EmoLLM API 未啟動或連線失敗，使用備用規則)"
+    }
+]

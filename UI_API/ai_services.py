@@ -1,0 +1,997 @@
+import os
+import asyncio
+import requests
+import json
+import re
+import tempfile
+import base64
+import math
+import time
+import wave
+from collections import OrderedDict
+import edge_tts
+import whisper
+
+import config
+
+try:
+    from google import genai
+except Exception:
+    genai = None
+
+os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "quiet")
+
+whisper_model = None
+_tts_cache = OrderedDict()
+_TTS_CACHE_LIMIT = 64
+_yolo_detector = None
+_yolo_detector_key = None
+_gemini_client = None
+_gemini_cooldown_until = 0.0
+_gemini_last_error = ""
+
+
+class _suppress_native_stderr:
+    """Temporarily silence native FFmpeg/OpenCV stderr noise from malformed WebM chunks."""
+    def __enter__(self):
+        self._saved_fd = None
+        self._devnull_fd = None
+        try:
+            self._saved_fd = os.dup(2)
+            self._devnull_fd = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(self._devnull_fd, 2)
+        except OSError:
+            self._cleanup()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if self._saved_fd is not None:
+                os.dup2(self._saved_fd, 2)
+        except OSError:
+            pass
+        self._cleanup()
+
+    def _cleanup(self):
+        for fd_name in ("_saved_fd", "_devnull_fd"):
+            fd = getattr(self, fd_name, None)
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                setattr(self, fd_name, None)
+
+
+async def _run_process(args: list[str], timeout: float | None = None, capture_stderr: bool = False) -> str:
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE if capture_stderr else asyncio.subprocess.DEVNULL
+    )
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        raise RuntimeError(f"process timeout: {' '.join(args[:2])}")
+    if proc.returncode != 0:
+        detail = (stderr or b"").decode("utf-8", errors="ignore")[-600:] if capture_stderr else ""
+        raise RuntimeError(f"process failed ({proc.returncode}): {' '.join(args[:2])} {detail}".strip())
+    return (stderr or b"").decode("utf-8", errors="ignore") if capture_stderr else ""
+
+
+async def _convert_media_to_wav(file_path: str, wav_path: str):
+    await _run_process([
+        "ffmpeg", "-y", "-i", file_path,
+        "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav_path
+    ])
+
+
+def _is_empty_audio_error(error: Exception) -> bool:
+    text = str(error or "").lower()
+    return "0 elements" in text or "cannot reshape tensor" in text
+
+
+def _wav_duration_seconds(path: str) -> float:
+    try:
+        with wave.open(path, "rb") as wav_file:
+            frame_count = wav_file.getnframes()
+            frame_rate = wav_file.getframerate() or 0
+            if frame_count <= 0 or frame_rate <= 0:
+                return 0.0
+            return frame_count / float(frame_rate)
+    except Exception:
+        return 0.0
+
+
+def _wav_has_enough_audio(path: str, min_duration: float = 0.2) -> bool:
+    if not path or not os.path.exists(path):
+        return False
+    return _wav_duration_seconds(path) >= min_duration
+
+
+def _run_async_from_sync(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    coro.close()
+    raise RuntimeError("This ai_services function is async-capable; call the async_* version inside an event loop.")
+
+
+def _read_binary_file(path: str) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
+
+def _resolve_local_path(path: str) -> str:
+    if os.path.isabs(path or ""):
+        return path
+    candidates = [
+        os.path.abspath(path or ""),
+        os.path.join(os.path.dirname(__file__), path or "")
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[-1]
+
+def _normalize_language(raw_language: str = "", text: str = "") -> str:
+    """將 Whisper 語言偵測壓成產品只支援的 zh / en。"""
+    raw = (raw_language or "").lower()
+    cjk_count = len(re.findall(r"[\u4e00-\u9fff]", text or ""))
+    latin_count = len(re.findall(r"[A-Za-z]", text or ""))
+
+    if raw.startswith("en"):
+        return "en"
+    if raw.startswith(("zh", "cn", "yue")) or cjk_count > 0:
+        return "zh"
+    if latin_count > cjk_count:
+        return "en"
+    return "zh"
+
+def init_whisper():
+    global whisper_model
+    if whisper_model is None:
+        model_size = config.get("WHISPER_MODEL_SIZE", "base")
+        print(f"載入 Whisper ({model_size}) 模型中...")
+        try:
+            whisper_model = whisper.load_model(model_size)
+        except Exception as e:
+            print(f"Whisper 模型載入失敗: {e}")
+            whisper_model = None
+
+
+def init_yolo_detector():
+    model, error = _load_yolo_detector()
+    if model is None:
+        print(f"YOLO 模型預載略過: {error}")
+        return False
+    return True
+
+
+def init_gemini_client():
+    if not config.GEMINI_API_KEY:
+        print("Gemini client 預載略過: 未設定 GEMINI_API_KEY / GOOGLE_API_KEY")
+        return False
+    _get_gemini_client()
+    return True
+
+
+async def async_safe_transcribe(file_path: str) -> str:
+    init_whisper()
+    if not whisper_model:
+        return ""
+    wav_path = file_path + "_safe.wav"
+    try:
+        await _convert_media_to_wav(file_path, wav_path)
+        if not _wav_has_enough_audio(wav_path):
+            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+            return ""
+        result = await asyncio.to_thread(whisper_model.transcribe, wav_path)
+        return result["text"]
+    except Exception as e:
+        if _is_empty_audio_error(e):
+            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+            return ""
+        print(f"⚠️ 音訊重組失敗，嘗試直接辨識: {e}")
+        try:
+            return (await asyncio.to_thread(whisper_model.transcribe, file_path))["text"]
+        except Exception as e2:
+            if _is_empty_audio_error(e2):
+                print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+                return ""
+            print(f"⚠️ 直接辨識也失敗: {e2}")
+            return ""
+    finally:
+        if os.path.exists(wav_path):
+            await asyncio.to_thread(os.remove, wav_path)
+
+
+def safe_transcribe(file_path: str) -> str:
+    return _run_async_from_sync(async_safe_transcribe(file_path))
+
+
+async def async_safe_transcribe_with_language(file_path: str) -> dict:
+    """辨識語音並偵測語言，回傳產品支援的 {text, language}，language 只會是 zh 或 en。"""
+    init_whisper()
+    if not whisper_model:
+        return {"text": "", "language": "zh", "raw_language": ""}
+    wav_path = file_path + "_safe.wav"
+    try:
+        await _convert_media_to_wav(file_path, wav_path)
+        if not _wav_has_enough_audio(wav_path):
+            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+            return {"text": "", "language": "zh", "raw_language": ""}
+        result = await asyncio.to_thread(whisper_model.transcribe, wav_path, task="transcribe")
+        text = (result.get("text") or "").strip()
+        raw_lang = result.get("language", "")
+        lang = _normalize_language(raw_lang, text)
+        return {"text": text, "language": lang, "raw_language": raw_lang}
+    except Exception as e:
+        if _is_empty_audio_error(e):
+            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+            return {"text": "", "language": "zh", "raw_language": ""}
+        print(f"⚠️ 語音辨識失敗: {e}")
+        try:
+            result = await asyncio.to_thread(whisper_model.transcribe, file_path, task="transcribe")
+            text = (result.get("text") or "").strip()
+            raw_lang = result.get("language", "")
+            return {"text": text, "language": _normalize_language(raw_lang, text), "raw_language": raw_lang}
+        except Exception as e2:
+            if _is_empty_audio_error(e2):
+                print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+                return {"text": "", "language": "zh", "raw_language": ""}
+            print(f"⚠️ 直接辨識也失敗: {e2}")
+            return {"text": "", "language": "zh", "raw_language": ""}
+    finally:
+        if os.path.exists(wav_path):
+            await asyncio.to_thread(os.remove, wav_path)
+
+
+def safe_transcribe_with_language(file_path: str) -> dict:
+    return _run_async_from_sync(async_safe_transcribe_with_language(file_path))
+
+def _build_emotion_llama_prompt(speech_text: str = "", media_signals: dict | None = None) -> str:
+    speech = (speech_text or "").strip() or "(no clear speech recognized)"
+    template = config.get("EMOTION_LLAMA_PROMPT", "") or ""
+    signals = media_signals or {}
+    signal_text = (
+        f"\nSignal hints: audio_mean_db={signals.get('audio_mean_db', 'unknown')}, "
+        f"audio_silent={signals.get('audio_silent', 'unknown')}, "
+        f"motion_level={signals.get('motion_level', 'unknown')}."
+    )
+    if "{speech_text}" in template:
+        return template.replace("{speech_text}", speech) + signal_text
+    if "[reason]" in template or "[emotion]" in template:
+        return f"The person in video says: {speech}\n{template}{signal_text}"
+    return (
+        f"The person in video says: {speech}\n"
+        "[reason] What are the facial expressions, body language, gestures, and vocal tone used in the video? "
+        "What is the intended meaning behind the words? Which emotion does this reflect? "
+        "If the audio is quiet or there are few words, use visible facial expressions, subtle gestures, posture, and body language."
+        + signal_text
+    )
+
+
+async def async_prepare_emotion_video(video_path: str) -> tuple[str, str | None]:
+    if not config.get("EMOTION_LLAMA_PREPROCESS_VIDEO", True):
+        return video_path, None
+    if not video_path or not os.path.exists(video_path):
+        return video_path, None
+    fd, output_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    max_sec = max(1, int(config.get("EMOTION_LLAMA_MAX_VIDEO_SEC", 12)))
+    try:
+        await _run_process(
+            [
+                "ffmpeg", "-y", "-i", video_path, "-t", str(max_sec),
+                "-vf", "fps=8,scale=640:-2:force_original_aspect_ratio=decrease",
+                "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-ar", "16000", "-ac", "1",
+                output_path
+            ]
+        )
+        return output_path, output_path
+    except Exception as e:
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
+        print(f"⚠️ Emotion-LLaMA 影片轉 MP4 失敗，改用原始檔: {e}")
+        return video_path, None
+
+
+def _prepare_emotion_video(video_path: str) -> tuple[str, str | None]:
+    return _run_async_from_sync(async_prepare_emotion_video(video_path))
+
+
+def _measure_motion_signals(video_path: str, signals: dict) -> dict:
+    try:
+        import cv2
+        with _suppress_native_stderr():
+            cap = cv2.VideoCapture(video_path)
+            if cap.isOpened():
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                fps = float(cap.get(cv2.CAP_PROP_FPS) or 0)
+                if frame_count and fps:
+                    signals["duration_sec"] = round(frame_count / fps, 2)
+                positions = list(range(0, frame_count, max(1, frame_count // 8)))[:8] if frame_count > 0 else list(range(8))
+                prev = None
+                diffs = []
+                for pos in positions:
+                    if frame_count > 0:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+                    ok, frame = cap.read()
+                    if not ok or frame is None:
+                        continue
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    gray = cv2.resize(gray, (160, 90))
+                    if prev is not None:
+                        diffs.append(float(cv2.absdiff(prev, gray).mean()) / 255.0)
+                    prev = gray
+                cap.release()
+                score = sum(diffs) / len(diffs) if diffs else 0.0
+                signals["motion_score"] = round(score, 4)
+                if score < 0.004:
+                    signals["motion_level"] = "very_low"
+                elif score < 0.015:
+                    signals["motion_level"] = "subtle"
+                elif score < 0.04:
+                    signals["motion_level"] = "moderate"
+                else:
+                    signals["motion_level"] = "active"
+    except Exception:
+        pass
+    return signals
+
+
+async def async_analyze_emotion_media_signals(video_path: str) -> dict:
+    signals = {
+        "duration_sec": None,
+        "audio_mean_db": None,
+        "audio_silent": True,
+        "motion_score": 0.0,
+        "motion_level": "unknown"
+    }
+    if not video_path or not os.path.exists(video_path):
+        return signals | {"reason": "video_missing"}
+
+    try:
+        stderr = await _run_process(
+            ["ffmpeg", "-hide_banner", "-i", video_path, "-af", "volumedetect", "-vn", "-sn", "-dn", "-f", "null", os.devnull],
+            timeout=8,
+            capture_stderr=True
+        )
+        match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", stderr or "")
+        if match:
+            mean_db = float(match.group(1))
+            signals["audio_mean_db"] = mean_db
+            signals["audio_silent"] = mean_db < float(config.get("EMOTION_LOW_AUDIO_DB", -45))
+    except Exception:
+        pass
+
+    return await asyncio.to_thread(_measure_motion_signals, video_path, signals)
+
+
+def analyze_emotion_media_signals(video_path: str) -> dict:
+    return _run_async_from_sync(async_analyze_emotion_media_signals(video_path))
+
+
+async def async_get_emotion_from_llama(video_path: str, speech_text: str = "", media_signals: dict | None = None) -> dict:
+    prepared_path, cleanup_path = await async_prepare_emotion_video(video_path)
+    try:
+        prompt = _build_emotion_llama_prompt(speech_text, media_signals)
+        payload = {"data": [prepared_path, prompt]}
+        base_url = config.EMOTION_LLAMA_GRADIO_URL.rstrip('/')
+        for endpoint in [f"{base_url}/api/predict/", f"{base_url}/api/predict", f"{base_url}/run/predict"]:
+            try:
+                response = await asyncio.to_thread(
+                    requests.post, endpoint, json=payload, timeout=config.EMOTION_LLAMA_TIMEOUT
+                )
+                if response.status_code == 200:
+                    break
+            except requests.RequestException:
+                continue
+        else:
+            return {
+                "emotion_raw": "Emotion-LLaMA 未執行",
+                "emotion_available": False,
+                "emotion_error": "connection_failed",
+            }
+
+        response.raise_for_status()
+        res_data = response.json()
+        if "data" not in res_data and "event_id" in res_data:
+            return {"emotion_raw": "排隊中(請關閉Gradio Queue)"}
+        emotion_text = res_data.get("data", ["無法解析"])[0]
+        if isinstance(emotion_text, str):
+            for tag in ["<s>", "</s>", "[INST]", "[/INST]"]:
+                emotion_text = emotion_text.replace(tag, "")
+            emotion_text = emotion_text.strip()
+        return {"emotion_raw": emotion_text, "emotion_prompt": prompt, "prepared_video": prepared_path}
+    except Exception as e:
+        print(f"⚠️ Emotion-LLaMA 呼叫失敗: {e}")
+        return {
+            "emotion_raw": "Emotion-LLaMA 未執行",
+            "emotion_available": False,
+            "emotion_error": str(e),
+        }
+    finally:
+        if cleanup_path:
+            try:
+                await asyncio.to_thread(os.remove, cleanup_path)
+            except OSError:
+                pass
+
+
+def get_emotion_from_llama(video_path: str, speech_text: str = "", media_signals: dict | None = None) -> dict:
+    return _run_async_from_sync(async_get_emotion_from_llama(video_path, speech_text, media_signals))
+
+def _load_yolo_detector():
+    global _yolo_detector, _yolo_detector_key
+    try:
+        from ultralytics import YOLO
+    except Exception as e:
+        return None, f"ultralytics_unavailable:{e}"
+
+    model_path = _resolve_local_path(config.get("YOLO_MODEL_PATH", "./models/yolo/yolo11n.pt"))
+    key = (model_path,)
+    if _yolo_detector is not None and _yolo_detector_key == key:
+        return _yolo_detector, ""
+
+    if not os.path.exists(model_path):
+        return None, f"yolo_model_missing:{model_path}"
+
+    try:
+        model = YOLO(model_path)
+        _yolo_detector = model
+        _yolo_detector_key = key
+        return model, ""
+    except Exception as e:
+        _yolo_detector = None
+        _yolo_detector_key = None
+        return None, f"yolo_load_failed:{e}"
+
+def _detect_people_in_frame(frame) -> dict:
+    try:
+        import cv2  # noqa: F401
+    except Exception as e:
+        return {
+            "available": False,
+            "person_detected": None,
+            "reason": f"opencv_unavailable:{e}",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+
+    model, load_error = _load_yolo_detector()
+    if model is None:
+        return {
+            "available": False,
+            "person_detected": None,
+            "reason": load_error or "yolo_unavailable",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+    if frame is None:
+        return {
+            "available": True,
+            "person_detected": False,
+            "reason": "frame_empty",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+
+    height, width = frame.shape[:2]
+    conf_threshold = float(config.get("YOLO_CONFIDENCE_THRESHOLD", 0.35))
+    nms_threshold = float(config.get("YOLO_NMS_THRESHOLD", 0.4))
+    results = model.predict(
+        source=frame,
+        imgsz=320,
+        conf=conf_threshold,
+        iou=nms_threshold,
+        classes=[0],
+        verbose=False
+    )
+    boxes = []
+    if results:
+        result = results[0]
+        if result.boxes is not None:
+            for xyxy, conf in zip(result.boxes.xyxy, result.boxes.conf):
+                x1, y1, x2, y2 = [float(v) for v in xyxy.tolist()]
+                x1 = max(0.0, min(x1, width - 1))
+                y1 = max(0.0, min(y1, height - 1))
+                x2 = max(x1 + 1.0, min(x2, width))
+                y2 = max(y1 + 1.0, min(y2, height))
+                boxes.append({
+                    "label": "person",
+                    "confidence": round(float(conf), 3),
+                    "x": round(x1 / width, 4),
+                    "y": round(y1 / height, 4),
+                    "w": round((x2 - x1) / width, 4),
+                    "h": round((y2 - y1) / height, 4)
+                })
+    boxes.sort(key=lambda item: item["confidence"], reverse=True)
+    return {
+        "available": True,
+        "person_detected": bool(boxes),
+        "frames_checked": 1,
+        "person_hits": 1 if boxes else 0,
+        "face_hits": 1 if boxes else 0,
+        "boxes": boxes[:3],
+        "detector": "yolo11n",
+        "reason": "ok"
+    }
+
+def detect_person_in_image_bytes(image_bytes: bytes) -> dict:
+    try:
+        import cv2
+        import numpy as np
+    except Exception as e:
+        return {
+            "available": False,
+            "person_detected": None,
+            "reason": f"opencv_unavailable:{e}",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+    if not image_bytes:
+        return {
+            "available": True,
+            "person_detected": False,
+            "reason": "image_empty",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+    arr = np.frombuffer(image_bytes, dtype=np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    return _detect_people_in_frame(frame)
+
+
+def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: int = 1) -> dict:
+    """
+    用 Ultralytics YOLO11 nano 判斷畫面中是否有 person。
+    只用來擋掉空畫面/無人畫面；若模型不可用，回報 unavailable 並讓主流程降級繼續。
+    """
+    try:
+        import cv2
+    except Exception as e:
+        return {
+            "available": False,
+            "person_detected": None,
+            "reason": f"opencv_unavailable:{e}"
+        }
+
+    model, load_error = _load_yolo_detector()
+    if model is None:
+        return {
+            "available": False,
+            "person_detected": None,
+            "reason": load_error or "yolo_unavailable",
+            "detector": "yolo11n",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": []
+        }
+
+    if not video_path or not os.path.exists(video_path):
+        return {
+            "available": True,
+            "person_detected": False,
+            "reason": "video_missing",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": [],
+            "detector": "yolo11n"
+        }
+
+    with _suppress_native_stderr():
+        cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return {
+            "available": True,
+            "person_detected": False,
+            "reason": "video_unreadable",
+            "frames_checked": 0,
+            "person_hits": 0,
+            "face_hits": 0,
+            "boxes": [],
+            "detector": "yolo11n"
+        }
+
+    try:
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if frame_count <= 0:
+            positions = list(range(max_frames))
+        else:
+            step = max(1, frame_count // max_frames)
+            positions = list(range(0, frame_count, step))[:max_frames]
+
+        person_hits = 0
+        frames_checked = 0
+        best_boxes = []
+        for pos in positions:
+            if frame_count > 0:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+            with _suppress_native_stderr():
+                ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+
+            frames_checked += 1
+            frame_result = _detect_people_in_frame(frame)
+            frame_boxes = frame_result.get("boxes", [])
+            if frame_boxes:
+                person_hits += 1
+                if not best_boxes or max(b["confidence"] for b in frame_boxes) > max(b["confidence"] for b in best_boxes):
+                    best_boxes = frame_boxes
+                if person_hits >= max(1, int(min_face_hits)):
+                    break
+
+        return {
+            "available": True,
+            "person_detected": person_hits >= max(1, int(min_face_hits)),
+            "frames_checked": frames_checked,
+            "person_hits": person_hits,
+            "face_hits": person_hits,
+            "boxes": best_boxes,
+            "detector": "yolo11n",
+            "reason": "ok" if frames_checked else "no_readable_frames"
+        }
+    finally:
+        cap.release()
+
+
+def _repair_and_extract_json(content: str) -> dict | None:
+    """
+    強健 JSON 擷取器：
+    1. 先嘗試直接 parse（最快）
+    2. 剝 markdown fence
+    3. 括號深度追蹤（處理欄位內含引號）
+    4. ★ 新增：自動補上缺失的結尾 }（處理 Ollama 截斷問題）
+    """
+    if not content or not isinstance(content, str):
+        return None
+
+    # Step 1: 直接 parse
+    try:
+        return json.loads(content.strip())
+    except json.JSONDecodeError:
+        pass
+
+    # Step 2: markdown fence
+    fence = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
+    if fence:
+        try:
+            return json.loads(fence.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Step 3: 括號深度追蹤
+    start = content.find('{')
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+    end_idx = -1
+
+    for i, ch in enumerate(content[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                end_idx = i
+                break
+
+    if end_idx != -1:
+        candidate = content[start:end_idx + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    # Step 4: ★ 修復截斷 JSON（補上缺失的 "} 組合）
+    # 場景：Ollama 輸出被截斷，最後一個字串欄位沒有結尾引號和 }
+    if start != -1:
+        fragment = content[start:]
+        # 計算還缺幾個 }
+        open_count = fragment.count('{')
+        close_count = fragment.count('}')
+        missing = open_count - close_count
+
+        if 0 < missing <= 3:
+            # 如果最後一個字元不是引號，先補引號再補括號
+            stripped = fragment.rstrip()
+            if stripped and stripped[-1] not in ('}', '"', ']'):
+                stripped += '"'
+            repaired = stripped + ('}' * missing)
+            try:
+                result = json.loads(repaired)
+                print(f"🔧 JSON 自動修復成功（補了 {missing} 個括號）")
+                return result
+            except json.JSONDecodeError:
+                pass
+
+    print(f"⚠️ 找不到 JSON，Ollama 原始輸出:\n{content}")
+    return None
+
+
+def _enforced_json_system_prompt(system_prompt: str) -> str:
+    return (
+        system_prompt.rstrip()
+        + "\n\n⚠️ 輸出規則：只輸出一個完整合法的 JSON 物件，確保所有括號都正確閉合，不要有任何 Markdown 符號或說明文字。"
+    )
+
+
+def _resolve_gemini_model(model_name: str = "") -> str:
+    candidate = str(model_name or "").strip()
+    if candidate.startswith(("gemini-", "gemma-")):
+        return candidate
+    return config.get("GEMINI_MODEL_NAME", "gemini-3-flash-preview")
+
+
+def _get_gemini_client():
+    global _gemini_client
+    if genai is None:
+        raise RuntimeError("尚未安裝 google-genai，請先執行 pip install google-genai")
+    if _gemini_client is None:
+        kwargs = {}
+        if config.GEMINI_API_KEY:
+            kwargs["api_key"] = config.GEMINI_API_KEY
+        _gemini_client = genai.Client(**kwargs)
+    return _gemini_client
+
+
+def _parse_llm_json_response(content: str, ab_variant: str = "") -> dict:
+    parsed = _repair_and_extract_json(content)
+    if parsed is not None:
+        if ab_variant:
+            parsed["_variant"] = ab_variant
+        parsed["_raw_content"] = content
+        return parsed
+    return {"error": "找不到 JSON 格式的輸出", "raw_content": content}
+
+
+def _extract_retry_delay_sec(error_text: str) -> int:
+    retry_match = re.search(r"'retryDelay':\s*'(\d+)s'", error_text)
+    if not retry_match:
+        retry_match = re.search(r"retry in ([0-9.]+)s", error_text, re.IGNORECASE)
+    if retry_match:
+        try:
+            return max(1, int(float(retry_match.group(1))) + 2)
+        except Exception:
+            pass
+    return int(config.get("GEMINI_COOLDOWN_SEC", 60))
+
+
+def _is_gemini_quota_error(error_text: str) -> bool:
+    lowered = str(error_text or "").lower()
+    return (
+        "429" in lowered
+        or "resource_exhausted" in lowered
+        or "quota" in lowered
+        or "rate" in lowered and "limit" in lowered
+    )
+
+
+def _is_gemini_internal_error(error_text: str) -> bool:
+    lowered = str(error_text or "").lower()
+    return "500" in lowered or "internal" in lowered or "internal error" in lowered
+
+
+def _gemini_cooldown_remaining() -> int:
+    return max(0, int(_gemini_cooldown_until - time.time()))
+
+
+def _generate_gemini_content(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    force_json_mime: bool = True,
+) -> str:
+    client = _get_gemini_client()
+    contents = f"【系統指令】\n{_enforced_json_system_prompt(system_prompt)}\n\n{user_prompt}"
+    kwargs = {
+        "model": model,
+        "contents": contents,
+    }
+    if force_json_mime:
+        from google.genai import types as genai_types
+
+        config_kwargs = {
+            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
+            "max_output_tokens": int(config.get("GEMINI_NUM_PREDICT", 512)),
+            "response_mime_type": "application/json",
+        }
+        kwargs["config"] = genai_types.GenerateContentConfig(**config_kwargs)
+    response = client.models.generate_content(**kwargs)
+    return getattr(response, "text", "") or ""
+
+
+def _should_use_gemini_json_mime(model: str) -> bool:
+    if str(model or "").startswith("gemma-"):
+        return False
+    return bool(config.get("GEMINI_USE_JSON_MIME", False))
+
+
+def _ask_ollama_local(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "") -> dict:
+    """呼叫本機 Ollama 並強制擷取 JSON。"""
+    enforced_system = (
+        _enforced_json_system_prompt(system_prompt)
+    )
+    payload = {
+        "model": model_name or config.get("MODEL_NAME", "llama3.2"),
+        "prompt": f"【系統指令】\n{enforced_system}\n\n{user_prompt}",
+        "stream": False,
+        "format": "json",
+        "options": {
+            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
+            "num_predict": int(config.get("OLLAMA_NUM_PREDICT", 220))
+        }
+    }
+    try:
+        response = requests.post(config.OLLAMA_API_URL, json=payload, timeout=config.OLLAMA_TIMEOUT)
+        response.raise_for_status()
+        content = response.json().get("response", "")
+        if config.get("OLLAMA_LOG_RAW", False):
+            print(f"📝 Ollama{'['+ab_variant+']' if ab_variant else ''} 原始回應:\n{content[:400]}\n{'='*40}")
+
+        return _parse_llm_json_response(content, ab_variant)
+
+    except Exception as e:
+        print(f"❌ Ollama 請求失敗: {e}")
+        return {"error": str(e), "raw_content": "無法連線至 Ollama"}
+
+
+def ask_gemini(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "") -> dict:
+    """呼叫 Gemini API，回傳格式與 Ollama 路徑一致。"""
+    global _gemini_cooldown_until, _gemini_last_error
+    model = _resolve_gemini_model(model_name)
+    try:
+        remaining = _gemini_cooldown_remaining()
+        if remaining > 0:
+            return {
+                "error": f"Gemini API 暫停呼叫中，{remaining} 秒後重試。",
+                "raw_content": _gemini_last_error or "Gemini API cooldown",
+                "_provider_error": "gemini_cooldown",
+            }
+        force_json_mime = _should_use_gemini_json_mime(model)
+        try:
+            content = _generate_gemini_content(
+                system_prompt,
+                user_prompt,
+                model,
+                force_json_mime,
+            )
+        except Exception as first_error:
+            first_error_text = str(first_error)
+            if force_json_mime and model.startswith("gemma-") and _is_gemini_internal_error(first_error_text):
+                print("⚠️ Gemma API JSON MIME 模式回傳 500，改用同模型純文字 JSON 指令重試一次。")
+                content = _generate_gemini_content(system_prompt, user_prompt, model, False)
+            else:
+                raise
+        if config.get("OLLAMA_LOG_RAW", False):
+            print(f"📝 Gemini[{model}]{'['+ab_variant+']' if ab_variant else ''} 原始回應:\n{content[:400]}\n{'='*40}")
+        return _parse_llm_json_response(content, ab_variant)
+    except Exception as e:
+        error_text = str(e)
+        print(f"⚠️ Gemini API 請求失敗，將依設定使用備援: {error_text}")
+        if _is_gemini_quota_error(error_text):
+            retry_sec = _extract_retry_delay_sec(error_text)
+            _gemini_cooldown_until = time.time() + retry_sec
+            _gemini_last_error = error_text
+            return {
+                "error": f"Gemini API 額度或速率限制，{retry_sec} 秒內改用備援。",
+                "raw_content": error_text,
+                "_provider_error": "gemini_rate_limited",
+                "_retry_after_sec": retry_sec,
+            }
+        if _is_gemini_internal_error(error_text):
+            retry_sec = int(config.get("GEMINI_COOLDOWN_SEC", 60))
+            _gemini_cooldown_until = time.time() + retry_sec
+            _gemini_last_error = error_text
+            return {
+                "error": f"Gemini API 服務端暫時錯誤，{retry_sec} 秒內改用備援。",
+                "raw_content": error_text,
+                "_provider_error": "gemini_internal",
+                "_retry_after_sec": retry_sec,
+            }
+        return {"error": error_text, "raw_content": "無法連線至 Gemini API", "_provider_error": "gemini_failed"}
+
+
+def ask_ollama(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "") -> dict:
+    """本地 Ollama 專用入口。推薦、RAG 審查與背景整理一律使用這條路徑。"""
+    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name)
+
+
+def ask_llm(
+    system_prompt: str,
+    user_prompt: str,
+    ab_variant: str = "",
+    model_name: str = "",
+    provider: str = "",
+) -> dict:
+    """
+    問答類功能專用 LLM 入口。
+    QA_AI_PROVIDER=ollama 時走本地 Ollama；QA_AI_PROVIDER=gemini 時走 Gemini API。
+    """
+    provider = str(provider or config.get("QA_AI_PROVIDER", "ollama") or "ollama").lower()
+    if provider == "gemini":
+        gemini_result = ask_gemini(system_prompt, user_prompt, ab_variant, model_name)
+        if "error" not in gemini_result:
+            return gemini_result
+        if config.get("GEMINI_FALLBACK_TO_OLLAMA", True):
+            print("↩️ Gemini 不可用，改用本地 Ollama 備援。")
+            fallback = _ask_ollama_local(system_prompt, user_prompt, ab_variant, "")
+            if "error" not in fallback:
+                fallback["_fallback_from"] = "gemini"
+                fallback["_gemini_error"] = gemini_result.get("error", "")
+            return fallback
+        return gemini_result
+    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name)
+
+
+async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:
+    """根據偵測語言選擇對應 TTS 語音"""
+    if lang == "en":
+        voice = config.get("TTS_VOICE_EN", "en-US-JennyNeural")
+    else:
+        voice = config.get("TTS_VOICE", "zh-TW-HsiaoChenNeural")
+
+    cache_key = f"{lang}:{voice}:{text}"
+    if config.get("ENABLE_TTS_CACHE", True) and cache_key in _tts_cache:
+        _tts_cache.move_to_end(cache_key)
+        return _tts_cache[cache_key]
+
+    temp_path = ""
+    try:
+        communicate = edge_tts.Communicate(text, voice)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            temp_path = temp_file.name
+        await communicate.save(temp_path)
+        audio_bytes = await asyncio.to_thread(_read_binary_file, temp_path)
+        encoded = base64.b64encode(audio_bytes).decode('utf-8')
+        if config.get("ENABLE_TTS_CACHE", True):
+            _tts_cache[cache_key] = encoded
+            _tts_cache.move_to_end(cache_key)
+            while len(_tts_cache) > _TTS_CACHE_LIMIT:
+                _tts_cache.popitem(last=False)
+        return encoded
+    except Exception as e:
+        print(f"⚠️ TTS 產生失敗: {e}")
+        return ""
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            await asyncio.to_thread(os.remove, temp_path)

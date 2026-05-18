@@ -1,0 +1,38 @@
+[
+    {
+        "id": "M01",
+        "name": "元氣人參雞湯",
+        "description": "溫補暖胃，精選高麗參熬煮，適合疲勞、需要恢復體力的人。",
+        "nutrition": "熱量: 320kcal | 蛋白質: 28g | 碳水: 5g",
+        "prep_time_minutes": 12,
+        "aliases": ["雞湯", "人參雞湯", "人參湯", "熱湯"],
+        "price": 180
+    },
+    {
+        "id": "M02",
+        "name": "爆漿起司炸雞",
+        "description": "高熱量慰藉食物，外酥內嫩的罪惡組合，適合心情低落或需要舒壓的人。",
+        "nutrition": "熱量: 850kcal | 蛋白質: 35g | 脂肪: 45g",
+        "prep_time_minutes": 9,
+        "aliases": ["炸雞", "起司炸雞", "起士炸雞", "爆漿炸雞"],
+        "price": 220
+    },
+    {
+        "id": "M03",
+        "name": "清爽水果沙拉",
+        "description": "低負擔、清爽無負擔，搭配特製優格醬，適合平靜或想控制飲食的人。",
+        "nutrition": "熱量: 150kcal | 蛋白質: 3g | 纖維: 8g",
+        "prep_time_minutes": 4,
+        "aliases": ["沙拉", "水果沙拉", "清爽沙拉", "莎拉"],
+        "price": 120
+    },
+    {
+        "id": "M04",
+        "name": "冰鎮美式咖啡",
+        "description": "提神醒腦，採用深度烘焙咖啡豆，適合看起來剛睡醒或需要專注的人。",
+        "nutrition": "熱量: 15kcal | 咖啡因: 150mg",
+        "prep_time_minutes": 3,
+        "aliases": ["咖啡", "美式咖啡", "冰咖啡", "coffee"],
+        "price": 80
+    }
+]

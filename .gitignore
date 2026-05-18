@@ -1,0 +1,72 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter and IDE/system files
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+*~
+
+# Runtime/generated local data
+UI_API/chroma_db/
+UI_API/chroma_db_versions/
+UI_API/learning_data/customer_service_media/
+UI_API/learning_data/emotion_order_media/
+UI_API/learning_data/rag_vector_meta.json
+
+# Model weights and checkpoint binaries
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.gguf
+*.onnx
+*.h5
+*.pb
+*.tflite
+*.engine
+*.mlmodel
+*.weights
+
+# Known local model/checkpoint folders
+Emotion-LLaMA/checkpoints/
+UI_API/models/yolo/*.pt
+
+# Nested repository metadata from downloaded upstream/model repos
+Emotion-LLaMA/.git/
+UI_API/.git/
+Emotion-LLaMA/checkpoints/**/.git/
+.nested_git_backup/

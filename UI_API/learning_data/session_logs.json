@@ -1,0 +1,33 @@
+[
+    {
+        "timestamp": "2026-05-15T16:40:35.971741",
+        "session_id": "pos_xe81bu70q",
+        "emotions_summary": "未知",
+        "speech_summary": "",
+        "languages": [],
+        "pushed_ids": [],
+        "pushed_variants": {
+            "A": [],
+            "B": [],
+            "single": []
+        },
+        "variant_success": {
+            "A": {
+                "pushed_ids": [],
+                "is_success": false
+            },
+            "B": {
+                "pushed_ids": [],
+                "is_success": false
+            },
+            "single": {
+                "pushed_ids": [],
+                "is_success": false
+            }
+        },
+        "final_cart_ids": [
+            "M02"
+        ],
+        "is_success": false
+    }
+]

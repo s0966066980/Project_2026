@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart POS Kiosk</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css?v=order-confirm-20260514-2">
+
+</head>
+<body class="h-screen w-full overflow-hidden">
+
+<!-- ============ 浮動推播（問題2：浮動字體，不佔欄位） ============ -->
+<div id="floatPush"></div>
+<div id="emotionFeed"></div>
+<div id="emotionCameraPanel" class="hidden">
+  <div class="camera-head">
+    <span><i class="fas fa-video"></i> 偵測鏡頭</span>
+    <span id="emotionCameraStatus">等待偵測</span>
+  </div>
+  <div class="camera-frame">
+    <video id="emotionCameraVideo" autoplay muted playsinline></video>
+    <div id="emotionDetectBox" class="detect-box">
+      <span id="emotionDetectLabel">未偵測</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 語音回覆氣泡（問題3：綁定語音，關閉後不顯示） ============ -->
+<div id="voiceReplyBubble">
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:var(--info)"><i class="fas fa-robot"></i></div>
+    <span class="font-bold text-sm" style="color:var(--text)">AI 助理</span>
+    <button onclick="closeVoiceBubble()" class="ml-auto text-gray-400 hover:text-gray-700"><i class="fas fa-times text-xs"></i></button>
+  </div>
+  <div id="voiceDialogueGrid" class="dialogue-grid"></div>
+  <div id="voiceLangBadge" class="mt-2 inline-block text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)"></div>
+</div>
+
+<div id="posServiceWindow">
+  <div class="flex items-center gap-2 mb-3">
+    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background:var(--accent2)"><i class="fas fa-headset"></i></div>
+    <div>
+      <p class="font-bold text-sm" style="color:var(--text)">通知客服人員</p>
+      <p class="text-xs" style="color:var(--text2)">確認後開始收音並分析語系與情緒</p>
+    </div>
+    <button id="posServiceClose" class="ml-auto text-xs opacity-60 hover:opacity-100" style="color:var(--text2)"><i class="fas fa-times"></i></button>
+  </div>
+  <button id="posServiceRecord" class="w-full btn-ghost py-3 rounded-2xl flex items-center justify-center gap-2 mb-3">
+    <i class="fas fa-microphone" style="color:var(--accent)"></i>
+    <span id="posServiceRecordText" class="font-semibold text-sm">開始收音</span>
+  </button>
+  <div id="posServiceResult" class="text-sm leading-relaxed" style="color:var(--text2)">等待客服請求。</div>
+</div>
+
+<!-- ============ POS 視圖 ============ -->
+<div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
+
+  <!-- 開始 overlay -->
+  <div id="startupOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500" style="background:linear-gradient(135deg,#13201e,#274b47)">
+    <div class="mb-6 w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.12)"><i class="fas fa-utensils text-3xl"></i></div>
+    <h1 class="text-4xl md:text-5xl font-bold mb-3 text-center tracking-tight">智慧點餐</h1>
+    <p class="text-lg mb-10" style="color:rgba(255,255,255,0.5)">AI-Powered Smart Kiosk</p>
+    <button id="startSystemBtn" class="btn-primary px-12 py-4 text-xl rounded-2xl shadow-2xl">開始點餐</button>
+    <div class="mt-6 flex gap-4 text-sm">
+      <button onclick="switchMainView('admin')" class="underline" style="color:rgba(255,255,255,0.4)">後台管理</button>
+    </div>
+  </div>
+
+  <!-- 確認訂單 modal -->
+  <div id="orderConfirmModal" class="order-modal hidden" aria-hidden="true">
+    <div class="order-modal-backdrop"></div>
+    <div class="order-modal-card" role="dialog" aria-modal="true" aria-labelledby="orderConfirmTitle">
+      <button id="orderConfirmCloseBtn" class="order-modal-close" title="關閉" type="button">
+        <i class="fas fa-times"></i>
+      </button>
+
+      <div class="order-modal-header">
+        <div class="order-modal-icon"><i class="fas fa-shopping-bag"></i></div>
+        <div>
+          <h2 id="orderConfirmTitle">確認訂單</h2>
+          <p>請再次確認餐點與付款方式</p>
+        </div>
+      </div>
+
+      <div class="order-modal-grid">
+        <section class="order-panel">
+          <h3><i class="fas fa-shopping-bag"></i> 訂單摘要</h3>
+          <div id="confirmOrderList" class="order-summary-list"></div>
+          <div class="order-summary-total">
+            <div>
+              <span>小計</span>
+              <i></i>
+              <strong id="confirmSubtotalPrice">$0</strong>
+            </div>
+            <div>
+              <span>服務費 (10%)</span>
+              <i></i>
+              <strong id="confirmServiceFee">$0</strong>
+            </div>
+            <div class="grand">
+              <span>總計</span>
+              <strong id="confirmTotalPrice">$0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="order-panel">
+          <div class="order-option-block">
+            <h3><i class="fas fa-utensils"></i> 取餐方式</h3>
+            <div class="order-choice-grid two">
+              <button class="order-choice" data-fulfillment="dine-in" type="button">
+                <i class="fas fa-utensils"></i>
+                <span>內用</span>
+              </button>
+              <button class="order-choice selected" data-fulfillment="takeout" type="button">
+                <i class="fas fa-shopping-bag"></i>
+                <span>外帶</span>
+                <b><i class="fas fa-check"></i></b>
+              </button>
+            </div>
+          </div>
+
+          <div class="order-option-block">
+            <h3><i class="fas fa-credit-card"></i> 付款方式</h3>
+            <div class="order-choice-grid three">
+              <button class="order-choice selected" data-payment="credit-card" type="button">
+                <i class="fas fa-credit-card"></i>
+                <span>信用卡</span>
+                <b><i class="fas fa-check"></i></b>
+              </button>
+              <button class="order-choice line-pay" data-payment="line-pay" type="button">
+                <span>LINE <em>Pay</em></span>
+              </button>
+              <button class="order-choice" data-payment="cash" type="button">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>現金</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="order-option-block">
+            <h3><i class="fas fa-clipboard-list"></i> 訂單資訊</h3>
+            <div class="order-info-list">
+              <div><span><i class="far fa-clipboard"></i> 訂單編號</span><strong id="confirmOrderNumber">#A000</strong></div>
+              <div><span><i class="far fa-clock"></i> 預計完成時間</span><strong id="confirmPrepTime">約 0 分鐘</strong></div>
+              <div><span><i class="fas fa-microphone"></i> 語音助理已完成點餐</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="order-modal-actions">
+        <button id="confirmBackBtn" class="order-secondary-btn" type="button">返回修改</button>
+        <button id="confirmPayBtn" class="order-primary-btn" type="button">
+          <span>確認付款</span>
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+      <p class="order-secure-note"><i class="fas fa-shield-alt"></i> 安全交易 · 資料加密保護</p>
+    </div>
+  </div>
+
+  <!-- 結帳 overlay -->
+  <div id="checkoutOverlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center text-white hidden opacity-0 transition-opacity duration-500">
+    <div class="text-7xl mb-6"><i class="fas fa-check-circle"></i></div>
+    <h1 class="text-4xl font-bold mb-3">點餐完成！</h1>
+    <p class="text-xl" style="color:rgba(255,255,255,0.8)">感謝您的使用 · Thank you</p>
+  </div>
+
+  <!-- 左：菜單 -->
+  <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden pos-main">
+    <div class="pos-topbar px-6 md:px-12 py-6 flex justify-between items-center shrink-0">
+      <div>
+        <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight" style="color:var(--text)">美味菜單</h2>
+        <p class="text-sm mt-2" style="color:var(--text2)">點餐輕鬆加入購物車</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="posServiceFab" class="round-tool flex items-center justify-center" title="客服" type="button">
+          <i class="fas fa-headset text-xl"></i>
+        </button>
+        <button onclick="switchMainView('admin')" class="round-tool flex items-center justify-center" title="設定">
+          <i class="fas fa-cog text-xl"></i>
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
+      <div class="flex items-center gap-4 mb-7">
+        <span class="section-kicker"><i class="fas fa-utensils"></i></span>
+        <h3 class="text-2xl font-extrabold" style="color:var(--text)">精選推薦</h3>
+        <p class="text-sm hidden sm:block" style="color:var(--text2)">為您精挑細選的美味餐點</p>
+      </div>
+      <div id="menuGrid" class="grid grid-cols-1 2xl:grid-cols-2 gap-6 auto-rows-max"></div>
+    </div>
+  </div>
+
+  <!-- 隱藏感測區：保留 Emotion-LLaMA 視訊來源，不佔 POS 版面 -->
+  <div id="centerPanel" class="hidden">
+    <video id="webcam" autoplay muted playsinline class="hidden" style="transform:scaleX(-1)"></video>
+    <div id="mod-camera" class="hidden">
+      <div id="pingIndicator" class="hidden"></div>
+      <div id="emotionBadge" class="hidden"><span id="emotionText">Calm</span></div>
+    </div>
+  </div>
+
+  <!-- 右：購物車 -->
+  <div class="cart-shell w-full lg:w-[370px] xl:w-[450px] flex flex-col z-30 shrink-0 h-[56vh] lg:h-full overflow-hidden p-4 gap-5">
+    <div class="cart-card flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div class="px-7 py-5 flex justify-between items-center shrink-0" style="border-bottom:1.5px solid var(--border)">
+        <div class="flex items-center gap-4">
+          <i class="fas fa-cart-plus text-2xl" style="color:var(--accent2)"></i>
+          <h3 class="font-extrabold text-2xl" style="color:var(--text)">購物車</h3>
+        </div>
+        <span id="cartCountBadge" class="text-sm font-bold px-4 py-2 rounded-full" style="background:#edf0e7;color:var(--text2)">共 0 項</span>
+      </div>
+      <div class="flex-1 min-h-0 flex flex-col p-5">
+        <div id="cartList" class="flex-1 overflow-y-auto flex flex-col gap-3 min-h-0"></div>
+        <div id="mod-voice" class="voice-card shrink-0 mt-5">
+          <button id="askBtn" class="w-full py-5 px-5 rounded-2xl flex items-center gap-5 select-none text-left">
+            <span class="w-16 h-16 rounded-full flex items-center justify-center text-white shrink-0" style="background:linear-gradient(135deg,#f58b63,var(--accent));box-shadow:0 12px 22px rgba(217,83,53,0.24)">
+              <i class="fas fa-microphone text-3xl"></i>
+            </span>
+            <span>
+              <span id="askBtnText" class="block font-extrabold text-lg" style="color:var(--text)">長按語音點餐</span>
+              <span class="block text-sm mt-1" style="color:var(--text2)">語音發問開啟後可詢問 AI 助理</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cart-card p-7 shrink-0">
+      <div class="flex justify-between items-baseline mb-7">
+        <span class="font-semibold text-lg" style="color:var(--text)">總計</span>
+        <span id="totalPrice" class="text-4xl font-extrabold" style="color:#d23415">$0</span>
+      </div>
+      <button id="checkoutBtn" class="w-full btn-primary py-5 text-xl rounded-2xl disabled:opacity-40 flex items-center justify-center gap-5" disabled>
+        <span>確認點餐</span><i class="fas fa-chevron-right"></i>
+      </button>
+      <p class="mt-5 text-center text-sm" style="color:var(--text2)"><i class="fas fa-shield-alt mr-2" style="color:var(--accent2)"></i>安全交易 · 安心結帳</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ 後台視圖 ============ -->
+<div id="view-admin" class="hidden w-full h-full flex-col overflow-y-auto" style="background:var(--bg)">
+  <nav class="admin-nav text-white px-5 py-3 flex justify-between items-center sticky top-0 z-50" style="border-bottom:1px solid rgba(255,255,255,0.1)">
+    <span class="font-bold text-lg"><i class="fas fa-sliders-h mr-2"></i>後台管理</span>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="switchAdminTab('dashboard')" id="tab-btn-dashboard" class="admin-tab active">儀表板</button>
+      <button onclick="switchAdminTab('features')"  id="tab-btn-features"  class="admin-tab">功能模組</button>
+      <button onclick="switchAdminTab('settings')"  id="tab-btn-settings"  class="admin-tab">AI 設定</button>
+      <button onclick="switchAdminTab('clips');loadEmotionClips()" id="tab-btn-clips" class="admin-tab">影像片段</button>
+      <button onclick="switchAdminTab('menu')"       id="tab-btn-menu"      class="admin-tab">菜單管理</button>
+      <button onclick="switchAdminTab('rag')"        id="tab-btn-rag"       class="admin-tab">RAG 文本</button>
+      <button onclick="switchAdminTab('service');loadCustomerServiceData()" id="tab-btn-service" class="admin-tab">客服系統</button>
+      <button onclick="switchMainView('pos')" class="btn-primary px-4 py-1.5 text-sm ml-2"><i class="fas fa-arrow-left mr-2"></i>返回</button>
+    </div>
+  </nav>
+
+  <div class="p-5 md:p-8 max-w-5xl mx-auto w-full">
+
+    <!-- 儀表板 -->
+    <div id="tab-dashboard" class="admin-tab-content">
+      <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">推播成效追蹤</h2>
+      <p class="text-sm mb-6" style="color:var(--text2)">每位顧客計一次結果：推播品項中只要有一項被購買即算成功。</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <p class="text-xs font-semibold mb-1" style="color:var(--text2)">總服務人次</p>
+          <p class="text-4xl font-extrabold" id="stat-total">0</p>
+        </div>
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <p class="text-xs font-semibold mb-1" style="color:var(--text2)">成功率</p>
+          <p class="text-4xl font-extrabold" style="color:var(--success)" id="stat-rate">0%</p>
+        </div>
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <p class="text-xs font-semibold mb-1" style="color:var(--text2)">成功次數</p>
+          <p class="text-4xl font-extrabold" style="color:var(--info)" id="stat-success">0</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="flex items-baseline justify-between gap-3">
+            <p class="text-xs font-semibold" style="color:var(--text2)">A 版推播成功率</p>
+            <p class="text-2xl font-extrabold" style="color:var(--info)" id="stat-ab-a">0%</p>
+          </div>
+          <p class="text-xs mt-1" style="color:var(--text2)" id="stat-ab-a-detail">0 / 0</p>
+        </div>
+        <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="flex items-baseline justify-between gap-3">
+            <p class="text-xs font-semibold" style="color:var(--text2)">B 版推播成功率</p>
+            <p class="text-2xl font-extrabold" style="color:var(--warning)" id="stat-ab-b">0%</p>
+          </div>
+          <p class="text-xs mt-1" style="color:var(--text2)" id="stat-ab-b-detail">0 / 0</p>
+        </div>
+      </div>
+      <div class="flex justify-end mb-2">
+        <button onclick="clearPushLogs()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--danger);border:1px solid var(--border)">
+          <i class="fas fa-trash mr-1"></i>清空成效資料
+        </button>
+      </div>
+      <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+        <table class="w-full text-sm">
+          <thead style="background:var(--surface2)">
+            <tr>
+              <th class="p-3 text-left font-semibold" style="color:var(--text2)">時間</th>
+              <th class="p-3 text-left font-semibold" style="color:var(--text2)">情緒</th>
+              <th class="p-3 text-left font-semibold" style="color:var(--text2)">AI 推播</th>
+              <th class="p-3 text-left font-semibold" style="color:var(--text2)">購買</th>
+              <th class="p-3 text-center font-semibold" style="color:var(--text2)">結果</th>
+              <th class="p-3 text-center font-semibold" style="color:var(--text2)">操作</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody" class="divide-y" style="border-color:var(--border)"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 功能模組 -->
+    <div id="tab-features" class="admin-tab-content hidden">
+      <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">功能模組</h2>
+      <p class="text-sm mb-6" style="color:var(--text2)">開關即時生效，儲存於瀏覽器 localStorage。</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 每個 toggle card -->
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-eye mr-2" style="color:var(--accent2)"></i>情緒偵測顯示</p><p class="text-xs" style="color:var(--text2)">顯示攝影機畫面與即時情緒標籤。</p></div>
+          <div id="tog-emotion" class="toggle-track on shrink-0" onclick="toggleFeature('emotion',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音發問</p><p class="text-xs" style="color:var(--text2)">開啟後語音會送 Ollama 做問答；關閉時仍可語音點餐。</p></div>
+          <div id="tog-voiceAsk" class="toggle-track shrink-0" onclick="toggleFeature('voiceAsk',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-bolt mr-2" style="color:var(--warning)"></i>AI 浮動推播</p><p class="text-xs" style="color:var(--text2)">依效能設定節流更新浮動推薦卡片。</p></div>
+          <div id="tog-recommend" class="toggle-track on shrink-0" onclick="toggleFeature('recommend',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--info)"></i>Emotion-LLaMA 後端</p><p class="text-xs" style="color:var(--text2)">依效能設定節流上傳短影片分析情緒。</p></div>
+          <div id="tog-emotionBackend" class="toggle-track on shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-comment-medical mr-2" style="color:var(--info)"></i>情緒分析泡泡</p><p class="text-xs" style="color:var(--text2)">以左側聊天室泡泡顯示 Emotion-LLaMA 分析內容。</p></div>
+          <div id="tog-emotionChat" class="toggle-track shrink-0" onclick="toggleFeature('emotionChat',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-video mr-2" style="color:var(--accent2)"></i>偵測鏡頭顯示</p><p class="text-xs" style="color:var(--text2)">在情緒泡泡旁顯示鏡頭預覽與人物偵測框，預設關閉。</p></div>
+          <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-columns mr-2" style="color:var(--accent2)"></i>A/B 推播測試</p><p class="text-xs" style="color:var(--text2)">同時顯示兩個不同 Prompt 的推薦結果。</p></div>
+          <div id="tog-abTest" class="toggle-track shrink-0" onclick="toggleFeature('abTest',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-language mr-2" style="color:var(--info)"></i>多語言偵測</p><p class="text-xs" style="color:var(--text2)">根據語音自動切換中英文回覆與 TTS。</p></div>
+          <div id="tog-multiLang" class="toggle-track on shrink-0" onclick="toggleFeature('multiLang',this)"><div class="toggle-knob"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 設定 -->
+    <div id="tab-settings" class="admin-tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold" style="color:var(--text)">AI 參數設定</h2>
+        <button onclick="saveSettings()" class="btn-primary px-6 py-2 text-sm"><i class="fas fa-save mr-2"></i>儲存</button>
+      </div>
+      <div class="rounded-2xl p-6 space-y-5" style="background:var(--surface);border:1.5px solid var(--border)">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">問答服務來源</label>
+            <select id="inp-ai-provider" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+              <option value="ollama">本地 Ollama</option>
+              <option value="gemini">Gemini API</option>
+            </select>
+            <p class="text-xs mt-1" style="color:var(--text2)">只套用於語音發問與客服回覆；AI 推播固定使用 Ollama。</p>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">本地 Ollama 模型</label>
+            <select id="inp-model-name" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+              <option value="llama3.2">llama3.2</option>
+              <option value="gemma4">gemma4</option>
+            </select>
+            <p class="text-xs mt-1" style="color:var(--text2)">AI 來源選 Ollama 時使用。</p>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--accent2)">Gemini API 模型</label>
+            <input type="text" id="inp-gemini-model-name" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" value="gemini-3-flash-preview">
+            <p class="text-xs mt-1" style="color:var(--text2)">需在 .env 設定 GEMINI_API_KEY。</p>
+          </div>
+        </div>
+        <input type="hidden" id="inp-ask-model-name" value="llama3.2">
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推論溫度 (Temperature)</label>
+          <input type="number" id="inp-temp" step="0.1" min="0" max="2" class="w-full p-2.5 rounded-xl text-sm outline-none focus:ring-2" style="border:1.5px solid var(--border);background:var(--surface2);focus-ring-color:var(--accent)">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="feature-card flex items-center justify-between gap-4">
+            <span>
+              <span class="block font-bold text-sm" style="color:var(--text)">Gemini 超額自動改用 Ollama</span>
+              <span class="block text-xs mt-1" style="color:var(--text2)">遇到 429 / quota 時，暫停 Gemini 並改走本地模型。</span>
+            </span>
+            <input type="checkbox" id="inp-gemini-fallback" class="w-5 h-5 shrink-0">
+          </label>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Gemini 冷卻秒數</label>
+            <input type="number" id="inp-gemini-cooldown" min="10" max="600" step="5" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" value="60">
+            <p class="text-xs mt-1" style="color:var(--text2)">若 Gemini 錯誤回傳 retryDelay，會優先使用官方建議秒數。</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">效能模式</label>
+            <select id="inp-performance-mode" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+              <option value="eco">省電</option>
+              <option value="balanced">平衡</option>
+              <option value="quality">品質</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">LLM 輸出上限</label>
+            <input type="number" id="inp-num-predict" min="80" max="800" step="20" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">RAG 筆數</label>
+            <input type="number" id="inp-rag-top-k" min="1" max="8" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+            <p class="text-xs mt-1" style="color:var(--text2)">舊版相容值；新版主要使用下方 top_k_final 控制最後送給 Ollama 的 chunk 數。</p>
+          </div>
+        </div>
+        <div class="rounded-2xl p-4 space-y-4" style="background:var(--surface2);border:1.5px solid var(--border)">
+          <div>
+            <h3 class="font-bold text-sm" style="color:var(--text)">本地 RAG 模組</h3>
+            <p class="text-xs mt-1" style="color:var(--text2)">LangChain + Ollama embedding + Hybrid Retrieval。關閉模組後會使用較保守的原始向量檢索流程。</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm" style="color:var(--text)">
+            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-multi-query"> Multi-Query</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-hybrid-search"> Hybrid Search</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-reranker"> Reranker</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-compression"> Context Compression</label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-evaluation"> Answer Evaluation</label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_vector</label>
+              <input type="number" id="inp-rag-top-k-vector" min="1" max="30" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_keyword</label>
+              <input type="number" id="inp-rag-top-k-keyword" min="1" max="30" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_final</label>
+              <input type="number" id="inp-rag-top-k-final" min="1" max="15" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Context 字數上限</label>
+              <input type="number" id="inp-rag-context-max" min="600" max="8000" step="100" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Embedding Provider</label>
+              <select id="inp-rag-embedding-provider" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
+                <option value="ollama">ollama</option>
+                <option value="huggingface">huggingface fallback</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Ollama Embedding Model</label>
+              <input type="text" id="inp-rag-embedding-model" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)" placeholder="nomic-embed-text">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Reranker Model</label>
+              <input type="text" id="inp-rag-reranker-model" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)" placeholder="cross-encoder/ms-marco-MiniLM-L-6-v2">
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">情緒間隔秒</label>
+            <input type="number" id="inp-emotion-interval" min="5" max="120" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">偵測影片長度 (ms)</label>
+            <input type="number" id="inp-emotion-record-ms" min="400" max="6000" step="100" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+            <p class="text-xs mt-1" style="color:var(--text2)">每次送給 Emotion-LLaMA 分析的影片片段長度。</p>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推播間隔秒</label>
+            <input type="number" id="inp-recommend-interval" min="10" max="180" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推播冷卻秒</label>
+            <input type="number" id="inp-recommend-gap" min="5" max="180" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm" style="color:var(--text)">
+          <label class="flex items-center gap-2"><input type="checkbox" id="inp-ab-single-call"> A/B 合併成一次 Ollama 呼叫</label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="inp-tts-cache"> TTS 快取</label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="inp-recommend-cache"> 推薦快取</label>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--accent2)">Emotion LLaMA Prompt</label>
+          <textarea id="inp-emotion-prompt" class="w-full h-24 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--info)">推播 Prompt（A 版）</label>
+          <textarea id="inp-recommend-prompt" class="w-full h-44 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--warning)">推播 Prompt（B 版）</label>
+          <textarea id="inp-recommend-prompt-b" class="w-full h-44 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--success)">語音問答 Prompt（中文）</label>
+          <textarea id="inp-ask-prompt" class="w-full h-28 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--info)">語音問答 Prompt（English）</label>
+          <textarea id="inp-ask-prompt-en" class="w-full h-28 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 影像片段 -->
+    <div id="tab-clips" class="admin-tab-content hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+        <div>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">當前訂單影像片段</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">顯示本次訂單完成前由情緒分析保存的影片片段、判斷依據與情緒量化分佈。</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="loadEmotionClips()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
+          <button onclick="clearEmotionClips()" class="btn-ghost px-4 py-2 text-sm" style="color:var(--danger)"><i class="fas fa-trash mr-2"></i>清除本單片段</button>
+        </div>
+      </div>
+      <div id="emotionClipList" class="emotion-clip-list"></div>
+    </div>
+
+    <!-- 菜單管理 -->
+    <div id="tab-menu" class="admin-tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold" style="color:var(--text)">菜單管理 (JSON)</h2>
+        <button onclick="saveMenu()" class="btn-primary px-6 py-2 text-sm"><i class="fas fa-save mr-2"></i>儲存並更新 RAG</button>
+      </div>
+      <textarea id="menuEditor" class="w-full h-[560px] font-mono text-sm p-4 rounded-2xl outline-none" style="border:1.5px solid var(--border);background:var(--surface)"></textarea>
+    </div>
+
+    <!-- RAG 文本管理 -->
+    <div id="tab-rag" class="admin-tab-content hidden">
+      <div class="flex justify-between items-center mb-6 gap-3">
+        <div>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">RAG 文本與審查紀錄</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">所有保存到 RAG 的文本都會先經 Ollama 審查；刪除後會重建向量庫。</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="loadRagData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
+          <button onclick="clearAllRagDocs()" class="btn-ghost px-4 py-2 text-sm" style="color:var(--danger)"><i class="fas fa-trash mr-2"></i>清空 RAG</button>
+        </div>
+      </div>
+      <div class="rounded-2xl p-4 mb-5" style="background:var(--surface);border:1.5px solid var(--border)">
+        <label class="block font-semibold mb-2 text-sm" style="color:var(--text)">新增手動 RAG 文本</label>
+        <textarea id="ragNewText" class="w-full h-24 p-3 rounded-xl text-sm outline-none resize-none mb-3" style="border:1.5px solid var(--border);background:var(--surface2)" placeholder="輸入要保存到 RAG 的補充知識，送出後會先由 Ollama 審查。"></textarea>
+        <button onclick="addRagDoc()" class="btn-primary px-5 py-2 text-sm"><i class="fas fa-plus mr-2"></i>審查並保存</button>
+      </div>
+      <div class="rounded-2xl p-4 mb-5" style="background:var(--surface);border:1.5px solid var(--border)">
+        <label class="block font-semibold mb-2 text-sm" style="color:var(--text)">匯入 PDF 到 RAG</label>
+        <div class="flex flex-col md:flex-row gap-3 md:items-center">
+          <input type="file" id="ragPdfFile" accept="application/pdf" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          <label class="flex items-center gap-2 text-sm whitespace-nowrap" style="color:var(--text2)"><input type="checkbox" id="ragPdfReview"> 逐 chunk Ollama 審查</label>
+          <button onclick="uploadRagPdf()" class="btn-ghost px-5 py-2 text-sm whitespace-nowrap"><i class="fas fa-file-pdf mr-2"></i>匯入 PDF</button>
+        </div>
+        <p class="text-xs mt-2" style="color:var(--text2)">PDF 會依頁面與 chunk 保存來源資訊，回答時可引用 file_name、page、chunk_id。</p>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">已保存 RAG 文本</div>
+          <div id="ragDocsList" class="p-3 space-y-3 max-h-[520px] overflow-y-auto"></div>
+        </div>
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">Ollama 審查紀錄</div>
+          <div id="ragLogsList" class="p-3 space-y-3 max-h-[520px] overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 客服系統 -->
+    <div id="tab-service" class="admin-tab-content hidden">
+      <div class="flex justify-between items-center mb-6 gap-3">
+        <div>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">客服系統</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">客服工作台與客服問答紀錄。客服問答會經 Ollama 審查後保存到 RAG。</p>
+        </div>
+        <button onclick="loadCustomerServiceData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">
+            客服語音工作台
+          </div>
+          <div class="p-4">
+            <div class="flex items-center justify-between gap-3 p-3 rounded-xl mb-3" style="background:var(--surface2)">
+              <div>
+                <p class="font-semibold text-sm" style="color:var(--text)">Ollama 直接回覆</p>
+                <p class="text-xs" style="color:var(--text2)">關閉後保留顧客錄音與文字，供真人客服回覆</p>
+              </div>
+              <div id="adminServiceOllamaToggle" class="toggle-track on shrink-0"><div class="toggle-knob"></div></div>
+            </div>
+            <button id="adminServiceRecord" class="w-full btn-ghost py-3 rounded-2xl flex items-center justify-center gap-2 mb-3">
+              <i class="fas fa-microphone" style="color:var(--accent)"></i>
+              <span id="adminServiceRecordText" class="font-semibold text-sm">開始收音</span>
+            </button>
+            <div id="adminServiceResult" class="text-sm leading-relaxed min-h-[280px]" style="color:var(--text2)">等待客服請求。</div>
+          </div>
+        </div>
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">客服問答紀錄</div>
+          <div id="customerServiceLogsList" class="p-3 space-y-3 max-h-[640px] overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<audio id="ttsAudio" class="hidden"></audio>
+
+<script type="module" src="/static/app.js?v=order-confirm-20260514-2"></script>
+
+</body>
+</html>

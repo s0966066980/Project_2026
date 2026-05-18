@@ -1,0 +1,111 @@
+[
+    {
+        "id": "58f8452d-14cd-4157-b36e-9f2452eff920",
+        "source_type": "menu",
+        "source_id": "M01",
+        "source_text": "ID: M01\n名稱: 元氣人參雞湯\n描述: 溫補暖胃，精選高麗參熬煮，適合疲勞、需要恢復體力的人。\n營養: 熱量: 320kcal | 蛋白質: 28g | 碳水: 5g\n製作時間: 12分鐘\n價格: 180元",
+        "reviewed_text": "ID: M01\n名稱: 元氣人參雞湯\n描述: 溫補暖胃，精選高麗參熬煮，適合疲勞、需要恢復體力的人。\n營養: 熱量: 320kcal | 蛋白質: 28g | 碳水: 5g\n製作時間: 12分鐘\n價格: 180元",
+        "review_status": "bootstrap",
+        "created_at": "2026-05-16T09:36:50.741171",
+        "updated_at": "2026-05-16T09:36:50.741194",
+        "deleted": false
+    },
+    {
+        "id": "2d8b58be-3ca9-499d-bc2f-5736b6bad848",
+        "source_type": "menu",
+        "source_id": "M02",
+        "source_text": "ID: M02\n名稱: 爆漿起司炸雞\n描述: 高熱量慰藉食物，外酥內嫩的罪惡組合，適合心情低落或需要舒壓的人。\n營養: 熱量: 850kcal | 蛋白質: 35g | 脂肪: 45g\n製作時間: 9分鐘\n價格: 220元",
+        "reviewed_text": "ID: M02\n名稱: 爆漿起司炸雞\n描述: 高熱量慰藉食物，外酥內嫩的罪惡組合，適合心情低落或需要舒壓的人。\n營養: 熱量: 850kcal | 蛋白質: 35g | 脂肪: 45g\n製作時間: 9分鐘\n價格: 220元",
+        "review_status": "bootstrap",
+        "created_at": "2026-05-16T09:36:50.741221",
+        "updated_at": "2026-05-16T09:36:50.741225",
+        "deleted": false
+    },
+    {
+        "id": "22e5e849-7206-4807-af55-6e18e5ac9a6b",
+        "source_type": "menu",
+        "source_id": "M03",
+        "source_text": "ID: M03\n名稱: 清爽水果沙拉\n描述: 低負擔、清爽無負擔，搭配特製優格醬，適合平靜或想控制飲食的人。\n營養: 熱量: 150kcal | 蛋白質: 3g | 纖維: 8g\n製作時間: 4分鐘\n價格: 120元",
+        "reviewed_text": "ID: M03\n名稱: 清爽水果沙拉\n描述: 低負擔、清爽無負擔，搭配特製優格醬，適合平靜或想控制飲食的人。\n營養: 熱量: 150kcal | 蛋白質: 3g | 纖維: 8g\n製作時間: 4分鐘\n價格: 120元",
+        "review_status": "bootstrap",
+        "created_at": "2026-05-16T09:36:50.741240",
+        "updated_at": "2026-05-16T09:36:50.741243",
+        "deleted": false
+    },
+    {
+        "id": "65807676-5b11-4f2c-88e6-dce9e57606a4",
+        "source_type": "menu",
+        "source_id": "M04",
+        "source_text": "ID: M04\n名稱: 冰鎮美式咖啡\n描述: 提神醒腦，採用深度烘焙咖啡豆，適合看起來剛睡醒或需要專注的人。\n營養: 熱量: 15kcal | 咖啡因: 150mg\n製作時間: 3分鐘\n價格: 80元",
+        "reviewed_text": "ID: M04\n名稱: 冰鎮美式咖啡\n描述: 提神醒腦，採用深度烘焙咖啡豆，適合看起來剛睡醒或需要專注的人。\n營養: 熱量: 15kcal | 咖啡因: 150mg\n製作時間: 3分鐘\n價格: 80元",
+        "review_status": "bootstrap",
+        "created_at": "2026-05-16T09:36:50.741256",
+        "updated_at": "2026-05-16T09:36:50.741259",
+        "deleted": false
+    },
+    {
+        "id": "fb89cbb3-8b0f-46da-94aa-9c47c3b63d3c",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895431940",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 你是誰?\n系統回覆: 您好！我是您的 AI 點餐助理，專門為您提供餐點資訊與協助點餐。我可以協助您從菜單中推薦主餐或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "{",
+        "review_status": "revised",
+        "review_notes": "",
+        "metadata": {},
+        "created_at": "2026-05-16T09:37:12.675583",
+        "updated_at": "2026-05-16T09:37:12.675583",
+        "deleted": false
+    },
+    {
+        "id": "d5f24063-64c9-4681-94c1-1f4f4854ba2c",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895461362",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 帮我点美式咖啡\n系統回覆: 好的，沒問題！已經幫您將一份冰鎮美式咖啡加入購物車。這款咖啡採用深度烘焙咖啡豆，非常適合提神醒腦。來源：file_name=menu/M04 page=- chunk_id=65807676-5b11-4f2c-88e6-dce9e57606a4_chunk_1\n成功加入購物車: 冰鎮美式咖啡 x1\ncart_actions: [{'action': 'add', 'id': 'M04', 'quantity': 1}]",
+        "reviewed_text": "{",
+        "review_status": "approved",
+        "review_notes": "",
+        "metadata": {},
+        "created_at": "2026-05-16T09:37:42.146605",
+        "updated_at": "2026-05-16T09:37:42.146605",
+        "deleted": false
+    },
+    {
+        "id": "3c20dc7d-2bed-4b9d-b51e-fc300d06169b",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895482235",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 我靖眼 蓄良春鍵航\n系統回覆: 抱歉，我不太明白您的意思。我可以協助您從菜單中推薦主餐、湯品或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "我靖眼 蓄良春鍵航",
+        "review_status": "approved",
+        "review_notes": "修正簡體字",
+        "metadata": {},
+        "created_at": "2026-05-16T09:38:03.625545",
+        "updated_at": "2026-05-16T09:38:03.625545",
+        "deleted": false
+    },
+    {
+        "id": "11e30542-383e-4331-af02-f8a1e190c686",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895501351",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 我要点烧啦\n系統回覆: 目前菜單上沒有燒臘相關的餐點。我可以協助您從菜單中推薦主餐或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "{\"customer_speech\": \"我要点烧啦\", \"system_response\": \" 目前菜單上沒有燒臘相關的餐點。我可以協助您從菜單中推薦主餐或飲品.\", \"added_to_cart\": false, \"cart_actions\": []}",
+        "review_status": "revised",
+        "review_notes": "簡體字修正：'点'變為'點'",
+        "metadata": {},
+        "created_at": "2026-05-16T09:38:24.307891",
+        "updated_at": "2026-05-16T09:38:24.307891",
+        "deleted": false
+    },
+    {
+        "id": "b7be3e37-4f02-4170-a097-a24f37f2f011",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895537536",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 幫我點雞湯\n系統回覆: 好的，為您點一份元氣人參雞湯，這款湯品採用精選高麗參熬煮，非常溫補暖胃。 (來源: file_name=menu/M01 page=- chunk_id=58f8452d-14cd-4157-b36e-9f2452eff920_chunk_1)\n成功加入購物車: 元氣人參雞湯 x1\ncart_actions: [{'action': 'add', 'id': 'M01', 'quantity': 1}]",
+        "reviewed_text": "{\"menu_name\": \"\", \"price\": \"\", \"description\": \"\"}",
+        "review_status": "approved",
+        "review_notes": "移除簡體字",
+        "metadata": {},
+        "created_at": "2026-05-16T09:38:58.985602",
+        "updated_at": "2026-05-16T09:38:58.985602",
+        "deleted": false
+    }
+]

@@ -1,0 +1,62 @@
+[
+    {
+        "timestamp": "2026-05-16T09:37:12.675583",
+        "doc_id": "fb89cbb3-8b0f-46da-94aa-9c47c3b63d3c",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895431940",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 你是誰?\n系統回覆: 您好！我是您的 AI 點餐助理，專門為您提供餐點資訊與協助點餐。我可以協助您從菜單中推薦主餐或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "{",
+        "review_status": "revised",
+        "review_notes": "",
+        "metadata": {},
+        "raw_review": "{\"status\":\"revised\",\"reviewed_text\": \"{\" \n    }"
+    },
+    {
+        "timestamp": "2026-05-16T09:37:42.146605",
+        "doc_id": "d5f24063-64c9-4681-94c1-1f4f4854ba2c",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895461362",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 帮我点美式咖啡\n系統回覆: 好的，沒問題！已經幫您將一份冰鎮美式咖啡加入購物車。這款咖啡採用深度烘焙咖啡豆，非常適合提神醒腦。來源：file_name=menu/M04 page=- chunk_id=65807676-5b11-4f2c-88e6-dce9e57606a4_chunk_1\n成功加入購物車: 冰鎮美式咖啡 x1\ncart_actions: [{'action': 'add', 'id': 'M04', 'quantity': 1}]",
+        "reviewed_text": "{",
+        "review_status": "approved",
+        "review_notes": "",
+        "metadata": {},
+        "raw_review": "{\"status\":\"approved\",\"reviewed_text\": \"{\"}"
+    },
+    {
+        "timestamp": "2026-05-16T09:38:03.625545",
+        "doc_id": "3c20dc7d-2bed-4b9d-b51e-fc300d06169b",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895482235",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 我靖眼 蓄良春鍵航\n系統回覆: 抱歉，我不太明白您的意思。我可以協助您從菜單中推薦主餐、湯品或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "我靖眼 蓄良春鍵航",
+        "review_status": "approved",
+        "review_notes": "修正簡體字",
+        "metadata": {},
+        "raw_review": "{\n  \"status\": \"approved\",\n  \"reviewed_text\": \"我靖眼 蓄良春鍵航\",\n  \"notes\": \"修正簡體字\"\n}"
+    },
+    {
+        "timestamp": "2026-05-16T09:38:24.307891",
+        "doc_id": "11e30542-383e-4331-af02-f8a1e190c686",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895501351",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 我要点烧啦\n系統回覆: 目前菜單上沒有燒臘相關的餐點。我可以協助您從菜單中推薦主餐或飲品。\n成功加入購物車: 無\ncart_actions: []",
+        "reviewed_text": "{\"customer_speech\": \"我要点烧啦\", \"system_response\": \" 目前菜單上沒有燒臘相關的餐點。我可以協助您從菜單中推薦主餐或飲品.\", \"added_to_cart\": false, \"cart_actions\": []}",
+        "review_status": "revised",
+        "review_notes": "簡體字修正：'点'變為'點'",
+        "metadata": {},
+        "raw_review": "{\n  \"status\": \"revised\",\n  \"reviewed_text\": \"{\\\"customer_speech\\\": \\\"我要点烧啦\\\", \\\"system_response\\\": \\\" 目前菜單上沒有燒臘相關的餐點。我可以協助您從菜單中推薦主餐或飲品.\\\", \\\"added_to_cart\\\": false, \\\"cart_actions\\\": []}\",\n  \"notes\": \"簡體字修正：'点'變為'點'\"\n}"
+    },
+    {
+        "timestamp": "2026-05-16T09:38:58.985602",
+        "doc_id": "b7be3e37-4f02-4170-a097-a24f37f2f011",
+        "source_type": "voice_order",
+        "source_id": "voice_order_pos_mbvocu0u9_1778895537536",
+        "source_text": "語音點餐對話紀錄\nSession: pos_mbvocu0u9\n語言: zh\n模式: gemini\n顧客語音文字: 幫我點雞湯\n系統回覆: 好的，為您點一份元氣人參雞湯，這款湯品採用精選高麗參熬煮，非常溫補暖胃。 (來源: file_name=menu/M01 page=- chunk_id=58f8452d-14cd-4157-b36e-9f2452eff920_chunk_1)\n成功加入購物車: 元氣人參雞湯 x1\ncart_actions: [{'action': 'add', 'id': 'M01', 'quantity': 1}]",
+        "reviewed_text": "{\"menu_name\": \"\", \"price\": \"\", \"description\": \"\"}",
+        "review_status": "approved",
+        "review_notes": "移除簡體字",
+        "metadata": {},
+        "raw_review": "{\n\"status\": \"approved\",\n\"reviewed_text\": {\n  \"menu_name\": \"\",\n  \"price\": \"\",\n  \"description\": \"\"\n},\n\"notes\": \"移除簡體字\"\n}"
+    }
+]
