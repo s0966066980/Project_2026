@@ -11,6 +11,9 @@
 - Ollama Embedding：RAG 向量化預設使用 `nomic-embed-text`。
 - edge-tts：產生中文或英文語音回覆。
 - ChromaDB：保存 Ollama 審查後的 RAG 文本。
+- Interaction Event Engine：收集 POS 操作事件序列，計算互動障礙風險分數。
+- Barrier State Engine：將情緒、語音、操作事件與 UI context 轉換為互動障礙狀態。
+- Intervention Engine：根據互動障礙狀態產生 UI 提示、簡化介面、付款教學或店員通知。
 
 ---
 
@@ -48,6 +51,7 @@ UI_API/
 ├── config.py
 ├── rag_service.py
 ├── index.html
+├── PATENT_DESIGN.md
 ├── routes/
 │   ├── core_routes.py
 │   ├── menu_routes.py
@@ -55,16 +59,21 @@ UI_API/
 │   ├── voice_routes.py
 │   ├── customer_service_routes.py
 │   ├── recommendation_routes.py
-│   └── emotion_routes.py
+│   ├── emotion_routes.py
+│   └── interaction_routes.py
 ├── services/
 │   ├── customer_service.py
 │   ├── recommendation_service.py
 │   ├── rag_review_service.py
-│   └── voice_order_service.py
+│   ├── voice_order_service.py
+│   ├── interaction_event_service.py
+│   ├── barrier_state_service.py
+│   └── intervention_service.py
 ├── repositories/
 │   ├── log_repository.py
 │   ├── menu_repository.py
-│   └── session_repository.py
+│   ├── session_repository.py
+│   └── interaction_event_repository.py
 ├── utils/
 │   ├── text_utils.py
 │   └── file_utils.py
@@ -85,7 +94,9 @@ UI_API/
 │   ├── customer_service_media/
 │   ├── rag_docs.json
 │   ├── rag_review_logs.json
-│   └── rag_vector_meta.json
+│   ├── rag_vector_meta.json
+│   ├── interaction_events.json
+│   └── intervention_logs.json
 ├── chroma_db_versions/
 ├── requirements.txt
 ├── .gitignore
@@ -312,6 +323,30 @@ rag:
 | `DELETE /api/logs/{log_index}` | 刪除單筆推播成效 |
 | `DELETE /api/logs` | 清空推播成效 |
 | `POST /api/checkout` | 結帳並記錄成效 |
+| `POST /api/interaction_event` | 記錄 POS 操作事件並計算互動障礙風險 |
+| `GET /api/interaction_events/{session_id}` | 取得該 session 的互動事件 |
+| `POST /api/interaction_risk` | 依最近事件重新計算互動障礙風險 |
+| `POST /api/barrier_state` | 融合事件、語音、情緒與 UI context，推論互動障礙狀態與介入動作 |
+| `POST /api/intervention_result` | 回寫服務介入後的付款、結帳或店員介入結果 |
+| `GET /api/intervention_logs/{session_id}` | 取得該 session 的服務介入紀錄 |
+
+---
+
+## 專利化技術流程
+
+本系統不是單純情緒辨識。Emotion-LLaMA 只是多模態訊號之一，核心流程是將 POS 操作行為轉換成可觸發、可執行、可回饋的服務介入策略。
+
+流程如下：
+
+1. POS 先收集操作事件序列，例如停留時間、付款失敗、優惠券錯誤、無效點擊、返回與購物車修改。
+2. `Interaction Event Engine` 以輕量規則計算互動障礙風險分數，不在每次點擊時呼叫大型模型。
+3. 只有風險分數達門檻時，才觸發多模態分析，降低持續影像分析的算力與隱私成本。
+4. 多模態輸入包含 Whisper 語音文字、Emotion-LLaMA 情緒分析、媒體訊號、POS 操作事件與 UI context。
+5. `Barrier State Engine` 將 `emotion_label` 與操作脈絡轉換為 `barrier_state`，例如付款卡關、操作困惑、優惠券卡關、等待不耐或需要真人協助。
+6. `Intervention Engine` 將 `barrier_state` 轉換為 `intervention_action`，例如付款教學、優惠券提示、簡化介面、熱門組合推薦或店員通知。
+7. `intervention_result` 會保存付款是否成功、結帳是否成功、是否通知店員與完成結帳時間，形成後續調整門檻與策略的回饋閉環。
+
+更完整的專利設計草稿請見 `PATENT_DESIGN.md`。
 
 ---
 
@@ -326,6 +361,7 @@ rag:
 5. 抽離 `recommendation_service`、`customer_service`、`rag_review_service` 到 `services/`。
 6. 抽離 `log_repository`、`menu_repository` 到 `repositories/`。
 7. 文字工具抽離到 `utils/text_utils.py`。
+8. 新增 Interaction Event / Barrier State / Intervention 三段式專利化服務介入模組。
 
 下一階段建議：
 
