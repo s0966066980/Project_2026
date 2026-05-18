@@ -136,12 +136,18 @@ def create_router(deps: dict | None = None) -> APIRouter:
             risk_result=risk_result,
         )
         intervention = intervention_service.decide_intervention(barrier_result, ui_context)
-        log_payload = intervention_service.build_intervention_log(
-            session_id, barrier_result, intervention, ui_context
+        should_log = (
+            intervention.get("action") != "none"
+            and barrier_result.get("barrier_state") != "normal_operation"
         )
-        intervention_log = await asyncio.to_thread(
-            interaction_event_repository.append_intervention_log, log_payload
-        )
+        intervention_log = None
+        if should_log:
+            log_payload = intervention_service.build_intervention_log(
+                session_id, barrier_result, intervention, ui_context
+            )
+            intervention_log = await asyncio.to_thread(
+                interaction_event_repository.append_intervention_log, log_payload
+            )
         return {
             "status": "success",
             "session_id": session_id,
