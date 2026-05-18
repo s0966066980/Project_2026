@@ -156,7 +156,9 @@ def find_latest_open_intervention(session_id: str) -> dict | None:
         if str(row.get("session_id", "")) != str(session_id):
             continue
         result = row.get("result") if isinstance(row.get("result"), dict) else {}
-        if result.get("checkout_success"):
+        if result.get("closed") is True:
+            continue
+        if "checkout_success" in result or "payment_success" in result:
             continue
         return row
     return None
