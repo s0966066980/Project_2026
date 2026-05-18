@@ -22,6 +22,7 @@ Project_2026 是一套智慧 POS 點餐與客服原型系統。專案目前包�
 - 客服浮動視窗與後台客服工作台
 - Whisper 語音辨識與語系判斷
 - Emotion-LLaMA 情緒與行為證據分析
+- 客服狀態推理，將多模態證據轉成客服優先級與真人介入建議
 - Ollama / Gemini API 問答
 - 本地 RAG 文件與審查流程
 - 互動事件風險分數
@@ -209,6 +210,7 @@ UI_API/
 ├── services/
 │   ├── recommendation_service.py
 │   ├── customer_service.py
+│   ├── customer_service_state_service.py
 │   ├── rag_review_service.py
 │   ├── voice_order_service.py
 │   ├── interaction_event_service.py
@@ -274,6 +276,8 @@ UI_API/
 - `POST /api/customer_service`
 - `GET /api/customer_service_logs`
 - `POST /api/customer_service_logs/{source_id}/human_reply`
+
+客服流程會把 Whisper 語音文字、Emotion-LLaMA 結構化情緒、YOLO 人物偵測與媒體訊號轉成 `customer_service_state`。Emotion-LLaMA 在客服中不是單純做情緒辨識，而是提供多模態情緒與行為證據；系統再用該狀態決定客服優先級、真人介入建議與回覆策略。
 
 ### RAG
 
@@ -368,4 +372,3 @@ python3 -m py_compile services/intervention_service.py
 如果環境中沒有 `python` 指令，請使用 `python3`。
 
 ---
-

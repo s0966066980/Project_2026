@@ -13,7 +13,9 @@ Emotion-LLaMA Gradio Client — 精簡 API 版
 
 import argparse
 import os
+import tempfile
 import threading
+import time
 import torch
 import gradio as gr
 
@@ -35,6 +37,17 @@ def parse_args():
 # =========================================================
 _chat = None
 _infer_lock = threading.Lock()
+
+
+def is_allowed_video_path(path: str) -> bool:
+    allowed_dir = os.getenv("EMOTION_LLAMA_ALLOWED_VIDEO_DIR") or tempfile.gettempdir()
+    try:
+        real_path = os.path.realpath(path or "")
+        real_allowed_dir = os.path.realpath(allowed_dir)
+        return os.path.commonpath([real_path, real_allowed_dir]) == real_allowed_dir
+    except Exception:
+        return False
+
 
 def get_chat():
     global _chat
@@ -87,10 +100,13 @@ def process_video_question(video_path: str, question: str) -> str:
     Chat.answer(conv, img_list, **kargs):
       - 生成回答
     """
+    start_ts = time.time()
     from minigpt4.conversation.conversation import Conversation, SeparatorStyle
 
     if not video_path or not os.path.exists(video_path):
-        return f"⚠️ 找不到視頻檔案：{video_path}"
+        return f"[EMOTION_LLAMA_ERROR] video_not_found: {video_path}"
+    if not is_allowed_video_path(video_path):
+        return f"[EMOTION_LLAMA_ERROR] path_not_allowed: {video_path}"
 
     chat = get_chat()
 
@@ -138,12 +154,13 @@ def process_video_question(video_path: str, question: str) -> str:
             response = response.replace(tag, "")
         response = response.strip()
 
-        print(f"✅ 推論完成: {response[:150]}")
+        elapsed_ms = int((time.time() - start_ts) * 1000)
+        print(f"✅ 推論完成: elapsed_ms={elapsed_ms}, response={response[:150]}")
         return response
 
     except Exception as e:
         print(f"❌ 推論失敗: {e}")
-        return f"推論過程發生錯誤：{e}"
+        return f"[EMOTION_LLAMA_ERROR] inference_failed: {e}"
 
 
 # =========================================================
@@ -151,6 +168,13 @@ def process_video_question(video_path: str, question: str) -> str:
 # =========================================================
 if __name__ == "__main__":
     args = parse_args()
+
+    print("🔧 Emotion-LLaMA 推論設定:")
+    print(f"  EMOTION_LLAMA_TEMPERATURE={os.getenv('EMOTION_LLAMA_TEMPERATURE', '0.2')}")
+    print(f"  EMOTION_LLAMA_MAX_NEW_TOKENS={os.getenv('EMOTION_LLAMA_MAX_NEW_TOKENS', '120')}")
+    print(f"  EMOTION_LLAMA_MAX_LENGTH={os.getenv('EMOTION_LLAMA_MAX_LENGTH', '1600')}")
+    print(f"  EMOTION_LLAMA_NUM_BEAMS={os.getenv('EMOTION_LLAMA_NUM_BEAMS', '1')}")
+    print(f"  port={args.port}")
 
     print("🔄 預先載入 Emotion-LLaMA 模型...")
     get_chat()

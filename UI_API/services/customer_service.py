@@ -458,6 +458,7 @@ async def analyze_customer_emotion(
                 "emotion_structured": emotion_structured,
                 "no_person": True,
                 "person_check": person_check,
+                "media_signals": media_signals,
                 "ts": time.time(),
             }
             return emotion_text
@@ -483,6 +484,7 @@ async def analyze_customer_emotion(
                 "emotion_structured": emotion_structured,
                 "no_person": False,
                 "person_check": person_check,
+                "media_signals": media_signals,
                 "ts": time.time(),
             }
             return emotion_structured["emotion_display"]
@@ -494,6 +496,8 @@ async def analyze_customer_emotion(
             "emotion_display": emotion_structured["emotion_display"],
             "emotion_structured": emotion_structured,
             "no_person": False,
+            "person_check": person_check,
+            "media_signals": media_signals,
             "ts": time.time(),
         }
         return emotion_structured["emotion_display"]

@@ -14,6 +14,7 @@
 - Interaction Event Engine：收集 POS 操作事件序列，計算互動障礙風險分數。
 - Barrier State Engine：將情緒、語音、操作事件與 UI context 轉換為互動障礙狀態。
 - Intervention Engine：根據互動障礙狀態產生 UI 提示、簡化介面、付款教學或店員通知。
+- Customer Service State Engine：將客服語音、Emotion-LLaMA 證據與媒體訊號轉換為客服狀態、優先級與真人介入建議。
 
 ---
 
@@ -70,6 +71,7 @@ UI_API/
 │   ├── interaction_event_service.py
 │   ├── barrier_state_service.py
 │   ├── intervention_service.py
+│   ├── customer_service_state_service.py
 │   └── multimodal_evidence_service.py
 ├── repositories/
 │   ├── log_repository.py
@@ -240,17 +242,22 @@ POS 左下角客服按鈕會開啟浮動客服視窗：
 
 1. 點「開始收音」。
 2. 後端用同一段 `webm` 做 Whisper 語音辨識與 Emotion-LLaMA 情緒分析。
-3. 若 POS 端使用 Ollama，會依語音文字、情緒、菜單白名單與 RAG 產生客服回覆。
-4. 點擊客服視窗外部會自動關閉視窗並停止收音。
+3. 系統會把語音文字、Emotion-LLaMA 結構化情緒、YOLO 人物偵測與媒體訊號轉成 `customer_service_state`，例如付款問題、優惠券問題、操作困惑、客訴風險、趕時間或需要真人協助。
+4. 若 POS 端使用 Ollama，會依語音文字、情緒、`customer_service_state`、菜單白名單與 RAG 產生客服回覆。
+5. 若 `needs_human_staff=true`，客服回覆會優先簡短安撫並告知將通知店員。
+6. 點擊客服視窗外部會自動關閉視窗並停止收音。
 
 後台「客服系統」提供：
 
 - 顧客語音文字。
 - 顧客錄音播放。
 - Emotion-LLaMA 情緒分析。
+- `customer_service_state`、客服優先級、真人介入建議與判斷證據。
 - Ollama 客服回覆。
 - 真人客服輸入回覆文字。
 - 「客服回覆語音」按鈕，將真人文字回覆轉成語音播放。
+
+Emotion-LLaMA 在客服中不是單純做情緒辨識，而是提供多模態情緒與行為證據。系統會再把這些證據轉成 `customer_service_state`，用於客服優先級、真人介入判斷與回覆策略。
 
 ### RAG 文本
 

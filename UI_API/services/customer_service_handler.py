@@ -8,8 +8,48 @@ import config
 import database
 from repositories import log_repository, menu_repository, session_repository
 from services import customer_service
+from services import customer_service_state_service
 from services import rag_review_service
 from services import recommendation_service
+
+
+def _merge_priority(*priorities: str) -> str:
+    order = {"low": 0, "normal": 1, "medium": 2, "high": 3}
+    best = "normal"
+    best_score = order[best]
+    for priority in priorities:
+        value = str(priority or "normal").lower()
+        score = order.get(value, order["normal"])
+        if score > best_score:
+            best = value
+            best_score = score
+    return best
+
+
+def _apply_customer_service_state_reply_rules(
+    customer_reply: str,
+    staff_summary: str,
+    service_state: dict,
+    lang: str,
+) -> tuple[str, str]:
+    state = service_state.get("customer_service_state")
+    needs_human_staff = bool(service_state.get("needs_human_staff"))
+    reply = (customer_reply or "").strip()
+    summary = (staff_summary or "").strip()
+    if not needs_human_staff:
+        return reply, summary
+
+    if lang == "en":
+        if "staff" not in reply.lower():
+            reply = "Sorry about that. I will notify our staff to assist you right away."
+        if "staff" not in summary.lower():
+            summary = f"{summary} Customer service state: {state}; human staff needed.".strip()
+    else:
+        if "店員" not in reply and "客服人員" not in reply and "真人" not in reply:
+            reply = "很抱歉造成您的困擾，我會立即通知店員協助您處理。"
+        if "真人協助" not in summary and "店員" not in summary:
+            summary = f"{summary}；客服狀態：{state}，需要真人協助。".strip("；")
+    return reply, summary
 
 
 async def handle_customer_service(
@@ -45,6 +85,29 @@ async def handle_customer_service(
         deps["emotion_cache"].get(session_id),
         session_repository.get_session_history(session_id),
     )
+    emotion_cache_entry = deps["emotion_cache"].get(session_id) or {}
+    emotion_structured = emotion_cache_entry.get("emotion_structured") or {}
+    person_check = emotion_cache_entry.get("person_check") or {}
+    media_signals = emotion_cache_entry.get("media_signals") or {}
+    service_state = customer_service_state_service.infer_customer_service_state(
+        user_text=user_text,
+        emotion_structured=emotion_structured,
+        media_signals=media_signals,
+        person_check=person_check,
+    )
+    service_state_prompt = (
+        "【客服狀態推理】\n"
+        f"customer_service_state={service_state.get('customer_service_state')}\n"
+        f"priority={service_state.get('priority')}\n"
+        f"needs_human_staff={service_state.get('needs_human_staff')}\n"
+        f"evidence={', '.join(service_state.get('evidence') or [])}\n\n"
+        "客服狀態規則：\n"
+        "- 若 needs_human_staff=true，customer_reply 應簡短安撫並告知將通知店員。\n"
+        "- 若 payment_issue，優先提供付款協助。\n"
+        "- 若 coupon_issue，優先提供優惠券/掃碼協助。\n"
+        "- 若 operation_confusion，提供一步一步操作指引。\n"
+        "- 若 complaint_risk，不要推銷商品，先道歉並轉真人協助。"
+    )
 
     qa_provider = config.get("QA_AI_PROVIDER", "ollama")
     mode = qa_provider if use_ollama else "human"
@@ -63,6 +126,7 @@ async def handle_customer_service(
             f"【顧客語音文字】\n{user_text}\n\n"
             f"{emotion_context}\n"
             f"客服情緒摘要: {emotion_text}\n\n"
+            f"{service_state_prompt}\n\n"
             f"{full_menu_context}\n\n"
             f"【RAG 補充內容】\n{rag_context}\n\n"
             "重要限制：不可編造不存在的餐點、優惠、政策或已完成的人工作業。\n"
@@ -92,8 +156,12 @@ async def handle_customer_service(
         staff_summary = customer_service.enforce_customer_language(
             staff_summary, detected_lang, user_text
         )
+        priority = _merge_priority(priority, service_state.get("priority"))
         customer_reply, staff_summary = customer_service.fix_customer_reply_for_intent(
             user_text, detected_lang, customer_reply, staff_summary
+        )
+        customer_reply, staff_summary = _apply_customer_service_state_reply_rules(
+            customer_reply, staff_summary, service_state, detected_lang
         )
         raw_ids = service_result.get("mentioned_ids", []) if isinstance(service_result, dict) else []
         if isinstance(raw_ids, str):
@@ -105,8 +173,11 @@ async def handle_customer_service(
     else:
         customer_reply = customer_service.fallback_customer_reply(detected_lang)
         staff_summary = user_text
-        priority = "normal"
+        priority = _merge_priority(service_state.get("priority"))
         raw_ollama = ""
+        customer_reply, staff_summary = _apply_customer_service_state_reply_rules(
+            customer_reply, staff_summary, service_state, detected_lang
+        )
 
     source_id = f"cs_{session_id}_{int(time.time())}"
     media_filename = ""
@@ -159,6 +230,11 @@ async def handle_customer_service(
         "customer_reply": customer_reply,
         "staff_summary": staff_summary,
         "priority": priority,
+        "customer_service_state": service_state.get("customer_service_state"),
+        "customer_service_priority": service_state.get("priority"),
+        "needs_human_staff": service_state.get("needs_human_staff"),
+        "service_state_evidence": service_state.get("evidence", []),
+        "emotion_structured": emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
         "media_filename": media_filename,
@@ -181,6 +257,11 @@ async def handle_customer_service(
         "customer_reply": customer_reply,
         "staff_summary": staff_summary,
         "priority": priority,
+        "customer_service_state": service_state.get("customer_service_state"),
+        "customer_service_priority": service_state.get("priority"),
+        "needs_human_staff": service_state.get("needs_human_staff"),
+        "service_state_evidence": service_state.get("evidence", []),
+        "emotion_structured": emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
         "rag_doc_id": rag_doc.get("id"),
