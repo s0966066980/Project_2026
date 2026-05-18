@@ -1,5 +1,5 @@
-import * as api from './api.js?v=order-confirm-20260514-2';
-import { API_BASE } from './api.js?v=order-confirm-20260514-2';
+import * as api from './api.js?v=interaction-20260518';
+import { API_BASE } from './api.js?v=interaction-20260518';
 import {
   ui,
   escapeHTML,
@@ -7,15 +7,15 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=order-confirm-20260514-2';
+} from './ui.js?v=interaction-20260518';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=order-confirm-20260514-2';
-import { createCartManager } from './cart.js?v=order-confirm-20260514-2';
-import { createRecommendationManager } from './recommendation.js?v=order-confirm-20260514-2';
+} from './media.js?v=interaction-20260518';
+import { createCartManager } from './cart.js?v=interaction-20260518';
+import { createRecommendationManager } from './recommendation.js?v=interaction-20260518';
 
 // =========================================================
 // Controller 狀態
@@ -40,6 +40,25 @@ let emotionLoopId = null;
 let detectionLoopId = null;
 let detectionInFlight = false;
 let recommendLoopId = null;
+let lastVoiceText = '';
+let lastEmotionStructured = null;
+let lastMediaSignals = {};
+let promotionPausedUntil = 0;
+let barrierCheckInFlight = false;
+let lastBarrierCheckAt = 0;
+let interactionModalTimer = null;
+let pageDwellTimer = null;
+const interactionState = {
+  pageId: 'startup',
+  pageEnteredAt: Date.now(),
+  lastActivityAt: Date.now(),
+  backCount: 0,
+  invalidTouchCount: 0,
+  paymentFailCount: 0,
+  couponErrorCount: 0,
+  cartEditCount: 0,
+  lastReportedDwellPage: '',
+};
 let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
@@ -166,6 +185,7 @@ function updateEmotionDetectionOverlay(personCheck = {}) {
 
 function switchMainView(view) {
   switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, initAdminToggles, applyFeaturesToPOS, loadMenu });
+  setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
 
 function switchAdminTab(id) {
@@ -180,13 +200,44 @@ function findMenuItems(ids = []) {
 }
 
 const cartManager = createCartManager({ ui, escapeHTML, findMenuItems });
+
+function trackedAddToCart(item, metadata = {}) {
+  cartManager.addToCart(item);
+  trackInteractionEvent({
+    event_type: 'cart_edit',
+    button_id: item?.id ? `menu_${item.id}` : 'add_to_cart',
+    cart_edit_count: 1,
+    metadata: { action: 'add', item_id: item?.id || '', ...metadata }
+  });
+}
+
+function trackedUpdateCartQty(id, delta) {
+  cartManager.updateCartQty(id, delta);
+  trackInteractionEvent({
+    event_type: 'cart_edit',
+    button_id: `cart_qty_${id}`,
+    cart_edit_count: 1,
+    metadata: { action: 'qty', item_id: id, delta }
+  });
+}
+
+function trackedDeleteCartItem(id) {
+  cartManager.deleteCartItem(id);
+  trackInteractionEvent({
+    event_type: 'cart_edit',
+    button_id: `cart_delete_${id}`,
+    cart_edit_count: 1,
+    metadata: { action: 'delete', item_id: id }
+  });
+}
+
 const recommendationManager = createRecommendationManager({
   ui,
   escapeHTML,
   isPosActive,
   getFeatures,
   findMenuItems,
-  addToCart: cartManager.addToCart,
+  addToCart: item => trackedAddToCart(item, { source: 'recommendation' }),
   sessionPushedIds,
   sessionPushedVariants
 });
@@ -220,7 +271,7 @@ function renderMenu() {
     const d = document.createElement('div');
     d.id = `menu-${item.id}`;
     d.className = 'menu-card min-h-[252px]';
-    d.onclick = () => cartManager.addToCart(item);
+    d.onclick = () => trackedAddToCart(item, { source: 'menu_card' });
     d.innerHTML = `
       <div class="menu-photo">
         <img src="${visual.image}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
@@ -242,6 +293,187 @@ function renderMenu() {
       </div>`;
     ui.menuGrid.appendChild(d);
   });
+}
+
+// =========================================================
+// POS 互動障礙事件追蹤
+// =========================================================
+function currentPageId() {
+  if (ui.adminView && !ui.adminView.classList.contains('hidden')) return 'admin_page';
+  if (orderCompleted) return 'completed_page';
+  if (ui.orderConfirmModal && !ui.orderConfirmModal.classList.contains('hidden')) return 'payment_page';
+  if (ui.posView && !ui.posView.classList.contains('hidden')) return 'menu_page';
+  return interactionState.pageId || 'unknown';
+}
+
+function getDwellTimeSec() {
+  return Math.max(0, Math.round((Date.now() - interactionState.pageEnteredAt) / 1000));
+}
+
+function getIdleTimeSec() {
+  return Math.max(0, Math.round((Date.now() - interactionState.lastActivityAt) / 1000));
+}
+
+function buildUIContext(extra = {}) {
+  return {
+    page_id: currentPageId(),
+    cart_count: cartManager.getCartIds().length,
+    cart_total: cartManager.getCartTotal(),
+    voice_ask_enabled: Boolean(getFeatures().voiceAsk),
+    recommend_enabled: Boolean(getFeatures().recommend),
+    promotion_paused: Date.now() < promotionPausedUntil,
+    service_open: Boolean(ui.serviceWindow?.classList.contains('open')),
+    ...extra,
+  };
+}
+
+function setInteractionPage(pageId, metadata = {}) {
+  const nextPage = pageId || currentPageId();
+  if (interactionState.pageId === nextPage) return;
+  interactionState.pageId = nextPage;
+  interactionState.pageEnteredAt = Date.now();
+  interactionState.lastReportedDwellPage = '';
+  if (nextPage === 'menu_page') {
+    trackInteractionEvent({ event_type: 'enter_menu_page', button_id: 'startSystemBtn', metadata });
+  }
+}
+
+function normalizeInteractionPayload(event = {}) {
+  const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  return {
+    session_id: sessionId,
+    page_id: event.page_id || currentPageId(),
+    event_type: event.event_type || 'unknown',
+    button_id: event.button_id || '',
+    dwell_time_sec: Number(event.dwell_time_sec ?? getDwellTimeSec()) || 0,
+    back_count: Number(event.back_count ?? interactionState.backCount) || 0,
+    invalid_touch_count: Number(event.invalid_touch_count ?? interactionState.invalidTouchCount) || 0,
+    payment_fail_count: Number(event.payment_fail_count ?? interactionState.paymentFailCount) || 0,
+    coupon_error_count: Number(event.coupon_error_count ?? interactionState.couponErrorCount) || 0,
+    cart_edit_count: Number(event.cart_edit_count ?? interactionState.cartEditCount) || 0,
+    idle_time_sec: Number(event.idle_time_sec ?? getIdleTimeSec()) || 0,
+    metadata,
+    ui_context: buildUIContext(metadata.ui_context || {}),
+  };
+}
+
+function applyIntervention(intervention = {}, barrierResult = {}) {
+  if (!intervention || intervention.action === 'none') return;
+  console.log('[interaction intervention]', { intervention, barrierResult });
+
+  if (intervention.ui_patch?.disable_promotion) {
+    promotionPausedUntil = Date.now() + 45000;
+    clearAllPushCards();
+  }
+
+  if (intervention.staff_notify) {
+    showPushNotice('建議店員協助');
+  }
+
+  const modalName = intervention.ui_patch?.show_modal || '';
+  if (!modalName) return;
+  let box = document.getElementById('interactionInterventionBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'interactionInterventionBox';
+    box.style.cssText = [
+      'position:fixed',
+      'left:24px',
+      'bottom:24px',
+      'z-index:80',
+      'max-width:360px',
+      'background:var(--surface)',
+      'border:1.5px solid var(--border)',
+      'box-shadow:var(--shadow)',
+      'border-radius:16px',
+      'padding:18px',
+      'color:var(--text)'
+    ].join(';');
+    document.body.appendChild(box);
+  }
+  const titleMap = {
+    payment_guide: '付款協助',
+    coupon_guide: '優惠券協助',
+    operation_hint: '操作協助',
+  };
+  box.innerHTML = `
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-sm font-bold mb-1" style="color:var(--accent2)">${escapeHTML(titleMap[modalName] || '操作提示')}</p>
+        <p class="text-sm leading-relaxed">${escapeHTML(intervention.tts_text || intervention.reason || '需要協助時可通知店員。')}</p>
+        ${intervention.staff_notify ? '<p class="text-xs mt-2 font-bold" style="color:var(--danger)">建議店員協助</p>' : ''}
+      </div>
+      <button type="button" data-close-intervention style="color:var(--text2)"><i class="fas fa-times"></i></button>
+    </div>`;
+  box.querySelector('[data-close-intervention]').onclick = () => box.remove();
+  if (interactionModalTimer) clearTimeout(interactionModalTimer);
+  interactionModalTimer = setTimeout(() => box.remove(), 10000);
+}
+
+async function maybeCheckBarrierState(riskResult = {}) {
+  if (!riskResult.triggered || barrierCheckInFlight) return;
+  if (Date.now() - lastBarrierCheckAt < 10000) return;
+  barrierCheckInFlight = true;
+  lastBarrierCheckAt = Date.now();
+  try {
+    const data = await api.barrierState({
+      session_id: sessionId,
+      speech_text: lastVoiceText,
+      emotion_structured: lastEmotionStructured || {},
+      ui_context: buildUIContext(),
+      media_signals: lastMediaSignals || {},
+    });
+    if (data.status === 'success') {
+      applyIntervention(data.intervention, data.barrier_result);
+    }
+  } catch (err) {
+    console.warn('[interaction barrier_state failed]', err);
+  } finally {
+    barrierCheckInFlight = false;
+  }
+}
+
+async function reportInteractionEvent(payload) {
+  try {
+    const response = await api.reportInteractionEvent(payload);
+    if (response?.risk_result?.triggered) {
+      await maybeCheckBarrierState(response.risk_result);
+    }
+    return response;
+  } catch (err) {
+    console.warn('[interaction_event failed]', err);
+    return null;
+  }
+}
+
+function trackInteractionEvent(event = {}) {
+  interactionState.lastActivityAt = Date.now();
+  if (event.event_type === 'back_navigation') interactionState.backCount += 1;
+  if (event.event_type === 'invalid_touch') interactionState.invalidTouchCount += 1;
+  if (event.event_type === 'payment_failed') interactionState.paymentFailCount += 1;
+  if (event.event_type === 'checkout_error') interactionState.paymentFailCount += 1;
+  if (event.event_type === 'coupon_error') interactionState.couponErrorCount += 1;
+  if (event.event_type === 'cart_edit') interactionState.cartEditCount += 1;
+  const payload = normalizeInteractionPayload(event);
+  reportInteractionEvent(payload);
+}
+
+function startPageDwellWatcher() {
+  if (pageDwellTimer) clearInterval(pageDwellTimer);
+  pageDwellTimer = setInterval(() => {
+    if (!isSystemRunning || !isPosActive()) return;
+    const pageId = currentPageId();
+    if (pageId !== interactionState.pageId) setInteractionPage(pageId);
+    if (getDwellTimeSec() > 30 && interactionState.lastReportedDwellPage !== pageId) {
+      interactionState.lastReportedDwellPage = pageId;
+      trackInteractionEvent({
+        event_type: 'page_dwell_timeout',
+        button_id: 'page_timer',
+        dwell_time_sec: getDwellTimeSec(),
+        metadata: { reason: 'same_page_over_30_sec' }
+      });
+    }
+  }, 5000);
 }
 
 function getMenuVisual(item) {
@@ -299,6 +531,8 @@ ui.startBtn.onclick = async () => {
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
     updateEmotionCameraPanel();
+    startPageDwellWatcher();
+    setInteractionPage('menu_page', { source: 'start_system' });
     startEmotionLoop();
     startDetectionLoop();
     startRecommendLoop();
@@ -357,6 +591,8 @@ function startEmotionLoop() {
         const d = await api.pingState(fd);
         if (d.person_check) updateEmotionDetectionOverlay(d.person_check);
         if ((d.status === 'success' || d.status === 'not_executed') && d.emotion) {
+          lastEmotionStructured = d.emotion_structured || d;
+          lastMediaSignals = d.media_signals || d.emotion_structured?.media_signals || lastMediaSignals || {};
           ui.emotionBadge.classList.remove('hidden');
           ui.emotionText.textContent = formatEmotion(d.emotion);
           showEmotionCard(d.emotion_structured || d);
@@ -394,6 +630,8 @@ function showEmotionCard(emotionData) {
   const data = typeof emotionData === 'string'
     ? { emotion_display: emotionData }
     : (emotionData || {});
+  lastEmotionStructured = data;
+  lastMediaSignals = data.media_signals || lastMediaSignals || {};
   const display = data.emotion_display || data.emotion || '尚未取得情緒分析。';
   const evidence = data.emotion_evidence || data.evidence || '';
   const distribution = data.emotion_distribution || {};
@@ -426,6 +664,7 @@ function showEmotionCard(emotionData) {
 async function fetchAndDisplayRecommend() {
   const f = getFeatures();
   if (!f.recommend) return;
+  if (Date.now() < promotionPausedUntil) return;
   const fd = new FormData();
   fd.append('session_id', sessionId);
   fd.append('ab_mode', f.abTest ? 'ab' : 'single');
@@ -490,7 +729,15 @@ function setupAskRecorder() {
   askRecorder.onstop = async () => {
     const blob = new Blob(chunks, { type: 'audio/webm' });
     chunks = [];
-    if (blob.size < 1500) { ui.askText.textContent = "長按語音點餐"; return; }
+    if (blob.size < 1500) {
+      trackInteractionEvent({
+        event_type: 'voice_order_failed',
+        button_id: 'askBtn',
+        metadata: { reason: 'audio_too_short' }
+      });
+      ui.askText.textContent = "長按語音點餐";
+      return;
+    }
 
     const voiceAskEnabled = getFeatures().voiceAsk;
     ui.askText.textContent = voiceAskEnabled ? "AI 思考中..." : "辨識餐點中...";
@@ -502,12 +749,19 @@ function setupAskRecorder() {
     try {
       const data = await api.ask(fd);
       if (data.status === 'success') {
+        lastVoiceText = data.user_text || lastVoiceText;
         if (voiceAskEnabled) {
           playVoice(data.audio_base64);
           showVoiceBubble(data);
         }
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         if (appliedOrders.length) {
+          trackInteractionEvent({
+            event_type: 'cart_edit',
+            button_id: 'askBtn',
+            cart_edit_count: appliedOrders.length,
+            metadata: { source: 'voice_order', items: appliedOrders }
+          });
           showPushNotice(`已加入購物車：${appliedOrders.join('、')}`);
         } else if (!voiceAskEnabled) {
           showPushNotice(data.ai_response || '沒有在菜單中找到可加入購物車的餐點。');
@@ -523,6 +777,11 @@ function setupAskRecorder() {
         if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
       }
     } catch {
+      trackInteractionEvent({
+        event_type: 'voice_order_failed',
+        button_id: 'askBtn',
+        metadata: { reason: 'api_error', voice_ask_enabled: getFeatures().voiceAsk }
+      });
       if (getFeatures().voiceAsk) {
         showVoiceBubble({
           detected_lang: 'zh',
@@ -539,6 +798,11 @@ function setupAskRecorder() {
 ui.askBtn.onmousedown = ui.askBtn.ontouchstart = (e) => {
   e.preventDefault();
   if (askRecorder && askRecorder.state === 'inactive') {
+    trackInteractionEvent({
+      event_type: getFeatures().voiceAsk ? 'voice_ask_started' : 'voice_order_started',
+      button_id: 'askBtn',
+      metadata: { voice_ask_enabled: getFeatures().voiceAsk }
+    });
     askRecorder.start();
     ui.askBtn.classList.add('recording');
     ui.askText.textContent = getFeatures().voiceAsk ? "聆聽發問中..." : "聆聽點餐中...";
@@ -561,6 +825,7 @@ window.addEventListener('beforeunload', () => {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
   if (recommendLoopId) clearInterval(recommendLoopId);
+  if (pageDwellTimer) clearInterval(pageDwellTimer);
 });
 
 function playVoice(b64) {
@@ -618,6 +883,11 @@ async function submitServiceRecording() {
   serviceChunks = [];
   resetServiceButton();
   if (blob.size < 1500) {
+    trackInteractionEvent({
+      event_type: 'customer_service_failed',
+      button_id: 'posServiceRecord',
+      metadata: { reason: 'media_too_short' }
+    });
     setServiceResult('收音時間過短，請重新操作。');
     return;
   }
@@ -634,6 +904,11 @@ async function submitServiceRecording() {
     renderServiceResponse(ui.serviceResult, data);
     if (data.audio_base64) playVoice(data.audio_base64);
   } catch (err) {
+    trackInteractionEvent({
+      event_type: 'customer_service_failed',
+      button_id: 'posServiceRecord',
+      metadata: { reason: err.message || 'customer_service_error' }
+    });
     setServiceResult(escapeHTML(err.message || '客服流程失敗。'));
   }
 }
@@ -687,6 +962,11 @@ async function submitAdminServiceRecording() {
 }
 
 ui.serviceFab.onclick = () => {
+  trackInteractionEvent({
+    event_type: 'customer_service_clicked',
+    button_id: 'posServiceFab',
+    metadata: { opening: !ui.serviceWindow.classList.contains('open') }
+  });
   ui.serviceWindow.classList.toggle('open');
 };
 ui.serviceClose.onclick = () => {
@@ -697,12 +977,26 @@ ui.serviceRecord.onclick = async () => {
   if (serviceRecorder && serviceRecorder.state === 'recording') {
     stopServiceRecording();
   } else {
+    trackInteractionEvent({
+      event_type: 'customer_service_record_started',
+      button_id: 'posServiceRecord'
+    });
     await startServiceRecording();
   }
 };
 document.addEventListener('pointerdown', (event) => {
-  if (!ui.serviceWindow.classList.contains('open')) return;
   const target = event.target;
+  const interactive = target?.closest?.(
+    'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#posServiceWindow,#posServiceFab,#voiceReplyBubble'
+  );
+  if (isSystemRunning && isPosActive() && !interactive) {
+    trackInteractionEvent({
+      event_type: 'invalid_touch',
+      button_id: 'document',
+      metadata: { tag: target?.tagName || '' }
+    });
+  }
+  if (!ui.serviceWindow.classList.contains('open')) return;
   if (ui.serviceWindow.contains(target) || ui.serviceFab.contains(target)) return;
   ui.serviceWindow.classList.remove('open');
   stopServiceRecording();
@@ -819,7 +1113,14 @@ async function writeCheckoutLog(cartIds = []) {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 4000);
   try { await api.checkout(fd, ctrl.signal); }
-  catch { }
+  catch (err) {
+    trackInteractionEvent({
+      event_type: 'payment_failed',
+      button_id: 'confirmPayBtn',
+      payment_fail_count: 1,
+      metadata: { reason: err?.message || 'checkout_log_failed' }
+    });
+  }
   finally { clearTimeout(tid); }
 }
 
@@ -866,26 +1167,43 @@ function openOrderConfirmModal() {
   updateChoiceGroup('[data-payment]', selectedPayment);
   ui.orderConfirmModal?.classList.remove('hidden');
   ui.orderConfirmModal?.setAttribute('aria-hidden', 'false');
+  setInteractionPage('payment_page', { source: 'checkout_button' });
   clearPOSFloatingUI();
 }
 
 function closeOrderConfirmModal() {
   ui.orderConfirmModal?.classList.add('hidden');
   ui.orderConfirmModal?.setAttribute('aria-hidden', 'true');
+  if (!orderCompleted) setInteractionPage('menu_page', { source: 'close_order_confirm' });
 }
 
 ui.checkoutBtn.onclick = () => {
   if (!cartManager.getCartIds().length) return;
+  trackInteractionEvent({
+    event_type: 'enter_payment_page',
+    button_id: 'checkoutBtn',
+    metadata: { cart_ids: cartManager.getCartIds() }
+  });
   openOrderConfirmModal();
 };
 
-ui.orderConfirmCloseBtn?.addEventListener('click', closeOrderConfirmModal);
-ui.confirmBackBtn?.addEventListener('click', closeOrderConfirmModal);
+function leaveOrderConfirm(buttonId) {
+  trackInteractionEvent({
+    event_type: 'back_navigation',
+    button_id: buttonId,
+    back_count: 1,
+    metadata: { from: 'payment_page', to: 'menu_page' }
+  });
+  closeOrderConfirmModal();
+}
+
+ui.orderConfirmCloseBtn?.addEventListener('click', () => leaveOrderConfirm('orderConfirmCloseBtn'));
+ui.confirmBackBtn?.addEventListener('click', () => leaveOrderConfirm('confirmBackBtn'));
 ui.orderConfirmModal?.addEventListener('click', event => {
-  if (event.target?.classList?.contains('order-modal-backdrop')) closeOrderConfirmModal();
+  if (event.target?.classList?.contains('order-modal-backdrop')) leaveOrderConfirm('orderModalBackdrop');
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !ui.orderConfirmModal?.classList.contains('hidden')) closeOrderConfirmModal();
+  if (event.key === 'Escape' && !ui.orderConfirmModal?.classList.contains('hidden')) leaveOrderConfirm('escapeKey');
 });
 document.querySelectorAll('[data-fulfillment]').forEach(button => {
   button.addEventListener('click', () => {
@@ -902,6 +1220,11 @@ document.querySelectorAll('[data-payment]').forEach(button => {
 ui.confirmPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
   if (!cartIds.length) return;
+  trackInteractionEvent({
+    event_type: 'payment_attempt',
+    button_id: 'confirmPayBtn',
+    metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
+  });
   finishOrder(cartIds, ui.confirmPayBtn, '結帳中...', '點餐完成！');
 });
 
@@ -1320,8 +1643,11 @@ Object.assign(window, {
   clearAllRagDocs,
   addRagDoc,
   uploadRagPdf,
-  updateCartQty: cartManager.updateCartQty,
-  deleteCartItem: cartManager.deleteCartItem
+  updateCartQty: trackedUpdateCartQty,
+  deleteCartItem: trackedDeleteCartItem,
+  trackInteractionEvent,
+  reportInteractionEvent,
+  maybeCheckBarrierState
 });
 
 cartManager.renderCart();

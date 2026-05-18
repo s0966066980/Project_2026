@@ -191,6 +191,21 @@ http://127.0.0.1:8000
 4. 語音點餐會由 Ollama 回傳 `cart_actions`，後端白名單驗證後，前端自動加入購物車。
 5. 按「確認結帳」後，系統記錄推播命中與購買結果。
 
+### POS 互動障礙偵測
+
+前端現在會在不阻塞點餐流程的情況下，上報 POS 操作事件到 `/api/interaction_event`。
+目前追蹤事件包含進入菜單頁、同頁停留超過 30 秒、返回上一頁、無效點擊、購物車修改、進入付款頁、付款嘗試、付款失敗、點擊客服、客服收音、語音點餐開始與語音點餐失敗。
+
+`/api/interaction_event` 只做輕量記錄與風險計算。當回傳的 `risk_result.triggered=true` 時，前端才會呼叫 `/api/barrier_state`，並帶入目前 `ui_context`、最近一次語音文字、最近一次 Emotion-LLaMA 結構化結果與媒體訊號。
+
+目前前端介入動作是最小可視化：
+
+- `intervention.ui_patch.show_modal`：顯示簡單提示區塊。
+- `intervention.staff_notify=true`：畫面提示「建議店員協助」。
+- `intervention.ui_patch.disable_promotion=true`：暫停 AI 推播一段時間。
+
+完整 UI 自動改版仍是預留 hook；目前後端會回傳 JSON 決策，前端只做初步提示與推播暫停。
+
 ### AI 推播
 
 - 推播只顯示 Ollama 最終給客人的自然描述。

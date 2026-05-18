@@ -116,3 +116,19 @@ export async function sendHumanReply(sourceId, payload) {
     body: JSON.stringify(payload)
   }));
 }
+
+export async function reportInteractionEvent(payload) {
+  return asJson(await fetch(`${API_BASE}/api/interaction_event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  }));
+}
+
+export async function barrierState(payload) {
+  return asJson(await fetch(`${API_BASE}/api/barrier_state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  }));
+}
