@@ -29,16 +29,16 @@ def _latest_page(pos_events: list | None, ui_context: dict | None) -> str:
     return "unknown"
 
 
-def _sum_field(pos_events: list | None, field: str) -> int:
-    total = 0
+def _max_field(pos_events: list | None, field: str) -> int:
+    values = []
     for event in pos_events or []:
         if not isinstance(event, dict):
             continue
         try:
-            total += int(float(event.get(field) or 0))
+            values.append(int(float(event.get(field) or 0)))
         except Exception:
             continue
-    return total
+    return max(values) if values else 0
 
 
 def _confidence_from(score: int, evidence_count: int) -> float:
@@ -81,8 +81,8 @@ def infer_barrier_state(
     emotion_label = str(emotion.get("emotion_label") or "")
     evidence = []
 
-    payment_fail_count = _sum_field(events, "payment_fail_count")
-    coupon_error_count = _sum_field(events, "coupon_error_count")
+    payment_fail_count = _max_field(events, "payment_fail_count")
+    coupon_error_count = _max_field(events, "coupon_error_count")
 
     barrier_state = "normal_operation"
     if _contains_any(speech, ["客訴", "投訴", "不爽", "太誇張", "我要找人", "經理", "爛"]):

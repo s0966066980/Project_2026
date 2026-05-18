@@ -34,6 +34,7 @@ def normalize_interaction_event(payload: dict) -> dict:
         "event_type": str(raw.get("event_type") or "unknown"),
         "button_id": str(raw.get("button_id") or ""),
         "metadata": raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
+        "ui_context": raw.get("ui_context") if isinstance(raw.get("ui_context"), dict) else {},
     }
     for field, default in NUMERIC_FIELDS.items():
         if isinstance(default, float):

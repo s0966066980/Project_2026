@@ -447,14 +447,18 @@ async function reportInteractionEvent(payload) {
 }
 
 function trackInteractionEvent(event = {}) {
-  interactionState.lastActivityAt = Date.now();
+  const idleBeforeEvent = getIdleTimeSec();
   if (event.event_type === 'back_navigation') interactionState.backCount += 1;
   if (event.event_type === 'invalid_touch') interactionState.invalidTouchCount += 1;
   if (event.event_type === 'payment_failed') interactionState.paymentFailCount += 1;
   if (event.event_type === 'checkout_error') interactionState.paymentFailCount += 1;
   if (event.event_type === 'coupon_error') interactionState.couponErrorCount += 1;
   if (event.event_type === 'cart_edit') interactionState.cartEditCount += 1;
-  const payload = normalizeInteractionPayload(event);
+  const payload = normalizeInteractionPayload({
+    ...event,
+    idle_time_sec: event.idle_time_sec ?? idleBeforeEvent
+  });
+  interactionState.lastActivityAt = Date.now();
   reportInteractionEvent(payload);
 }
 
@@ -1222,6 +1226,7 @@ ui.confirmPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
   if (!cartIds.length) return;
   trackInteractionEvent({
+    page_id: 'payment_page',
     event_type: 'payment_attempt',
     button_id: 'confirmPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
