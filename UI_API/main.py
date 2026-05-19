@@ -12,13 +12,14 @@ from routes import (
     core_routes,
     customer_service_routes,
     emotion_routes,
+    demo_routes,
     menu_routes,
     rag_routes,
     recommendation_routes,
     voice_routes,
-    monitor_routes,
     multimodal_routes,
     interaction_routes,
+    realtime_routes,
 )
 
 
@@ -73,6 +74,8 @@ async def _background_init():
             print(f"❌ YOLO 背景預載失敗: {e}")
 
     async def _preload_gemini_client():
+        if config.get("ENABLE_GEMINI_OPTIONS", False) is not True:
+            return
         try:
             ok = await loop.run_in_executor(None, ai_services.init_gemini_client)
             if ok:
@@ -120,9 +123,10 @@ app.include_router(voice_routes.create_router(_deps))
 app.include_router(customer_service_routes.create_router(_deps))
 app.include_router(recommendation_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
-app.include_router(monitor_routes.create_router(_deps))
+app.include_router(demo_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
 app.include_router(multimodal_routes.create_router(_deps))
+app.include_router(realtime_routes.create_router(_deps))
 
 
 if __name__ == "__main__":

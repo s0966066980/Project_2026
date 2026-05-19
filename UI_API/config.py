@@ -49,14 +49,18 @@ _settings_last_check = 0.0
 DEFAULT_SETTINGS = {
     "AI_PROVIDER": "ollama",
     "QA_AI_PROVIDER": "ollama",
-    "EMOTION_AI_PROVIDER": "gemini",
+    "EMOTION_AI_PROVIDER": "ollama",
     "MODEL_NAME": "llama3.2",
     "ASK_MODEL_NAME": "llama3.2",
+    "ENABLE_GEMINI_OPTIONS": False,
     "GEMINI_MODEL_NAME": "gemini-3-flash-preview",
     "GEMINI_FALLBACK_TO_OLLAMA": True,
     "GEMINI_COOLDOWN_SEC": 60,
     "GEMINI_NUM_PREDICT": 512,
     "GEMINI_USE_JSON_MIME": False,
+    "CUSTOMER_SERVICE_MODE": "ollama",
+    "EVENT_TRIGGERED_MULTIMODAL_ENABLED": True,
+    "EMOTION_PERIODIC_ENABLED": False,
     "WHISPER_MODEL_SIZE": "base",
     "TTS_VOICE": "zh-TW-HsiaoChenNeural",
     "TTS_VOICE_EN": "en-US-JennyNeural",
@@ -150,6 +154,11 @@ def load_settings():
         except Exception as e:
             print(f"Settings 讀取錯誤，將使用預設值覆寫: {e}")
             should_write = True
+
+    if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
+        settings["AI_PROVIDER"] = "ollama"
+        settings["QA_AI_PROVIDER"] = "ollama"
+        settings["EMOTION_AI_PROVIDER"] = "ollama"
             
     if should_write:
         try:

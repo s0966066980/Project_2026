@@ -202,7 +202,7 @@ http://127.0.0.1:8000
 前端現在會在不阻塞點餐流程的情況下，上報 POS 操作事件到 `/api/interaction_event`。
 目前追蹤事件包含進入菜單頁、同頁停留超過 30 秒、返回上一頁、無效點擊、購物車修改、進入付款頁、付款嘗試、付款失敗、點擊客服、客服收音、語音點餐開始與語音點餐失敗。
 
-`/api/interaction_event` 只做輕量記錄與風險計算。當回傳的 `risk_result.triggered=true` 時，前端才會呼叫 `/api/barrier_state`，並帶入目前 `ui_context`、最近一次語音文字、最近一次 Emotion-LLaMA 結構化結果與媒體訊號。
+`/api/interaction_event` 只做輕量記錄與風險計算。當回傳的 `risk_result.triggered=true` 時，前端會優先使用事件觸發式短片段流程：從本機 rolling buffer 取得觸發前約 5 秒，再補錄觸發後約 5 秒，送到 `/api/triggered_multimodal_analysis` 進行 YOLO、Whisper、Emotion-LLaMA、`multimodal_evidence`、`barrier_state` 與 `intervention_action`。若瀏覽器沒有可用影音 stream，才 fallback 呼叫 `/api/barrier_state` 做輕量推理。
 
 目前前端介入動作是最小可視化：
 
@@ -220,7 +220,7 @@ http://127.0.0.1:8000
 
 本系統採用低算力、低隱私風險、事件觸發式短片段分析架構。平時只保存 POS 操作事件、頁面狀態與互動統計，不持續保存顧客原始影像。
 
-只有當 `INTERACTION_TRIGGER_THRESHOLD` 達到門檻時，系統才會把短時間事件脈絡、語音文字、Emotion-LLaMA 結構化分析與 UI context 組合成 `barrier_state`。短片段分析可用 `INTERACTION_PRE_EVENT_BUFFER_SEC` 與 `INTERACTION_POST_EVENT_BUFFER_SEC` 描述觸發前後的事件窗口，避免長時間連續分析。
+只有當 `INTERACTION_TRIGGER_THRESHOLD` 達到門檻時，系統才會把短時間事件脈絡、語音文字、Emotion-LLaMA 結構化分析與 UI context 組合成 `barrier_state`。短片段分析可用 `INTERACTION_PRE_EVENT_BUFFER_SEC` 與 `INTERACTION_POST_EVENT_BUFFER_SEC` 描述觸發前後的事件窗口，避免長時間連續分析。`EVENT_TRIGGERED_MULTIMODAL_ENABLED=true` 為預設主流程；`EMOTION_PERIODIC_ENABLED=false` 代表 `/api/ping_state` 週期偵測保留為 debug / demo，不再作為主要介入路徑。
 
 隱私相關設定：
 

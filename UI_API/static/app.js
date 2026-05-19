@@ -16,12 +16,36 @@ import {
 } from './media.js?v=privacy-20260518';
 import { createCartManager } from './cart.js?v=privacy-20260518';
 import { createRecommendationManager } from './recommendation.js?v=privacy-20260518';
+import { connectRealtime } from './realtime_client.js?v=privacy-20260518';
+import {
+  captureTriggeredClip,
+  hasRollingMediaBuffer,
+  startRollingMediaBuffer,
+  stopRollingMediaBuffer
+} from './media_buffer.js?v=privacy-20260518';
+
+const APP_MODE = (() => {
+  const path = window.location.pathname;
+  if (path.startsWith('/admin')) return 'admin';
+  if (path.startsWith('/pos')) return 'pos';
+  if (new URLSearchParams(window.location.search).get('view') === 'admin') return 'admin';
+  return 'pos';
+})();
+
+function isAdminMode() { return APP_MODE === 'admin'; }
+function isPosMode() { return APP_MODE === 'pos'; }
 
 // =========================================================
 // Controller 狀態
 // =========================================================
 
-const sessionId = 'pos_' + Math.random().toString(36).substr(2, 9);
+function buildSessionId() {
+  const requested = new URLSearchParams(window.location.search).get('session_id');
+  const safeRequested = String(requested || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+  return safeRequested || ('pos_' + Math.random().toString(36).substr(2, 9));
+}
+
+const sessionId = buildSessionId();
 let stream, askRecorder;
 let serviceRecorder = null;
 let serviceChunks = [];
@@ -51,6 +75,8 @@ let pageDwellTimer = null;
 let adminRefreshTimer = null;
 let interventionStatsLoading = false;
 let customerServiceLoading = false;
+let posRealtime = null;
+let adminRealtime = null;
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -74,11 +100,22 @@ let runtimeSettings = {
   RAG_TOP_K: 3,
   AB_SINGLE_CALL: true,
   ENABLE_TTS_CACHE: true,
-  ENABLE_RECOMMEND_CACHE: true
+  ENABLE_RECOMMEND_CACHE: true,
+  EVENT_TRIGGERED_MULTIMODAL_ENABLED: true,
+  EMOTION_PERIODIC_ENABLED: false,
+  CUSTOMER_SERVICE_MODE: 'ollama'
 };
 
 function perfValue(key) {
   return runtimeSettings[key];
+}
+
+function isEventTriggeredMultimodalEnabled() {
+  return runtimeSettings.EVENT_TRIGGERED_MULTIMODAL_ENABLED !== false;
+}
+
+function isPeriodicEmotionEnabled() {
+  return runtimeSettings.EMOTION_PERIODIC_ENABLED === true;
 }
 
 async function loadRuntimeSettings() {
@@ -94,8 +131,10 @@ function restartLoops() {
   emotionLoopId = null;
   detectionLoopId = null;
   recommendLoopId = null;
-  if (isSystemRunning) {
-    if (getFeatures().emotionBackend) startEmotionLoop();
+  if (isSystemRunning && isPosMode()) {
+    if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
+    else stopRollingMediaBuffer();
+    if (getFeatures().emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
     startDetectionLoop();
     startRecommendLoop();
   }
@@ -222,13 +261,14 @@ function toggleFeature(key, el) {
   applyFeaturesToPOS();
   if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend' || key === 'emotionCamera')) {
     ensureMediaTracks({
-      video: f.emotionBackend || f.emotionCamera,
+      video: f.emotionBackend || f.emotionCamera || isEventTriggeredMultimodalEnabled(),
       audio: true
     }).then(ok => {
       if (ok) setupAskRecorder();
       if (ok) {
         updateEmotionCameraPanel();
-        if (key === 'emotionBackend' && f.emotionBackend) startEmotionLoop();
+        maybeStartRollingMediaBuffer();
+        if (key === 'emotionBackend' && f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
         if (key === 'emotionCamera' && f.emotionCamera) startDetectionLoop();
       }
     });
@@ -288,11 +328,19 @@ function updateEmotionDetectionOverlay(personCheck = {}) {
   updateEmotionDetectionOverlayUI(personCheck, { features: getFeatures(), isPosActive: isPosActive(), stream });
 }
 
+function maybeStartRollingMediaBuffer() {
+  if (!isPosMode() || !isSystemRunning || !isEventTriggeredMultimodalEnabled()) return false;
+  if (!stream || !stream.getVideoTracks().length || !stream.getAudioTracks().length) return false;
+  return startRollingMediaBuffer(stream, Number(runtimeSettings.INTERACTION_PRE_EVENT_BUFFER_SEC) || 5);
+}
+
 function switchMainView(view) {
   switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, initAdminToggles, applyFeaturesToPOS, loadMenu });
   if (view === 'admin') {
+    startAdminRealtime();
     startAdminLiveRefresh();
   } else {
+    startPosRealtime();
     stopAdminLiveRefresh();
   }
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
@@ -481,6 +529,126 @@ function showAdminNotice(message, type = 'info') {
   ui.adminNotificationBox.classList.remove('hidden');
 }
 
+function customerServiceMode() {
+  return String(runtimeSettings.CUSTOMER_SERVICE_MODE || fullSettings.CUSTOMER_SERVICE_MODE || 'ollama') === 'human'
+    ? 'human'
+    : 'ollama';
+}
+
+function setVisible(el, visible) {
+  if (!el) return;
+  el.style.display = visible ? '' : 'none';
+}
+
+function updateGeminiOptionsVisibility(settings = fullSettings) {
+  const enabled = settings?.ENABLE_GEMINI_OPTIONS === true;
+  const providerSelect = document.getElementById('inp-ai-provider');
+  const geminiOption = providerSelect?.querySelector('option[value="gemini"]');
+  if (geminiOption) {
+    geminiOption.hidden = !enabled;
+    geminiOption.disabled = !enabled;
+  }
+  if (providerSelect && !enabled) providerSelect.value = 'ollama';
+
+  setVisible(document.getElementById('inp-gemini-model-name')?.closest('div'), enabled);
+  setVisible(document.getElementById('inp-gemini-fallback')?.closest('label'), enabled);
+  setVisible(document.getElementById('inp-gemini-cooldown')?.closest('div'), enabled);
+}
+
+function updateCustomerServiceModeUI(mode = customerServiceMode()) {
+  adminServiceOllamaDirect = mode !== 'human';
+  ui.adminServiceToggle?.classList.toggle('on', adminServiceOllamaDirect);
+  if (ui.adminServiceModeLabel) {
+    ui.adminServiceModeLabel.textContent = adminServiceOllamaDirect
+      ? '目前模式：Ollama 直接回覆'
+      : '目前模式：真人客服模式';
+  }
+  if (ui.adminServiceResult && adminServiceRecorder?.state !== 'recording') {
+    ui.adminServiceResult.textContent = adminServiceOllamaDirect
+      ? '目前模式：Ollama 直接回覆。'
+      : '目前模式：真人客服模式。POS 客服會立即通知真人客服，不等待 AI 回覆。';
+  }
+}
+
+function handleRealtimeSettingsChanged(event = {}) {
+  const settings = event.payload?.settings;
+  if (!settings || typeof settings !== 'object') return;
+  fullSettings = { ...fullSettings, ...settings };
+  runtimeSettings = { ...runtimeSettings, ...settings };
+  updateCustomerServiceModeUI(settings.CUSTOMER_SERVICE_MODE || customerServiceMode());
+}
+
+function handleRealtimeHumanReply(event = {}) {
+  const payload = event.payload || {};
+  if (!payload.reply) return;
+  ui.serviceWindow?.classList.add('open');
+  setServiceResult(`
+    <div class="flex flex-wrap gap-2 mb-3">
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">真人客服回覆</span>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">優先級 ${escapeHTML(payload.priority || '-')}</span>
+    </div>
+    <p class="text-xs mb-1" style="color:var(--text2)">客服回覆</p>
+    <p class="font-semibold" style="color:var(--text)">${escapeHTML(payload.reply || '')}</p>
+  `);
+  if (payload.audio_base64) playVoice(payload.audio_base64);
+}
+
+function handleRealtimeCustomerServiceRequest(event = {}) {
+  const payload = event.payload || {};
+  showAdminNotice(`收到客服請求：${payload.user_text || payload.customer_service_state || '等待真人處理'}`);
+  loadCustomerServiceData({ silent: true });
+}
+
+function handleRealtimeInteractionIntervention(event = {}) {
+  const payload = event.payload || {};
+  applyIntervention(payload.intervention || {}, payload.barrier_result || {});
+  if (payload.intervention?.staff_notify) showPushNotice('已通知店員');
+}
+
+function handleRealtimeEmotionAnalysisStarted(event = {}) {
+  const payload = event.payload || {};
+  showAdminNotice(`事件觸發情緒分析開始：${payload.session_id || payload.page_id || 'POS'}`);
+}
+
+function handleRealtimeEmotionAnalysisCompleted(event = {}) {
+  const payload = event.payload || {};
+  const state = payload.barrier_result?.barrier_state || payload.status || 'completed';
+  showAdminNotice(`事件觸發情緒分析完成：${zhInteractionLabel('barrier', state)}`, 'success');
+  loadInterventionStats();
+}
+
+function handleRealtimeStaffNotify(event = {}) {
+  const payload = event.payload || {};
+  showAdminNotice(`建議店員協助：${payload.reason || payload.barrier_result?.barrier_state || '高風險互動'}`, 'warning');
+}
+
+function startPosRealtime() {
+  if (!posRealtime) {
+    posRealtime = connectRealtime('pos', sessionId, {
+      human_reply: handleRealtimeHumanReply,
+      interaction_intervention: handleRealtimeInteractionIntervention,
+      settings_changed: handleRealtimeSettingsChanged,
+    });
+  }
+}
+
+function startAdminRealtime() {
+  if (!adminRealtime) {
+    adminRealtime = connectRealtime('admin', 'global', {
+      customer_service_request: handleRealtimeCustomerServiceRequest,
+      emotion_analysis_started: handleRealtimeEmotionAnalysisStarted,
+      emotion_analysis_completed: handleRealtimeEmotionAnalysisCompleted,
+      staff_notify: handleRealtimeStaffNotify,
+      settings_changed: handleRealtimeSettingsChanged,
+    });
+  }
+}
+
+function initRealtimeClients() {
+  if (isPosMode()) startPosRealtime();
+  if (isAdminMode()) startAdminRealtime();
+}
+
 function startAdminLiveRefresh() {
   if (adminRefreshTimer) return;
   adminRefreshTimer = setInterval(() => {
@@ -557,17 +725,53 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   interactionModalTimer = setTimeout(() => box.remove(), 10000);
 }
 
+function buildInteractionContextForTrigger(riskResult = {}) {
+  const reasons = Array.isArray(riskResult.trigger_reasons) ? riskResult.trigger_reasons : [];
+  const context = buildUIContext();
+  return [
+    `目前頁面：${context.page_id || interactionState.pageId}`,
+    `購物車數量：${context.cart_count ?? 0}`,
+    `風險分數：${riskResult.risk_score ?? 0}`,
+    reasons.length ? `觸發原因：${reasons.join('、')}` : '觸發原因：未提供',
+    lastVoiceText ? `最近語音：${lastVoiceText.slice(0, 80)}` : '',
+  ].filter(Boolean).join('\n');
+}
+
 async function maybeCheckBarrierState(riskResult = {}) {
   if (!riskResult.triggered || barrierCheckInFlight) return;
   if (Date.now() - lastBarrierCheckAt < 10000) return;
   barrierCheckInFlight = true;
   lastBarrierCheckAt = Date.now();
   try {
+    const uiContext = buildUIContext();
+    if (isEventTriggeredMultimodalEnabled() && hasRollingMediaBuffer()) {
+      ui.pingInd.style.opacity = '1';
+      showPushNotice('情緒分析開始');
+      showAdminNotice('事件觸發式多模態分析開始。');
+      const blob = await captureTriggeredClip(Number(runtimeSettings.INTERACTION_POST_EVENT_BUFFER_SEC) || 5);
+      const fd = new FormData();
+      fd.append('session_id', sessionId);
+      fd.append('video', blob, 'triggered_interaction.webm');
+      fd.append('risk_result_json', JSON.stringify(riskResult || {}));
+      fd.append('ui_context_json', JSON.stringify(uiContext));
+      fd.append('interaction_context', buildInteractionContextForTrigger(riskResult));
+      const data = await api.triggeredMultimodalAnalysis(fd);
+      if (data.status === 'success') {
+        lastVoiceText = data.speech_text || lastVoiceText;
+        lastEmotionStructured = data.emotion_structured || lastEmotionStructured;
+        lastMediaSignals = data.multimodal_evidence?.audio_evidence || lastMediaSignals || {};
+        applyIntervention(data.intervention, data.barrier_result);
+        if (data.intervention?.staff_notify) showPushNotice('已通知店員');
+        return;
+      }
+      console.warn('[triggered multimodal skipped]', data);
+    }
+
     const data = await api.barrierState({
       session_id: sessionId,
       speech_text: lastVoiceText,
       emotion_structured: lastEmotionStructured || {},
-      ui_context: buildUIContext(),
+      ui_context: uiContext,
       media_signals: lastMediaSignals || {},
     });
     if (data.status === 'success') {
@@ -576,6 +780,7 @@ async function maybeCheckBarrierState(riskResult = {}) {
   } catch (err) {
     console.warn('[interaction barrier_state failed]', err);
   } finally {
+    ui.pingInd.style.opacity = '0';
     barrierCheckInFlight = false;
   }
 }
@@ -610,6 +815,7 @@ function trackInteractionEvent(event = {}) {
 }
 
 function startPageDwellWatcher() {
+  if (isAdminMode()) return;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
   pageDwellTimer = setInterval(() => {
     if (!isSystemRunning || !isPosActive()) return;
@@ -668,10 +874,11 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
 // 啟動
 // =========================================================
 ui.startBtn.onclick = async () => {
+  if (isAdminMode()) return;
   try {
     await loadRuntimeSettings();
     const f = getFeatures();
-    const needVideo = f.emotionBackend || f.emotionCamera;
+    const needVideo = f.emotionBackend || f.emotionCamera || isEventTriggeredMultimodalEnabled();
     const needAudio = true;
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && (needVideo || needAudio)) return;
@@ -684,7 +891,8 @@ ui.startBtn.onclick = async () => {
     updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
-    if (f.emotionBackend) startEmotionLoop();
+    maybeStartRollingMediaBuffer();
+    if (f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
     startDetectionLoop();
     startRecommendLoop();
     setupAskRecorder();
@@ -692,6 +900,7 @@ ui.startBtn.onclick = async () => {
 };
 
 function startDetectionLoop() {
+  if (isAdminMode()) return;
   if (detectionLoopId) return;
   detectionLoopId = setInterval(captureDetectionFrame, Math.max(250, Number(perfValue('YOLO_FRAME_INTERVAL_MS')) || 650));
 }
@@ -724,6 +933,8 @@ function captureDetectionFrame() {
 // 情緒 Loop
 // =========================================================
 function startEmotionLoop() {
+  if (isAdminMode()) return;
+  if (!isPeriodicEmotionEnabled()) return;
   if (!getFeatures().emotionBackend) return;
   if (emotionLoopId) return;
   emotionLoopId = setInterval(() => {
@@ -832,6 +1043,7 @@ async function fetchAndDisplayRecommend() {
 }
 
 function startRecommendLoop() {
+  if (isAdminMode()) return;
   if (recommendLoopId) return;
   recommendLoopId = setInterval(async () => {
     if (!isPosActive() || recommendPending) return;
@@ -877,6 +1089,7 @@ function showVoiceBubble(data) {
 }
 
 function setupAskRecorder() {
+  if (isAdminMode()) return;
   if (askRecorder) return; // 避免重複設定
   if (!stream || !stream.getAudioTracks().length) return;
 
@@ -1053,17 +1266,19 @@ async function submitServiceRecording() {
     return;
   }
 
-  setServiceResult('正在分析客服語音，請稍候。');
+  const serviceMode = runtimeSettings.CUSTOMER_SERVICE_MODE || 'ollama';
+  const useOllama = serviceMode !== 'human';
+  setServiceResult(useOllama ? '正在分析客服語音，請稍候。' : '已通知真人客服，請稍候。');
   const fd = new FormData();
   fd.append('session_id', sessionId);
   fd.append('media', blob, 'pos_customer_service.webm');
-  fd.append('use_ollama', 'true');
+  fd.append('use_ollama', String(useOllama));
   fd.append('multi_lang', String(getFeatures().multiLang));
   try {
     const data = await api.customerService(fd);
     if (data.status !== 'success') throw new Error(data.message || '客服流程失敗');
     renderServiceResponse(ui.serviceResult, data);
-    if (data.audio_base64) playVoice(data.audio_base64);
+    if (useOllama && data.audio_base64) playVoice(data.audio_base64);
   } catch (err) {
     trackInteractionEvent({
       event_type: 'customer_service_failed',
@@ -1108,14 +1323,15 @@ async function submitAdminServiceRecording() {
     return;
   }
 
-  ui.adminServiceResult.textContent = adminServiceOllamaDirect
+  const useOllama = customerServiceMode() !== 'human';
+  ui.adminServiceResult.textContent = useOllama
     ? '正在分析客服語音並產生 AI 回覆，請稍候。'
     : '已收到客服錄音，正在保存文字與情緒證據；Ollama 直接回覆已關閉。';
   showAdminNotice('客服情緒模型開始分析顧客錄音。');
   const fd = new FormData();
   fd.append('session_id', `${sessionId}_admin_service`);
   fd.append('media', blob, 'admin_customer_service.webm');
-  fd.append('use_ollama', String(adminServiceOllamaDirect));
+  fd.append('use_ollama', String(useOllama));
   fd.append('multi_lang', String(getFeatures().multiLang));
   try {
     const data = await api.customerService(fd);
@@ -1123,10 +1339,10 @@ async function submitAdminServiceRecording() {
     renderServiceResponse(ui.adminServiceResult, data);
     await loadCustomerServiceData();
     showAdminNotice(
-      adminServiceOllamaDirect ? '客服分析與 AI 回覆已完成。' : '真人客服模式已保存顧客錄音與文字，未產生 Ollama 直接回覆。',
+      useOllama ? '客服分析與 AI 回覆已完成。' : '真人客服模式已保存顧客錄音與文字，未產生 Ollama 直接回覆。',
       'success'
     );
-    if (data.audio_base64) playVoice(data.audio_base64);
+    if (useOllama && data.audio_base64) playVoice(data.audio_base64);
   } catch (err) {
     ui.adminServiceResult.textContent = err.message || '客服流程失敗。';
     showAdminNotice('客服流程失敗，請檢查後端或情緒模型服務。', 'error');
@@ -1174,12 +1390,24 @@ document.addEventListener('pointerdown', (event) => {
   stopServiceRecording();
 });
 if (ui.adminServiceToggle) {
-  ui.adminServiceToggle.onclick = () => {
-    adminServiceOllamaDirect = !adminServiceOllamaDirect;
-    ui.adminServiceToggle.classList.toggle('on', adminServiceOllamaDirect);
-    ui.adminServiceResult.textContent = adminServiceOllamaDirect
-      ? '已開啟 Ollama 直接回覆。下一次客服錄音會產生 AI 客服回答。'
-      : '已切換真人模式。下一次客服錄音只保存錄音、文字與情緒證據，不會讓 Ollama 直接回覆。';
+  ui.adminServiceToggle.onclick = async () => {
+    const nextMode = customerServiceMode() === 'human' ? 'ollama' : 'human';
+    fullSettings = { ...fullSettings, CUSTOMER_SERVICE_MODE: nextMode };
+    runtimeSettings = { ...runtimeSettings, CUSTOMER_SERVICE_MODE: nextMode };
+    updateCustomerServiceModeUI(nextMode);
+    try {
+      await api.saveSettings(fullSettings);
+      showAdminNotice(
+        nextMode === 'human' ? '已切換為真人客服模式。' : '已切換為 Ollama 直接回覆模式。',
+        'success'
+      );
+    } catch {
+      const rollbackMode = nextMode === 'human' ? 'ollama' : 'human';
+      fullSettings = { ...fullSettings, CUSTOMER_SERVICE_MODE: rollbackMode };
+      runtimeSettings = { ...runtimeSettings, CUSTOMER_SERVICE_MODE: rollbackMode };
+      updateCustomerServiceModeUI(rollbackMode);
+      showAdminNotice('客服模式儲存失敗，已還原。', 'error');
+    }
   };
 }
 if (ui.adminServiceRecord) {
@@ -1667,7 +1895,10 @@ async function loadSettings() {
     fullSettings = await api.getSettings();
     runtimeSettings = { ...runtimeSettings, ...fullSettings };
     const modelName = fullSettings.MODEL_NAME || 'llama3.2';
-    document.getElementById('inp-ai-provider').value = fullSettings.QA_AI_PROVIDER || fullSettings.AI_PROVIDER || 'ollama';
+    updateGeminiOptionsVisibility(fullSettings);
+    const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
+    const qaProvider = allowGemini ? (fullSettings.QA_AI_PROVIDER || 'ollama') : 'ollama';
+    document.getElementById('inp-ai-provider').value = qaProvider;
     document.getElementById('inp-model-name').value = modelName;
     document.getElementById('inp-ask-model-name').value = modelName;
     document.getElementById('inp-gemini-model-name').value = fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview';
@@ -1702,16 +1933,22 @@ async function loadSettings() {
     document.getElementById('inp-recommend-prompt-b').value = fullSettings.RECOMMEND_SYSTEM_PROMPT_B || '';
     document.getElementById('inp-ask-prompt').value = fullSettings.ASK_SYSTEM_PROMPT || '';
     document.getElementById('inp-ask-prompt-en').value = fullSettings.ASK_SYSTEM_PROMPT_EN || '';
+    updateCustomerServiceModeUI(fullSettings.CUSTOMER_SERVICE_MODE || 'ollama');
   } catch { }
 }
 
 async function saveSettings() {
   const selectedModel = document.getElementById('inp-model-name').value || 'llama3.2';
+  const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
   fullSettings.AI_PROVIDER = 'ollama';
-  fullSettings.QA_AI_PROVIDER = document.getElementById('inp-ai-provider').value || 'ollama';
+  fullSettings.QA_AI_PROVIDER = allowGemini
+    ? (document.getElementById('inp-ai-provider').value || 'ollama')
+    : 'ollama';
+  fullSettings.EMOTION_AI_PROVIDER = 'ollama';
   fullSettings.MODEL_NAME = selectedModel;
   fullSettings.ASK_MODEL_NAME = selectedModel;
   fullSettings.GEMINI_MODEL_NAME = document.getElementById('inp-gemini-model-name').value.trim() || 'gemini-3-flash-preview';
+  fullSettings.CUSTOMER_SERVICE_MODE = customerServiceMode();
   fullSettings.GEMINI_FALLBACK_TO_OLLAMA = document.getElementById('inp-gemini-fallback').checked;
   fullSettings.GEMINI_COOLDOWN_SEC = parseInt(document.getElementById('inp-gemini-cooldown').value || '60', 10);
   fullSettings.OLLAMA_TEMPERATURE = parseFloat(document.getElementById('inp-temp').value);
@@ -1972,9 +2209,12 @@ Object.assign(window, {
   maybeCheckBarrierState
 });
 
-cartManager.renderCart();
-applyFeaturesToPOS();
-initAdminToggles();
-if (new URLSearchParams(window.location.search).get('view') === 'admin') {
+if (isAdminMode()) {
   switchMainView('admin');
+  initRealtimeClients();
+} else {
+  cartManager.renderCart();
+  applyFeaturesToPOS();
+  initAdminToggles();
+  initRealtimeClients();
 }

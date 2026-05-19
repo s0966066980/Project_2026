@@ -125,6 +125,30 @@ intervention_feedback
 
 5. 如請求項 1 所述的方法，其中該服務介入動作後的結果包含付款是否成功、結帳是否成功、是否通知店員或介入後完成結帳所需時間，並用於調整後續互動障礙觸發門檻或服務介入策略。
 
+## 5.1 事件觸發式多模態流程步驟
+
+S1：POS 端在記憶體中維持最近 5 秒 rolling buffer，預設不保存原始影像檔。
+
+S2：POS 端發生異常事件，例如付款失敗、優惠券錯誤、無效觸控、長時間停留或返回上一頁，並上報 `interaction_event`。
+
+S3：後端根據最近事件窗口計算 `risk_score` 與觸發原因。
+
+S4：若 `risk_score` 達到門檻，POS 端錄製觸發後 5 秒，並與觸發前 5 秒合併為約 10 秒短片段。
+
+S5：後端先執行 YOLO 人物偵測，用於判斷短片段是否具有可分析的顧客訊號。
+
+S6：若偵測到人物或媒體訊號有效，後端執行 Whisper 語音辨識、media_signals 分析與 Emotion-LLaMA 情緒/行為證據擷取。
+
+S7：系統建立 `multimodal_evidence`，包含視覺證據、語音證據、情緒證據與 POS 事件證據。
+
+S8：Barrier State Engine 將 `multimodal_evidence`、POS 事件與 UI context 推理為 `barrier_state`。
+
+S9：Intervention Engine 根據 `barrier_state` 產生 `intervention_action`。
+
+S10：系統透過 WebSocket 將介入建議即時推送至 POS 與後台 Admin。
+
+S11：顧客完成 checkout 後，系統回寫 `intervention_result`，形成「偵測 → 介入 → 成效回饋」閉環。
+
 ## 6. 隱私保護實施例
 
 在一實施例中，系統平時不保存顧客原始影像或完整語音，只保存匿名化 POS 操作事件，例如頁面、事件類型、停留時間、返回次數、付款失敗次數、無效觸控次數與購物車修改次數。該等事件可被轉換為事件向量或統計特徵，用於計算互動障礙風險分數。

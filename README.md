@@ -4,7 +4,7 @@ Project_2026 是一套智慧 POS 點餐與客服原型系統。專案目前包�
 
 - `UI_API/`：FastAPI 後端、POS 前端、後台管理、RAG、語音點餐、AI 推播與客服流程。
 - `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，用於提供影像、語音情境與情緒行為證據。
-- `Test/`：專利 PoC 與實施例測試腳本，可直接送事件到 UI_API。
+- `tools/`：專利 PoC 與實施例測試腳本，可直接送事件到 UI_API。
 
 本專案的核心方向不是單純做情緒辨識，而是：
 
@@ -24,13 +24,31 @@ Project_2026 是一套智慧 POS 點餐與客服原型系統。專案目前包�
 - Whisper 語音辨識與語系判斷
 - Emotion-LLaMA 情緒與行為證據分析
 - 客服狀態推理，將多模態證據轉成客服優先級與真人介入建議
-- Ollama / Gemini API 問答
+- 本地 Ollama 問答，Gemini API 選項預設隱藏
 - 本地 RAG 文件與審查流程
 - 互動事件風險分數
 - `barrier_state` 互動障礙狀態推理
 - `intervention_action` 服務介入決策
 - 介入成效回饋與後台統計
 - 事件觸發式多模態分析 API
+
+---
+
+## 功能狀態
+
+| 分類 | 功能 | 狀態 |
+| --- | --- | --- |
+| Production path | POS 點餐、購物車、結帳 | 保留 |
+| Production path | interaction event、risk_score、barrier_state | 主要流程 |
+| Production path | triggered_multimodal_analysis | 主要事件觸發多模態流程 |
+| Production path | 客服系統、RAG、AI 推播、logs | 保留 |
+| Production path | 本地 Ollama | 預設 AI 來源 |
+| Demo/debug path | `/api/demo/trigger_scenario` | 正式 demo API |
+| Demo/debug path | `tools/pos_interaction_demo_ui.py` | PoC 測試工具 |
+| Demo/debug path | `/api/ping_state` 週期情緒偵測 | debug-only，預設不作為主流程 |
+| Demo/debug path | emotion chat card、admin recorder | debug-only / 管理測試 |
+| Deprecated/removed path | `monitor_routes.py` dummy monitor | 已移除，由 `demo_routes.py` 取代 |
+| Deprecated/removed path | Gemini 作為預設 AI | 已關閉，需明確啟用選項才顯示 |
 
 ---
 
@@ -45,7 +63,7 @@ Project_2026/
 │   ├── eval_configs/
 │   ├── emotion_llama/
 │   └── ...
-├── Test/
+├── tools/
 │   └── pos_interaction_demo_ui.py
 └── UI_API/
     ├── main.py
@@ -236,7 +254,7 @@ UI_API/
 
 1. 前端上報 POS 操作事件到 `/api/interaction_event`。
 2. 後端計算互動障礙風險分數。
-3. 若達門檻，系統可先使用 `/api/barrier_state` 進行輕量狀態推理；若需要納入短片段影像、語音與 Emotion-LLaMA 證據，可呼叫 `/api/triggered_multimodal_analysis`。
+3. 若達門檻，POS 前端會優先從 rolling buffer 組成觸發前後約 10 秒短片段，呼叫 `/api/triggered_multimodal_analysis`；若影音 stream 不可用，才 fallback 到 `/api/barrier_state` 做輕量狀態推理。
 4. `/api/triggered_multimodal_analysis` 只處理短片段，不做持續影像分析。
 5. 後端整合：
    - recent POS events
@@ -269,7 +287,8 @@ python3 Test/pos_interaction_demo_ui.py
 - `/api/interaction_event` 已串接 POS 操作事件。
 - `/api/barrier_state` 已可做輕量互動障礙推理。
 - `/api/triggered_multimodal_analysis` 已提供後端事件觸發式多模態分析能力。
-- 前端可進一步串接 `triggered_multimodal_analysis`，使高風險事件直接觸發完整多模態證據分析。
+- POS 前端已串接 `triggered_multimodal_analysis`，高風險事件會優先觸發完整多模態證據分析。
+- `/api/ping_state` 保留為 debug / demo 入口，預設不作為主要介入路徑。
 
 ---
 
@@ -318,6 +337,7 @@ python3 Test/pos_interaction_demo_ui.py
 ### 互動障礙與介入
 
 - `POST /api/interaction_event`
+- `POST /api/demo/trigger_scenario`
 - `GET /api/interaction_events/{session_id}`
 - `POST /api/interaction_risk`
 - `POST /api/barrier_state`

@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 import config
 import database
 from repositories import interaction_event_repository, log_repository, session_repository
+from realtime import event_bus
 
 
 def _seconds_since_timestamp(timestamp: str) -> int:
@@ -51,6 +52,14 @@ def create_router(deps: dict) -> APIRouter:
     async def serve_frontend():
         return FileResponse("index.html")
 
+    @router.get("/pos")
+    async def serve_pos():
+        return FileResponse("index.html")
+
+    @router.get("/admin")
+    async def serve_admin():
+        return FileResponse("index.html")
+
     @router.get("/customer")
     async def serve_customer_service():
         return FileResponse("index.html")
@@ -63,6 +72,12 @@ def create_router(deps: dict) -> APIRouter:
     async def update_settings(new_settings: dict = Body(...)):
         old_rag_settings = config.get("rag", {})
         config.save_settings(new_settings)
+        saved_settings = config.load_settings()
+        await event_bus.publish_event({
+            "type": "settings_changed",
+            "session_id": "",
+            "payload": {"settings": saved_settings},
+        })
         if new_settings.get("rag") != old_rag_settings:
             deps["schedule_rag_rebuild"]("RAG settings changed")
         return {"status": "success"}

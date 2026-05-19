@@ -287,6 +287,7 @@ async def handle_customer_service(
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
         "rag_doc_id": rag_doc.get("id", ""),
+        "source_id": source_id,
         "media_url": media_url,
         "audio_base64": audio_base64,
     }

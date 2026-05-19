@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 import ai_services
 import config
 from repositories import log_repository
+from realtime import event_bus
 from services import customer_service_handler
 from utils.file_utils import write_binary_file
 from utils.text_utils import to_traditional_lite
@@ -46,6 +47,14 @@ def create_router(deps: dict) -> APIRouter:
         if not updated:
             return {"status": "not_found"}
         audio_base64 = await ai_services.generate_tts_audio_base64(reply, lang=lang)
+        await event_bus.publish_to_pos(str(updated.get("session_id") or ""), "human_reply", {
+            "source_id": source_id,
+            "reply": reply,
+            "audio_base64": audio_base64,
+            "language": lang,
+            "customer_service_state": updated.get("customer_service_state"),
+            "priority": updated.get("priority"),
+        })
         return {"status": "success", "log": updated, "audio_base64": audio_base64}
 
     @router.post("/customer_service")
@@ -67,7 +76,7 @@ def create_router(deps: dict) -> APIRouter:
             if not use_ollama_bool:
                 async def _background_human_service(path: str):
                     try:
-                        await customer_service_handler.handle_customer_service(
+                        result = await customer_service_handler.handle_customer_service(
                             session_id=session_id,
                             media_path=path,
                             suffix=suffix,
@@ -75,6 +84,16 @@ def create_router(deps: dict) -> APIRouter:
                             use_ollama=False,
                             deps=deps,
                         )
+                        if result.get("status") == "success":
+                            await event_bus.publish_to_admin("customer_service_request", {
+                                "session_id": session_id,
+                                "source_id": result.get("source_id", ""),
+                                "user_text": result.get("user_text", ""),
+                                "emotion": result.get("emotion", ""),
+                                "customer_service_state": result.get("customer_service_state", ""),
+                                "needs_human_staff": True,
+                                "priority": result.get("priority", "normal"),
+                            })
                     except Exception as bg_error:
                         print(f"❌ customer_service 背景處理錯誤: {bg_error}")
                     finally:

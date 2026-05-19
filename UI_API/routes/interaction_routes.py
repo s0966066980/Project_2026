@@ -4,6 +4,7 @@ from collections import Counter
 from fastapi import APIRouter, Body
 
 from repositories import interaction_event_repository
+from realtime import event_bus
 from services import barrier_state_service
 from services import interaction_event_service
 from services import intervention_service
@@ -152,6 +153,18 @@ def create_router(deps: dict | None = None) -> APIRouter:
             intervention_log = await asyncio.to_thread(
                 interaction_event_repository.append_intervention_log, log_payload
             )
+            event_payload = {
+                "barrier_result": barrier_result,
+                "intervention": intervention,
+                "intervention_log": intervention_log,
+                "risk_result": risk_result,
+            }
+            await event_bus.publish_to_pos(session_id, "interaction_intervention", event_payload)
+            await event_bus.publish_to_demo(session_id, "interaction_intervention", event_payload)
+            await event_bus.publish_to_admin("interaction_intervention", {
+                "session_id": session_id,
+                **event_payload,
+            })
         return {
             "status": "success",
             "session_id": session_id,

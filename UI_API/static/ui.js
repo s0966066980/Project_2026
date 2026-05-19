@@ -45,6 +45,7 @@ export const ui = {
   serviceRecordText: document.getElementById('posServiceRecordText'),
   serviceResult: document.getElementById('posServiceResult'),
   adminServiceToggle: document.getElementById('adminServiceOllamaToggle'),
+  adminServiceModeLabel: document.getElementById('adminServiceModeLabel'),
   adminServiceRecord: document.getElementById('adminServiceRecord'),
   adminServiceRecordText: document.getElementById('adminServiceRecordText'),
   adminServiceResult: document.getElementById('adminServiceResult'),
