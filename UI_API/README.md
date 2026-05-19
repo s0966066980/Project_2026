@@ -252,7 +252,7 @@ POS 左下角客服按鈕會開啟浮動客服視窗：
 - 顧客語音文字。
 - 顧客錄音播放。
 - Emotion-LLaMA 情緒分析。
-- `customer_service_state`、客服優先級、真人介入建議與判斷證據。
+- `customer_service_state`、客服優先級、真人介入建議與判斷證據，並以 badge 與 details 顯示於客服紀錄卡片。
 - Ollama 客服回覆。
 - 真人客服輸入回覆文字。
 - 「客服回覆語音」按鈕，將真人文字回覆轉成語音播放。

@@ -1685,6 +1685,15 @@ async function loadCustomerServiceData() {
         ? new Date(Number(log.timestamp) * 1000).toLocaleString()
         : '-';
       const mediaSrc = log.media_url ? `${API_BASE}${log.media_url}` : '';
+      const serviceState = log.customer_service_state || '-';
+      const needsHumanStaff = log.needs_human_staff === true ? '是' : '否';
+      const servicePriority = log.customer_service_priority || log.priority || 'normal';
+      const serviceEvidence = Array.isArray(log.service_state_evidence)
+        ? log.service_state_evidence
+        : (log.service_state_evidence ? [String(log.service_state_evidence)] : []);
+      const serviceEvidenceText = serviceEvidence.length
+        ? serviceEvidence.map(item => `- ${item}`).join('\n')
+        : '-';
       row.innerHTML = `
         <div class="flex justify-between gap-3 mb-2">
           <div class="min-w-0">
@@ -1711,10 +1720,13 @@ async function loadCustomerServiceData() {
         <div class="flex flex-wrap gap-2 text-xs mb-2">
           <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">情緒：${escapeHTML(log.emotion || '-')}</span>
           <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">RAG：${escapeHTML(log.rag_doc_id || '-')}</span>
+          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">客服狀態：${escapeHTML(serviceState)}</span>
+          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">真人協助：${escapeHTML(needsHumanStaff)}</span>
+          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">狀態優先級：${escapeHTML(servicePriority)}</span>
         </div>
         <details class="text-xs">
-          <summary class="cursor-pointer" style="color:var(--accent2)">客服摘要 / Ollama 原始結果</summary>
-          <pre class="mt-2 p-2 whitespace-pre-wrap break-words rounded-xl max-h-36 overflow-y-auto" style="background:var(--surface2);color:var(--text2)">${escapeHTML(log.staff_summary || '')}\n\n${escapeHTML(log.ollama_result || '')}</pre>
+          <summary class="cursor-pointer" style="color:var(--accent2)">客服摘要 / 狀態證據 / Ollama 原始結果</summary>
+          <pre class="mt-2 p-2 whitespace-pre-wrap break-words rounded-xl max-h-44 overflow-y-auto" style="background:var(--surface2);color:var(--text2)">${escapeHTML(log.staff_summary || '')}\n\n客服狀態證據：\n${escapeHTML(serviceEvidenceText)}\n\n${escapeHTML(log.ollama_result || '')}</pre>
         </details>`;
       row.querySelector('.human-reply-btn')?.addEventListener('click', async () => {
         const btn = row.querySelector('.human-reply-btn');

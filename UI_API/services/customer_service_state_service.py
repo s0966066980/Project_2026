@@ -60,22 +60,24 @@ def infer_customer_service_state(
     has_complaint = _contains_any(text, COMPLAINT_TERMS)
     has_urgent = _contains_any(text, URGENT_TERMS)
 
+    if has_urgent:
+        priority = "medium"
+        evidence.append("user_text contains waiting or urgent request")
+
     if has_payment_issue:
         state = "payment_issue"
         priority = "medium"
         evidence.append("user_text contains payment issue")
-    if has_coupon_issue:
+    elif has_coupon_issue:
         state = "coupon_issue"
         priority = "medium"
         evidence.append("user_text contains coupon or QR issue")
-    if has_operation_confusion:
+    elif has_operation_confusion:
         state = "operation_confusion"
         priority = "medium"
         evidence.append("user_text contains operation confusion")
-    if has_urgent:
+    elif has_urgent:
         state = "urgent_request"
-        priority = "medium"
-        evidence.append("user_text contains waiting or urgent request")
     if has_complaint:
         state = "complaint_risk"
         priority = "high"
@@ -85,7 +87,8 @@ def infer_customer_service_state(
     if emotion_label:
         evidence.append(f"emotion_label={emotion_label}")
     if emotion_label == "生氣":
-        state = "angry_customer"
+        if not has_complaint:
+            state = "angry_customer"
         priority = "high"
         needs_human_staff = True
         evidence.append("angry emotion requires human staff")

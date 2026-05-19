@@ -52,6 +52,18 @@ def _apply_customer_service_state_reply_rules(
     return reply, summary
 
 
+def _safe_emotion_structured(emotion_structured: dict, media_signals: dict) -> dict:
+    emotion = emotion_structured if isinstance(emotion_structured, dict) else {}
+    signals = media_signals if isinstance(media_signals, dict) else {}
+    return {
+        "emotion_label": emotion.get("emotion_label", ""),
+        "emotion_display": emotion.get("emotion_display", ""),
+        "emotion_evidence": emotion.get("emotion_evidence", ""),
+        "emotion_distribution": emotion.get("emotion_distribution", {}),
+        "media_signals": signals,
+    }
+
+
 async def handle_customer_service(
     session_id: str,
     media_path: str,
@@ -87,8 +99,15 @@ async def handle_customer_service(
     )
     emotion_cache_entry = deps["emotion_cache"].get(session_id) or {}
     emotion_structured = emotion_cache_entry.get("emotion_structured") or {}
+    if not isinstance(emotion_structured, dict):
+        emotion_structured = {}
     person_check = emotion_cache_entry.get("person_check") or {}
-    media_signals = emotion_cache_entry.get("media_signals") or {}
+    media_signals = (
+        emotion_cache_entry.get("media_signals")
+        or emotion_structured.get("media_signals")
+        or {}
+    )
+    safe_emotion_structured = _safe_emotion_structured(emotion_structured, media_signals)
     service_state = customer_service_state_service.infer_customer_service_state(
         user_text=user_text,
         emotion_structured=emotion_structured,
@@ -234,7 +253,7 @@ async def handle_customer_service(
         "customer_service_priority": service_state.get("priority"),
         "needs_human_staff": service_state.get("needs_human_staff"),
         "service_state_evidence": service_state.get("evidence", []),
-        "emotion_structured": emotion_structured,
+        "emotion_structured": safe_emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
         "media_filename": media_filename,
@@ -261,7 +280,7 @@ async def handle_customer_service(
         "customer_service_priority": service_state.get("priority"),
         "needs_human_staff": service_state.get("needs_human_staff"),
         "service_state_evidence": service_state.get("evidence", []),
-        "emotion_structured": emotion_structured,
+        "emotion_structured": safe_emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
         "rag_doc_id": rag_doc.get("id"),
