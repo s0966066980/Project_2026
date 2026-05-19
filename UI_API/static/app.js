@@ -48,6 +48,9 @@ let barrierCheckInFlight = false;
 let lastBarrierCheckAt = 0;
 let interactionModalTimer = null;
 let pageDwellTimer = null;
+let adminRefreshTimer = null;
+let interventionStatsLoading = false;
+let customerServiceLoading = false;
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -92,7 +95,7 @@ function restartLoops() {
   detectionLoopId = null;
   recommendLoopId = null;
   if (isSystemRunning) {
-    startEmotionLoop();
+    if (getFeatures().emotionBackend) startEmotionLoop();
     startDetectionLoop();
     startRecommendLoop();
   }
@@ -101,13 +104,113 @@ function restartLoops() {
 // =========================================================
 // 功能模組狀態
 // =========================================================
-const FEAT_DEFAULTS = { emotion: true, voiceAsk: false, recommend: true, emotionBackend: true, emotionChat: false, emotionCamera: false, abTest: false, multiLang: true };
+const FEAT_DEFAULTS = { emotion: true, voiceAsk: false, recommend: true, emotionBackend: false, emotionChat: false, emotionCamera: false, abTest: false, multiLang: true };
+const FEATURE_SCHEMA_VERSION = 'event-triggered-20260519';
+
+const INTERACTION_LABELS = {
+  barrier: {
+    normal_operation: '正常操作',
+    menu_hesitation: '菜單選擇猶豫',
+    operation_confusion: '操作困惑',
+    payment_confusion: '付款卡關',
+    coupon_confusion: '優惠券/掃碼卡關',
+    impatience_detected: '等待不耐',
+    service_needed: '需要真人協助',
+    potential_complaint: '疑似客訴',
+    low_confidence: '資訊不足',
+    unknown: '未知狀態',
+  },
+  action: {
+    none: '不介入',
+    show_payment_tutorial: '顯示付款教學',
+    show_coupon_guide: '顯示優惠券指引',
+    show_operation_hint: '顯示操作提示',
+    recommend_popular_combo: '推薦熱門組合',
+    call_staff_or_fast_mode: '通知店員或快速模式',
+    call_staff: '通知店員',
+    ask_clarifying_question: '詢問釐清問題',
+    unknown: '未知動作',
+  },
+  page: {
+    startup: '啟動頁',
+    menu_page: '菜單頁',
+    payment_page: '付款頁',
+    checkout_page: '結帳頁',
+    completed_page: '完成頁',
+    admin_page: '後台頁',
+    unknown: '未知頁面',
+  },
+  event: {
+    enter_menu_page: '進入菜單頁',
+    enter_payment_page: '進入付款頁',
+    page_dwell_timeout: '停留過久',
+    back_navigation: '返回上一頁',
+    invalid_touch: '無效點擊',
+    cart_edit: '購物車修改',
+    payment_attempt: '付款嘗試',
+    payment_failed: '付款失敗',
+    checkout_error: '結帳錯誤',
+    coupon_error: '優惠券錯誤',
+    customer_service_clicked: '點擊客服',
+    customer_service_started: '客服收音開始',
+    customer_service_failed: '客服失敗',
+    voice_order_started: '語音點餐開始',
+    voice_order_failed: '語音點餐失敗',
+    voice_ask_started: '語音發問開始',
+    unknown: '未知事件',
+  },
+  source: {
+    checkoutBtn: '確認餐點按鈕',
+    confirmPayBtn: '確認付款按鈕',
+    orderConfirmCloseBtn: '關閉確認訂單',
+    confirmBackBtn: '返回修改按鈕',
+    orderModalBackdrop: '訂單視窗背景',
+    escapeKey: '鍵盤返回',
+    posServiceFab: '客服按鈕',
+    posServiceRecord: '客服收音按鈕',
+    startSystemBtn: '開始點餐按鈕',
+    linepay_button: 'LINE Pay 按鈕',
+    coupon_input: '優惠券輸入欄',
+    menu_grid: '菜單區域',
+    service_button: '客服按鈕',
+    demo_ui: '實施例腳本',
+    page_timer: '頁面停留計時',
+    document: '畫面空白處',
+    unknown: '未知來源',
+  },
+};
+
+function zhInteractionLabel(type, value) {
+  const raw = String(value || 'unknown');
+  const label = INTERACTION_LABELS[type]?.[raw] || raw;
+  if (label !== raw) return label;
+  if (['barrier', 'action', 'page', 'event', 'source'].includes(type)) return '未分類';
+  return raw;
+}
 
 function getFeatures() {
-  try { return { ...FEAT_DEFAULTS, ...JSON.parse(localStorage.getItem('kiosk_feat') || '{}') }; }
+  try {
+    const saved = JSON.parse(localStorage.getItem('kiosk_feat') || '{}');
+    const features = { ...FEAT_DEFAULTS, ...saved };
+    if (localStorage.getItem('kiosk_feat_version') !== FEATURE_SCHEMA_VERSION) {
+      features.emotionBackend = false;
+      localStorage.setItem('kiosk_feat', JSON.stringify(features));
+      localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
+    }
+    return features;
+  }
   catch { return { ...FEAT_DEFAULTS }; }
 }
-function saveFeatures(f) { localStorage.setItem('kiosk_feat', JSON.stringify(f)); }
+function saveFeatures(f) {
+  localStorage.setItem('kiosk_feat', JSON.stringify(f));
+  localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
+}
+
+function stopEmotionLoop() {
+  if (!emotionLoopId) return;
+  clearInterval(emotionLoopId);
+  emotionLoopId = null;
+}
 
 function toggleFeature(key, el) {
   const f = getFeatures();
@@ -115,10 +218,11 @@ function toggleFeature(key, el) {
   saveFeatures(f);
   el.classList.toggle('on', f[key]);
   if (key === 'voiceAsk' && !f.voiceAsk && askRecorder?.state === 'recording') askRecorder.stop();
+  if (key === 'emotionBackend' && !f.emotionBackend) stopEmotionLoop();
   applyFeaturesToPOS();
   if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend' || key === 'emotionCamera')) {
     ensureMediaTracks({
-      video: f.emotion || f.emotionBackend || f.emotionCamera,
+      video: f.emotionBackend || f.emotionCamera,
       audio: true
     }).then(ok => {
       if (ok) setupAskRecorder();
@@ -148,6 +252,7 @@ function applyFeaturesToPOS() {
   // 推播（關閉時清除現有浮動卡）
   if (!f.recommend) clearAllPushCards();
   if (!f.emotionChat) clearEmotionCards();
+  if (!f.emotionBackend) stopEmotionLoop();
   if (!f.emotionCamera && detectionLoopId) {
     clearInterval(detectionLoopId);
     detectionLoopId = null;
@@ -185,6 +290,11 @@ function updateEmotionDetectionOverlay(personCheck = {}) {
 
 function switchMainView(view) {
   switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, initAdminToggles, applyFeaturesToPOS, loadMenu });
+  if (view === 'admin') {
+    startAdminLiveRefresh();
+  } else {
+    stopAdminLiveRefresh();
+  }
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
 
@@ -357,6 +467,43 @@ function normalizeInteractionPayload(event = {}) {
   };
 }
 
+function showAdminNotice(message, type = 'info') {
+  if (!ui.adminNotificationBox) return;
+  const palette = type === 'error'
+    ? { bg: '#fff0f0', border: '#efb2b2', color: '#8a1f1f' }
+    : type === 'success'
+      ? { bg: '#ecf8ef', border: '#b7dfc3', color: '#245b34' }
+      : { bg: '#fff4e8', border: '#f0c9a5', color: '#6b3b19' };
+  ui.adminNotificationBox.textContent = message;
+  ui.adminNotificationBox.style.background = palette.bg;
+  ui.adminNotificationBox.style.borderColor = palette.border;
+  ui.adminNotificationBox.style.color = palette.color;
+  ui.adminNotificationBox.classList.remove('hidden');
+}
+
+function startAdminLiveRefresh() {
+  if (adminRefreshTimer) return;
+  adminRefreshTimer = setInterval(() => {
+    if (ui.adminView?.classList.contains('hidden')) return;
+    loadInterventionStats();
+    loadCustomerServiceData({ silent: true });
+  }, 4000);
+}
+
+function stopAdminLiveRefresh() {
+  if (!adminRefreshTimer) return;
+  clearInterval(adminRefreshTimer);
+  adminRefreshTimer = null;
+}
+
+function isCustomerServiceEditing() {
+  const active = document.activeElement;
+  return Boolean(
+    active?.closest?.('#customerServiceLogsList')
+    || adminServiceRecorder?.state === 'recording'
+  );
+}
+
 function applyIntervention(intervention = {}, barrierResult = {}) {
   if (!intervention || intervention.action === 'none') return;
   console.log('[interaction intervention]', { intervention, barrierResult });
@@ -524,7 +671,7 @@ ui.startBtn.onclick = async () => {
   try {
     await loadRuntimeSettings();
     const f = getFeatures();
-    const needVideo = f.emotion || f.emotionBackend || f.emotionCamera;
+    const needVideo = f.emotionBackend || f.emotionCamera;
     const needAudio = true;
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && (needVideo || needAudio)) return;
@@ -537,7 +684,7 @@ ui.startBtn.onclick = async () => {
     updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
-    startEmotionLoop();
+    if (f.emotionBackend) startEmotionLoop();
     startDetectionLoop();
     startRecommendLoop();
     setupAskRecorder();
@@ -577,6 +724,7 @@ function captureDetectionFrame() {
 // 情緒 Loop
 // =========================================================
 function startEmotionLoop() {
+  if (!getFeatures().emotionBackend) return;
   if (emotionLoopId) return;
   emotionLoopId = setInterval(() => {
     const f = getFeatures();
@@ -588,6 +736,7 @@ function startEmotionLoop() {
     rec.ondataavailable = e => chunks.push(e.data);
     rec.onstop = async () => {
       ui.pingInd.style.opacity = '1';
+      showAdminNotice('Emotion-LLaMA 情緒模型開始分析短片段。');
       const fd = new FormData();
       fd.append('session_id', sessionId);
       fd.append('video', new Blob(chunks, { type: 'video/webm' }));
@@ -601,7 +750,11 @@ function startEmotionLoop() {
           ui.emotionText.textContent = formatEmotion(d.emotion);
           showEmotionCard(d.emotion_structured || d);
         }
-      } catch { }
+        if (d.status === 'success') showAdminNotice('Emotion-LLaMA 情緒分析完成。', 'success');
+        if (d.status === 'not_executed') showAdminNotice('Emotion-LLaMA 本次未執行：模型未連線或功能未啟用。');
+      } catch {
+        showAdminNotice('Emotion-LLaMA 情緒分析失敗，請檢查推論服務。', 'error');
+      }
       setTimeout(() => ui.pingInd.style.opacity = '0', 600);
     };
     rec.start();
@@ -847,14 +1000,18 @@ function setServiceResult(html) {
 
 function renderServiceResponse(targetEl, data) {
   const langLabel = data.detected_lang === 'en' ? 'English' : '繁體中文';
+  const acceptedNote = data.accepted
+    ? '<p class="text-xs mb-2 font-semibold" style="color:var(--accent2)">已立即通知客服；語音文字與情緒證據會在背景完成後更新到客服紀錄。</p>'
+    : '';
   targetEl.innerHTML = `
     <div class="flex flex-wrap gap-2 mb-3">
       <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">語系 ${escapeHTML(langLabel)}</span>
       <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">情緒 ${escapeHTML(formatEmotion(data.emotion || '-'))}</span>
       <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">優先級 ${escapeHTML(data.priority || '-')}</span>
     </div>
+    ${acceptedNote}
     <p class="text-xs mb-1" style="color:var(--text2)">顧客</p>
-    <p class="mb-2 font-medium" style="color:var(--text)">${escapeHTML(data.user_text || '')}</p>
+    <p class="mb-2 font-medium" style="color:var(--text)">${escapeHTML(data.user_text || data.staff_summary || '')}</p>
     <p class="text-xs mb-1" style="color:var(--text2)">客服回覆</p>
     <p class="font-semibold" style="color:var(--text)">${escapeHTML(data.customer_reply || '')}</p>
   `;
@@ -932,7 +1089,10 @@ async function startAdminServiceRecording() {
   adminServiceRecorder.start();
   ui.adminServiceRecord.classList.add('recording');
   ui.adminServiceRecordText.textContent = '停止並送出';
-  ui.adminServiceResult.textContent = '正在收音，停止後會分析語系與情緒。';
+  ui.adminServiceResult.textContent = adminServiceOllamaDirect
+    ? '正在收音，停止後會分析語系、情緒並產生 AI 客服回覆。'
+    : '正在收音，真人模式只會保存顧客錄音、文字與情緒判斷，不會讓 Ollama 直接回覆。';
+  showAdminNotice('客服情緒模型將在收音完成後啟動分析。');
 }
 
 function stopAdminServiceRecording() {
@@ -948,7 +1108,10 @@ async function submitAdminServiceRecording() {
     return;
   }
 
-  ui.adminServiceResult.textContent = '正在分析客服語音，請稍候。';
+  ui.adminServiceResult.textContent = adminServiceOllamaDirect
+    ? '正在分析客服語音並產生 AI 回覆，請稍候。'
+    : '已收到客服錄音，正在保存文字與情緒證據；Ollama 直接回覆已關閉。';
+  showAdminNotice('客服情緒模型開始分析顧客錄音。');
   const fd = new FormData();
   fd.append('session_id', `${sessionId}_admin_service`);
   fd.append('media', blob, 'admin_customer_service.webm');
@@ -959,9 +1122,14 @@ async function submitAdminServiceRecording() {
     if (data.status !== 'success') throw new Error(data.message || '客服流程失敗');
     renderServiceResponse(ui.adminServiceResult, data);
     await loadCustomerServiceData();
+    showAdminNotice(
+      adminServiceOllamaDirect ? '客服分析與 AI 回覆已完成。' : '真人客服模式已保存顧客錄音與文字，未產生 Ollama 直接回覆。',
+      'success'
+    );
     if (data.audio_base64) playVoice(data.audio_base64);
   } catch (err) {
     ui.adminServiceResult.textContent = err.message || '客服流程失敗。';
+    showAdminNotice('客服流程失敗，請檢查後端或情緒模型服務。', 'error');
   }
 }
 
@@ -1009,6 +1177,9 @@ if (ui.adminServiceToggle) {
   ui.adminServiceToggle.onclick = () => {
     adminServiceOllamaDirect = !adminServiceOllamaDirect;
     ui.adminServiceToggle.classList.toggle('on', adminServiceOllamaDirect);
+    ui.adminServiceResult.textContent = adminServiceOllamaDirect
+      ? '已開啟 Ollama 直接回覆。下一次客服錄音會產生 AI 客服回答。'
+      : '已切換真人模式。下一次客服錄音只保存錄音、文字與情緒證據，不會讓 Ollama 直接回覆。';
   };
 }
 if (ui.adminServiceRecord) {
@@ -1247,13 +1418,13 @@ function loadAdminData() {
   loadEmotionClips();
 }
 
-function topCountLabel(counts = {}) {
+function topCountLabel(counts = {}, labelType = '') {
   const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
   if (!entries.length) return '-';
-  return `${entries[0][0]} (${entries[0][1]})`;
+  return `${zhInteractionLabel(labelType, entries[0][0])} (${entries[0][1]})`;
 }
 
-function renderCountList(containerId, counts = {}) {
+function renderCountList(containerId, counts = {}, labelType = '') {
   const box = document.getElementById(containerId);
   if (!box) return;
   const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
@@ -1268,7 +1439,7 @@ function renderCountList(containerId, counts = {}) {
     return `
       <div>
         <div class="flex justify-between gap-3 mb-1">
-          <span class="truncate" style="color:var(--text)">${escapeHTML(label)}</span>
+          <span class="truncate" style="color:var(--text)">${escapeHTML(zhInteractionLabel(labelType, label))}</span>
           <b style="color:var(--accent2)">${value}</b>
         </div>
         <div class="h-2 rounded-full overflow-hidden" style="background:var(--surface2)">
@@ -1279,6 +1450,8 @@ function renderCountList(containerId, counts = {}) {
 }
 
 async function loadInterventionStats() {
+  if (interventionStatsLoading) return;
+  interventionStatsLoading = true;
   try {
     const data = await api.getInterventionStats();
     if (data.status !== 'success') throw new Error(data.message || 'stats failed');
@@ -1286,13 +1459,14 @@ async function loadInterventionStats() {
     const successRate = Math.round(Number(data.success_rate || 0) * 100);
     document.getElementById('intervention-total').textContent = total;
     document.getElementById('intervention-success-rate').textContent = `${successRate}%`;
-    document.getElementById('intervention-top-state').textContent = topCountLabel(data.barrier_state_counts);
-    document.getElementById('intervention-top-action').textContent = topCountLabel(data.action_counts);
-    renderCountList('barrierStateCounts', data.barrier_state_counts);
-    renderCountList('interventionActionCounts', data.action_counts);
+    document.getElementById('intervention-top-state').textContent = topCountLabel(data.barrier_state_counts, 'barrier');
+    document.getElementById('intervention-top-action').textContent = topCountLabel(data.action_counts, 'action');
+    renderCountList('barrierStateCounts', data.barrier_state_counts, 'barrier');
+    renderCountList('interventionActionCounts', data.action_counts, 'action');
     renderCountList(
       'pageIssueCounts',
-      data.event_page_issue_counts || data.intervention_page_counts || data.page_issue_counts
+      data.event_page_issue_counts || data.intervention_page_counts || data.page_issue_counts,
+      'page'
     );
 
     const tbody = document.getElementById('interventionLogsBody');
@@ -1309,11 +1483,14 @@ async function loadInterventionStats() {
         ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">完成</span>`
         : `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">待觀察</span>`;
       const tr = document.createElement('tr');
+      const barrierLabel = zhInteractionLabel('barrier', barrier.barrier_state || '-');
+      const actionLabel = zhInteractionLabel('action', intervention.action || '-');
+      const pageLabel = zhInteractionLabel('page', uiContext.page_id || '-');
       tr.innerHTML = `
         <td class="p-3 text-xs" style="color:var(--text2)">${log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}</td>
-        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(uiContext.page_id || '-')}</td>
-        <td class="p-3 text-xs font-mono" style="color:var(--accent2)">${escapeHTML(barrier.barrier_state || '-')}</td>
-        <td class="p-3 text-xs font-mono" style="color:var(--info)">${escapeHTML(intervention.action || '-')}</td>
+        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(pageLabel)}</td>
+        <td class="p-3 text-xs" style="color:var(--accent2)">${escapeHTML(barrierLabel)}</td>
+        <td class="p-3 text-xs" style="color:var(--info)">${escapeHTML(actionLabel)}</td>
         <td class="p-3 text-center">${resultBadge}</td>`;
       tbody.appendChild(tr);
     });
@@ -1328,12 +1505,15 @@ async function loadInterventionStats() {
     events.forEach(event => {
       const metadata = event.metadata || {};
       const source = event.button_id || metadata.source || metadata.reason || '-';
+      const eventPageLabel = zhInteractionLabel('page', event.page_id || '-');
+      const eventTypeLabel = zhInteractionLabel('event', event.event_type || '-');
+      const sourceLabel = zhInteractionLabel('source', source);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="p-3 text-xs" style="color:var(--text2)">${event.timestamp ? new Date(event.timestamp).toLocaleString() : '-'}</td>
-        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(event.page_id || '-')}</td>
-        <td class="p-3 text-xs font-mono" style="color:var(--accent2)">${escapeHTML(event.event_type || '-')}</td>
-        <td class="p-3 text-xs" style="color:var(--text2)">${escapeHTML(source)}</td>`;
+        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(eventPageLabel)}</td>
+        <td class="p-3 text-xs" style="color:var(--accent2)">${escapeHTML(eventTypeLabel)}</td>
+        <td class="p-3 text-xs" style="color:var(--text2)">${escapeHTML(sourceLabel)}</td>`;
       eventsBody.appendChild(tr);
     });
     if (!events.length) {
@@ -1343,6 +1523,8 @@ async function loadInterventionStats() {
     renderCountList('barrierStateCounts', {});
     renderCountList('interventionActionCounts', {});
     renderCountList('pageIssueCounts', {});
+  } finally {
+    interventionStatsLoading = false;
   }
 }
 
@@ -1669,7 +1851,10 @@ async function addRagDoc() {
   }
 }
 
-async function loadCustomerServiceData() {
+async function loadCustomerServiceData(options = {}) {
+  if (customerServiceLoading) return;
+  if (options.silent && isCustomerServiceEditing()) return;
+  customerServiceLoading = true;
   try {
     const data = await api.getCustomerServiceLogs();
     const box = document.getElementById('customerServiceLogsList');
@@ -1749,7 +1934,11 @@ async function loadCustomerServiceData() {
       box.appendChild(row);
     });
     if (!box.innerHTML) box.innerHTML = `<p class="text-sm" style="color:var(--text2)">目前沒有客服紀錄。</p>`;
-  } catch { }
+  } catch {
+    if (!options.silent) showAdminNotice('客服紀錄更新失敗。', 'error');
+  } finally {
+    customerServiceLoading = false;
+  }
 }
 
 document.getElementById('inp-performance-mode')?.addEventListener('change', (e) => {
@@ -1786,3 +1975,6 @@ Object.assign(window, {
 cartManager.renderCart();
 applyFeaturesToPOS();
 initAdminToggles();
+if (new URLSearchParams(window.location.search).get('view') === 'admin') {
+  switchMainView('admin');
+}

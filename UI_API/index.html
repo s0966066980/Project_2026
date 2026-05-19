@@ -63,9 +63,11 @@
     <div class="mb-6 w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.12)"><i class="fas fa-utensils text-3xl"></i></div>
     <h1 class="text-4xl md:text-5xl font-bold mb-3 text-center tracking-tight">智慧點餐</h1>
     <p class="text-lg mb-10" style="color:rgba(255,255,255,0.5)">AI-Powered Smart Kiosk</p>
-    <button id="startSystemBtn" class="btn-primary px-12 py-4 text-xl rounded-2xl shadow-2xl">開始點餐</button>
-    <div class="mt-6 flex gap-4 text-sm">
-      <button onclick="switchMainView('admin')" class="underline" style="color:rgba(255,255,255,0.4)">後台管理</button>
+    <div class="flex flex-col sm:flex-row gap-4">
+      <button id="startSystemBtn" class="btn-primary px-12 py-4 text-xl rounded-2xl shadow-2xl">開始點餐</button>
+      <button onclick="switchMainView('admin')" class="px-12 py-4 text-xl rounded-2xl font-bold shadow-2xl" style="background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.24);color:white">
+        員工使用
+      </button>
     </div>
   </div>
 
@@ -181,9 +183,6 @@
         <button id="posServiceFab" class="round-tool flex items-center justify-center" title="客服" type="button">
           <i class="fas fa-headset text-xl"></i>
         </button>
-        <button onclick="switchMainView('admin')" class="round-tool flex items-center justify-center" title="設定">
-          <i class="fas fa-cog text-xl"></i>
-        </button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
@@ -261,6 +260,8 @@
     </div>
   </nav>
 
+  <div id="adminNotificationBox" class="hidden mx-5 md:mx-8 mt-4 rounded-2xl px-4 py-3 text-sm font-semibold" style="background:#fff4e8;border:1.5px solid #f0c9a5;color:#6b3b19"></div>
+
   <div class="p-5 md:p-8 max-w-5xl mx-auto w-full">
 
     <!-- 儀表板 -->
@@ -323,6 +324,9 @@
           <div>
             <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">互動障礙與介入成效</h2>
             <p class="text-sm" style="color:var(--text2)">統計 POS 卡關狀態、介入動作與後續付款 / 結帳結果。</p>
+            <p class="text-xs mt-2 leading-relaxed" style="color:var(--text2)">
+              參數說明：互動障礙狀態代表顧客可能卡關類型；服務介入動作代表系統建議的 UI 提示或店員處理；常見卡關頁面代表事件最常發生的位置。
+            </p>
           </div>
           <button onclick="loadInterventionStats()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--accent2);border:1px solid var(--border)">
             <i class="fas fa-sync-alt mr-1"></i>重新整理
@@ -348,11 +352,11 @@
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
-            <p class="text-sm font-bold mb-3" style="color:var(--text)">barrier_state 分布</p>
+            <p class="text-sm font-bold mb-3" style="color:var(--text)">互動障礙狀態分布</p>
             <div id="barrierStateCounts" class="space-y-2 text-sm"></div>
           </div>
           <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
-            <p class="text-sm font-bold mb-3" style="color:var(--text)">intervention_action 分布</p>
+            <p class="text-sm font-bold mb-3" style="color:var(--text)">服務介入動作分布</p>
             <div id="interventionActionCounts" class="space-y-2 text-sm"></div>
           </div>
           <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
@@ -366,8 +370,8 @@
               <tr>
                 <th class="p-3 text-left font-semibold" style="color:var(--text2)">時間</th>
                 <th class="p-3 text-left font-semibold" style="color:var(--text2)">頁面</th>
-                <th class="p-3 text-left font-semibold" style="color:var(--text2)">barrier_state</th>
-                <th class="p-3 text-left font-semibold" style="color:var(--text2)">action</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">互動障礙狀態</th>
+                <th class="p-3 text-left font-semibold" style="color:var(--text2)">介入動作</th>
                 <th class="p-3 text-center font-semibold" style="color:var(--text2)">結果</th>
               </tr>
             </thead>
@@ -412,8 +416,8 @@
           <div id="tog-recommend" class="toggle-track on shrink-0" onclick="toggleFeature('recommend',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--info)"></i>Emotion-LLaMA 後端</p><p class="text-xs" style="color:var(--text2)">依效能設定節流上傳短影片分析情緒。</p></div>
-          <div id="tog-emotionBackend" class="toggle-track on shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
+          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--info)"></i>Emotion-LLaMA 例行偵測</p><p class="text-xs" style="color:var(--text2)">預設關閉；事件風險升高、客服或實驗觀察時再觸發多模態分析。</p></div>
+          <div id="tog-emotionBackend" class="toggle-track shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-comment-medical mr-2" style="color:var(--info)"></i>情緒分析泡泡</p><p class="text-xs" style="color:var(--text2)">以左側聊天室泡泡顯示 Emotion-LLaMA 分析內容。</p></div>
@@ -664,7 +668,7 @@
       <div class="flex justify-between items-center mb-6 gap-3">
         <div>
           <h2 class="text-2xl font-bold" style="color:var(--text)">客服系統</h2>
-          <p class="text-sm mt-1" style="color:var(--text2)">客服工作台與客服問答紀錄。客服問答會經 Ollama 審查後保存到 RAG。</p>
+          <p class="text-sm mt-1" style="color:var(--text2)">客服工作台與客服問答紀錄。開啟直接回覆時才會使用 AI 生成客服回答；關閉後只保存錄音與文字供真人處理。</p>
         </div>
         <button onclick="loadCustomerServiceData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
       </div>

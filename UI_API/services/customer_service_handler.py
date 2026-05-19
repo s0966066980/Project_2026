@@ -92,6 +92,7 @@ async def handle_customer_service(
         emotion_semaphore=deps["emotion_semaphore"],
         yolo_semaphore=deps["yolo_semaphore"],
         ollama_semaphore=deps["ollama_semaphore"],
+        structure_with_llm=use_ollama,
     )
     emotion_context = recommendation_service.build_emotion_prompt_context(
         deps["emotion_cache"].get(session_id),
@@ -221,14 +222,16 @@ async def handle_customer_service(
         staff_summary=staff_summary,
         priority=priority,
     )
-    review_result = await rag_review_service.review_rag_text(
-        source_text, "customer_service", source_id, deps["ollama_semaphore"]
-    )
-    rag_doc = await asyncio.to_thread(
-        database.upsert_reviewed_rag_doc,
-        "customer_service", source_id, source_text, review_result
-    )
-    deps["schedule_rag_rebuild"]("customer service RAG doc")
+    rag_doc = {}
+    if use_ollama:
+        review_result = await rag_review_service.review_rag_text(
+            source_text, "customer_service", source_id, deps["ollama_semaphore"]
+        )
+        rag_doc = await asyncio.to_thread(
+            database.upsert_reviewed_rag_doc,
+            "customer_service", source_id, source_text, review_result
+        )
+        deps["schedule_rag_rebuild"]("customer service RAG doc")
     session_repository.record_session_state(
         session_id=session_id,
         emotion=emotion_text,
@@ -240,7 +243,7 @@ async def handle_customer_service(
         "timestamp": time.time(),
         "session_id": session_id,
         "source_id": source_id,
-        "rag_doc_id": rag_doc.get("id"),
+        "rag_doc_id": rag_doc.get("id", ""),
         "mode": mode,
         "language": detected_lang,
         "raw_language": stt_result.get("raw_language", ""),
@@ -283,7 +286,7 @@ async def handle_customer_service(
         "emotion_structured": safe_emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
-        "rag_doc_id": rag_doc.get("id"),
+        "rag_doc_id": rag_doc.get("id", ""),
         "media_url": media_url,
         "audio_base64": audio_base64,
     }

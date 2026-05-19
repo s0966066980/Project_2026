@@ -432,6 +432,7 @@ async def analyze_customer_emotion(
     emotion_semaphore=None,
     yolo_semaphore=None,
     ollama_semaphore=None,
+    structure_with_llm: bool = True,
 ) -> str:
     cache = emotion_cache if emotion_cache is not None else {}
     cached = cache.get(session_id)
@@ -488,9 +489,18 @@ async def analyze_customer_emotion(
                 "ts": time.time(),
             }
             return emotion_structured["emotion_display"]
-        emotion_structured = await emotion_to_structured_display(
-            emotion_text, person_check, speech_text, media_signals, ollama_semaphore
-        )
+        if structure_with_llm:
+            emotion_structured = await emotion_to_structured_display(
+                emotion_text, person_check, speech_text, media_signals, ollama_semaphore
+            )
+        else:
+            emotion_structured = build_emotion_structured(
+                emotion_text,
+                emotion_text,
+                person_check=person_check,
+                speech_text=speech_text,
+                media_signals=media_signals,
+            )
         cache[session_id] = {
             "emotion": emotion_text,
             "emotion_display": emotion_structured["emotion_display"],

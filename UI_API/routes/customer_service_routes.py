@@ -62,12 +62,55 @@ def create_router(deps: dict) -> APIRouter:
                 temp_media_path = tmp.name
             media_bytes = await media.read()
             await asyncio.to_thread(write_binary_file, temp_media_path, media_bytes)
+            use_ollama_bool = use_ollama.lower() == "true"
+            multi_lang_bool = multi_lang.lower() == "true"
+            if not use_ollama_bool:
+                async def _background_human_service(path: str):
+                    try:
+                        await customer_service_handler.handle_customer_service(
+                            session_id=session_id,
+                            media_path=path,
+                            suffix=suffix,
+                            multi_lang=multi_lang_bool,
+                            use_ollama=False,
+                            deps=deps,
+                        )
+                    except Exception as bg_error:
+                        print(f"❌ customer_service 背景處理錯誤: {bg_error}")
+                    finally:
+                        if path and os.path.exists(path):
+                            os.remove(path)
+
+                asyncio.create_task(_background_human_service(temp_media_path))
+                temp_media_path = None
+                return {
+                    "status": "success",
+                    "mode": "human",
+                    "accepted": True,
+                    "user_text": "",
+                    "detected_lang": "zh",
+                    "raw_detected_lang": "",
+                    "emotion": "背景分析中",
+                    "customer_reply": "已通知客服人員，請稍候。",
+                    "staff_summary": "已收到客服請求，後台會自動更新語音文字與情緒證據。",
+                    "priority": "normal",
+                    "customer_service_state": "pending",
+                    "customer_service_priority": "normal",
+                    "needs_human_staff": True,
+                    "service_state_evidence": ["真人客服模式立即回傳"],
+                    "emotion_structured": {},
+                    "mentioned_ids": [],
+                    "ollama_result": "",
+                    "rag_doc_id": "",
+                    "media_url": "",
+                    "audio_base64": "",
+                }
             return await customer_service_handler.handle_customer_service(
                 session_id=session_id,
                 media_path=temp_media_path,
                 suffix=suffix,
-                multi_lang=multi_lang.lower() == "true",
-                use_ollama=use_ollama.lower() == "true",
+                multi_lang=multi_lang_bool,
+                use_ollama=use_ollama_bool,
                 deps=deps,
             )
         except Exception as e:

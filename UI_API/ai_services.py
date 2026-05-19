@@ -863,6 +863,17 @@ def _is_gemini_internal_error(error_text: str) -> bool:
     return "500" in lowered or "internal" in lowered or "internal error" in lowered
 
 
+def _is_gemini_unavailable_error(error_text: str) -> bool:
+    lowered = str(error_text or "").lower()
+    return (
+        "503" in lowered
+        or "unavailable" in lowered
+        or "high demand" in lowered
+        or "overloaded" in lowered
+        or "try again later" in lowered
+    )
+
+
 def _gemini_cooldown_remaining() -> int:
     return max(0, int(_gemini_cooldown_until - time.time()))
 
@@ -978,6 +989,16 @@ def ask_gemini(system_prompt: str, user_prompt: str, ab_variant: str = "", model
                 "error": f"Gemini API 服務端暫時錯誤，{retry_sec} 秒內改用備援。",
                 "raw_content": error_text,
                 "_provider_error": "gemini_internal",
+                "_retry_after_sec": retry_sec,
+            }
+        if _is_gemini_unavailable_error(error_text):
+            retry_sec = _extract_retry_delay_sec(error_text)
+            _gemini_cooldown_until = time.time() + retry_sec
+            _gemini_last_error = error_text
+            return {
+                "error": f"Gemini API 暫時繁忙，{retry_sec} 秒內改用備援。",
+                "raw_content": error_text,
+                "_provider_error": "gemini_unavailable",
                 "_retry_after_sec": retry_sec,
             }
         return {"error": error_text, "raw_content": "無法連線至 Gemini API", "_provider_error": "gemini_failed"}

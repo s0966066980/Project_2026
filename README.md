@@ -4,6 +4,7 @@ Project_2026 是一套智慧 POS 點餐與客服原型系統。專案目前包�
 
 - `UI_API/`：FastAPI 後端、POS 前端、後台管理、RAG、語音點餐、AI 推播與客服流程。
 - `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，用於提供影像、語音情境與情緒行為證據。
+- `Test/`：專利 PoC 與實施例測試腳本，可直接送事件到 UI_API。
 
 本專案的核心方向不是單純做情緒辨識，而是：
 
@@ -44,6 +45,8 @@ Project_2026/
 │   ├── eval_configs/
 │   ├── emotion_llama/
 │   └── ...
+├── Test/
+│   └── pos_interaction_demo_ui.py
 └── UI_API/
     ├── main.py
     ├── ai_services.py
@@ -250,6 +253,17 @@ UI_API/
 
 `/api/triggered_multimodal_analysis` 會略過太小的 video chunk，避免空音訊或不完整片段造成推論錯誤。
 
+### 實施例測試 UI
+
+根目錄 `Test/pos_interaction_demo_ui.py` 會啟動一個本機 HTML 測試介面，可送出付款卡關、操作困惑、優惠券卡關與等待不耐等情境到 UI_API：
+
+```bash
+cd /home/oliver/Project_2026
+python3 Test/pos_interaction_demo_ui.py
+```
+
+使用前請先啟動 `UI_API/main.py`。此腳本會開啟 `http://127.0.0.1:8765/`，瀏覽器按「送出事件」後會由腳本代理呼叫 `/api/interaction_event` 與 `/api/barrier_state`，送出後可自動開啟 `/?view=admin`。後台「互動障礙與介入成效」會透過輪詢更新，方便直接觀察操作行為、風險分數、互動障礙狀態與服務介入動作。
+
 ### 目前實作狀態
 
 - `/api/interaction_event` 已串接 POS 操作事件。
@@ -278,6 +292,8 @@ UI_API/
 - `POST /api/customer_service_logs/{source_id}/human_reply`
 
 客服流程會把 Whisper 語音文字、Emotion-LLaMA 結構化情緒、YOLO 人物偵測與媒體訊號轉成 `customer_service_state`。Emotion-LLaMA 在客服中不是單純做情緒辨識，而是提供多模態情緒與行為證據；系統再用該狀態決定客服優先級、真人介入建議與回覆策略。
+
+後台客服系統會自動刷新客服紀錄。若關閉「Ollama 直接回覆」，API 會先立即回傳「已通知客服」，完整語音辨識、情緒證據與紀錄保存改由背景任務完成；該流程不再產生 AI 直接客服回答。
 
 ### RAG
 

@@ -2,6 +2,7 @@ export const ui = {
   posView: document.getElementById('view-pos'),
   adminView: document.getElementById('view-admin'),
   overlay: document.getElementById('startupOverlay'),
+  adminNotificationBox: document.getElementById('adminNotificationBox'),
   checkoutOverlay: document.getElementById('checkoutOverlay'),
   startBtn: document.getElementById('startSystemBtn'),
   menuGrid: document.getElementById('menuGrid'),
