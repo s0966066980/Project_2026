@@ -14,12 +14,22 @@ def _safe_dict(value) -> dict:
 
 
 def _contains_any(text: str, terms: list[str]) -> bool:
-    lower = text.lower()
-    for term in terms:
-        haystack = lower if any("a" <= char.lower() <= "z" for char in term) else text
-        if term.lower() in haystack:
-            return True
-    return False
+    lower = str(text or "").lower()
+    return any(str(term or "").lower() in lower for term in terms)
+
+
+def _dedupe_evidence(evidence: list[str], limit: int = 10) -> list[str]:
+    result = []
+    seen = set()
+    for item in evidence or []:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+        if len(result) >= limit:
+            break
+    return result
 
 
 def _emotion_label(emotion_structured: dict | None) -> str:
@@ -122,5 +132,5 @@ def infer_customer_service_state(
         "customer_service_state": state,
         "priority": priority,
         "needs_human_staff": needs_human_staff,
-        "evidence": evidence,
+        "evidence": _dedupe_evidence(evidence),
     }
