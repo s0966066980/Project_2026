@@ -81,6 +81,54 @@ async def _run_process(args: list[str], timeout: float | None = None, capture_st
     return (stderr or b"").decode("utf-8", errors="ignore") if capture_stderr else ""
 
 
+async def async_probe_media(file_path: str) -> dict:
+    result = {
+        "valid": False,
+        "has_audio": False,
+        "has_video": False,
+        "duration_sec": 0.0,
+        "error": "",
+    }
+    if not file_path or not os.path.exists(file_path):
+        result["error"] = "media_missing"
+        return result
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "error",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            file_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=8)
+        if proc.returncode != 0:
+            detail = (stderr or b"").decode("utf-8", errors="ignore")
+            lower_detail = detail.lower()
+            if "ebml header parsing failed" in lower_detail or "invalid data found" in lower_detail:
+                result["error"] = "invalid_media_data"
+            elif "moov atom not found" in lower_detail:
+                result["error"] = "incomplete_media_file"
+            else:
+                result["error"] = "ffprobe_failed"
+            return result
+        data = json.loads((stdout or b"{}").decode("utf-8", errors="ignore") or "{}")
+        streams = data.get("streams") if isinstance(data.get("streams"), list) else []
+        result["has_audio"] = any(stream.get("codec_type") == "audio" for stream in streams)
+        result["has_video"] = any(stream.get("codec_type") == "video" for stream in streams)
+        try:
+            result["duration_sec"] = round(float((data.get("format") or {}).get("duration") or 0), 3)
+        except Exception:
+            result["duration_sec"] = 0.0
+        result["valid"] = bool(streams) and (result["has_audio"] or result["has_video"])
+        if not result["valid"]:
+            result["error"] = "no_media_stream"
+        return result
+    except Exception as e:
+        result["error"] = str(e)
+        return result
+
+
 async def _convert_media_to_wav(file_path: str, wav_path: str):
     await _run_process([
         "ffmpeg", "-y", "-i", file_path,
@@ -184,6 +232,10 @@ async def async_safe_transcribe(file_path: str) -> str:
         return ""
     wav_path = file_path + "_safe.wav"
     try:
+        probe = await async_probe_media(file_path)
+        if not probe.get("valid") or not probe.get("has_audio"):
+            print(f"⚠️ 語音輸入無效或沒有音軌，略過 Whisper 辨識: {probe.get('error') or 'no_audio'}")
+            return ""
         await _convert_media_to_wav(file_path, wav_path)
         if not _wav_has_enough_audio(wav_path):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
@@ -219,6 +271,10 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         return {"text": "", "language": "zh", "raw_language": ""}
     wav_path = file_path + "_safe.wav"
     try:
+        probe = await async_probe_media(file_path)
+        if not probe.get("valid") or not probe.get("has_audio"):
+            print(f"⚠️ 語音輸入無效或沒有音軌，略過 Whisper 辨識: {probe.get('error') or 'no_audio'}")
+            return {"text": "", "language": "zh", "raw_language": ""}
         await _convert_media_to_wav(file_path, wav_path)
         if not _wav_has_enough_audio(wav_path):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
@@ -302,6 +358,10 @@ async def async_prepare_emotion_video(video_path: str) -> tuple[str, str | None]
         return video_path, None
     if not video_path or not os.path.exists(video_path):
         return video_path, None
+    probe = await async_probe_media(video_path)
+    if not probe.get("valid") or not probe.get("has_video"):
+        print(f"⚠️ Emotion-LLaMA 影片無效，略過推論: {probe.get('error') or 'no_video'}")
+        return "", None
     fd, output_path = tempfile.mkstemp(suffix=".mp4")
     os.close(fd)
     max_sec = max(1, int(config.get("EMOTION_LLAMA_MAX_VIDEO_SEC", 12)))
@@ -379,20 +439,27 @@ async def async_analyze_emotion_media_signals(video_path: str) -> dict:
     }
     if not video_path or not os.path.exists(video_path):
         return signals | {"reason": "video_missing"}
+    probe = await async_probe_media(video_path)
+    if not probe.get("valid"):
+        signals["reason"] = f"media_unreadable:{probe.get('error') or 'unknown'}"
+        return signals
+    if probe.get("duration_sec"):
+        signals["duration_sec"] = probe.get("duration_sec")
 
-    try:
-        stderr = await _run_process(
-            ["ffmpeg", "-hide_banner", "-i", video_path, "-af", "volumedetect", "-vn", "-sn", "-dn", "-f", "null", os.devnull],
-            timeout=8,
-            capture_stderr=True
-        )
-        match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", stderr or "")
-        if match:
-            mean_db = float(match.group(1))
-            signals["audio_mean_db"] = mean_db
-            signals["audio_silent"] = mean_db < float(config.get("EMOTION_LOW_AUDIO_DB", -45))
-    except Exception:
-        pass
+    if probe.get("has_audio"):
+        try:
+            stderr = await _run_process(
+                ["ffmpeg", "-hide_banner", "-i", video_path, "-af", "volumedetect", "-vn", "-sn", "-dn", "-f", "null", os.devnull],
+                timeout=8,
+                capture_stderr=True
+            )
+            match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", stderr or "")
+            if match:
+                mean_db = float(match.group(1))
+                signals["audio_mean_db"] = mean_db
+                signals["audio_silent"] = mean_db < float(config.get("EMOTION_LOW_AUDIO_DB", -45))
+        except Exception:
+            pass
 
     return await asyncio.to_thread(_measure_motion_signals, video_path, signals)
 
@@ -410,6 +477,12 @@ async def async_get_emotion_from_llama(
     risk_result: dict | None = None,
 ) -> dict:
     prepared_path, cleanup_path = await async_prepare_emotion_video(video_path)
+    if not prepared_path:
+        return {
+            "emotion_raw": "Emotion-LLaMA 未執行",
+            "emotion_available": False,
+            "emotion_error": "video_unreadable",
+        }
     try:
         prompt = _build_emotion_llama_prompt(
             speech_text,

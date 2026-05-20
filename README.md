@@ -207,7 +207,8 @@ python main.py
 開啟：
 
 ```text
-http://127.0.0.1:8000
+客戶端 POS：http://127.0.0.1:8000
+後台管理：http://127.0.0.1:8001
 ```
 
 若有設定 ngrok，終端機會顯示外網網址。若固定 ngrok endpoint 已被其他程序佔用，系統會略過 tunnel 並繼續啟動本機 API。

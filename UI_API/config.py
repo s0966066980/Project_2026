@@ -23,7 +23,15 @@ NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
 ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
-CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://127.0.0.1:8000").split(",") if origin.strip()]
+ADMIN_PORT = int(os.getenv("ADMIN_PORT", "8001"))
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://127.0.0.1:8000,http://127.0.0.1:8001",
+    ).split(",")
+    if origin.strip()
+]
 VECTOR_DB_DIR = "./chroma_db"
 MENU_JSON_PATH = "./menu_data/menu.json"
 LEARNING_DATA_DIR = "./learning_data"

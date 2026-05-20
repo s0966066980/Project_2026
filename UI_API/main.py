@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -34,6 +35,8 @@ app = FastAPI(title="Smart Kiosk POS API", version="9.0", lifespan=lifespan)
 _emotion_semaphore = asyncio.Semaphore(1)
 _yolo_semaphore = asyncio.Semaphore(1)
 _ollama_semaphore = asyncio.Semaphore(1)
+_background_init_lock = threading.Lock()
+_background_init_done = False
 _emotion_cache = {}
 _recommend_cache = {}
 _rag_rebuild_task = None
@@ -49,6 +52,15 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 async def _background_init():
+    global _background_init_done
+    with _background_init_lock:
+        if _background_init_done:
+            return
+        _background_init_done = True
+    await _background_init_once()
+
+
+async def _background_init_once():
     loop = asyncio.get_running_loop()
 
     async def _init_rag():
@@ -141,11 +153,22 @@ if __name__ == "__main__":
             return sock.connect_ex((check_host, port)) == 0
 
     host = config.APP_HOST
-    port = int(config.APP_PORT)
+    pos_port = int(config.APP_PORT)
+    admin_port = int(config.ADMIN_PORT)
+    ports = [pos_port]
+    if admin_port not in ports:
+        ports.append(admin_port)
     print("\n" + "=" * 65)
-    print(f"🚀 API Server starting on http://{host}:{port}")
-    if _port_is_in_use(host, port):
-        print(f"ℹ️ Port {port} 已有 API 服務在執行，略過重複啟動。")
+    print(f"🚀 POS client starting on http://{host}:{pos_port}")
+    print(f"🚀 Admin console starting on http://{host}:{admin_port}")
+    available_ports = []
+    for port in ports:
+        if _port_is_in_use(host, port):
+            print(f"ℹ️ Port {port} 已有 API 服務在執行，略過此入口。")
+        else:
+            available_ports.append(port)
+    if not available_ports:
+        print("ℹ️ 所有入口都已由既有程序佔用，略過重複啟動。")
         print("=" * 65 + "\n")
         sys.exit(0)
 
@@ -154,7 +177,7 @@ if __name__ == "__main__":
             from pyngrok import ngrok
 
             ngrok.set_auth_token(config.NGROK_AUTHTOKEN)
-            tunnel = ngrok.connect(port)
+            tunnel = ngrok.connect(pos_port)
             print(f"🌍 Public HTTPS URL: {tunnel.public_url}")
         except ImportError:
             print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
@@ -163,4 +186,24 @@ if __name__ == "__main__":
     else:
         print("ℹ️ ngrok 未啟用，只啟動本機 API。")
     print("=" * 65 + "\n")
-    uvicorn.run(app, host=host, port=port)
+
+    servers = [
+        uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info"))
+        for port in available_ports
+    ]
+    threads = [
+        threading.Thread(target=server.run, name=f"uvicorn-{port}", daemon=True)
+        for server, port in zip(servers, available_ports)
+    ]
+    try:
+        for thread in threads:
+            thread.start()
+        while any(thread.is_alive() for thread in threads):
+            for thread in threads:
+                thread.join(timeout=0.5)
+    except KeyboardInterrupt:
+        for server in servers:
+            server.should_exit = True
+        for thread in threads:
+            thread.join(timeout=5)
+        print("ℹ️ API Server stopped.")

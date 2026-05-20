@@ -7,7 +7,7 @@
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=privacy-20260518">
+<link rel="stylesheet" href="/static/styles.css?v=mediafix-20260520">
 
 </head>
 <body class="h-screen w-full overflow-hidden">
@@ -65,13 +65,10 @@
     <p class="text-lg mb-10" style="color:rgba(255,255,255,0.5)">AI-Powered Smart Kiosk</p>
     <div class="flex flex-col sm:flex-row gap-4">
       <button id="startSystemBtn" class="btn-primary px-12 py-4 text-xl rounded-2xl shadow-2xl">開始點餐</button>
-      <button onclick="switchMainView('admin')" class="px-12 py-4 text-xl rounded-2xl font-bold shadow-2xl" style="background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.24);color:white">
-        員工使用
-      </button>
     </div>
   </div>
 
-  <!-- 確認訂單 modal -->
+  <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->
   <div id="orderConfirmModal" class="order-modal hidden" aria-hidden="true">
     <div class="order-modal-backdrop"></div>
     <div class="order-modal-card" role="dialog" aria-modal="true" aria-labelledby="orderConfirmTitle">
@@ -165,6 +162,25 @@
     </div>
   </div>
 
+  <!-- McDonald 風格付款頁 -->
+  <div id="kioskPaymentScreen" class="kiosk-payment-screen hidden" aria-hidden="true">
+    <div class="kiosk-payment-inner">
+      <div class="kiosk-payment-mark">M</div>
+      <h1>請選擇付款方式</h1>
+      <button id="kioskFastPayBtn" class="kiosk-payment-card" type="button">
+        <span class="kiosk-payment-icon"><i class="fas fa-credit-card"></i></span>
+        <span class="kiosk-payment-kicker">點點卡、信用卡、掃碼支付</span>
+        <strong>在此快速結帳</strong>
+      </button>
+      <button id="kioskCounterPayBtn" class="kiosk-payment-outline" type="button">至櫃檯排隊付款</button>
+      <button id="kioskPaymentBackBtn" class="kiosk-payment-back" type="button">回購物車</button>
+      <div class="kiosk-payment-footer">
+        <button id="kioskCancelOrderBtn" type="button">取消整單訂單</button>
+        <button type="button">友善模式</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 結帳 overlay -->
   <div id="checkoutOverlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center text-white hidden opacity-0 transition-opacity duration-500">
     <div class="text-7xl mb-6"><i class="fas fa-check-circle"></i></div>
@@ -175,18 +191,30 @@
   <!-- 左：菜單 -->
   <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden pos-main">
     <div class="pos-topbar px-6 md:px-12 py-6 flex justify-between items-center shrink-0">
-      <div>
-        <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight" style="color:var(--text)">美味菜單</h2>
-        <p class="text-sm mt-2" style="color:var(--text2)">點餐輕鬆加入購物車</p>
+      <div class="kiosk-top-left">
+        <button id="kioskBackBtn" class="kiosk-back-btn hidden" type="button" aria-label="返回">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div id="kioskLogo" class="kiosk-logo">M</div>
+        <div>
+          <h2 id="kioskTitle" class="text-3xl md:text-4xl font-extrabold tracking-tight" style="color:var(--text)">請選擇餐點類別</h2>
+          <p id="kioskSubtitle" class="text-sm mt-2" style="color:var(--text2)">選擇分類後開始點餐</p>
+        </div>
       </div>
       <div class="flex items-center gap-3">
+        <button id="kioskSearchBtn" class="kiosk-search-btn hidden" type="button">
+          <i class="fas fa-search"></i><span>搜尋<br>篩選</span>
+        </button>
+        <button id="kioskLangBtn" class="kiosk-lang-btn" type="button">
+          <i class="fas fa-globe"></i><span>中文</span><i class="fas fa-chevron-down"></i>
+        </button>
         <button id="posServiceFab" class="round-tool flex items-center justify-center" title="客服" type="button">
           <i class="fas fa-headset text-xl"></i>
         </button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
-      <div class="flex items-center gap-4 mb-7">
+      <div id="kioskSectionHead" class="flex items-center gap-4 mb-7">
         <span class="section-kicker"><i class="fas fa-utensils"></i></span>
         <h3 class="text-2xl font-extrabold" style="color:var(--text)">精選推薦</h3>
         <p class="text-sm hidden sm:block" style="color:var(--text2)">為您精挑細選的美味餐點</p>
@@ -210,8 +238,9 @@
       <div class="px-7 py-5 flex justify-between items-center shrink-0" style="border-bottom:1.5px solid var(--border)">
         <div class="flex items-center gap-4">
           <i class="fas fa-cart-plus text-2xl" style="color:var(--accent2)"></i>
-          <h3 class="font-extrabold text-2xl" style="color:var(--text)">購物車</h3>
+          <h3 class="font-extrabold text-2xl" style="color:var(--text)">您的購物車</h3>
         </div>
+        <button id="clearCartBtn" class="kiosk-clear-cart" type="button"><i class="fas fa-trash-alt"></i> 清空購物車</button>
         <span id="cartCountBadge" class="text-sm font-bold px-4 py-2 rounded-full" style="background:#edf0e7;color:var(--text2)">共 0 項</span>
       </div>
       <div class="flex-1 min-h-0 flex flex-col p-5">
@@ -235,11 +264,22 @@
         <span class="font-semibold text-lg" style="color:var(--text)">總計</span>
         <span id="totalPrice" class="text-4xl font-extrabold" style="color:#d23415">$0</span>
       </div>
-      <button id="checkoutBtn" class="w-full btn-primary py-5 text-xl rounded-2xl disabled:opacity-40 flex items-center justify-center gap-5" disabled>
-        <span>確認點餐</span><i class="fas fa-chevron-right"></i>
-      </button>
+      <div class="kiosk-cart-actions">
+        <button id="continueOrderBtn" class="kiosk-continue-btn" type="button">繼續點餐</button>
+        <button id="checkoutBtn" class="w-full btn-primary py-5 text-xl rounded-2xl disabled:opacity-40 flex items-center justify-center gap-5" disabled>
+          <span>結帳去</span><i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
       <p class="mt-5 text-center text-sm" style="color:var(--text2)"><i class="fas fa-shield-alt mr-2" style="color:var(--accent2)"></i>安全交易 · 安心結帳</p>
     </div>
+  </div>
+
+  <div id="kioskBottomBar" class="kiosk-bottom-bar">
+    <button id="kioskHomeBtn" class="kiosk-bottom-home" type="button"><i class="fas fa-home"></i><span>回首頁</span></button>
+    <button id="kioskCartBtn" class="kiosk-bottom-cart" type="button">
+      <span class="kiosk-cart-icon"><i class="fas fa-shopping-cart"></i><b id="kioskBottomCount">0</b></span>
+      <strong id="kioskBottomTotal">$0</strong>
+    </button>
   </div>
 
 </div>
@@ -708,7 +748,7 @@
 
 <audio id="ttsAudio" class="hidden"></audio>
 
-<script type="module" src="/static/app.js?v=privacy-20260518"></script>
+<script type="module" src="/static/app.js?v=mediafix-20260520"></script>
 
 </body>
 </html>

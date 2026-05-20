@@ -1,8 +1,10 @@
 let rollingRecorder = null;
 let rollingChunks = [];
+let rollingHeaderChunk = null;
 let rollingMaxSec = 5;
 let rollingStream = null;
 let captureInFlight = false;
+let captureConsumers = [];
 
 function safeStopRecorder(recorder) {
   try {
@@ -26,14 +28,18 @@ export function startRollingMediaBuffer(stream, maxSec = 5) {
   rollingStream = stream;
   rollingMaxSec = Math.max(1, Number(maxSec) || 5);
   rollingChunks = [];
+  rollingHeaderChunk = null;
+  captureConsumers = [];
 
   try {
     const mimeType = recorderMimeType();
     rollingRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     rollingRecorder.ondataavailable = (event) => {
       if (!event.data || event.data.size <= 0) return;
+      if (!rollingHeaderChunk) rollingHeaderChunk = event.data;
       rollingChunks.push(event.data);
       rollingChunks = rollingChunks.slice(-rollingMaxSec);
+      captureConsumers.forEach(consumer => consumer(event.data));
     };
     rollingRecorder.onstop = () => {
       rollingRecorder = null;
@@ -51,8 +57,10 @@ export function stopRollingMediaBuffer() {
   safeStopRecorder(rollingRecorder);
   rollingRecorder = null;
   rollingChunks = [];
+  rollingHeaderChunk = null;
   rollingStream = null;
   captureInFlight = false;
+  captureConsumers = [];
 }
 
 export function hasRollingMediaBuffer() {
@@ -73,13 +81,22 @@ export function captureTriggeredClip(postSec = 5) {
   const durationMs = Math.max(1, Number(postSec) || 5) * 1000;
   const postChunks = [];
   const mimeType = recorderMimeType();
-  let postRecorder = null;
 
   return new Promise((resolve, reject) => {
+    let timer = null;
+    const consumer = (chunk) => {
+      if (chunk && chunk.size > 0) postChunks.push(chunk);
+    };
     const finish = () => {
       captureInFlight = false;
+      captureConsumers = captureConsumers.filter(item => item !== consumer);
+      if (timer) window.clearTimeout(timer);
       const type = mimeType || 'video/webm';
-      const chunks = [...preChunks, ...postChunks].filter(Boolean);
+      const chunks = [
+        rollingHeaderChunk && !preChunks.includes(rollingHeaderChunk) ? rollingHeaderChunk : null,
+        ...preChunks,
+        ...postChunks
+      ].filter(Boolean);
       if (!chunks.length) {
         reject(new Error('triggered clip is empty'));
         return;
@@ -88,19 +105,15 @@ export function captureTriggeredClip(postSec = 5) {
     };
 
     try {
-      postRecorder = new MediaRecorder(rollingStream, mimeType ? { mimeType } : undefined);
-      postRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) postChunks.push(event.data);
-      };
-      postRecorder.onerror = (event) => {
-        captureInFlight = false;
-        reject(event.error || new Error('triggered clip recorder failed'));
-      };
-      postRecorder.onstop = finish;
-      postRecorder.start(1000);
-      window.setTimeout(() => safeStopRecorder(postRecorder), durationMs);
+      captureConsumers.push(consumer);
+      rollingRecorder.requestData?.();
+      timer = window.setTimeout(() => {
+        try { rollingRecorder?.requestData?.(); } catch { }
+        window.setTimeout(finish, 250);
+      }, durationMs);
     } catch (err) {
       captureInFlight = false;
+      captureConsumers = captureConsumers.filter(item => item !== consumer);
       reject(err);
     }
   });

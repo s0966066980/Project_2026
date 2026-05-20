@@ -49,6 +49,23 @@ def is_allowed_video_path(path: str) -> bool:
         return False
 
 
+def is_readable_video(path: str) -> tuple[bool, str]:
+    try:
+        import cv2
+
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            cap.release()
+            return False, "video_unreadable"
+        ok, frame = cap.read()
+        cap.release()
+        if not ok or frame is None:
+            return False, "video_empty"
+        return True, ""
+    except Exception as e:
+        return False, f"opencv_check_failed: {e}"
+
+
 def get_chat():
     global _chat
     if _chat is not None:
@@ -107,6 +124,9 @@ def process_video_question(video_path: str, question: str) -> str:
         return f"[EMOTION_LLAMA_ERROR] video_not_found: {video_path}"
     if not is_allowed_video_path(video_path):
         return f"[EMOTION_LLAMA_ERROR] path_not_allowed: {video_path}"
+    video_ok, video_error = is_readable_video(video_path)
+    if not video_ok:
+        return f"[EMOTION_LLAMA_ERROR] {video_error}: {video_path}"
 
     chat = get_chat()
 

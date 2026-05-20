@@ -1,5 +1,5 @@
-import * as api from './api.js?v=privacy-20260518';
-import { API_BASE } from './api.js?v=privacy-20260518';
+import * as api from './api.js?v=mediafix-20260520';
+import { API_BASE } from './api.js?v=mediafix-20260520';
 import {
   ui,
   escapeHTML,
@@ -7,28 +7,29 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=privacy-20260518';
+} from './ui.js?v=mediafix-20260520';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=privacy-20260518';
-import { createCartManager } from './cart.js?v=privacy-20260518';
-import { createRecommendationManager } from './recommendation.js?v=privacy-20260518';
-import { connectRealtime } from './realtime_client.js?v=privacy-20260518';
+} from './media.js?v=mediafix-20260520';
+import { createCartManager } from './cart.js?v=mediafix-20260520';
+import { createRecommendationManager } from './recommendation.js?v=mediafix-20260520';
+import { connectRealtime } from './realtime_client.js?v=mediafix-20260520';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js?v=privacy-20260518';
+} from './media_buffer.js?v=mediafix-20260520';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
+  if (window.location.port === '8001') return 'admin';
+  if (window.location.port === '8000') return 'pos';
   if (path.startsWith('/admin')) return 'admin';
   if (path.startsWith('/pos')) return 'pos';
-  if (new URLSearchParams(window.location.search).get('view') === 'admin') return 'admin';
   return 'pos';
 })();
 
@@ -78,6 +79,9 @@ let interventionStatsLoading = false;
 let customerServiceLoading = false;
 let posRealtime = null;
 let adminRealtime = null;
+let kioskScreen = 'categories';
+let kioskActiveGroup = '';
+let kioskActiveFilter = '全部';
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -89,6 +93,15 @@ const interactionState = {
   cartEditCount: 0,
   lastReportedDwellPage: '',
 };
+
+const KIOSK_GROUPS = [
+  { id: 'recommended', label: '推薦套餐', image: '/static/mcd_categories/recommended.jpg', categories: ['極選系列'] },
+  { id: 'value', label: '超值全餐', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
+  { id: 'single', label: '單點餐品', image: '/static/mcd_categories/single.jpg', categories: ['點心', '早餐'] },
+  { id: 'drinks', label: '飲料甜點', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
+  { id: 'kids', label: '兒童餐', image: '/static/mcd_categories/kids.jpg', categories: ['早餐', '點心'] },
+  { id: 'deals', label: '最新優惠', image: '/static/mcd_categories/deals.jpg', categories: [] },
+];
 let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
@@ -336,6 +349,7 @@ function maybeStartRollingMediaBuffer() {
 }
 
 function switchMainView(view) {
+  if (view === 'admin' && !isAdminMode()) return;
   switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, initAdminToggles, applyFeaturesToPOS, loadMenu });
   if (view === 'admin') {
     startAdminRealtime();
@@ -358,10 +372,11 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-const cartManager = createCartManager({ ui, escapeHTML, findMenuItems });
+const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary });
 
 function trackedAddToCart(item, metadata = {}) {
   cartManager.addToCart(item);
+  if (isPosMode() && isSystemRunning && metadata.source === 'menu_card') showCartScreen();
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: item?.id ? `menu_${item.id}` : 'add_to_cart',
@@ -423,35 +438,173 @@ async function loadMenu() {
 }
 
 function renderMenu() {
+  if (kioskScreen === 'categories') {
+    renderKioskCategories();
+    return;
+  }
+  renderKioskMenuItems();
+}
+
+function renderKioskCategories() {
+  kioskScreen = 'categories';
+  kioskActiveGroup = '';
+  kioskActiveFilter = '全部';
   ui.menuGrid.innerHTML = '';
-  menuData.forEach(item => {
+  ui.menuGrid.className = 'kiosk-category-grid';
+  if (ui.kioskTitle) ui.kioskTitle.textContent = '';
+  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = '選擇分類後開始點餐';
+  document.getElementById('kioskLogo')?.classList.remove('hidden');
+  document.getElementById('kioskLangBtn')?.classList.remove('hidden');
+  ui.serviceFab?.classList.remove('hidden');
+  ui.kioskBackBtn?.classList.add('hidden');
+  ui.kioskSearchBtn?.classList.add('hidden');
+  ui.kioskSectionHead?.classList.add('hidden');
+
+  const heading = document.createElement('div');
+  heading.className = 'kiosk-category-heading';
+  heading.textContent = '請選擇餐點類別';
+  ui.menuGrid.appendChild(heading);
+
+  KIOSK_GROUPS.forEach(group => {
+    const card = document.createElement('button');
+    card.className = 'kiosk-category-card';
+    card.type = 'button';
+    card.onclick = () => showMenuGroup(group.id);
+    card.innerHTML = `
+      <img src="${group.image}" alt="${escapeHTML(group.label)}" onerror="this.style.display='none'">
+      <strong>${escapeHTML(group.label)}</strong>`;
+    ui.menuGrid.appendChild(card);
+  });
+  updateKioskCartSummary();
+}
+
+function showMenuGroup(groupId, filter = '全部') {
+  kioskScreen = 'menu';
+  kioskActiveGroup = groupId;
+  kioskActiveFilter = filter;
+  renderMenu();
+}
+
+function groupItems(groupId) {
+  const group = KIOSK_GROUPS.find(g => g.id === groupId) || KIOSK_GROUPS[1];
+  if (groupId === 'deals') return menuData.slice(0, 10);
+  const allowed = new Set((group.categories || []).map(String));
+  return menuData.filter(item => allowed.has(String(item.category || '')));
+}
+
+function itemMatchesSubFilter(item, filter) {
+  if (!filter || filter === '全部') return true;
+  const name = String(item.name || '').replace(/鷄/g, '雞');
+  if (filter === '牛肉系列') return /牛|安格斯|大麥克|吉事|四盎司/.test(name);
+  if (filter === '雞肉系列') return /雞|脆|辣/.test(name);
+  if (filter === '魚肉系列') return /魚/.test(name);
+  if (filter === '點心飲料') return /薯|派|湯|茶|可樂|咖啡|那堤|奶茶/.test(name);
+  return true;
+}
+
+function subFiltersForGroup(groupId) {
+  if (groupId === 'value' || groupId === 'recommended') return ['全部', '牛肉系列', '雞肉系列', '魚肉系列'];
+  if (groupId === 'single' || groupId === 'drinks' || groupId === 'deals') return ['全部', '點心飲料'];
+  return ['全部'];
+}
+
+function renderKioskMenuItems() {
+  const group = KIOSK_GROUPS.find(g => g.id === kioskActiveGroup) || KIOSK_GROUPS[1];
+  const filters = subFiltersForGroup(group.id);
+  const items = groupItems(group.id).filter(item => itemMatchesSubFilter(item, kioskActiveFilter));
+  ui.menuGrid.innerHTML = '';
+  ui.menuGrid.className = 'kiosk-menu-list';
+  if (ui.kioskTitle) ui.kioskTitle.textContent = group.label;
+  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = '點選加號加入購物車';
+  document.getElementById('kioskLogo')?.classList.add('hidden');
+  document.getElementById('kioskLangBtn')?.classList.add('hidden');
+  ui.serviceFab?.classList.add('hidden');
+  ui.kioskBackBtn?.classList.remove('hidden');
+  ui.kioskSearchBtn?.classList.remove('hidden');
+  ui.kioskSectionHead?.classList.add('hidden');
+
+  const tabs = document.createElement('div');
+  tabs.className = 'kiosk-menu-tabs';
+  tabs.innerHTML = filters.map(filter => `
+    <button type="button" class="${filter === kioskActiveFilter ? 'active' : ''}" data-filter="${escapeHTML(filter)}">
+      ${escapeHTML(filter)}
+    </button>`).join('');
+  tabs.querySelectorAll('button').forEach(button => {
+    button.addEventListener('click', () => showMenuGroup(group.id, button.dataset.filter || '全部'));
+  });
+  ui.menuGrid.appendChild(tabs);
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'kiosk-empty-menu';
+    empty.textContent = '此分類目前沒有可顯示餐點';
+    ui.menuGrid.appendChild(empty);
+    return;
+  }
+
+  items.forEach(item => {
     const visual = getMenuVisual(item);
-    const prepMinutes = item.prep_time_minutes || item.prep_minutes || '';
-    const d = document.createElement('div');
-    d.id = `menu-${item.id}`;
-    d.className = 'menu-card min-h-[252px]';
-    d.onclick = () => trackedAddToCart(item, { source: 'menu_card' });
-    d.innerHTML = `
-      <div class="menu-photo">
+    const row = document.createElement('div');
+    row.id = `menu-${item.id}`;
+    row.className = 'kiosk-menu-row';
+    row.innerHTML = `
+      <div class="kiosk-menu-photo">
         <img src="${visual.image}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
         <span class="menu-photo-fallback">${visual.emoji}</span>
       </div>
-      <div class="min-w-0 flex flex-col h-full justify-between">
-        <div>
-          <span class="menu-tag mb-5"><i class="${visual.icon}"></i>${visual.tag}</span>
-          <h3 class="font-extrabold text-2xl leading-snug mb-3" style="color:var(--text)">${escapeHTML(item.name)}</h3>
-          <p class="text-base leading-relaxed line-clamp-3" style="color:var(--text2)">${escapeHTML(item.description)}</p>
-          ${prepMinutes ? `<p class="text-sm mt-3 font-semibold" style="color:var(--accent2)"><i class="fas fa-clock mr-1"></i>約 ${escapeHTML(prepMinutes)} 分鐘</p>` : ''}
-        </div>
-        <div class="flex items-center justify-between mt-5">
-          <span class="menu-price">$${escapeHTML(item.price)}</span>
-          <button class="menu-add flex items-center justify-center" type="button" aria-label="加入購物車">
-            <i class="fas fa-plus"></i>
-          </button>
-        </div>
-      </div>`;
-    ui.menuGrid.appendChild(d);
+      <div class="kiosk-menu-copy">
+        <h3>${escapeHTML(item.name)}</h3>
+        <strong>$${escapeHTML(item.price)}</strong>
+      </div>
+      <button class="kiosk-add-btn" type="button" aria-label="加入購物車"><i class="fas fa-plus"></i></button>`;
+    row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
+      event.stopPropagation();
+      trackedAddToCart(item, { source: 'menu_card' });
+    });
+    row.addEventListener('click', () => trackedAddToCart(item, { source: 'menu_card' }));
+    ui.menuGrid.appendChild(row);
   });
+}
+
+function updateKioskCartSummary() {
+  const items = cartManager?.getCartItems ? cartManager.getCartItems() : [];
+  const total = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+  const qty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  if (ui.kioskBottomCount) ui.kioskBottomCount.textContent = String(qty);
+  if (ui.kioskBottomTotal) ui.kioskBottomTotal.textContent = `$${total}`;
+  if (ui.totalPrice) ui.totalPrice.textContent = `$${total}`;
+  if (ui.checkoutBtn) {
+    ui.checkoutBtn.disabled = qty <= 0;
+    const label = ui.checkoutBtn.querySelector('span');
+    if (label) label.textContent = `結帳去 $${total}`;
+  }
+}
+
+function showCartScreen() {
+  document.querySelector('.cart-shell')?.classList.add('kiosk-cart-open');
+  ui.kioskBottomBar?.classList.remove('hidden');
+  setInteractionPage('checkout_page', { source: 'cart_open' });
+  updateKioskCartSummary();
+}
+
+function hideCartScreen() {
+  document.querySelector('.cart-shell')?.classList.remove('kiosk-cart-open');
+  if (!orderCompleted && ui.kioskPaymentScreen?.classList.contains('hidden')) {
+    setInteractionPage(kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
+  }
+}
+
+function showPaymentScreen() {
+  hideCartScreen();
+  ui.kioskPaymentScreen?.classList.remove('hidden');
+  ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
+  setInteractionPage('payment_page', { source: 'checkout_button' });
+  clearPOSFloatingUI();
+}
+
+function hidePaymentScreen() {
+  ui.kioskPaymentScreen?.classList.add('hidden');
+  ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'true');
 }
 
 // =========================================================
@@ -460,6 +613,8 @@ function renderMenu() {
 function currentPageId() {
   if (ui.adminView && !ui.adminView.classList.contains('hidden')) return 'admin_page';
   if (orderCompleted) return 'completed_page';
+  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return 'payment_page';
+  if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return 'checkout_page';
   if (ui.orderConfirmModal && !ui.orderConfirmModal.classList.contains('hidden')) return 'payment_page';
   if (ui.posView && !ui.posView.classList.contains('hidden')) return 'menu_page';
   return interactionState.pageId || 'unknown';
@@ -854,7 +1009,7 @@ function getMenuVisual(item) {
   };
   const fallback = { tag: '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
   const visual = presets[id] || fallback;
-  return { ...visual, image: `/static/menu_${id}.png` };
+  return { ...visual, image: item.image || `/static/menu_${id}.png` };
 }
 
 // =========================================================
@@ -892,7 +1047,7 @@ ui.startBtn.onclick = async () => {
     const needVideo = f.emotionBackend || f.emotionCamera || isEventTriggeredMultimodalEnabled();
     const needAudio = true;
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
-    if (!mediaReady && (needVideo || needAudio)) return;
+    if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
     applyFeaturesToPOS();
     ui.serviceFab.style.display = 'flex';
@@ -1544,6 +1699,10 @@ function setConfirmButtonsDisabled(disabled) {
     ui.confirmBackBtn,
     ui.confirmPayBtn,
     ui.checkoutBtn,
+    ui.kioskFastPayBtn,
+    ui.kioskCounterPayBtn,
+    ui.kioskPaymentBackBtn,
+    ui.kioskCancelOrderBtn,
     ...document.querySelectorAll('[data-fulfillment], [data-payment]')
   ]
     .filter(Boolean)
@@ -1553,6 +1712,7 @@ function setConfirmButtonsDisabled(disabled) {
 function showCompletionOverlay(title, subtitle) {
   switchMainView('pos');
   closeOrderConfirmModal();
+  hidePaymentScreen();
   const titleEl = ui.checkoutOverlay?.querySelector('h1');
   const subtitleEl = ui.checkoutOverlay?.querySelector('p');
   if (titleEl) titleEl.textContent = title;
@@ -1576,18 +1736,13 @@ async function finishOrder(cartIds, button, loadingText, doneTitle) {
 }
 
 function openOrderConfirmModal() {
-  renderOrderConfirm();
-  updateChoiceGroup('[data-fulfillment]', selectedFulfillment);
-  updateChoiceGroup('[data-payment]', selectedPayment);
-  ui.orderConfirmModal?.classList.remove('hidden');
-  ui.orderConfirmModal?.setAttribute('aria-hidden', 'false');
-  setInteractionPage('payment_page', { source: 'checkout_button' });
-  clearPOSFloatingUI();
+  showPaymentScreen();
 }
 
 function closeOrderConfirmModal() {
   ui.orderConfirmModal?.classList.add('hidden');
   ui.orderConfirmModal?.setAttribute('aria-hidden', 'true');
+  hidePaymentScreen();
   if (!orderCompleted) setInteractionPage('menu_page', { source: 'close_order_confirm' });
 }
 
@@ -1601,6 +1756,60 @@ ui.checkoutBtn.onclick = () => {
     metadata: { cart_ids: cartManager.getCartIds() }
   });
 };
+
+ui.kioskBackBtn?.addEventListener('click', () => {
+  if (kioskScreen === 'menu') renderKioskCategories();
+});
+ui.kioskHomeBtn?.addEventListener('click', () => {
+  hideCartScreen();
+  hidePaymentScreen();
+  renderKioskCategories();
+});
+ui.kioskCartBtn?.addEventListener('click', () => {
+  if (cartManager.getCartIds().length) showCartScreen();
+});
+ui.continueOrderBtn?.addEventListener('click', () => {
+  hideCartScreen();
+  if (kioskScreen === 'categories') showMenuGroup('value');
+});
+ui.clearCartBtn?.addEventListener('click', () => {
+  cartManager.clearCart();
+  hideCartScreen();
+  renderKioskCategories();
+});
+ui.kioskPaymentBackBtn?.addEventListener('click', () => {
+  hidePaymentScreen();
+  showCartScreen();
+});
+ui.kioskCancelOrderBtn?.addEventListener('click', () => {
+  cartManager.clearCart();
+  hidePaymentScreen();
+  renderKioskCategories();
+});
+ui.kioskFastPayBtn?.addEventListener('click', () => {
+  const cartIds = cartManager.getCartIds();
+  if (!cartIds.length) return;
+  selectedPayment = 'credit-card';
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_attempt',
+    button_id: 'kioskFastPayBtn',
+    metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
+  });
+  finishOrder(cartIds, ui.kioskFastPayBtn, '結帳中...', '點餐完成！');
+});
+ui.kioskCounterPayBtn?.addEventListener('click', () => {
+  const cartIds = cartManager.getCartIds();
+  if (!cartIds.length) return;
+  selectedPayment = 'counter';
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_attempt',
+    button_id: 'kioskCounterPayBtn',
+    metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
+  });
+  finishOrder(cartIds, ui.kioskCounterPayBtn, '建立櫃檯付款單...', '請至櫃檯付款');
+});
 
 function leaveOrderConfirm(buttonId) {
   trackInteractionEvent({

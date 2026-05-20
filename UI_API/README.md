@@ -174,12 +174,13 @@ python main.py
 開啟：
 
 ```text
-http://127.0.0.1:8000
+客戶端 POS：http://127.0.0.1:8000
+後台管理：http://127.0.0.1:8001
 ```
 
 若有設定 ngrok，終端機會顯示外網網址。若固定 ngrok endpoint 已被其他程序使用，系統會略過 tunnel 並繼續啟動本機 API。
 
-若看到 `Port 8000 已有 API 服務在執行，略過重複啟動。`，代表 UI_API 已經在跑，不需要再開第二個 `main.py`。
+若看到 `Port 8000` 或 `Port 8001` 已有 API 服務在執行，代表該入口已經在跑，不需要再開第二個 `main.py`。
 
 `/customer` 目前只是相容入口，會回到主 POS 頁；客服工作台已整合在後台「客服系統」。
 
@@ -551,12 +552,12 @@ Emotion-LLaMA 呼叫已改用官方建議的 `[reason]` prompt 形式，並把 W
 
 系統使用版本化 ChromaDB。重建時建立新資料夾，成功後才切換 `rag_vector_meta.json` 的 active dir。若仍遇到 readonly，先確認 active DB 目錄權限與是否有舊程序佔用。
 
-### ngrok endpoint / port 8000 已佔用
+### ngrok endpoint / port 已佔用
 
-`ngrok endpoint 已被其他程序使用` 不會影響本機 `http://127.0.0.1:8000` 使用。若要關閉 ngrok，可在啟動前設定：
+`ngrok endpoint 已被其他程序使用` 不會影響本機 `http://127.0.0.1:8000` 與 `http://127.0.0.1:8001` 使用。若要關閉 ngrok，可在啟動前設定：
 
 ```bash
 ENABLE_NGROK=false python main.py
 ```
 
-`address already in use` 代表已有 API 程序佔用 8000。新版啟動流程會先檢查 port，偵測到既有服務時直接正常退出，不再重複載入 RAG 後才失敗。
+`address already in use` 代表已有 API 程序佔用該 port。新版啟動流程會先檢查 `8000` 與 `8001`，只啟動尚未被佔用的入口。

@@ -1,4 +1,4 @@
-export function createCartManager({ ui, escapeHTML, findMenuItems }) {
+export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange }) {
   const cart = {};
 
   function addToCart(item) {
@@ -53,6 +53,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems }) {
       ui.checkoutBtn.disabled = true;
       ui.totalPrice.textContent = '$0';
       ui.cartCountBadge.textContent = '共 0 項';
+      onCartChange?.(getCartItems());
       return;
     }
 
@@ -66,6 +67,9 @@ export function createCartManager({ ui, escapeHTML, findMenuItems }) {
       qty += item.quantity;
       ui.cartList.innerHTML += `
         <div class="cart-item p-4 flex justify-between items-center">
+          <div class="kiosk-cart-product">
+            ${item.image ? `<img src="${escapeHTML(item.image)}" alt="${escapeHTML(item.name)}">` : ''}
+          </div>
           <div class="min-w-0 flex-1 mr-2">
             <p class="font-bold text-base truncate" style="color:var(--text)">${escapeHTML(item.name)}</p>
             <p class="text-sm font-extrabold mt-1" style="color:var(--accent)">$${escapeHTML(item.price)}</p>
@@ -82,6 +86,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems }) {
     });
     ui.totalPrice.textContent = `$${total}`;
     ui.cartCountBadge.textContent = `共 ${qty} 項`;
+    onCartChange?.(getCartItems());
   }
 
   function getCartIds() {
@@ -96,6 +101,11 @@ export function createCartManager({ ui, escapeHTML, findMenuItems }) {
     return getCartItems().reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
   }
 
+  function clearCart() {
+    Object.keys(cart).forEach(id => { delete cart[id]; });
+    renderCart();
+  }
+
   return {
     addToCart,
     addToCartByQuantity,
@@ -106,5 +116,6 @@ export function createCartManager({ ui, escapeHTML, findMenuItems }) {
     getCartIds,
     getCartItems,
     getCartTotal,
+    clearCart,
   };
 }

@@ -1,9 +1,6 @@
 export const API_BASE = (
-  window.location.hostname &&
-  window.location.hostname !== 'localhost' &&
-  window.location.hostname !== '127.0.0.1' &&
-  window.location.protocol !== 'file:'
-) ? '' : 'http://127.0.0.1:8000';
+  window.location.protocol === 'file:'
+) ? 'http://127.0.0.1:8000' : '';
 
 async function asJson(response) {
   return response.json();

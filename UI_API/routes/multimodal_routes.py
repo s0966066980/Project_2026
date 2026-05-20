@@ -24,6 +24,54 @@ def _loads_dict(raw: str) -> dict:
         return {}
 
 
+async def _publish_fallback_intervention(session_id: str, risk_result: dict, ui_context: dict, recent_events: list, message: str):
+    media_signals = {"reason": message, "audio_silent": True, "motion_level": "unknown"}
+    barrier_result = barrier_state_service.infer_barrier_state(
+        emotion_structured=None,
+        speech_text="",
+        pos_events=recent_events,
+        ui_context=ui_context,
+        media_signals=media_signals,
+        risk_result=risk_result,
+    )
+    intervention = intervention_service.decide_intervention(barrier_result, ui_context)
+    intervention_log = None
+    should_log = (
+        intervention.get("action") != "none"
+        and barrier_result.get("barrier_state") != "normal_operation"
+    )
+    if should_log:
+        log_payload = intervention_service.build_intervention_log(
+            session_id, barrier_result, intervention, ui_context
+        )
+        log_payload["multimodal_evidence"] = {
+            "visual_evidence": {"person_detected": None, "reason": message},
+            "audio_evidence": {"speech_text": "", "audio_silent": True},
+            "emotion_evidence": {
+                "emotion_available": False,
+                "emotion_error": message,
+                "model_source": "Emotion-LLaMA",
+            },
+            "pos_evidence": {
+                "page_id": ui_context.get("page_id"),
+                "risk_score": risk_result.get("risk_score"),
+                "trigger_reasons": risk_result.get("trigger_reasons", []),
+            },
+        }
+        intervention_log = await asyncio.to_thread(
+            interaction_event_repository.append_intervention_log, log_payload
+        )
+    if intervention.get("action") != "none":
+        await event_bus.publish_intervention(session_id, {
+            "barrier_result": barrier_result,
+            "intervention": intervention,
+            "risk_result": risk_result,
+            "intervention_log": intervention_log,
+            "source": "triggered_multimodal_analysis_fallback",
+        })
+    return barrier_result, intervention, intervention_log
+
+
 def create_router(deps: dict) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["multimodal"])
 
@@ -72,6 +120,33 @@ def create_router(deps: dict) -> APIRouter:
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 temp_video_path = tmp.name
             await asyncio.to_thread(write_binary_file, temp_video_path, video_bytes)
+            media_probe = await ai_services.async_probe_media(temp_video_path)
+            if not media_probe.get("valid") or not media_probe.get("has_video"):
+                message = f"multimodal video unreadable: {media_probe.get('error') or 'no_video'}"
+                barrier_result, intervention, intervention_log = await _publish_fallback_intervention(
+                    session_id, risk_result, ui_context, recent_events, message
+                )
+                await event_bus.publish_to_admin("emotion_analysis_completed", {
+                    "session_id": session_id,
+                    "status": "skipped",
+                    "message": message,
+                    "barrier_result": barrier_result,
+                    "intervention": intervention,
+                })
+                return {
+                    "status": "success",
+                    "multimodal_skipped": True,
+                    "message": message,
+                    "speech_text": "",
+                    "emotion_available": False,
+                    "emotion_error": message,
+                    "emotion_structured": {},
+                    "multimodal_evidence": {},
+                    "risk_result": risk_result,
+                    "barrier_result": barrier_result,
+                    "intervention": intervention,
+                    "intervention_log": intervention_log,
+                }
 
             media_signals = await ai_services.async_analyze_emotion_media_signals(temp_video_path)
             person_check = await customer_emotion_service.detect_person_for_emotion(
