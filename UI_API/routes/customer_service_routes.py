@@ -74,6 +74,18 @@ def create_router(deps: dict) -> APIRouter:
             use_ollama_bool = use_ollama.lower() == "true"
             multi_lang_bool = multi_lang.lower() == "true"
             if not use_ollama_bool:
+                await event_bus.publish_to_admin("customer_service_request", {
+                    "session_id": session_id,
+                    "source_id": "",
+                    "user_text": "",
+                    "emotion": "pending",
+                    "customer_service_state": "pending",
+                    "needs_human_staff": True,
+                    "priority": "normal",
+                    "mode": "human_pending",
+                    "message": "POS 顧客已請求真人客服，背景語音與情緒分析中",
+                })
+
                 async def _background_human_service(path: str):
                     try:
                         result = await customer_service_handler.handle_customer_service(
@@ -93,6 +105,7 @@ def create_router(deps: dict) -> APIRouter:
                                 "customer_service_state": result.get("customer_service_state", ""),
                                 "needs_human_staff": True,
                                 "priority": result.get("priority", "normal"),
+                                "mode": "human_analysis_completed",
                             })
                     except Exception as bg_error:
                         print(f"❌ customer_service 背景處理錯誤: {bg_error}")

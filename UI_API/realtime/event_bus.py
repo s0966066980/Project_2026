@@ -50,3 +50,11 @@ async def publish_to_demo(session_id: str, event_type: str, payload: dict):
     event = _build_event(event_type, session_id, payload)
     await manager.send_to_client_session("demo", session_id, event)
     return event
+
+
+async def publish_intervention(session_id: str, payload: dict):
+    event_type = "interaction_intervention"
+    safe_payload = payload if isinstance(payload, dict) else {}
+    await publish_to_pos(session_id, event_type, safe_payload)
+    await publish_to_demo(session_id, event_type, safe_payload)
+    await publish_to_admin(event_type, {"session_id": session_id, **safe_payload})

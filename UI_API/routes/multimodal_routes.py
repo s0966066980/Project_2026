@@ -170,17 +170,20 @@ def create_router(deps: dict) -> APIRouter:
                 "emotion_error": emotion_error,
             })
             if intervention.get("action") != "none":
-                await event_bus.publish_to_pos(session_id, "interaction_intervention", {
+                await event_bus.publish_intervention(session_id, {
                     "barrier_result": barrier_result,
                     "intervention": intervention,
                     "multimodal_evidence": multimodal_evidence,
+                    "risk_result": risk_result,
+                    "intervention_log": intervention_log,
+                    "source": "triggered_multimodal_analysis",
                 })
             if intervention.get("staff_notify"):
                 await event_bus.publish_to_admin("staff_notify", {
                     "session_id": session_id,
                     "reason": intervention.get("reason", ""),
-                    "barrier_result": barrier_result,
-                    "intervention": intervention,
+                    "barrier_state": barrier_result.get("barrier_state"),
+                    "action": intervention.get("action"),
                 })
             return response_data
         except Exception as e:

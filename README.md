@@ -273,14 +273,14 @@ UI_API/
 
 ### 實施例測試 UI
 
-根目錄 `Test/pos_interaction_demo_ui.py` 會啟動一個本機 HTML 測試介面，可送出付款卡關、操作困惑、優惠券卡關與等待不耐等情境到 UI_API：
+根目錄 `tools/pos_interaction_demo_ui.py` 會啟動一個本機 tkinter 測試介面，可送出付款卡關、操作困惑、優惠券卡關與等待不耐等情境到 UI_API：
 
 ```bash
 cd /home/oliver/Project_2026
-python3 Test/pos_interaction_demo_ui.py
+python3 tools/pos_interaction_demo_ui.py
 ```
 
-使用前請先啟動 `UI_API/main.py`。此腳本會開啟 `http://127.0.0.1:8765/`，瀏覽器按「送出事件」後會由腳本代理呼叫 `/api/interaction_event` 與 `/api/barrier_state`，送出後可自動開啟 `/?view=admin`。後台「互動障礙與介入成效」會透過輪詢更新，方便直接觀察操作行為、風險分數、互動障礙狀態與服務介入動作。
+使用前請先啟動 `UI_API/main.py`，並開啟 POS，例如 `http://127.0.0.1:8000/pos?session_id=pos_demo_001`。測試工具預設呼叫 `/api/demo/trigger_scenario`，並透過 `/ws/demo/{session_id}` 監看 realtime events；若需要舊流程，可勾選 legacy 模式改走 `/api/interaction_event` + `/api/barrier_state`。後台「互動障礙與介入成效」會透過輪詢更新，方便直接觀察操作行為、風險分數、互動障礙狀態與服務介入動作。
 
 ### 目前實作狀態
 

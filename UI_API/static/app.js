@@ -70,6 +70,7 @@ let lastMediaSignals = {};
 let promotionPausedUntil = 0;
 let barrierCheckInFlight = false;
 let lastBarrierCheckAt = 0;
+let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let pageDwellTimer = null;
 let adminRefreshTimer = null;
@@ -600,6 +601,7 @@ function handleRealtimeCustomerServiceRequest(event = {}) {
 }
 
 function handleRealtimeInteractionIntervention(event = {}) {
+  lastInterventionEventAt = Date.now();
   const payload = event.payload || {};
   applyIntervention(payload.intervention || {}, payload.barrier_result || {});
   if (payload.intervention?.staff_notify) showPushNotice('已通知店員');
@@ -760,8 +762,17 @@ async function maybeCheckBarrierState(riskResult = {}) {
         lastVoiceText = data.speech_text || lastVoiceText;
         lastEmotionStructured = data.emotion_structured || lastEmotionStructured;
         lastMediaSignals = data.multimodal_evidence?.audio_evidence || lastMediaSignals || {};
-        applyIntervention(data.intervention, data.barrier_result);
-        if (data.intervention?.staff_notify) showPushNotice('已通知店員');
+        showPushNotice('分析完成，等待服務介入推送');
+        setTimeout(() => {
+          if (
+            Date.now() - lastInterventionEventAt > 1800
+            && data.intervention?.action
+            && data.intervention.action !== 'none'
+          ) {
+            applyIntervention(data.intervention, data.barrier_result);
+            if (data.intervention?.staff_notify) showPushNotice('已通知店員');
+          }
+        }, 2000);
         return;
       }
       console.warn('[triggered multimodal skipped]', data);

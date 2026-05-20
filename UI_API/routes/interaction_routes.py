@@ -158,13 +158,9 @@ def create_router(deps: dict | None = None) -> APIRouter:
                 "intervention": intervention,
                 "intervention_log": intervention_log,
                 "risk_result": risk_result,
+                "source": "barrier_state",
             }
-            await event_bus.publish_to_pos(session_id, "interaction_intervention", event_payload)
-            await event_bus.publish_to_demo(session_id, "interaction_intervention", event_payload)
-            await event_bus.publish_to_admin("interaction_intervention", {
-                "session_id": session_id,
-                **event_payload,
-            })
+            await event_bus.publish_intervention(session_id, event_payload)
         return {
             "status": "success",
             "session_id": session_id,

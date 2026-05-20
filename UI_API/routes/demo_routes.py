@@ -45,6 +45,23 @@ SCENARIOS = {
         "speech_text": "優惠券掃碼失敗，折扣碼不能用。",
         "metadata": {"source": "demo", "reason": "coupon_error"},
     },
+    "back_navigation": {
+        "page_id": "checkout_page",
+        "event_type": "back_navigation",
+        "button_id": "demo_back",
+        "back_count": 2,
+        "dwell_time_sec": 32,
+        "speech_text": "我一直返回，不知道要怎麼確認餐點。",
+        "metadata": {"source": "demo", "reason": "back_navigation"},
+    },
+    "customer_service_requested": {
+        "page_id": "menu_page",
+        "event_type": "customer_service_requested",
+        "button_id": "demo_service",
+        "dwell_time_sec": 31,
+        "speech_text": "我需要客服幫忙操作。",
+        "metadata": {"source": "demo", "reason": "customer_service_requested"},
+    },
     "complaint_risk": {
         "page_id": "payment_page",
         "event_type": "payment_failed",
@@ -138,13 +155,9 @@ def create_router(deps: dict | None = None) -> APIRouter:
                 "intervention_log": intervention_log,
                 "risk_result": risk_result,
                 "demo": True,
+                "source": "demo_trigger_scenario",
             }
-            await event_bus.publish_to_pos(session_id, "interaction_intervention", event_payload)
-            await event_bus.publish_to_demo(session_id, "interaction_intervention", event_payload)
-            await event_bus.publish_to_admin("interaction_intervention", {
-                "session_id": session_id,
-                **event_payload,
-            })
+            await event_bus.publish_intervention(session_id, event_payload)
 
         response.update({
             "barrier_result": barrier_result,

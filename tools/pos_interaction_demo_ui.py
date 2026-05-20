@@ -3,8 +3,8 @@
 Project_2026 POS 互動障礙事件測試工具
 
 用途：
-  1. 模擬 POS 異常操作事件，呼叫 UI_API 的 /api/interaction_event。
-  2. 當 risk_result.triggered=true 時，自動呼叫 /api/barrier_state。
+  1. 模擬 POS 異常操作事件，預設呼叫 UI_API 的 /api/demo/trigger_scenario。
+  2. 可勾選 legacy 模式，改用 /api/interaction_event + /api/barrier_state。
   3. 透過 /ws/demo/{session_id} 監看 realtime events，確認 POS/Admin/demo 是否收到 intervention。
 
 使用方式：
@@ -50,6 +50,7 @@ except ImportError:
 
 SCENARIOS = {
     "付款失敗": {
+        "scenario_key": "payment_failed",
         "page_id": "payment_page",
         "event_type": "payment_failed",
         "button_id": "demo_payment",
@@ -59,6 +60,7 @@ SCENARIOS = {
         "speech_text": "我不能刷卡，付款一直失敗。",
     },
     "付款頁停留過久": {
+        "scenario_key": "long_payment_dwell",
         "page_id": "payment_page",
         "event_type": "page_dwell_timeout",
         "button_id": "demo_timer",
@@ -67,6 +69,7 @@ SCENARIOS = {
         "speech_text": "我在付款頁停很久，不知道下一步要按哪裡。",
     },
     "無效點擊": {
+        "scenario_key": "invalid_touch",
         "page_id": "menu_page",
         "event_type": "invalid_touch",
         "button_id": "demo_invalid_touch",
@@ -76,6 +79,7 @@ SCENARIOS = {
         "speech_text": "我看不懂怎麼點。",
     },
     "優惠券錯誤": {
+        "scenario_key": "coupon_error",
         "page_id": "coupon_page",
         "event_type": "coupon_error",
         "button_id": "demo_coupon",
@@ -85,6 +89,7 @@ SCENARIOS = {
         "speech_text": "優惠券掃碼失敗，折扣碼不能用。",
     },
     "重複返回": {
+        "scenario_key": "back_navigation",
         "page_id": "checkout_page",
         "event_type": "back_navigation",
         "button_id": "demo_back",
@@ -94,6 +99,7 @@ SCENARIOS = {
         "speech_text": "我一直返回，不知道要怎麼確認餐點。",
     },
     "客服求助": {
+        "scenario_key": "customer_service_requested",
         "page_id": "menu_page",
         "event_type": "customer_service_requested",
         "button_id": "demo_service",
@@ -102,6 +108,7 @@ SCENARIOS = {
         "speech_text": "我需要客服幫忙操作。",
     },
     "客訴風險": {
+        "scenario_key": "complaint_risk",
         "page_id": "payment_page",
         "event_type": "payment_failed",
         "button_id": "demo_complaint",
@@ -161,6 +168,12 @@ class DemoApp:
         self.session_var = tk.StringVar(value="pos_demo_001")
         ttk.Entry(form, textvariable=self.session_var).grid(row=0, column=3, sticky=tk.EW, padx=(0, 8))
         ttk.Button(form, text="重新連線 WS", command=self._connect_ws).grid(row=0, column=4, sticky=tk.E)
+        self.legacy_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            form,
+            text="使用 legacy /api/interaction_event + /api/barrier_state",
+            variable=self.legacy_var,
+        ).grid(row=1, column=0, columnspan=5, sticky=tk.W, pady=(10, 0))
 
         body = ttk.Frame(main)
         body.pack(fill=tk.BOTH, expand=True)
@@ -261,7 +274,24 @@ class DemoApp:
         base = self._base()
         session_id = self._session_id()
         scenario = dict(SCENARIOS[name])
+        scenario_key = scenario.pop("scenario_key", "payment_failed")
         speech_text = scenario.pop("speech_text", "")
+        if not self.legacy_var.get():
+            payload = {
+                "session_id": session_id,
+                "scenario": scenario_key,
+                "speech_text": speech_text,
+            }
+            try:
+                response = requests.post(f"{base}/api/demo/trigger_scenario", json=payload, timeout=10)
+                data = response.json()
+                self.events.put(("http", {"scenario": f"{name} / demo", "response": data}))
+                if (data.get("risk_result") or {}).get("triggered"):
+                    self.events.put(("log", "risk_result.triggered=true，等待 POS websocket intervention"))
+            except Exception as exc:
+                self.events.put(("log", f"{name} demo 送出失敗：{exc}"))
+            return
+
         payload = {
             "session_id": session_id,
             "back_count": 0,
@@ -312,6 +342,12 @@ class DemoApp:
         self._log(f"risk_score: {risk_score}")
         self._log(f"triggered: {triggered}")
         self._log(f"trigger_reasons: {', '.join(reasons) if reasons else '-'}")
+        barrier = data.get("barrier_result") if isinstance(data, dict) else {}
+        intervention = data.get("intervention") if isinstance(data, dict) else {}
+        if isinstance(barrier, dict) and barrier:
+            self._log(f"barrier_state: {barrier.get('barrier_state', '-')}")
+        if isinstance(intervention, dict) and intervention:
+            self._log(f"intervention_action: {intervention.get('action', '-')}")
         self._log(json.dumps(data, ensure_ascii=False, indent=2))
 
     def _render_ws(self, event: dict):
