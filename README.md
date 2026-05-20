@@ -1,192 +1,74 @@
 # Project_2026
 
-Project_2026 是一套智慧 POS 點餐與客服原型系統。專案目前包含兩個主要模組：
+Project_2026 是一套智慧自助點餐與客服原型系統。系統整合 POS 點餐、語音點餐、客服、RAG、AI 推播、Whisper、Ollama、可選 Gemini API、YOLO 與 Emotion-LLaMA，並以「事件觸發式多模態 POS 顧客互動障礙偵測與自適應服務介入系統」作為目前的技術主軸。
 
-- `UI_API/`：FastAPI 後端、POS 前端、後台管理、RAG、語音點餐、AI 推播與客服流程。
-- `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，用於提供影像、語音情境與情緒行為證據。
-- `tools/`：專利 PoC 與實施例測試腳本，可直接送事件到 UI_API。
-
-本專案的核心方向不是單純做情緒辨識，而是：
-
-> 事件觸發式多模態 POS 顧客互動障礙偵測與自適應服務介入系統
-
-系統會先收集 POS 操作事件，計算互動障礙風險分數。只有當風險升高時，才觸發短片段多模態分析，將 POS 事件、UI context、語音文字、Emotion-LLaMA 分析與媒體訊號整合成 `barrier_state`，再轉換為可執行的 `intervention_action`。
+本專案不是單純做情緒辨識。核心設計是先觀察 POS 操作事件與 UI 狀態，計算顧客是否可能卡關；只有當互動障礙風險升高時，才觸發短片段多模態分析，再把語音、影像、情緒證據、POS 事件與 UI context 轉換為可執行的服務介入動作。
 
 ---
 
-## 主要功能
+## 目前入口
 
-- POS 點餐介面
-- 購物車與結帳流程
-- 語音點餐與語音問答
-- AI 餐點推播
-- 客服浮動視窗與後台客服工作台
-- Whisper 語音辨識與語系判斷
-- Emotion-LLaMA 情緒與行為證據分析
-- 客服狀態推理，將多模態證據轉成客服優先級與真人介入建議
-- 本地 Ollama 問答，Gemini API 選項預設隱藏
-- 本地 RAG 文件與審查流程
-- 互動事件風險分數
-- `barrier_state` 互動障礙狀態推理
-- `intervention_action` 服務介入決策
-- 介入成效回饋與後台統計
-- 事件觸發式多模態分析 API
+啟動 `UI_API/main.py` 後，系統會同時提供兩個入口：
 
----
+```text
+客戶端 POS：http://127.0.0.1:8000
+後台管理：http://127.0.0.1:8001
+```
 
-## 功能狀態
+若用主機 IP 或網域部署，對應為：
 
-| 分類 | 功能 | 狀態 |
-| --- | --- | --- |
-| Production path | POS 點餐、購物車、結帳 | 保留 |
-| Production path | interaction event、risk_score、barrier_state | 主要流程 |
-| Production path | triggered_multimodal_analysis | 主要事件觸發多模態流程 |
-| Production path | 客服系統、RAG、AI 推播、logs | 保留 |
-| Production path | 本地 Ollama | 預設 AI 來源 |
-| Demo/debug path | `/api/demo/trigger_scenario` | 正式 demo API |
-| Demo/debug path | `tools/pos_interaction_demo_ui.py` | PoC 測試工具 |
-| Demo/debug path | `/api/ping_state` 週期情緒偵測 | debug-only，預設不作為主流程 |
-| Demo/debug path | emotion chat card、admin recorder | debug-only / 管理測試 |
-| Deprecated/removed path | `monitor_routes.py` dummy monitor | 已移除，由 `demo_routes.py` 取代 |
-| Deprecated/removed path | Gemini 作為預設 AI | 已關閉，需明確啟用選項才顯示 |
+```text
+客戶端 POS：http://<host>:8000
+後台管理：http://<host>:8001
+```
+
+`0.0.0.0` 是服務綁定位址，代表接受所有網卡連線；瀏覽器通常使用 `127.0.0.1`、區網 IP 或網域名稱開啟。
+
+前端會依照 port 自動判斷模式：
+
+- `8000` 固定為客戶端 POS。
+- `8001` 固定為後台管理。
+- 即使在 `8000/admin`，前端仍只會顯示 POS，客戶端不能從 UI 切到後台。
+- 即使在 `8001/pos`，前端仍會顯示後台。
 
 ---
 
-## 專案結構
+## 專案模組
 
 ```text
 Project_2026/
 ├── README.md
 ├── .gitignore
 ├── Emotion-LLaMA/
-│   ├── app_EmotionLlamaClient.py
-│   ├── eval_configs/
-│   ├── emotion_llama/
-│   └── ...
+│   └── app_EmotionLlamaClient.py
 ├── tools/
 │   └── pos_interaction_demo_ui.py
 └── UI_API/
     ├── main.py
     ├── ai_services.py
     ├── database.py
-    ├── config.py
     ├── rag_service.py
+    ├── config.py
     ├── index.html
     ├── PATENT_DESIGN.md
     ├── routes/
     ├── services/
     ├── repositories/
-    ├── utils/
-    ├── prompts/
+    ├── realtime/
     ├── static/
     ├── menu_data/
-    ├── learning_data/
-    ├── chroma_db_versions/
-    ├── requirements.txt
-    ├── requirements-lock.txt
-    └── README.md
+    └── learning_data/
 ```
 
-`UI_API/README.md` 是 UI_API 子系統的詳細文件；本 README 說明整個 Project_2026 的啟動、架構與專利化主軸。
+主要責任：
+
+- `UI_API/`：FastAPI 後端、POS 前端、後台管理、語音點餐、客服、RAG、推播、互動障礙偵測、WebSocket 即時通訊。
+- `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，提供情緒與行為證據。
+- `tools/`：專利 PoC 測試工具，可模擬付款失敗、優惠券錯誤、無效點擊、客服求助等事件。
 
 ---
 
-## 系統架構
-
-```text
-POS 操作事件
-  ↓
-Interaction Event Engine
-  ↓
-互動障礙風險分數 risk_score
-  ↓
-是否達觸發門檻
-  ↓
-事件觸發式短片段多模態分析
-  ├─ video / media_signals
-  ├─ Whisper speech_text
-  ├─ Emotion-LLaMA emotion evidence
-  ├─ POS event sequence
-  └─ UI context
-  ↓
-Barrier State Engine
-  ↓
-barrier_state
-  ↓
-Intervention Engine
-  ↓
-intervention_action
-  ↓
-checkout / payment feedback
-```
-
-Emotion-LLaMA 在此架構中不是決策核心，而是多模態證據來源之一。最終是否介入由 POS 操作事件、UI 狀態、語音內容、媒體訊號與風險分數共同決定。
-
----
-
-## 環境需求
-
-建議使用兩個 conda 環境分別啟動：
-
-- `emotion_ollama`：啟動 Emotion-LLaMA 推論服務。
-- `emotion_ui`：啟動 UI_API FastAPI 服務。
-
-外部服務：
-
-- Ollama
-- Gemini API key，可選
-- ngrok，可選
-
-模型需求：
-
-- Ollama model：`llama3.2`，可切換 `gemma4`
-- Ollama embedding：`nomic-embed-text`
-- Whisper
-- Emotion-LLaMA 權重
-- YOLO nano/person detection 權重，可選
-
-大型權重檔、`.env`、執行紀錄與本機資料不應提交到 Git。
-
----
-
-## 安裝
-
-### UI_API
-
-```bash
-cd /home/oliver/Project_2026/UI_API
-conda activate emotion_ui
-pip install -r requirements.txt
-```
-
-正式部署若需要固定版本：
-
-```bash
-pip install -r requirements-lock.txt
-```
-
-### Ollama
-
-```bash
-ollama serve
-ollama pull llama3.2
-ollama pull gemma4
-ollama pull nomic-embed-text
-```
-
-### Gemini API，可選
-
-在 `UI_API/.env` 設定：
-
-```env
-GEMINI_API_KEY=你的 Gemini API Key
-```
-
-目前 AI 推播、RAG 審查與背景整理固定使用本地 Ollama；語音發問與客服回覆可在後台切換 Ollama 或 Gemini API。
-
----
-
-## 啟動方式
+## 使用流程
 
 ### 1. 啟動 Emotion-LLaMA
 
@@ -196,7 +78,25 @@ conda activate emotion_ollama
 python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 ```
 
-### 2. 啟動 UI_API
+Emotion-LLaMA 不是每次點擊都會被呼叫。預設策略是事件觸發：POS 風險升高或客服請求時才使用。
+
+### 2. 啟動 Ollama
+
+```bash
+ollama serve
+ollama pull llama3.2
+ollama pull gemma4
+ollama pull nomic-embed-text
+```
+
+預設 AI 來源：
+
+- AI 推播：本地 Ollama。
+- RAG 審查：本地 Ollama。
+- 背景整理：本地 Ollama。
+- 語音問答 / 客服回覆：預設本地 Ollama，可在後台切換 Gemini API。
+
+### 3. 啟動 UI_API
 
 ```bash
 cd /home/oliver/Project_2026/UI_API
@@ -207,205 +107,224 @@ python main.py
 開啟：
 
 ```text
-客戶端 POS：http://127.0.0.1:8000
-後台管理：http://127.0.0.1:8001
+POS：http://127.0.0.1:8000
+後台：http://127.0.0.1:8001
 ```
 
-若有設定 ngrok，終端機會顯示外網網址。若固定 ngrok endpoint 已被其他程序佔用，系統會略過 tunnel 並繼續啟動本機 API。
+### 4. POS 操作
+
+1. 進入 `http://127.0.0.1:8000`。
+2. 按「開始點餐」。
+3. 選擇餐點類別與品項。
+4. 加入購物車。
+5. 進入購物車確認。
+6. 前往付款頁。
+7. 完成結帳後，系統回寫推播成效與介入成效。
+
+POS UI 預設以 9:16 kiosk 比例排版，會依螢幕大小自動縮放。若螢幕較寬，POS 會保持直式 kiosk frame；若螢幕較窄，畫面會按高度與寬度等比縮放。
+
+### 5. 後台操作
+
+進入 `http://127.0.0.1:8001`。
+
+後台可查看與管理：
+
+- 儀表板與互動障礙介入成效。
+- 功能模組開關。
+- AI 參數。
+- 情緒片段 / debug 分析。
+- 菜單管理。
+- RAG 文本與審查紀錄。
+- 客服紀錄、顧客錄音、真人回覆。
+
+後台不會自動啟動 POS 的 emotion loop、recommend loop、media recorder 或 interaction watcher。
 
 ---
 
-## UI_API 後端模組
+## 系統邏輯
+
+### 主流程
 
 ```text
-UI_API/
-├── routes/
-│   ├── core_routes.py                 # 首頁、checkout、設定
-│   ├── menu_routes.py                 # 菜單管理
-│   ├── rag_routes.py                  # RAG 文件與 PDF 匯入
-│   ├── voice_routes.py                # 語音點餐與語音問答
-│   ├── customer_service_routes.py     # 客服語音與真人回覆
-│   ├── recommendation_routes.py       # AI 推播
-│   ├── emotion_routes.py              # ping_state、影像片段、YOLO 偵測
-│   ├── interaction_routes.py          # POS 操作事件、barrier、intervention
-│   └── multimodal_routes.py           # 事件觸發式多模態分析
-├── services/
-│   ├── recommendation_service.py
-│   ├── customer_service.py
-│   ├── customer_service_state_service.py
-│   ├── rag_review_service.py
-│   ├── voice_order_service.py
-│   ├── interaction_event_service.py
-│   ├── barrier_state_service.py
-│   ├── intervention_service.py
-│   └── multimodal_evidence_service.py
-└── repositories/
-    ├── log_repository.py
-    ├── menu_repository.py
-    ├── session_repository.py
-    ├── emotion_clip_repository.py
-    └── interaction_event_repository.py
+POS 操作事件
+  ↓
+Interaction Event Engine
+  ↓
+risk_score + trigger_reasons
+  ↓
+是否達門檻
+  ├─ 否：只保存低風險事件，不呼叫大型模型
+  └─ 是：觸發短片段多模態分析
+        ↓
+        YOLO 人物偵測
+        Whisper 語音轉文字
+        media_signals 音量 / 靜音 / 動作訊號
+        Emotion-LLaMA 情緒與行為證據
+        POS event sequence
+        UI context
+        ↓
+        multimodal_evidence
+        ↓
+        Barrier State Engine
+        ↓
+        Intervention Engine
+        ↓
+        WebSocket 推送 POS / Admin / Demo
+        ↓
+        checkout 後回寫 intervention_result
+```
+
+### 互動障礙狀態
+
+`barrier_state` 用來描述顧客卡關型態，例如：
+
+- `normal_operation`：正常操作
+- `menu_hesitation`：菜單選擇猶豫
+- `operation_confusion`：操作困惑
+- `payment_confusion`：付款卡關
+- `coupon_confusion`：優惠券或掃碼卡關
+- `impatience_detected`：等待不耐
+- `service_needed`：需要真人協助
+- `potential_complaint`：疑似抱怨或客訴風險
+- `low_confidence`：資訊不足
+
+### 服務介入動作
+
+`intervention_action` 是系統實際建議執行的服務行為，例如：
+
+- 顯示付款教學。
+- 顯示優惠券 / 掃碼教學。
+- 顯示操作提示。
+- 進入簡化介面。
+- 推薦熱門組合。
+- 暫停 AI 推播。
+- 通知店員。
+- 轉真人客服。
+
+---
+
+## 專利亮點與技術貢獻
+
+### 1. 事件觸發，而非持續監控
+
+傳統情緒辨識系統容易持續分析影像，造成算力負擔與隱私風險。本系統先使用 POS 操作事件計算風險，只有風險達門檻才觸發多模態分析。
+
+技術效果：
+
+- 降低 GPU / CPU 持續推論成本。
+- 減少原始影像保存需求。
+- 避免對正常顧客操作進行不必要分析。
+
+### 2. 從 emotion_label 轉換為 barrier_state
+
+本系統不把「情緒標籤」當成最終結論。Emotion-LLaMA 只提供情緒與行為證據；系統再融合 POS 操作事件、UI context 與語音內容，推論可操作的 `barrier_state`。
+
+技術效果：
+
+- 情緒分析不再停留於「生氣 / 平靜 / 困惑」。
+- 可轉換為付款教學、操作提示、店員通知等具體 POS 控制策略。
+
+### 3. 多模態證據融合
+
+系統建立 `multimodal_evidence`，內容包含：
+
+- `visual_evidence`：人物偵測、人物框、畫面是否有人。
+- `audio_evidence`：語音文字、是否靜音、音量資訊。
+- `emotion_evidence`：Emotion-LLaMA 情緒與行為證據。
+- `pos_evidence`：頁面、風險分數、觸發原因、事件摘要。
+
+技術效果：
+
+- 降低單一情緒模型誤判造成的錯誤介入。
+- 當沒有偵測到人物或影片不可讀時，可降低情緒權重並 fallback 到 POS 事件推理。
+
+### 4. 自適應服務介入
+
+系統會根據 `barrier_state` 產生 `intervention_action`，並透過 WebSocket 即時推送到 POS 和後台。
+
+技術效果：
+
+- 顧客卡關時，POS 可以立即顯示協助內容。
+- 後台可同步收到店員通知。
+- 可區分付款卡關、優惠券卡關、操作困惑、等待不耐與客訴風險。
+
+### 5. 成效回饋閉環
+
+checkout 完成後，系統會把最近尚未結案的介入紀錄更新為：
+
+- `checkout_success`
+- `payment_success`
+- `time_to_checkout_sec`
+- `resolved_by_checkout`
+
+技術效果：
+
+- 可統計介入成功率。
+- 可評估哪些頁面最容易造成卡關。
+- 可作為後續調整門檻與策略的技術依據。
+
+---
+
+## 隱私與低算力策略
+
+預設策略：
+
+- 平時只保存 POS 操作事件。
+- 不長期保存原始影像。
+- 只在高風險事件時擷取短片段。
+- 語音文字與 evidence 會截斷，避免保存過長顧客內容。
+- 可只保存匿名化事件向量、`barrier_state` 與 `intervention_result`。
+
+重要設定：
+
+```text
+EVENT_TRIGGERED_MULTIMODAL_ENABLED=true
+EMOTION_PERIODIC_ENABLED=false
+INTERACTION_TRIGGER_THRESHOLD=5
+INTERACTION_PRE_EVENT_BUFFER_SEC=5
+INTERACTION_POST_EVENT_BUFFER_SEC=5
+PRIVACY_SAVE_RAW_CLIP=false
+PRIVACY_STORE_EVENT_VECTOR_ONLY=true
 ```
 
 ---
 
-## 事件觸發式多模態分析
+## 實施例測試工具
 
-新增流程：
-
-1. 前端上報 POS 操作事件到 `/api/interaction_event`。
-2. 後端計算互動障礙風險分數。
-3. 若達門檻，POS 前端會優先從 rolling buffer 組成觸發前後約 10 秒短片段，呼叫 `/api/triggered_multimodal_analysis`；若影音 stream 不可用，才 fallback 到 `/api/barrier_state` 做輕量狀態推理。
-4. `/api/triggered_multimodal_analysis` 只處理短片段，不做持續影像分析。
-5. 後端整合：
-   - recent POS events
-   - risk_result
-   - UI context
-   - media_signals
-   - Whisper speech_text
-   - Emotion-LLaMA evidence
-6. 產生 `multimodal_evidence`。
-7. 推論 `barrier_state`。
-8. 產生 `intervention_action`。
-9. 若有有效介入，寫入 `intervention_logs.json`。
-10. checkout 成功後回寫介入結果，形成成效回饋閉環。
-
-`/api/triggered_multimodal_analysis` 會略過太小的 video chunk，避免空音訊或不完整片段造成推論錯誤。
-
-### 實施例測試 UI
-
-根目錄 `tools/pos_interaction_demo_ui.py` 會啟動一個本機 tkinter 測試介面，可送出付款卡關、操作困惑、優惠券卡關與等待不耐等情境到 UI_API：
+啟動測試 UI：
 
 ```bash
 cd /home/oliver/Project_2026
 python3 tools/pos_interaction_demo_ui.py
 ```
 
-使用前請先啟動 `UI_API/main.py`，並開啟 POS，例如 `http://127.0.0.1:8000/pos?session_id=pos_demo_001`。測試工具預設呼叫 `/api/demo/trigger_scenario`，並透過 `/ws/demo/{session_id}` 監看 realtime events；若需要舊流程，可勾選 legacy 模式改走 `/api/interaction_event` + `/api/barrier_state`。後台「互動障礙與介入成效」會透過輪詢更新，方便直接觀察操作行為、風險分數、互動障礙狀態與服務介入動作。
+建議流程：
 
-### 目前實作狀態
-
-- `/api/interaction_event` 已串接 POS 操作事件。
-- `/api/barrier_state` 已可做輕量互動障礙推理。
-- `/api/triggered_multimodal_analysis` 已提供後端事件觸發式多模態分析能力。
-- POS 前端已串接 `triggered_multimodal_analysis`，高風險事件會優先觸發完整多模態證據分析。
-- `/api/ping_state` 保留為 debug / demo 入口，預設不作為主要介入路徑。
-
----
-
-## 主要 API 摘要
-
-### POS / 基礎
-
-- `GET /`
-- `GET /api/menu`
-- `POST /api/menu`
-- `POST /api/checkout`
-- `GET /api/settings`
-- `POST /api/settings`
-
-### 語音與客服
-
-- `POST /api/ask`
-- `POST /api/customer_service`
-- `GET /api/customer_service_logs`
-- `POST /api/customer_service_logs/{source_id}/human_reply`
-
-客服流程會把 Whisper 語音文字、Emotion-LLaMA 結構化情緒、YOLO 人物偵測與媒體訊號轉成 `customer_service_state`。Emotion-LLaMA 在客服中不是單純做情緒辨識，而是提供多模態情緒與行為證據；系統再用該狀態決定客服優先級、真人介入建議與回覆策略。
-
-後台客服系統會自動刷新客服紀錄。若關閉「Ollama 直接回覆」，API 會先立即回傳「已通知客服」，完整語音辨識、情緒證據與紀錄保存改由背景任務完成；該流程不再產生 AI 直接客服回答。
-
-### RAG
-
-- `GET /api/rag_docs`
-- `POST /api/rag_docs`
-- `DELETE /api/rag_docs/{doc_id}`
-- `POST /api/rag_pdf`
-- `DELETE /api/rag_docs`
-
-### AI 推播
-
-- `POST /api/auto_recommend`
-
-### Emotion / 多模態
-
-- `POST /api/ping_state`
-- `POST /api/person_detect_frame`
-- `GET /api/emotion_clips/{session_id}`
-- `DELETE /api/emotion_clips/{session_id}`
-- `POST /api/triggered_multimodal_analysis`
-
-### 互動障礙與介入
-
-- `POST /api/interaction_event`
-- `POST /api/demo/trigger_scenario`
-- `GET /api/interaction_events/{session_id}`
-- `POST /api/interaction_risk`
-- `POST /api/barrier_state`
-- `POST /api/intervention_result`
-- `GET /api/intervention_logs/{session_id}`
-- `GET /api/intervention_stats`
+1. 啟動 UI_API。
+2. 開啟 POS：`http://127.0.0.1:8000/pos?session_id=pos_demo_001`
+3. 開啟後台：`http://127.0.0.1:8001`
+4. 在測試工具中保持 `session_id=pos_demo_001`。
+5. 按「付款失敗」、「優惠券錯誤」、「無效點擊」等按鈕。
+6. 觀察 POS 是否收到 intervention。
+7. 觀察後台是否更新介入統計。
 
 ---
 
-## 專利化技術重點
+## 相關文件
 
-本系統可描述為一種低算力、低隱私風險的 POS 顧客互動障礙偵測與自適應服務介入架構。
-
-技術特徵：
-
-- 平時只記錄 POS 操作事件，不持續分析顧客影像。
-- 使用 `risk_score` 判斷是否需要觸發多模態分析。
-- 使用短片段分析，降低算力成本與隱私風險。
-- Emotion-LLaMA 只提供情緒與行為證據，不直接決定服務策略。
-- `barrier_state` 將情緒、語音、POS 操作與 UI 狀態轉成可控制的互動障礙狀態。
-- `intervention_action` 將狀態轉成 UI 提示、付款教學、簡化模式、推播暫停或店員通知。
-- `intervention_result` 在 checkout 時回寫，形成偵測、介入、成效回饋閉環。
-
-詳細專利設計請看：
-
-```text
-UI_API/PATENT_DESIGN.md
-```
+- `UI_API/README.md`：UI_API 詳細架構、API、資料檔與使用流程。
+- `UI_API/PATENT_DESIGN.md`：專利設計草稿、技術問題、技術手段、請求項概念稿。
 
 ---
 
-## 隱私與低算力策略
+## 版本控制注意事項
 
-系統支援以下設定：
+不應提交：
 
-```text
-PRIVACY_SAVE_RAW_CLIP=false
-PRIVACY_RAW_CLIP_RETENTION_MINUTES=10
-PRIVACY_STORE_EVENT_VECTOR_ONLY=true
-INTERACTION_TRIGGER_THRESHOLD=5
-INTERACTION_PRE_EVENT_BUFFER_SEC=5
-INTERACTION_POST_EVENT_BUFFER_SEC=5
-```
+- `.env`
+- 模型權重
+- ChromaDB runtime 版本資料
+- `learning_data/` runtime log
+- `__pycache__/`
 
-設計原則：
-
-- 平時只保存操作事件與匿名化事件向量。
-- 可選擇不保存原始影像片段。
-- 語音文字在 evidence 中會截斷，避免保存過長顧客內容。
-- 只有風險達門檻才觸發短片段多模態分析。
-- 後台統計以 `barrier_state`、`intervention_action` 與結果回饋為主。
-
----
-
-## 開發與驗證
-
-常用檢查：
-
-```bash
-cd /home/oliver/Project_2026/UI_API
-python3 -m py_compile ai_services.py
-python3 -m py_compile routes/multimodal_routes.py
-python3 -m py_compile services/multimodal_evidence_service.py
-python3 -m py_compile services/barrier_state_service.py
-python3 -m py_compile services/intervention_service.py
-```
-
-如果環境中沒有 `python` 指令，請使用 `python3`。
-
----
+目前 `.gitignore` 已排除這些資料。新增模型或本機測試檔時，請先確認不含 API key、權重或個資。
