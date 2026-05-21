@@ -101,6 +101,36 @@ async def handle_voice_ask(
         return {"status": "error", "message": "無法辨識語音內容"}
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
+    
+    if _looks_like_direct_order(user_text):
+        cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
+        if cart_actions:
+            names = _cart_action_names(cart_actions, menu_items)
+            ai_response = "已幫您加入購物車：" + "、".join(names)
+            if detected_lang == "en":
+                ai_response = "Added to cart: " + ", ".join(names)
+            session_repository.record_session_state(
+                session_id=session_id, emotion="",
+                user_speech=user_text, ai_response=ai_response,
+                language=detected_lang
+            )
+            asyncio.create_task(_save_voice_order_rag_doc(
+                session_id, user_text, detected_lang, "direct_order", ai_response,
+                cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
+            ))
+            return {
+                "status": "success",
+                "mode": "direct_order",
+                "user_text": user_text,
+                "ai_response": ai_response,
+                "audio_base64": "",
+                "mentioned_ids": [],
+                "cart_actions": cart_actions,
+                "detected_lang": detected_lang,
+                "raw_detected_lang": stt_result.get("raw_language", ""),
+                "trigger_recommend": False
+            }
+
     if not use_ollama:
         cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
         names = _cart_action_names(cart_actions, menu_items)
@@ -201,17 +231,19 @@ async def handle_voice_ask(
             
         # 驗證生成結果
         if rag_settings.get("answer_verification", True) and "error" not in ask_result:
+            verification_context = full_menu_context + "\n\n" + rag_context
             verification = await loop.run_in_executor(
                 None,
                 rag_service.verify_answer_grounding,
                 user_text,
                 ask_result.get("ai_response", ""),
-                rag_context
+                verification_context
             )
             if not verification.get("grounded", True):
                 ask_result["ai_response"] = verification.get("safe_answer", "目前資料庫沒有足夠資訊回答這個問題。")
                 ask_result["mentioned_ids"] = []
-                # 保留 cart_actions
+                if not _looks_like_direct_order(user_text):
+                    ask_result["cart_actions"] = []
 
 
     fallback_response = "Sorry, I am still thinking. Please try again." if detected_lang == "en" else "抱歉，系統思考中。"

@@ -1785,6 +1785,64 @@
   #menuGrid.kiosk-category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+
+  .cart-shell.kiosk-cart-open {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    transform: none !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    padding: 20px 16px 110px !important;
+    overflow-y: auto !important;
+  }
+
+  .kiosk-payment-screen {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    transform: none !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+  }
+
+  .kiosk-bottom-bar {
+    position: fixed !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 100vw !important;
+    height: clamp(74px, 10vh, 96px) !important;
+    padding: 0 16px !important;
+  }
+
+  .kiosk-bottom-home,
+  .kiosk-bottom-cart {
+    font-size: clamp(16px, 4vw, 24px) !important;
+  }
+
+  .kiosk-bottom-home i,
+  .kiosk-bottom-cart i {
+    font-size: clamp(22px, 6vw, 34px) !important;
+  }
+
+  .kiosk-bottom-voice {
+    width: clamp(52px, 13vw, 68px) !important;
+    height: clamp(52px, 13vw, 68px) !important;
+    font-size: clamp(22px, 6vw, 32px) !important;
+  }
+
+  .kiosk-payment-card,
+  .kiosk-payment-outline,
+  .kiosk-payment-back,
+  .kiosk-payment-footer {
+    width: min(100%, 720px) !important;
+  }
+
+  .kiosk-payment-footer {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
 }
 
 @media (max-width: 520px) {

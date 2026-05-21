@@ -120,12 +120,7 @@ def create_router(deps: dict) -> APIRouter:
     @router.get("/rag_status")
     async def get_rag_status(request: Request):
         require_admin_token(request)
-        from rag_service import read_vector_meta, get_last_retrieval, _chunk_cache
-        return {
-            "settings": config.get("rag", {}),
-            "vector_meta": read_vector_meta(),
-            "last_retrieval": get_last_retrieval(),
-            "chunk_count": len(_chunk_cache) if _chunk_cache else 0
-        }
+        from rag_service import get_status
+        return get_status()
 
     return router

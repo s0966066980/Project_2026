@@ -573,22 +573,24 @@ def _retrieval_quality_gate(question: str, chunks: list[RagChunk]) -> dict:
     settings = _rag_settings()
     if not chunks:
         return {"sufficient": False, "reason": "no_chunks"}
-    
-    max_score = max((float(chunk.score or 0.0) for chunk in chunks), default=0.0)
-    min_retrieval_score = float(settings.get("min_retrieval_score", 0.08))
-    min_keyword_overlap = int(settings.get("min_keyword_overlap", 1))
-    
+
     query_tokens = set(_tokenize(question))
-    max_overlap = 0
-    for chunk in chunks:
-        overlap = len(query_tokens & set(_tokenize(chunk.content)))
-        if overlap > max_overlap:
-            max_overlap = overlap
-            
-    if max_score < min_retrieval_score and max_overlap < min_keyword_overlap:
-        return {"sufficient": False, "reason": "low_score_and_overlap"}
-        
-    return {"sufficient": True, "reason": "ok"}
+    min_keyword_overlap = int(settings.get("min_keyword_overlap", 1))
+    max_overlap = max((len(query_tokens & set(_tokenize(chunk.content))) for chunk in chunks), default=0)
+
+    source_text = ",".join(str(chunk.source or "") for chunk in chunks[:3])
+    has_retrieval_source = any(
+        marker in source_text
+        for marker in ["vector", "keyword", "rerank"]
+    )
+
+    if max_overlap >= min_keyword_overlap:
+        return {"sufficient": True, "reason": "ok_keyword_overlap", "max_overlap": max_overlap}
+
+    if has_retrieval_source:
+        return {"sufficient": True, "reason": "ok_retrieval_source", "max_overlap": max_overlap}
+
+    return {"sufficient": False, "reason": "low_relevance", "max_overlap": max_overlap}
 
 def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
     if ai_services is None:
@@ -611,10 +613,17 @@ def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
         result = ai_services.ask_llm(system_prompt, user_prompt, "RAG_VERIFY", temperature=0.1)
         if isinstance(result, dict) and "grounded" in result:
             return result
-        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
-    except Exception:
-        # Fail open on verification error
-        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
+        raise ValueError("Missing 'grounded' field in AI response")
+    except Exception as e:
+        settings = _rag_settings()
+        if settings.get("fail_closed_on_eval_error", True):
+            return {
+                "grounded": False,
+                "unsupported_claims": ["verification_failed"],
+                "safe_answer": "目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。",
+                "reason": str(e)
+            }
+        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer, "reason": "verification_failed_open"}
 
 def is_context_sufficient(retrieval_details: dict) -> bool:
     if not retrieval_details:
@@ -622,6 +631,16 @@ def is_context_sufficient(retrieval_details: dict) -> bool:
     eval_ok = retrieval_details.get("evaluation", {}).get("sufficient", True)
     gate_ok = retrieval_details.get("quality_gate", {}).get("sufficient", True)
     return eval_ok and gate_ok
+
+def get_status() -> dict:
+    return {
+        "settings": _rag_settings(),
+        "vector_meta": read_vector_meta(),
+        "last_retrieval": get_last_retrieval(),
+        "chunk_count": len(_chunk_cache) if _chunk_cache else 0,
+        "active_vector_db_dir": _active_vector_db_dir,
+        "rag_ready": bool(_chunk_cache and len(_chunk_cache) > 0)
+    }
 
 
 def _citation_for(chunk: RagChunk) -> dict:
