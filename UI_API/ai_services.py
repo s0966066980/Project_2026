@@ -990,7 +990,7 @@ def _should_use_gemini_json_mime(model: str) -> bool:
     return bool(config.get("GEMINI_USE_JSON_MIME", False))
 
 
-def _ask_ollama_local(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "") -> dict:
+def _ask_ollama_local(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "", temperature: float = None) -> dict:
     """呼叫本機 Ollama 並強制擷取 JSON。"""
     enforced_system = (
         _enforced_json_system_prompt(system_prompt)
@@ -1001,7 +1001,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, ab_variant: str = ""
         "stream": False,
         "format": "json",
         "options": {
-            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
+            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)) if temperature is None else float(temperature),
             "num_predict": int(config.get("OLLAMA_NUM_PREDICT", 220))
         }
     }
@@ -1087,7 +1087,7 @@ def ask_gemini(system_prompt: str, user_prompt: str, ab_variant: str = "", model
 
 def ask_ollama(system_prompt: str, user_prompt: str, ab_variant: str = "", model_name: str = "") -> dict:
     """本地 Ollama 專用入口。推薦、RAG 審查與背景整理一律使用這條路徑。"""
-    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name)
+    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name, temperature=None)
 
 
 def ask_llm(
@@ -1096,6 +1096,7 @@ def ask_llm(
     ab_variant: str = "",
     model_name: str = "",
     provider: str = "",
+    temperature: float = None,
 ) -> dict:
     """
     問答類功能專用 LLM 入口。
@@ -1108,13 +1109,13 @@ def ask_llm(
             return gemini_result
         if config.get("GEMINI_FALLBACK_TO_OLLAMA", True):
             print("↩️ Gemini 不可用，改用本地 Ollama 備援。")
-            fallback = _ask_ollama_local(system_prompt, user_prompt, ab_variant, "")
+            fallback = _ask_ollama_local(system_prompt, user_prompt, ab_variant, "", temperature=temperature)
             if "error" not in fallback:
                 fallback["_fallback_from"] = "gemini"
                 fallback["_gemini_error"] = gemini_result.get("error", "")
             return fallback
         return gemini_result
-    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name)
+    return _ask_ollama_local(system_prompt, user_prompt, ab_variant, model_name, temperature=temperature)
 
 
 async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:

@@ -1097,5 +1097,199 @@
         },
         "intervention_id": "int_pos_0ogekv4f6_1779352612024",
         "result_updated_at": "2026-05-21T16:37:22.319524"
+    },
+    {
+        "session_id": "pos_5h7pdf3st",
+        "timestamp": "2026-05-21T16:52:26.781991",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 0.8,
+            "confidence": 0.89,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3"
+            ],
+            "risk_score": 5,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -18.9,
+                "audio_silent": false,
+                "motion_score": 0.0647,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "《十二十七十小遣》",
+                "audio_silent": false,
+                "audio_mean_db": -18.9
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客可能還在選擇，可提供簡短推薦。",
+                "emotion_evidence": "語音文字顯示顧客表達「十二十七十小遣」，可能暗示有問題或無法判斷",
+                "emotion_distribution": {
+                    "猶豫": 30,
+                    "疲憊": 40,
+                    "困惑": 15,
+                    "焦躁": 10,
+                    "生氣": 5
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 5,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：5\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3"
+            }
+        },
+        "intervention_id": "int_pos_5h7pdf3st_1779353546782"
+    },
+    {
+        "session_id": "pos_5h7pdf3st",
+        "timestamp": "2026-05-21T16:53:14.033651",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 24,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -36.3,
+                "audio_silent": false,
+                "motion_score": 0.0647,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "國橋內村,吧我剛才租鑰匛一級這是建議 Themad",
+                "audio_silent": false,
+                "audio_mean_db": -36.3
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客看起來稍微有些迷惑，可能正在思考下一步",
+                "emotion_evidence": "顧客語音內容中提到「吧我剛才租鑰匛一級這是建議」，表明出疑慮的態度",
+                "emotion_distribution": {
+                    "猶豫": 40,
+                    "疲憊": 30,
+                    "困惑": 15,
+                    "焦躁": 5,
+                    "平靜": 10
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 24,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：24\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：《十二十七十小遣》"
+            }
+        },
+        "intervention_id": "int_pos_5h7pdf3st_1779353594034"
     }
 ]

@@ -5,6 +5,7 @@ import re
 import shutil
 import uuid
 import warnings
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlsplit
@@ -90,6 +91,12 @@ def _rag_settings() -> dict:
         "use_reranker": True,
         "use_context_compression": True,
         "use_answer_evaluation": True,
+        "strict_grounding": True,
+        "answer_verification": True,
+        "fail_closed_on_eval_error": True,
+        "min_retrieval_score": 0.08,
+        "min_keyword_overlap": 1,
+        "max_answer_chars": 420,
         "top_k_vector": 10,
         "top_k_keyword": 10,
         "top_k_final": 5,
@@ -428,7 +435,7 @@ def _bm25_score(query_tokens: list[str], doc_tokens: list[str]) -> float:
         if tf <= 0:
             continue
         df = int((_bm25_index.get("doc_freq") or {}).get(token, 0))
-        idf = max(0.0, ((doc_count - df + 0.5) / (df + 0.5)))
+        idf = math.log(1 + (doc_count - df + 0.5) / (df + 0.5))
         score += idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * doc_len / avgdl)))
     return score
 
@@ -557,7 +564,64 @@ def _evaluate_answerability(question: str, chunks: list[RagChunk]) -> dict:
         sufficient = bool(result.get("sufficient", True)) if isinstance(result, dict) else True
         return {"sufficient": sufficient, "reason": str(result.get("reason", "")) if isinstance(result, dict) else ""}
     except Exception:
-        return {"sufficient": True, "reason": "evaluation_failed_open"}
+        if settings.get("fail_closed_on_eval_error", True):
+            return {"sufficient": False, "reason": "evaluation_failed_closed"}
+        else:
+            return {"sufficient": True, "reason": "evaluation_failed_open"}
+
+def _retrieval_quality_gate(question: str, chunks: list[RagChunk]) -> dict:
+    settings = _rag_settings()
+    if not chunks:
+        return {"sufficient": False, "reason": "no_chunks"}
+    
+    max_score = max((float(chunk.score or 0.0) for chunk in chunks), default=0.0)
+    min_retrieval_score = float(settings.get("min_retrieval_score", 0.08))
+    min_keyword_overlap = int(settings.get("min_keyword_overlap", 1))
+    
+    query_tokens = set(_tokenize(question))
+    max_overlap = 0
+    for chunk in chunks:
+        overlap = len(query_tokens & set(_tokenize(chunk.content)))
+        if overlap > max_overlap:
+            max_overlap = overlap
+            
+    if max_score < min_retrieval_score and max_overlap < min_keyword_overlap:
+        return {"sufficient": False, "reason": "low_score_and_overlap"}
+        
+    return {"sufficient": True, "reason": "ok"}
+
+def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
+    if ai_services is None:
+        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
+        
+    system_prompt = (
+        "你是 RAG 答案驗證器。只判斷回答是否完全被 context 支持。\n"
+        "若回答中有 context 沒有的價格、政策、設定、活動、模型名稱、數字，grounded=false。\n"
+        "safe_answer 必須是繁體中文短句：「目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。」或只保留 context 支持的內容。\n"
+        "輸出 JSON：\n"
+        "{\n"
+        "  \"grounded\": true/false,\n"
+        "  \"unsupported_claims\": [],\n"
+        "  \"safe_answer\": \"若不支持，改寫成保守回答\"\n"
+        "}"
+    )
+    user_prompt = f"問題：{question}\n\n回答：{answer}\n\nContext:\n{context}"
+    try:
+        # Use low temperature for verification
+        result = ai_services.ask_llm(system_prompt, user_prompt, "RAG_VERIFY", temperature=0.1)
+        if isinstance(result, dict) and "grounded" in result:
+            return result
+        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
+    except Exception:
+        # Fail open on verification error
+        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
+
+def is_context_sufficient(retrieval_details: dict) -> bool:
+    if not retrieval_details:
+        return False
+    eval_ok = retrieval_details.get("evaluation", {}).get("sufficient", True)
+    gate_ok = retrieval_details.get("quality_gate", {}).get("sufficient", True)
+    return eval_ok and gate_ok
 
 
 def _citation_for(chunk: RagChunk) -> dict:
@@ -601,7 +665,13 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
     merged = _merge_results(result_groups)
     ranked = _rerank(query, merged)
     compressed = _compress(query, ranked)
+    quality_gate = _retrieval_quality_gate(query, compressed)
     evaluation = _evaluate_answerability(query, compressed)
+    
+    if not quality_gate["sufficient"]:
+        evaluation["sufficient"] = False
+        evaluation["reason"] = quality_gate["reason"]
+        
     context = format_context(compressed, evaluation)
     citations = [_citation_for(chunk) for chunk in compressed]
     _last_retrieval = {
@@ -609,6 +679,7 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
         "queries": queries,
         "citations": citations,
         "evaluation": evaluation,
+        "quality_gate": quality_gate,
         "settings": settings,
     }
     return _last_retrieval | {"context": context, "chunks": compressed}

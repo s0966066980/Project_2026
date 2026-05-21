@@ -2169,6 +2169,49 @@ function loadAdminData() {
   loadRagData();
   loadCustomerServiceData();
   loadEmotionClips();
+  loadRagStatus();
+}
+
+async function loadRagStatus() {
+  const container = document.getElementById('ragStatusContainer');
+  if (!container) return;
+  container.textContent = '載入中...';
+  try {
+    const res = await asJson(await fetch(`${API_BASE}/api/rag_status`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    }));
+    
+    if (res.error) {
+      container.textContent = `錯誤: ${res.error}`;
+      return;
+    }
+    
+    const meta = res.vector_meta || {};
+    const count = res.chunk_count || 0;
+    const lr = res.last_retrieval || {};
+    const evalOk = lr.evaluation?.sufficient !== false;
+    const gateOk = lr.quality_gate?.sufficient !== false;
+    
+    let html = `<div class="mb-2"><strong style="color:var(--info)">向量資料庫</strong>: ${meta.active_dir || '未建立'}<br>`;
+    html += `<strong>Embedding</strong>: ${meta.embedding_key || 'N/A'}<br>`;
+    html += `<strong>RAG 筆數</strong>: ${count} 區塊<br>`;
+    html += `<strong>最後更新</strong>: ${meta.updated_at || '無紀錄'}</div>`;
+    
+    if (lr.question) {
+      html += `<div class="border-t border-gray-700 pt-2 mt-2">`;
+      html += `<strong>最近檢索問題</strong>: ${lr.question}<br>`;
+      html += `<strong>評估通過 (Answerability)</strong>: <span class="${evalOk ? 'text-green-400' : 'text-red-400'}">${evalOk ? '是' : '否'}</span> (${lr.evaluation?.reason || 'N/A'})<br>`;
+      html += `<strong>品質門檻 (Quality Gate)</strong>: <span class="${gateOk ? 'text-green-400' : 'text-red-400'}">${gateOk ? '是' : '否'}</span> (${lr.quality_gate?.reason || 'N/A'})<br>`;
+      html += `<strong>引用來源數</strong>: ${(lr.citations || []).length} 筆<br>`;
+      html += `</div>`;
+    } else {
+      html += `<div class="border-t border-gray-700 pt-2 mt-2 text-gray-400">尚無檢索紀錄</div>`;
+    }
+    
+    container.innerHTML = html;
+  } catch (e) {
+    container.textContent = `無法載入狀態: ${e.message}`;
+  }
 }
 
 function topCountLabel(counts = {}, labelType = '') {
@@ -2440,6 +2483,12 @@ async function loadSettings() {
     document.getElementById('inp-rag-reranker').checked = rag.use_reranker !== false;
     document.getElementById('inp-rag-compression').checked = rag.use_context_compression !== false;
     document.getElementById('inp-rag-evaluation').checked = rag.use_answer_evaluation !== false;
+    document.getElementById('inp-rag-strict-grounding').checked = rag.strict_grounding === true;
+    document.getElementById('inp-rag-answer-verification').checked = rag.answer_verification === true;
+    document.getElementById('inp-rag-fail-closed').checked = rag.fail_closed_on_eval_error === true;
+    document.getElementById('inp-rag-min-score').value = rag.min_retrieval_score || 0.08;
+    document.getElementById('inp-rag-min-overlap').value = rag.min_keyword_overlap || 1;
+    document.getElementById('inp-rag-max-chars').value = rag.max_answer_chars || 420;
     document.getElementById('inp-rag-top-k-vector').value = rag.top_k_vector || 10;
     document.getElementById('inp-rag-top-k-keyword').value = rag.top_k_keyword || 10;
     document.getElementById('inp-rag-top-k-final').value = rag.top_k_final || 5;
@@ -2488,6 +2537,12 @@ async function saveSettings() {
     use_reranker: document.getElementById('inp-rag-reranker').checked,
     use_context_compression: document.getElementById('inp-rag-compression').checked,
     use_answer_evaluation: document.getElementById('inp-rag-evaluation').checked,
+    strict_grounding: document.getElementById('inp-rag-strict-grounding').checked,
+    answer_verification: document.getElementById('inp-rag-answer-verification').checked,
+    fail_closed_on_eval_error: document.getElementById('inp-rag-fail-closed').checked,
+    min_retrieval_score: parseFloat(document.getElementById('inp-rag-min-score').value || '0.08'),
+    min_keyword_overlap: parseInt(document.getElementById('inp-rag-min-overlap').value || '1', 10),
+    max_answer_chars: parseInt(document.getElementById('inp-rag-max-chars').value || '420', 10),
     top_k_vector: parseInt(document.getElementById('inp-rag-top-k-vector').value || '10', 10),
     top_k_keyword: parseInt(document.getElementById('inp-rag-top-k-keyword').value || '10', 10),
     top_k_final: parseInt(document.getElementById('inp-rag-top-k-final').value || '5', 10),

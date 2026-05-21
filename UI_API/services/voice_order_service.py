@@ -158,16 +158,61 @@ async def handle_voice_ask(
         "cart_actions 格式固定為 [{\"action\":\"add\",\"id\":\"菜單ID\",\"quantity\":數量}]；id 必須來自完整菜單白名單，quantity 介於 1 到 10。\n"
         "如果只是詢問或推薦，cart_actions 請輸出空陣列。"
     )
-    async with ollama_semaphore:
-        ask_result = await loop.run_in_executor(
-            None,
-            ai_services.ask_llm,
-            ask_system,
-            user_prompt,
-            "ASK",
-            config.get("ASK_MODEL_NAME", "llama3.2"),
-            qa_provider,
-        )
+    
+    # 1. 檢查檢索品質
+    rag_settings = rag_details.get("settings", {})
+    import rag_service
+    is_sufficient = rag_service.is_context_sufficient(rag_details)
+    
+    if not is_sufficient:
+        # RAG 文件不足，拒答或依賴菜單白名單 fallback
+        menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+        if menu_question_answer and not _looks_like_direct_order(user_text):
+            ai_response = menu_question_answer.get("ai_response", "")
+            mentioned_ids = menu_question_answer.get("mentioned_ids", [])
+            cart_actions = []
+        else:
+            ai_response = "目前資料庫沒有足夠資訊回答這個問題，請在後台 RAG 文本新增對應資料。"
+            mentioned_ids = []
+            cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
+        
+        ask_result = {
+            "ai_response": ai_response,
+            "mentioned_ids": mentioned_ids,
+            "cart_actions": cart_actions
+        }
+    else:
+        # 有足夠 RAG 資訊，呼叫 LLM
+        async with ollama_semaphore:
+            # 決定溫度 (llama3.2 QA 用 0.1)
+            model_name = config.get("ASK_MODEL_NAME", "llama3.2")
+            temp = 0.1 if ("llama" in model_name.lower() or qa_provider == "ollama") else None
+            
+            ask_result = await loop.run_in_executor(
+                None,
+                ai_services.ask_llm,
+                ask_system,
+                user_prompt,
+                "ASK",
+                model_name,
+                qa_provider,
+                temp
+            )
+            
+        # 驗證生成結果
+        if rag_settings.get("answer_verification", True) and "error" not in ask_result:
+            verification = await loop.run_in_executor(
+                None,
+                rag_service.verify_answer_grounding,
+                user_text,
+                ask_result.get("ai_response", ""),
+                rag_context
+            )
+            if not verification.get("grounded", True):
+                ask_result["ai_response"] = verification.get("safe_answer", "目前資料庫沒有足夠資訊回答這個問題。")
+                ask_result["mentioned_ids"] = []
+                # 保留 cart_actions
+
 
     fallback_response = "Sorry, I am still thinking. Please try again." if detected_lang == "en" else "抱歉，系統思考中。"
     ai_response = (ask_result.get("ai_response", fallback_response)

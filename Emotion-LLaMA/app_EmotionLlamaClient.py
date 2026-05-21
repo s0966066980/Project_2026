@@ -13,6 +13,7 @@ Emotion-LLaMA Gradio Client — 精簡 API 版
 
 import argparse
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -64,6 +65,63 @@ def is_readable_video(path: str) -> tuple[bool, str]:
         return True, ""
     except Exception as e:
         return False, f"opencv_check_failed: {e}"
+
+
+def _ffmpeg_sanitize_video(path: str, keep_audio: bool = True) -> tuple[str, str | None]:
+    fd, output_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-fflags", "+genpts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "12"),
+        "-vf", "fps=8,scale=640:-2:force_original_aspect_ratio=decrease",
+        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
+    ]
+    if keep_audio:
+        cmd += [
+            "-af", "aresample=async=1:first_pts=0,asetpts=N/SR/TB",
+            "-c:a", "aac", "-ar", "16000", "-ac", "1",
+        ]
+    else:
+        cmd += ["-an"]
+    cmd.append(output_path)
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=30)
+        return output_path, output_path
+    except Exception as e:
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
+        print(f"⚠️ Emotion-LLaMA 影片正規化失敗 keep_audio={keep_audio}: {e}")
+        return path, None
+
+
+def _encode_video_with_retry(chat, video_path: str):
+    cleanup_paths = []
+    safe_path, cleanup = _ffmpeg_sanitize_video(video_path, keep_audio=True)
+    if cleanup:
+        cleanup_paths.append(cleanup)
+    img_list = [safe_path]
+    try:
+        print(f"🎬 開始 encode video: {safe_path}")
+        chat.encode_img(img_list)
+        return img_list, cleanup_paths
+    except Exception as first_error:
+        print(f"⚠️ 含音訊影片 encode 失敗，改用無音訊安全影片重試: {first_error}")
+        for path in cleanup_paths:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        cleanup_paths = []
+        safe_path, cleanup = _ffmpeg_sanitize_video(video_path, keep_audio=False)
+        if cleanup:
+            cleanup_paths.append(cleanup)
+        img_list = [safe_path]
+        print(f"🎬 開始 encode video(no-audio): {safe_path}")
+        chat.encode_img(img_list)
+        return img_list, cleanup_paths
 
 
 def get_chat():
@@ -147,13 +205,18 @@ def process_video_question(video_path: str, question: str) -> str:
             "<video><VideoHere></video> <feature><FeatureHere></feature>"
         )
 
-        # Step 3: encode_img — 傳入 [video_path]，內部自動處理 video+audio
-        # encode_img(self, img_list): 只接受 img_list 一個參數
-        # 它會 pop img_list[0]（video path），處理後 append tensor 回 img_list
-        img_list = [video_path]
-        print(f"🎬 開始 encode video: {video_path}")
-        chat.encode_img(img_list)
-        print(f"✅ encode 完成，img_list[0] shape: {img_list[0].shape}")
+        # Step 3: encode_img — 傳入 [video_path]，內部自動處理 video+audio。
+        # 對事件觸發短片段先做 ffmpeg 時間軸正規化；若音訊仍不穩，改用無音訊影片重試一次。
+        cleanup_paths = []
+        try:
+            img_list, cleanup_paths = _encode_video_with_retry(chat, video_path)
+            print(f"✅ encode 完成，img_list[0] shape: {img_list[0].shape}")
+        finally:
+            for path in cleanup_paths:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
         # Step 4: 加入問題
         chat.ask(question, chat_state)

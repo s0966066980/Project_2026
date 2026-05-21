@@ -6,6 +6,27 @@ Project_2026 是一套智慧自助點餐與客服原型系統。系統整合 POS
 
 ---
 
+## 2026/05/21 系統更新筆記
+
+
+
+**1. POS UI 響應式佈局 (Responsive Layout)**
+
+- 橫式大螢幕 (Landscape)：維持 16:9 固定比例 (Kiosk Width/Height)。
+
+- 直立與行動版 (Portrait & Mobile)：自動切換為 Fluid 佈局 (width: 100%, 高度自適應)，支援垂直滾動，開始點餐按鈕將直接顯示以利小螢幕點擊。
+
+
+
+**2. RAG 與語音點餐優化**
+
+- llama3.2 等本地小模型對於事實核對能力較弱。系統新增**嚴格來源限制**與**答案驗證**機制。
+
+- 只要 RAG 檢索的最高分數與關鍵字重疊度未達標準，或是 LLM 生成內容包含來源沒有的數字與價格，系統將會啟動防護，強制回答「目前文件沒有足夠資訊回答」。
+
+- 在後台可以查看詳細的「RAG 檢索狀態」，包括 Answerability 評估結果與 Quality Gate 的阻擋原因。
+
+
 ## 目前入口
 
 啟動 `UI_API/main.py` 後，系統會同時提供兩個入口：
@@ -42,7 +63,6 @@ Project_2026/
 ├── Emotion-LLaMA/
 │   └── app_EmotionLlamaClient.py
 ├── tools/
-│   ├── pos_interaction_demo.html
 │   └── pos_interaction_demo_ui.py
 └── UI_API/
     ├── main.py
@@ -65,8 +85,7 @@ Project_2026/
 
 - `UI_API/`：FastAPI 後端、POS 前端、後台管理、語音點餐、客服、RAG、推播、互動障礙偵測、WebSocket 即時通訊。
 - `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，提供情緒與行為證據。
-- `tools/`：專利 PoC 測試工具。`pos_interaction_demo.html` 可由 `/demo-tool`
-  直接在瀏覽器操作；`pos_interaction_demo_ui.py` 保留作為本機 tkinter 測試工具。
+- `tools/`：專利 PoC 測試工具。`pos_interaction_demo_ui.py` 內嵌 `/demo-tool` HTML，執行後會直接開啟瀏覽器測試介面。
 
 ---
 
@@ -306,7 +325,7 @@ HTML 測試工具：
 http://127.0.0.1:8000/demo-tool
 ```
 
-HTML 工具會呼叫 `/api/demo/trigger_scenario`、`/api/triggered_multimodal_analysis` 與 `/api/auto_recommend`，並透過 `/ws/demo/{session_id}` 監聽即時介入事件，較適合外網客戶 demo 或專利腳本展示。
+Demo 工具會呼叫 `/api/demo/trigger_scenario`、`/api/triggered_multimodal_analysis` 與 `/api/auto_recommend`，並透過 `/ws/demo/{session_id}` 監聽即時介入事件；目前只保留專利 PoC 需要的問題：操作困惑、付款卡關、優惠券卡關、客訴風險、短片段 fallback 與主動推薦。
 
 建議流程：
 
@@ -356,12 +375,15 @@ NGROK_AUTHTOKEN=你的 ngrok token
 - 不建議公開暴露 Admin 無 token 的網址。
 - 後台敏感 API 在 `DEMO_PUBLIC_MODE=true` 時需要 `X-Admin-Token` 或 URL query `token`。
 - WebSocket 在外網 demo 會檢查 token、Origin 與訊息大小。
+- WebSocket query token 只是 demo 方案；反向代理與 ngrok access log 不應記錄 query string。正式版應改成短效 token 或連線後第一則 auth message。
+- 目前外網 demo 建議一次只開一組客戶測試，避免 Admin `global` room 收到不同 session 事件造成混雜。
 - POS 必要 API 不擋 token，避免客戶測試點餐、語音與客服流程中斷。
+- 語音點餐紀錄預設不寫入 RAG，避免外網測試文字或個資污染知識庫。
 - 攝影機與麥克風需由瀏覽器授權；系統只在高風險事件時擷取短片段，預設不長期保存原始影像。
 
 三個建議測試情境：
 
-1. **操作困惑**：開啟 `http://127.0.0.1:8000/demo-tool` 或 `tools/pos_interaction_demo_ui.py`，使用相同 `session_id`，按「操作困惑」。預期 POS 顯示操作提示，後台看到 `operation_confusion` 與 `show_operation_hint`。
+1. **操作困惑**：執行 `tools/pos_interaction_demo_ui.py` 或開啟 `http://127.0.0.1:8000/demo-tool`，使用相同 `session_id`，按「問題 1：不會操作」。預期 POS 顯示操作提示，後台看到 `operation_confusion` 與 `show_operation_hint`。
 2. **顧客詢問點餐**：在 POS 語音問答說「我要一個大麥克和一份薯條」或「我想吃雞肉，有什麼推薦？」預期 `/api/ask` 回覆只引用菜單品項，直接點餐時產生 `MCDxxx` cart actions。
 3. **AI 主動推薦與 checkout 成效**：`DEMO_PUBLIC_MODE=true` 時，進入菜單頁約 8 到 12 秒會觸發一次推薦。完成 checkout 後，後台推播成效會記錄是否命中。
 
