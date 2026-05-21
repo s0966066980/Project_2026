@@ -33,6 +33,12 @@ def _looks_like_direct_order(user_text: str) -> bool:
     return bool(re.search(r"\d+\s*(份|個|杯|組)", normalized))
 
 
+def _should_save_voice_order_to_rag() -> bool:
+    save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
+    demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
+    return save_voice_order_to_rag and (not config.is_demo_public_mode() or demo_save_voice_order_to_rag)
+
+
 def build_voice_order_rag_text(
     session_id: str,
     user_text: str,
@@ -114,16 +120,18 @@ async def handle_voice_ask(
                 user_speech=user_text, ai_response=ai_response,
                 language=detected_lang
             )
-            asyncio.create_task(_save_voice_order_rag_doc(
-                session_id, user_text, detected_lang, "direct_order", ai_response,
-                cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
-            ))
+            if _should_save_voice_order_to_rag():
+                asyncio.create_task(_save_voice_order_rag_doc(
+                    session_id, user_text, detected_lang, "direct_order", ai_response,
+                    cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
+                ))
+            audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
             return {
                 "status": "success",
                 "mode": "direct_order",
                 "user_text": user_text,
                 "ai_response": ai_response,
-                "audio_base64": "",
+                "audio_base64": audio_base64,
                 "mentioned_ids": [],
                 "cart_actions": cart_actions,
                 "detected_lang": detected_lang,
@@ -142,16 +150,18 @@ async def handle_voice_ask(
             user_speech=user_text, ai_response=ai_response,
             language=detected_lang
         )
-        asyncio.create_task(_save_voice_order_rag_doc(
-            session_id, user_text, detected_lang, "order_only", ai_response,
-            cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
-        ))
+        if _should_save_voice_order_to_rag():
+            asyncio.create_task(_save_voice_order_rag_doc(
+                session_id, user_text, detected_lang, "order_only", ai_response,
+                cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
+            ))
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
         return {
             "status": "success",
             "mode": "order_only",
             "user_text": user_text,
             "ai_response": ai_response,
-            "audio_base64": "",
+            "audio_base64": audio_base64,
             "mentioned_ids": [],
             "cart_actions": cart_actions,
             "detected_lang": detected_lang,
@@ -283,9 +293,7 @@ async def handle_voice_ask(
         user_speech=user_text, ai_response=ai_response,
         language=detected_lang
     )
-    save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
-    demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
-    if save_voice_order_to_rag and (not config.is_demo_public_mode() or demo_save_voice_order_to_rag):
+    if _should_save_voice_order_to_rag():
         asyncio.create_task(_save_voice_order_rag_doc(
             session_id, user_text, detected_lang, qa_provider, ai_response,
             cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild

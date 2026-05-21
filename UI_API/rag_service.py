@@ -576,21 +576,21 @@ def _retrieval_quality_gate(question: str, chunks: list[RagChunk]) -> dict:
 
     query_tokens = set(_tokenize(question))
     min_keyword_overlap = int(settings.get("min_keyword_overlap", 1))
-    max_overlap = max((len(query_tokens & set(_tokenize(chunk.content))) for chunk in chunks), default=0)
-
-    source_text = ",".join(str(chunk.source or "") for chunk in chunks[:3])
-    has_retrieval_source = any(
-        marker in source_text
-        for marker in ["vector", "keyword", "rerank"]
-    )
+    overlaps = [len(query_tokens & set(_tokenize(chunk.content))) for chunk in chunks]
+    max_overlap = max(overlaps, default=0)
 
     if max_overlap >= min_keyword_overlap:
-        return {"sufficient": True, "reason": "ok_keyword_overlap", "max_overlap": max_overlap}
+        return {
+            "sufficient": True,
+            "reason": "ok_keyword_overlap",
+            "max_overlap": max_overlap
+        }
 
-    if has_retrieval_source:
-        return {"sufficient": True, "reason": "ok_retrieval_source", "max_overlap": max_overlap}
-
-    return {"sufficient": False, "reason": "low_relevance", "max_overlap": max_overlap}
+    return {
+        "sufficient": False,
+        "reason": "needs_answerability_no_keyword_overlap",
+        "max_overlap": max_overlap
+    }
 
 def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
     if ai_services is None:
@@ -598,7 +598,11 @@ def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
         
     system_prompt = (
         "你是 RAG 答案驗證器。只判斷回答是否完全被 context 支持。\n"
-        "若回答中有 context 沒有的價格、政策、設定、活動、模型名稱、數字，grounded=false。\n"
+        "注意：verification context 可能包含「完整菜單白名單」與「RAG 補充內容」。\n"
+        "- 菜單白名單只能支持：餐點名稱、餐點 ID、價格、分類、製作時間、aliases。\n"
+        "- RAG 補充內容才支持：政策、活動、設定、操作規則、客服話術、後台規範。\n"
+        "若回答把菜單白名單不存在的政策、活動、折扣、系統設定說成事實，grounded=false。\n"
+        "若回答提到任何 context 沒有的數字、價格、模型名稱、門檻、活動日期、優惠內容，grounded=false。\n"
         "safe_answer 必須是繁體中文短句：「目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。」或只保留 context 支持的內容。\n"
         "輸出 JSON：\n"
         "{\n"
@@ -629,8 +633,11 @@ def is_context_sufficient(retrieval_details: dict) -> bool:
     if not retrieval_details:
         return False
     eval_ok = retrieval_details.get("evaluation", {}).get("sufficient", True)
-    gate_ok = retrieval_details.get("quality_gate", {}).get("sufficient", True)
-    return eval_ok and gate_ok
+    gate = retrieval_details.get("quality_gate", {})
+    gate_ok = gate.get("sufficient", True)
+    if gate.get("reason") == "needs_answerability_no_keyword_overlap":
+        return bool(eval_ok)
+    return bool(eval_ok and gate_ok)
 
 def get_status() -> dict:
     return {
@@ -638,8 +645,10 @@ def get_status() -> dict:
         "vector_meta": read_vector_meta(),
         "last_retrieval": get_last_retrieval(),
         "chunk_count": len(_chunk_cache) if _chunk_cache else 0,
-        "active_vector_db_dir": _active_vector_db_dir,
-        "rag_ready": bool(_chunk_cache and len(_chunk_cache) > 0)
+        "active_vector_db_dir": active_vector_db_dir(),
+        "rag_ready": bool(_rag_ready),
+        "embedding_provider": _embedding_provider,
+        "reranker_failed": _reranker_failed,
     }
 
 
@@ -687,9 +696,14 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
     quality_gate = _retrieval_quality_gate(query, compressed)
     evaluation = _evaluate_answerability(query, compressed)
     
-    if not quality_gate["sufficient"]:
-        evaluation["sufficient"] = False
-        evaluation["reason"] = quality_gate["reason"]
+    if quality_gate["sufficient"] is False:
+        if quality_gate.get("reason") == "needs_answerability_no_keyword_overlap":
+            if not evaluation.get("sufficient", False):
+                evaluation["sufficient"] = False
+                evaluation["reason"] = evaluation.get("reason") or quality_gate["reason"]
+        else:
+            evaluation["sufficient"] = False
+            evaluation["reason"] = quality_gate["reason"]
         
     context = format_context(compressed, evaluation)
     citations = [_citation_for(chunk) for chunk in compressed]
