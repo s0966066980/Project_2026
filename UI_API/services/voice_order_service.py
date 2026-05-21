@@ -151,7 +151,7 @@ async def handle_voice_ask(
         f"【顧客詢問】：{user_text}\n\n"
         f"{full_menu_context}\n\n"
         f"【RAG 補充內容】\n{rag_context}\n\n"
-        "重要限制：回答只能引用完整菜單白名單中的餐點、價格與資訊。\n"
+        "重要限制：請優先遵守【RAG 補充內容】與【RAG 全域規則】中的指示。若無衝突，回答只能引用完整菜單白名單中的餐點、價格與資訊。\n"
         f"{source_rule}"
         "如果顧客是在直接點餐，例如說「我要兩份炸雞」、「加一杯咖啡」，請在 JSON 加上 cart_actions。\n"
         "如果顧客表示很急、趕時間、要很快做好的餐點，請根據完整菜單白名單中的製作時間篩選較快完成的餐點。\n"
@@ -206,10 +206,13 @@ async def handle_voice_ask(
         user_speech=user_text, ai_response=ai_response,
         language=detected_lang
     )
-    asyncio.create_task(_save_voice_order_rag_doc(
-        session_id, user_text, detected_lang, qa_provider, ai_response,
-        cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
-    ))
+    save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
+    demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
+    if save_voice_order_to_rag and (not config.is_demo_public_mode() or demo_save_voice_order_to_rag):
+        asyncio.create_task(_save_voice_order_rag_doc(
+            session_id, user_text, detected_lang, qa_provider, ai_response,
+            cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
+        ))
 
     audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
     dialogue = {

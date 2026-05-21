@@ -163,6 +163,7 @@ UI_API/
 │   ├── recommendation.js
 │   ├── realtime_client.js
 │   ├── styles.css
+│   ├── ui.js
 │   ├── mcd_start.png
 │   ├── mcd_categories/
 │   └── menu_images/
@@ -334,24 +335,28 @@ ENABLE_NGROK=false
 
 若只需要公開客戶端 POS，可設定 `ENABLE_NGROK=true` 與 `NGROK_AUTHTOKEN`。系統只會替 POS port 建立 tunnel；Admin 仍建議使用獨立受控網址與 `ADMIN_DEMO_TOKEN`。`DEMO_PUBLIC_MODE=true` 時，ngrok 網域的 WebSocket Origin 會被允許，但 POS URL 仍建議帶 `?token=<POS_DEMO_TOKEN>`。
 
-HTML 專利腳本測試工具：
+專利腳本測試工具：
 
 ```text
-http://127.0.0.1:8000/demo-tool
+python3 tools/pos_interaction_demo_ui.py
+# 或開啟 http://127.0.0.1:8000/demo-tool
 ```
 
-此工具可送出操作困惑、付款失敗、優惠券錯誤、短片段 fallback 與 AI 主動推薦測試，並即時監聽 `/ws/demo/{session_id}`。
+此工具由 `tools/pos_interaction_demo_ui.py` 內嵌 HTML 產生，只保留專利 PoC 問題：操作困惑、付款卡關、優惠券卡關、客訴風險、短片段 fallback 與 AI 主動推薦，並即時監聽 `/ws/demo/{session_id}`。
 
 注意事項：
 
 - Admin 不建議無 token 公開；敏感 API 會要求 `X-Admin-Token` 或 URL `token`。
 - POS 必要 API 不要求 admin token，避免顧客點餐、語音、客服測試被阻斷。
 - WebSocket 在 public demo 會檢查 token、Origin 與 4096 字元訊息上限。
+- WebSocket query token 僅作為 demo 方案；反向代理與 ngrok access log 不應記錄 query string。正式版應改成短效 token 或連線後第一則 auth message。
+- 目前外網 demo 建議一次只開一組客戶測試，避免 Admin `global` room 收到不同 session 事件造成混雜。
+- 語音點餐紀錄預設不寫入 RAG，避免外網測試文字或個資污染知識庫。
 - 攝影機與麥克風需授權。事件觸發式多模態只在高風險事件擷取短片段，預設不長期保存原始影像。
 
 建議客戶測試情境：
 
-1. **操作困惑**：開 POS `?session_id=pos_demo_001`，用 `http://127.0.0.1:8000/demo-tool` 或 `tools/pos_interaction_demo_ui.py` 按「操作困惑」。預期 `barrier_state=operation_confusion`，`intervention.action=show_operation_hint`。
+1. **操作困惑**：開 POS `?session_id=pos_demo_001`，執行 `tools/pos_interaction_demo_ui.py` 或開 `/demo-tool`，按「問題 1：不會操作」。預期 `barrier_state=operation_confusion`，`intervention.action=show_operation_hint`。
 2. **語音點餐與問答**：在 POS 說「我要一個大麥克和一份薯條」、「我想吃雞肉，有什麼推薦？」、「我不要辣，有什麼可以點？」或「最快可以做好的餐點是什麼？」。預期只回覆菜單存在品項，直接點餐時回傳 `MCDxxx` cart actions。
 3. **主動推薦與 checkout 成效**：public demo 進入菜單頁後約 8 到 12 秒會先觸發一次 `auto_recommend`。推薦卡只顯示品名、價格與自然推薦語；checkout 後照常寫入推播成效。
 

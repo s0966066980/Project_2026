@@ -362,16 +362,24 @@ async def async_prepare_emotion_video(video_path: str) -> tuple[str, str | None]
     if not probe.get("valid") or not probe.get("has_video"):
         print(f"⚠️ Emotion-LLaMA 影片無效，略過推論: {probe.get('error') or 'no_video'}")
         return "", None
+    min_sec = float(config.get("EMOTION_LLAMA_MIN_VIDEO_SEC", 0.8))
+    duration_sec = float(probe.get("duration_sec") or 0)
+    if duration_sec and duration_sec < min_sec:
+        print(f"⚠️ Emotion-LLaMA 影片過短 ({duration_sec:.2f}s)，略過推論。")
+        return "", None
     fd, output_path = tempfile.mkstemp(suffix=".mp4")
     os.close(fd)
     max_sec = max(1, int(config.get("EMOTION_LLAMA_MAX_VIDEO_SEC", 12)))
     try:
         await _run_process(
             [
-                "ffmpeg", "-y", "-i", video_path, "-t", str(max_sec),
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-fflags", "+genpts", "-i", video_path, "-t", str(max_sec),
                 "-vf", "fps=8,scale=640:-2:force_original_aspect_ratio=decrease",
+                "-af", "aresample=async=1:first_pts=0,asetpts=N/SR/TB",
                 "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-ar", "16000", "-ac", "1",
+                "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
                 output_path
             ]
         )

@@ -1,5 +1,6 @@
-export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange }) {
+export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t }) {
   const cart = {};
+  const tx = (key, fallback = key) => (typeof t === 'function' ? t(key) : fallback);
 
   function addToCart(item) {
     cart[item.id] ? cart[item.id].quantity++ : (cart[item.id] = { ...item, quantity: 1 });
@@ -47,12 +48,12 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange 
       ui.cartList.innerHTML = `
         <div class="cart-empty">
           <div class="cart-bag"><i class="fas fa-shopping-bag"></i></div>
-          <h4 class="text-2xl font-extrabold mt-4" style="color:var(--text)">購物車是空的</h4>
-          <p class="text-base" style="color:var(--text2)">快去選擇喜愛的餐點吧！</p>
+          <h4 class="text-2xl font-extrabold mt-4" style="color:var(--text)">${escapeHTML(tx('cartEmptyTitle', '購物車是空的'))}</h4>
+          <p class="text-base" style="color:var(--text2)">${escapeHTML(tx('cartEmptySub', '快去選擇喜愛的餐點吧！'))}</p>
         </div>`;
       ui.checkoutBtn.disabled = true;
       ui.totalPrice.textContent = '$0';
-      ui.cartCountBadge.textContent = '共 0 項';
+      ui.cartCountBadge.textContent = tx('cartCount', '共 {count} 項').replace('{count}', '0');
       onCartChange?.(getCartItems());
       return;
     }
@@ -85,7 +86,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange 
         </div>`;
     });
     ui.totalPrice.textContent = `$${total}`;
-    ui.cartCountBadge.textContent = `共 ${qty} 項`;
+    ui.cartCountBadge.textContent = tx('cartCount', '共 {count} 項').replace('{count}', String(qty));
     onCartChange?.(getCartItems());
   }
 

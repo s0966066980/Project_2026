@@ -19,6 +19,7 @@ export const ui = {
   kioskCartBtn: document.getElementById('kioskCartBtn'),
   kioskBottomCount: document.getElementById('kioskBottomCount'),
   kioskBottomTotal: document.getElementById('kioskBottomTotal'),
+  kioskVoiceBtn: document.getElementById('kioskVoiceBtn'),
   continueOrderBtn: document.getElementById('continueOrderBtn'),
   clearCartBtn: document.getElementById('clearCartBtn'),
   startBtn: document.getElementById('startSystemBtn'),

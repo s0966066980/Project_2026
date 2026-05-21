@@ -1,5 +1,5 @@
-import * as api from './api.js?v=mediafix-20260520';
-import { API_BASE } from './api.js?v=mediafix-20260520';
+import * as api from './api.js?v=uifix-20260521';
+import { API_BASE } from './api.js?v=uifix-20260521';
 import {
   ui,
   escapeHTML,
@@ -7,22 +7,22 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=mediafix-20260520';
+} from './ui.js?v=uifix-20260521';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=mediafix-20260520';
-import { createCartManager } from './cart.js?v=mediafix-20260520';
-import { createRecommendationManager } from './recommendation.js?v=mediafix-20260520';
-import { connectRealtime } from './realtime_client.js?v=mediafix-20260520';
+} from './media.js?v=uifix-20260521';
+import { createCartManager } from './cart.js?v=uifix-20260521';
+import { createRecommendationManager } from './recommendation.js?v=uifix-20260521';
+import { connectRealtime } from './realtime_client.js?v=uifix-20260521';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js?v=mediafix-20260520';
+} from './media_buffer.js?v=uifix-20260521';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -83,6 +83,7 @@ let adminRealtime = null;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
+let kioskLang = localStorage.getItem('kiosk_lang') === 'en' ? 'en' : 'zh';
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -96,13 +97,160 @@ const interactionState = {
 };
 
 const KIOSK_GROUPS = [
-  { id: 'recommended', label: '推薦套餐', image: '/static/mcd_categories/recommended.jpg', categories: ['極選系列'] },
-  { id: 'value', label: '超值全餐', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
-  { id: 'single', label: '單點餐品', image: '/static/mcd_categories/single.jpg', categories: ['點心', '早餐'] },
-  { id: 'drinks', label: '飲料甜點', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
-  { id: 'kids', label: '兒童餐', image: '/static/mcd_categories/kids.jpg', categories: ['早餐', '點心'] },
-  { id: 'deals', label: '最新優惠', image: '/static/mcd_categories/deals.jpg', categories: [] },
+  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['極選系列'] },
+  { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
+  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/single.jpg', categories: ['點心', '早餐'] },
+  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
+  { id: 'kids', label: '兒童餐', labelEn: 'Happy Meals', image: '/static/mcd_categories/kids.jpg', categories: ['早餐', '點心'] },
+  { id: 'deals', label: '最新優惠', labelEn: 'Deals', image: '/static/mcd_categories/deals.jpg', categories: [] },
 ];
+
+const KIOSK_TEXT = {
+  zh: {
+    chooseCategory: '請選擇餐點類別',
+    chooseCategorySub: '選擇分類後開始點餐',
+    addHint: '點選加號加入購物車',
+    searchFilter: '搜尋<br>篩選',
+    home: '回首頁',
+    emptyCategory: '此分類目前沒有可顯示餐點',
+    addToCart: '加入購物車',
+    checkoutGo: '結帳去',
+    continueOrder: '繼續點餐',
+    clearCart: '清空購物車',
+    yourCart: '您的購物車',
+    fastPayKicker: '點點卡、信用卡、掃碼支付',
+    fastPayTitle: '在此快速結帳',
+    counterPay: '至櫃檯排隊付款',
+    backCart: '回購物車',
+    cancelOrder: '取消整單訂單',
+    paymentTitle: '請選擇付款方式',
+    menuFallback: '目前沒有選擇任何餐點。',
+    langButton: '中文',
+    friendlyMode: '友善模式',
+    total: '總計',
+    subtotal: '小計',
+    secureCheckout: '安全交易 · 安心結帳',
+    checkoutDone: '點餐完成！',
+    thankYou: '感謝您的使用 · Thank you',
+    cartCount: '共 {count} 項',
+    cartEmptyTitle: '購物車是空的',
+    cartEmptySub: '快去選擇喜愛的餐點吧！',
+    holdVoiceOrder: '長按語音點餐',
+    voiceAskHint: '語音發問開啟後可詢問 AI 助理',
+    listeningAsk: '聆聽發問中...',
+    listeningOrder: '聆聽點餐中...',
+    aiThinking: 'AI 思考中...',
+    recognizingOrder: '辨識餐點中...',
+    serviceTitle: '通知客服人員',
+    serviceSub: '確認後開始收音並分析語系與情緒',
+    serviceRecordStart: '開始收音',
+    serviceRecordStop: '停止並送出',
+    serviceWaiting: '等待客服請求。',
+    serviceRecording: '正在收音，停止後會通知客服並分析語系與情緒。',
+    serviceTooShort: '收音時間過短，請重新操作。',
+    languageZh: '繁體中文',
+    languageEn: 'English',
+    emotion: '情緒',
+    priority: '優先級',
+    customer: '顧客',
+    serviceReply: '客服回覆',
+    serviceAccepted: '已立即通知客服；語音文字與情緒證據會在背景完成後更新到客服紀錄。',
+    addedToCart: '已加入購物車：{items}',
+    noVoiceOrderItem: '沒有在菜單中找到可加入購物車的餐點。',
+    networkFailed: '網路連線失敗，請稍後再試。',
+    voiceOrderFailed: '語音點餐失敗，請稍後再試。',
+    zhOutput: '繁體中文輸出',
+    enOutput: 'English output',
+    checkoutProcessing: '結帳中...',
+    counterPayCreating: '建立櫃檯付款單...',
+    counterPayDone: '請至櫃檯付款',
+    filters: {
+      '全部': '全部',
+      '牛肉系列': '牛肉系列',
+      '雞肉系列': '雞肉系列',
+      '魚肉系列': '魚肉系列',
+      '點心飲料': '點心飲料',
+    },
+  },
+  en: {
+    chooseCategory: 'Choose a Category',
+    chooseCategorySub: 'Select a category to start ordering',
+    addHint: 'Tap plus to add to cart',
+    searchFilter: 'Search<br>Filter',
+    home: 'Home',
+    emptyCategory: 'No items in this category',
+    addToCart: 'Add to Cart',
+    checkoutGo: 'Checkout',
+    continueOrder: 'Continue Ordering',
+    clearCart: 'Clear Cart',
+    yourCart: 'Your Cart',
+    fastPayKicker: 'Card, credit card, QR payment',
+    fastPayTitle: 'Quick Checkout Here',
+    counterPay: 'Pay at Counter',
+    backCart: 'Back to Cart',
+    cancelOrder: 'Cancel Order',
+    paymentTitle: 'Choose Payment Method',
+    menuFallback: 'No items selected.',
+    langButton: 'EN',
+    friendlyMode: 'Accessibility Mode',
+    total: 'Total',
+    subtotal: 'Subtotal',
+    secureCheckout: 'Secure Checkout',
+    checkoutDone: 'Order Complete!',
+    thankYou: 'Thank you',
+    cartCount: '{count} items',
+    cartEmptyTitle: 'Your cart is empty',
+    cartEmptySub: 'Choose your favorite meal to begin.',
+    holdVoiceOrder: 'Hold to Order',
+    voiceAskHint: 'Enable voice Q&A to ask the AI assistant',
+    listeningAsk: 'Listening...',
+    listeningOrder: 'Listening for order...',
+    aiThinking: 'AI is thinking...',
+    recognizingOrder: 'Recognizing order...',
+    serviceTitle: 'Call Staff',
+    serviceSub: 'Record voice for language and emotion analysis',
+    serviceRecordStart: 'Start Recording',
+    serviceRecordStop: 'Stop and Send',
+    serviceWaiting: 'Waiting for service request.',
+    serviceRecording: 'Recording. Stop to notify staff and analyze.',
+    serviceTooShort: 'Recording is too short. Please try again.',
+    languageZh: 'Traditional Chinese',
+    languageEn: 'English',
+    emotion: 'Emotion',
+    priority: 'Priority',
+    customer: 'Customer',
+    serviceReply: 'Service Reply',
+    serviceAccepted: 'Staff has been notified. Voice text and emotion evidence will update in the background.',
+    addedToCart: 'Added to cart: {items}',
+    noVoiceOrderItem: 'No matching menu item was found.',
+    networkFailed: 'Network failed. Please try again later.',
+    voiceOrderFailed: 'Voice ordering failed. Please try again later.',
+    zhOutput: 'Traditional Chinese output',
+    enOutput: 'English output',
+    checkoutProcessing: 'Checking out...',
+    counterPayCreating: 'Creating counter payment...',
+    counterPayDone: 'Please pay at the counter',
+    filters: {
+      '全部': 'All',
+      '牛肉系列': 'Beef',
+      '雞肉系列': 'Chicken',
+      '魚肉系列': 'Fish',
+      '點心飲料': 'Snacks & Drinks',
+    },
+  },
+};
+
+function kt(key) {
+  return KIOSK_TEXT[kioskLang]?.[key] || KIOSK_TEXT.zh[key] || key;
+}
+
+function kFilterLabel(filter) {
+  return KIOSK_TEXT[kioskLang]?.filters?.[filter] || filter;
+}
+
+function groupLabel(group) {
+  return kioskLang === 'en' ? (group.labelEn || group.label) : group.label;
+}
 let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
@@ -139,7 +287,8 @@ function isDemoPublicMode() {
 
 async function loadRuntimeSettings() {
   try {
-    runtimeSettings = { ...runtimeSettings, ...await api.getSettings() };
+    const settings = isAdminMode() ? await api.getSettings() : await api.getPublicSettings();
+    runtimeSettings = { ...runtimeSettings, ...settings };
   } catch { }
 }
 
@@ -156,7 +305,6 @@ function restartLoops() {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
     if (getFeatures().emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
-    startDetectionLoop();
     startRecommendLoop();
   }
 }
@@ -250,28 +398,36 @@ function zhInteractionLabel(type, value) {
 
 function getFeatures() {
   try {
+    const versionMatches = localStorage.getItem('kiosk_feat_version') === FEATURE_SCHEMA_VERSION;
+    const hasSavedFeatures = Boolean(localStorage.getItem('kiosk_feat'));
     const saved = JSON.parse(localStorage.getItem('kiosk_feat') || '{}');
     const features = { ...FEAT_DEFAULTS, ...saved };
-    if (localStorage.getItem('kiosk_feat_version') !== FEATURE_SCHEMA_VERSION) {
+    const shouldApplyDemoDefaults = isDemoPublicMode() && (!hasSavedFeatures || !versionMatches);
+    if (!versionMatches || shouldApplyDemoDefaults) {
       features.emotionBackend = false;
+      if (shouldApplyDemoDefaults) {
+        features.voiceAsk = true;
+        features.recommend = true;
+        features.emotionBackend = false;
+        features.emotionCamera = false;
+        features.eventTriggeredMultimodal = true;
+      }
       localStorage.setItem('kiosk_feat', JSON.stringify(features));
       localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
     }
-    return applyDemoFeatureDefaults(features);
+    return features;
   }
-  catch { return applyDemoFeatureDefaults({ ...FEAT_DEFAULTS }); }
-}
-
-function applyDemoFeatureDefaults(features) {
-  if (!isDemoPublicMode()) return features;
-  return {
-    ...features,
-    voiceAsk: true,
-    recommend: true,
-    emotionBackend: false,
-    emotionCamera: false,
-    eventTriggeredMultimodal: true,
-  };
+  catch {
+    const features = { ...FEAT_DEFAULTS };
+    if (isDemoPublicMode()) {
+      features.voiceAsk = true;
+      features.recommend = true;
+      features.emotionBackend = false;
+      features.emotionCamera = false;
+      features.eventTriggeredMultimodal = true;
+    }
+    return features;
+  }
 }
 function saveFeatures(f) {
   localStorage.setItem('kiosk_feat', JSON.stringify(f));
@@ -292,9 +448,9 @@ function toggleFeature(key, el) {
   if (key === 'voiceAsk' && !f.voiceAsk && askRecorder?.state === 'recording') askRecorder.stop();
   if (key === 'emotionBackend' && !f.emotionBackend) stopEmotionLoop();
   applyFeaturesToPOS();
-  if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend' || key === 'emotionCamera')) {
+  if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend')) {
     ensureMediaTracks({
-      video: f.emotionBackend || f.emotionCamera || isEventTriggeredMultimodalEnabled(),
+      video: f.emotionBackend || isEventTriggeredMultimodalEnabled(),
       audio: true
     }).then(ok => {
       if (ok) setupAskRecorder();
@@ -302,7 +458,6 @@ function toggleFeature(key, el) {
         updateEmotionCameraPanel();
         maybeStartRollingMediaBuffer();
         if (key === 'emotionBackend' && f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
-        if (key === 'emotionCamera' && f.emotionCamera) startDetectionLoop();
       }
     });
   }
@@ -332,6 +487,8 @@ function applyFeaturesToPOS() {
   if (!f.emotionCamera && detectionLoopId) {
     clearInterval(detectionLoopId);
     detectionLoopId = null;
+  } else if (f.emotionCamera && !detectionLoopId) {
+    startDetectionLoop();
   }
   updateEmotionCameraPanel();
 }
@@ -394,7 +551,7 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary });
+const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt });
 
 function trackedAddToCart(item, metadata = {}) {
   cartManager.addToCart(item);
@@ -469,12 +626,14 @@ function renderMenu() {
 
 function renderKioskCategories() {
   kioskScreen = 'categories';
+  document.getElementById('view-pos')?.classList.remove('kiosk-screen-menu');
+  document.getElementById('view-pos')?.classList.add('kiosk-screen-categories');
   kioskActiveGroup = '';
   kioskActiveFilter = '全部';
   ui.menuGrid.innerHTML = '';
   ui.menuGrid.className = 'kiosk-category-grid';
   if (ui.kioskTitle) ui.kioskTitle.textContent = '';
-  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = '選擇分類後開始點餐';
+  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('chooseCategorySub');
   document.getElementById('kioskLogo')?.classList.remove('hidden');
   document.getElementById('kioskLangBtn')?.classList.remove('hidden');
   ui.serviceFab?.classList.remove('hidden');
@@ -484,7 +643,7 @@ function renderKioskCategories() {
 
   const heading = document.createElement('div');
   heading.className = 'kiosk-category-heading';
-  heading.textContent = '請選擇餐點類別';
+  heading.textContent = kt('chooseCategory');
   ui.menuGrid.appendChild(heading);
 
   KIOSK_GROUPS.forEach(group => {
@@ -493,8 +652,8 @@ function renderKioskCategories() {
     card.type = 'button';
     card.onclick = () => showMenuGroup(group.id);
     card.innerHTML = `
-      <img src="${group.image}" alt="${escapeHTML(group.label)}" onerror="this.style.display='none'">
-      <strong>${escapeHTML(group.label)}</strong>`;
+      <img src="${group.image}" alt="${escapeHTML(groupLabel(group))}" onerror="this.style.display='none'">
+      <strong>${escapeHTML(groupLabel(group))}</strong>`;
     ui.menuGrid.appendChild(card);
   });
   updateKioskCartSummary();
@@ -531,13 +690,15 @@ function subFiltersForGroup(groupId) {
 }
 
 function renderKioskMenuItems() {
+  document.getElementById('view-pos')?.classList.remove('kiosk-screen-categories');
+  document.getElementById('view-pos')?.classList.add('kiosk-screen-menu');
   const group = KIOSK_GROUPS.find(g => g.id === kioskActiveGroup) || KIOSK_GROUPS[1];
   const filters = subFiltersForGroup(group.id);
   const items = groupItems(group.id).filter(item => itemMatchesSubFilter(item, kioskActiveFilter));
   ui.menuGrid.innerHTML = '';
   ui.menuGrid.className = 'kiosk-menu-list';
-  if (ui.kioskTitle) ui.kioskTitle.textContent = group.label;
-  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = '點選加號加入購物車';
+  if (ui.kioskTitle) ui.kioskTitle.textContent = groupLabel(group);
+  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('addHint');
   document.getElementById('kioskLogo')?.classList.add('hidden');
   document.getElementById('kioskLangBtn')?.classList.add('hidden');
   ui.serviceFab?.classList.add('hidden');
@@ -549,7 +710,7 @@ function renderKioskMenuItems() {
   tabs.className = 'kiosk-menu-tabs';
   tabs.innerHTML = filters.map(filter => `
     <button type="button" class="${filter === kioskActiveFilter ? 'active' : ''}" data-filter="${escapeHTML(filter)}">
-      ${escapeHTML(filter)}
+      ${escapeHTML(kFilterLabel(filter))}
     </button>`).join('');
   tabs.querySelectorAll('button').forEach(button => {
     button.addEventListener('click', () => showMenuGroup(group.id, button.dataset.filter || '全部'));
@@ -559,7 +720,7 @@ function renderKioskMenuItems() {
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'kiosk-empty-menu';
-    empty.textContent = '此分類目前沒有可顯示餐點';
+    empty.textContent = kt('emptyCategory');
     ui.menuGrid.appendChild(empty);
     return;
   }
@@ -578,7 +739,7 @@ function renderKioskMenuItems() {
         <h3>${escapeHTML(item.name)}</h3>
         <strong>$${escapeHTML(item.price)}</strong>
       </div>
-      <button class="kiosk-add-btn" type="button" aria-label="加入購物車"><i class="fas fa-plus"></i></button>`;
+      <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(kt('addToCart'))}"><i class="fas fa-plus"></i></button>`;
     row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
       event.stopPropagation();
       trackedAddToCart(item, { source: 'menu_card' });
@@ -598,8 +759,80 @@ function updateKioskCartSummary() {
   if (ui.checkoutBtn) {
     ui.checkoutBtn.disabled = qty <= 0;
     const label = ui.checkoutBtn.querySelector('span');
-    if (label) label.textContent = `結帳去 $${total}`;
+    if (label) label.textContent = `${kt('checkoutGo')} $${total}`;
   }
+}
+
+function applyKioskLanguage() {
+  const startupLangText = document.querySelector('#startupLangBtn span');
+  if (startupLangText) startupLangText.textContent = kt('langButton');
+  const langText = document.querySelector('#kioskLangBtn span');
+  if (langText) langText.textContent = kt('langButton');
+  if (ui.startBtn) ui.startBtn.textContent = kioskLang === 'en' ? 'Start Order' : '開始點餐';
+  if (ui.kioskSearchBtn) {
+    const span = ui.kioskSearchBtn.querySelector('span');
+    if (span) span.innerHTML = kt('searchFilter');
+  }
+  if (ui.kioskHomeBtn) {
+    const span = ui.kioskHomeBtn.querySelector('span');
+    if (span) span.textContent = kt('home');
+  }
+  if (ui.continueOrderBtn) ui.continueOrderBtn.textContent = kt('continueOrder');
+  if (ui.clearCartBtn) ui.clearCartBtn.innerHTML = `<i class="fas fa-trash-alt"></i> ${escapeHTML(kt('clearCart'))}`;
+  const cartHeading = document.querySelector('.cart-shell.kiosk-cart-open h3') || document.querySelector('.cart-shell h3');
+  if (cartHeading) cartHeading.textContent = kt('yourCart');
+  const checkoutLabel = ui.checkoutBtn?.querySelector('span');
+  if (checkoutLabel) checkoutLabel.textContent = `${kt('checkoutGo')} ${ui.totalPrice?.textContent || '$0'}`;
+  const fastPayKicker = document.querySelector('.kiosk-payment-kicker');
+  if (fastPayKicker) fastPayKicker.textContent = kt('fastPayKicker');
+  const fastPayTitle = ui.kioskFastPayBtn?.querySelector('strong');
+  if (fastPayTitle) fastPayTitle.textContent = kt('fastPayTitle');
+  if (ui.kioskCounterPayBtn) ui.kioskCounterPayBtn.textContent = kt('counterPay');
+  if (ui.kioskPaymentBackBtn) ui.kioskPaymentBackBtn.textContent = kt('backCart');
+  if (ui.kioskCancelOrderBtn) ui.kioskCancelOrderBtn.textContent = kt('cancelOrder');
+  const friendlyBtn = document.querySelector('.kiosk-payment-footer button:nth-child(2)');
+  if (friendlyBtn) friendlyBtn.textContent = kt('friendlyMode');
+  const paymentTitle = document.querySelector('.kiosk-payment-inner h1');
+  if (paymentTitle) paymentTitle.textContent = kt('paymentTitle');
+  const totalLabels = document.querySelectorAll('.cart-card .font-semibold.text-lg, .order-summary-total .grand span');
+  totalLabels.forEach(el => { el.textContent = kt('total'); });
+  const subtotalLabel = document.querySelector('.order-summary-total div:first-child span');
+  if (subtotalLabel) subtotalLabel.textContent = kt('subtotal');
+  const secureNotes = document.querySelectorAll('.order-secure-note, .cart-card.p-7 > p');
+  secureNotes.forEach(el => {
+    const icon = el.querySelector('i')?.outerHTML || '';
+    el.innerHTML = `${icon}${escapeHTML(kt('secureCheckout'))}`;
+  });
+  const checkoutDoneTitle = document.querySelector('#checkoutOverlay h1');
+  if (checkoutDoneTitle) checkoutDoneTitle.textContent = kt('checkoutDone');
+  const checkoutDoneSub = document.querySelector('#checkoutOverlay p');
+  if (checkoutDoneSub) checkoutDoneSub.textContent = kt('thankYou');
+  if (ui.askText) ui.askText.textContent = kt('holdVoiceOrder');
+  const askHint = document.querySelector('#askBtnText + span');
+  if (askHint) askHint.textContent = kt('voiceAskHint');
+  const serviceTitle = document.querySelector('#posServiceWindow .font-bold.text-sm');
+  if (serviceTitle) serviceTitle.textContent = kt('serviceTitle');
+  const serviceSub = document.querySelector('#posServiceWindow .text-xs');
+  if (serviceSub) serviceSub.textContent = kt('serviceSub');
+  if (ui.serviceRecordText && !ui.serviceRecord?.classList.contains('recording')) {
+    ui.serviceRecordText.textContent = kt('serviceRecordStart');
+  }
+  if (ui.serviceResult && !ui.serviceResult.dataset.hasResponse) {
+    ui.serviceResult.textContent = kt('serviceWaiting');
+  }
+  if (ui.cartCountBadge) {
+    const qty = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
+    ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(qty));
+  }
+}
+
+function setKioskLanguage(lang) {
+  kioskLang = lang === 'en' ? 'en' : 'zh';
+  localStorage.setItem('kiosk_lang', kioskLang);
+  applyKioskLanguage();
+  renderMenu();
+  cartManager.renderCart();
+  updateKioskCartSummary();
 }
 
 function showCartScreen() {
@@ -1034,7 +1267,7 @@ function getMenuVisual(item) {
     '點心': { tag: '單點餐品', icon: 'fas fa-cookie-bite', emoji: '🍟' },
   };
   const fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
-  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_${id}.png` : '') };
+  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : '') };
 }
 
 // =========================================================
@@ -1069,7 +1302,7 @@ ui.startBtn.onclick = async () => {
   try {
     await loadRuntimeSettings();
     const f = getFeatures();
-    const needVideo = f.emotionBackend || f.emotionCamera || isEventTriggeredMultimodalEnabled();
+    const needVideo = f.emotionBackend || isEventTriggeredMultimodalEnabled();
     const needAudio = true;
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
@@ -1084,21 +1317,28 @@ ui.startBtn.onclick = async () => {
     setInteractionPage('menu_page', { source: 'start_system' });
     maybeStartRollingMediaBuffer();
     if (f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
-    startDetectionLoop();
     startRecommendLoop();
     setupAskRecorder();
   } catch { alert("無法存取攝影機與麥克風。"); }
 };
 
+document.getElementById('kioskLangBtn')?.addEventListener('click', () => {
+  setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
+});
+document.getElementById('startupLangBtn')?.addEventListener('click', () => {
+  setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
+});
+
 function startDetectionLoop() {
-  if (isAdminMode()) return;
   if (detectionLoopId) return;
   detectionLoopId = setInterval(captureDetectionFrame, Math.max(250, Number(perfValue('YOLO_FRAME_INTERVAL_MS')) || 650));
 }
 
 function captureDetectionFrame() {
   const f = getFeatures();
-  if (!isPosActive() || !f.emotionCamera) return;
+  if (!f.emotionCamera) return;
+  const panelVisible = ui.emotionCameraPanel && !ui.emotionCameraPanel.classList.contains('hidden');
+  if (!isPosActive() && !panelVisible) return;
   if (document.hidden || detectionInFlight) return;
   const video = ui.emotionCameraVideo || ui.webcam;
   detectionInFlight = true;
@@ -1278,13 +1518,13 @@ function showVoiceBubble(data) {
   ui.voiceDialogueGrid.innerHTML = `
     <div class="dialogue-lane active">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-xs font-bold" style="color:var(--accent2)">${lang === 'en' ? 'English' : '繁體中文'}</span>
+        <span class="text-xs font-bold" style="color:var(--accent2)">${escapeHTML(lang === 'en' ? kt('languageEn') : kt('languageZh'))}</span>
         <i class="fas fa-volume-up text-xs" style="color:var(--accent2)"></i>
       </div>
       <p class="text-xs mb-1 truncate" style="color:var(--text2)">${escapeHTML(d.user_text || data.user_text || '-')}</p>
       <p class="text-sm font-medium leading-snug" style="color:var(--text)">${escapeHTML(d.ai_response || data.ai_response || '-')}</p>
     </div>`;
-  ui.voiceLangBadge.textContent = lang === 'en' ? 'English output' : '繁體中文輸出';
+  ui.voiceLangBadge.textContent = lang === 'en' ? kt('enOutput') : kt('zhOutput');
   ui.voiceBubble.style.display = 'block';
   if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
   voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
@@ -1307,12 +1547,12 @@ function setupAskRecorder() {
         button_id: 'askBtn',
         metadata: { reason: 'audio_too_short' }
       });
-      ui.askText.textContent = "長按語音點餐";
+      ui.askText.textContent = kt('holdVoiceOrder');
       return;
     }
 
     const voiceAskEnabled = getFeatures().voiceAsk;
-    ui.askText.textContent = voiceAskEnabled ? "AI 思考中..." : "辨識餐點中...";
+    ui.askText.textContent = voiceAskEnabled ? kt('aiThinking') : kt('recognizingOrder');
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('audio', blob);
@@ -1334,9 +1574,9 @@ function setupAskRecorder() {
             cart_edit_count: appliedOrders.length,
             metadata: { source: 'voice_order', items: appliedOrders }
           });
-          showPushNotice(`已加入購物車：${appliedOrders.join('、')}`);
+          showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         } else if (!voiceAskEnabled) {
-          showPushNotice(data.ai_response || '沒有在菜單中找到可加入購物車的餐點。');
+          showPushNotice(data.ai_response || kt('noVoiceOrderItem'));
         }
 
         if (voiceAskEnabled && data.trigger_recommend && getFeatures().recommend) {
@@ -1357,36 +1597,54 @@ function setupAskRecorder() {
       if (getFeatures().voiceAsk) {
         showVoiceBubble({
           detected_lang: 'zh',
-          dialogue: { zh: { user_text: '', ai_response: '網路連線失敗，請稍後再試。' } }
+          dialogue: { zh: { user_text: '', ai_response: kt('networkFailed') } }
         });
       } else {
-        showPushNotice('語音點餐失敗，請稍後再試。');
+        showPushNotice(kt('voiceOrderFailed'));
       }
     }
-    ui.askText.textContent = "長按語音點餐";
+    ui.askText.textContent = kt('holdVoiceOrder');
   };
 }
 
-ui.askBtn.onmousedown = ui.askBtn.ontouchstart = (e) => {
-  e.preventDefault();
+function startAskRecording(sourceBtn) {
   if (askRecorder && askRecorder.state === 'inactive') {
     trackInteractionEvent({
       event_type: getFeatures().voiceAsk ? 'voice_ask_started' : 'voice_order_started',
-      button_id: 'askBtn',
+      button_id: sourceBtn?.id || 'askBtn',
       metadata: { voice_ask_enabled: getFeatures().voiceAsk }
     });
     askRecorder.start();
     ui.askBtn.classList.add('recording');
-    ui.askText.textContent = getFeatures().voiceAsk ? "聆聽發問中..." : "聆聽點餐中...";
+    ui.kioskVoiceBtn?.classList.add('recording');
+    ui.askText.textContent = getFeatures().voiceAsk ? kt('listeningAsk') : kt('listeningOrder');
   }
-};
-ui.askBtn.onmouseup = ui.askBtn.ontouchend = (e) => {
-  e.preventDefault();
+}
+function stopAskRecording() {
   if (askRecorder && askRecorder.state === 'recording') {
     askRecorder.stop();
     ui.askBtn.classList.remove('recording');
+    ui.kioskVoiceBtn?.classList.remove('recording');
   }
+}
+ui.askBtn.onmousedown = ui.askBtn.ontouchstart = (e) => {
+  e.preventDefault();
+  startAskRecording(ui.askBtn);
 };
+ui.askBtn.onmouseup = ui.askBtn.ontouchend = (e) => {
+  e.preventDefault();
+  stopAskRecording();
+};
+if (ui.kioskVoiceBtn) {
+  ui.kioskVoiceBtn.onmousedown = ui.kioskVoiceBtn.ontouchstart = (e) => {
+    e.preventDefault();
+    startAskRecording(ui.kioskVoiceBtn);
+  };
+  ui.kioskVoiceBtn.onmouseup = ui.kioskVoiceBtn.ontouchend = (e) => {
+    e.preventDefault();
+    stopAskRecording();
+  };
+}
 
 window.addEventListener('beforeunload', () => {
   try {
@@ -1412,30 +1670,32 @@ function playVoice(b64) {
 // =========================================================
 function setServiceResult(html) {
   ui.serviceResult.innerHTML = html;
+  ui.serviceResult.dataset.hasResponse = html && html !== kt('serviceWaiting') ? '1' : '';
 }
 
 function renderServiceResponse(targetEl, data) {
-  const langLabel = data.detected_lang === 'en' ? 'English' : '繁體中文';
+  const langLabel = data.detected_lang === 'en' ? kt('languageEn') : kt('languageZh');
   const acceptedNote = data.accepted
-    ? '<p class="text-xs mb-2 font-semibold" style="color:var(--accent2)">已立即通知客服；語音文字與情緒證據會在背景完成後更新到客服紀錄。</p>'
+    ? `<p class="text-xs mb-2 font-semibold" style="color:var(--accent2)">${escapeHTML(kt('serviceAccepted'))}</p>`
     : '';
   targetEl.innerHTML = `
     <div class="flex flex-wrap gap-2 mb-3">
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">語系 ${escapeHTML(langLabel)}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">情緒 ${escapeHTML(formatEmotion(data.emotion || '-'))}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">優先級 ${escapeHTML(data.priority || '-')}</span>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(langLabel)}</span>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(kt('emotion'))} ${escapeHTML(formatEmotion(data.emotion || '-'))}</span>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(kt('priority'))} ${escapeHTML(data.priority || '-')}</span>
     </div>
     ${acceptedNote}
-    <p class="text-xs mb-1" style="color:var(--text2)">顧客</p>
+    <p class="text-xs mb-1" style="color:var(--text2)">${escapeHTML(kt('customer'))}</p>
     <p class="mb-2 font-medium" style="color:var(--text)">${escapeHTML(data.user_text || data.staff_summary || '')}</p>
-    <p class="text-xs mb-1" style="color:var(--text2)">客服回覆</p>
+    <p class="text-xs mb-1" style="color:var(--text2)">${escapeHTML(kt('serviceReply'))}</p>
     <p class="font-semibold" style="color:var(--text)">${escapeHTML(data.customer_reply || '')}</p>
   `;
+  targetEl.dataset.hasResponse = '1';
 }
 
 function resetServiceButton() {
   ui.serviceRecord.classList.remove('recording');
-  ui.serviceRecordText.textContent = '開始收音';
+  ui.serviceRecordText.textContent = kt('serviceRecordStart');
 }
 
 async function startServiceRecording() {
@@ -1447,8 +1707,8 @@ async function startServiceRecording() {
   serviceRecorder.onstop = submitServiceRecording;
   serviceRecorder.start();
   ui.serviceRecord.classList.add('recording');
-  ui.serviceRecordText.textContent = '停止並送出';
-  setServiceResult('正在收音，停止後會通知客服並分析語系與情緒。');
+  ui.serviceRecordText.textContent = kt('serviceRecordStop');
+  setServiceResult(kt('serviceRecording'));
 }
 
 function stopServiceRecording() {
@@ -1465,7 +1725,7 @@ async function submitServiceRecording() {
       button_id: 'posServiceRecord',
       metadata: { reason: 'media_too_short' }
     });
-    setServiceResult('收音時間過短，請重新操作。');
+    setServiceResult(kt('serviceTooShort'));
     return;
   }
 
@@ -1682,7 +1942,7 @@ function renderOrderConfirm() {
     ui.confirmOrderList.innerHTML = `
       <div class="order-empty">
         <i class="fas fa-shopping-bag"></i>
-        <p>目前沒有選擇任何餐點。</p>
+        <p>${escapeHTML(kt('menuFallback'))}</p>
       </div>`;
     return;
   }
@@ -1769,7 +2029,7 @@ async function finishOrder(cartIds, button, loadingText, doneTitle) {
   if (button) button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${loadingText}`;
   await writeCheckoutLog(cartIds);
   if (button) button.innerHTML = originalHTML;
-  showCompletionOverlay(doneTitle, '感謝您的使用 · Thank you');
+  showCompletionOverlay(doneTitle, kt('thankYou'));
 }
 
 function openOrderConfirmModal() {
@@ -1800,10 +2060,18 @@ ui.kioskBackBtn?.addEventListener('click', () => {
 ui.kioskHomeBtn?.addEventListener('click', () => {
   hideCartScreen();
   hidePaymentScreen();
-  renderKioskCategories();
+  if (orderCompleted) return;
+  isSystemRunning = false;
+  orderCompleted = false;
+  clearPOSFloatingUI();
+  cartManager.clearCart();
+  ui.overlay.classList.remove('hidden');
+  ui.overlay.style.opacity = '1';
+  kioskScreen = 'categories';
+  setInteractionPage('startup', { source: 'home_button' });
 });
 ui.kioskCartBtn?.addEventListener('click', () => {
-  if (cartManager.getCartIds().length) showCartScreen();
+  showCartScreen();
 });
 ui.continueOrderBtn?.addEventListener('click', () => {
   hideCartScreen();
@@ -1833,7 +2101,7 @@ ui.kioskFastPayBtn?.addEventListener('click', () => {
     button_id: 'kioskFastPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskFastPayBtn, '結帳中...', '點餐完成！');
+  finishOrder(cartIds, ui.kioskFastPayBtn, kt('checkoutProcessing'), kt('checkoutDone'));
 });
 ui.kioskCounterPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -1845,7 +2113,7 @@ ui.kioskCounterPayBtn?.addEventListener('click', () => {
     button_id: 'kioskCounterPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskCounterPayBtn, '建立櫃檯付款單...', '請至櫃檯付款');
+  finishOrder(cartIds, ui.kioskCounterPayBtn, kt('counterPayCreating'), kt('counterPayDone'));
 });
 
 function leaveOrderConfirm(buttonId) {
@@ -1887,7 +2155,7 @@ ui.confirmPayBtn?.addEventListener('click', () => {
     button_id: 'confirmPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.confirmPayBtn, '結帳中...', '點餐完成！');
+  finishOrder(cartIds, ui.confirmPayBtn, kt('checkoutProcessing'), kt('checkoutDone'));
 });
 
 // =========================================================
@@ -2103,7 +2371,8 @@ async function loadEmotionClips() {
     [...clips].reverse().forEach((clip, idx) => {
       const item = document.createElement('div');
       item.className = 'emotion-clip-item';
-      const url = clip.url ? `${API_BASE}${clip.url}` : '';
+      const suffix = clip.url && clip.url.includes('?') ? api.adminQuerySuffix('&') : api.adminQuerySuffix();
+      const url = clip.url ? `${API_BASE}${clip.url}${suffix}` : '';
       const personLabel = clip.person_detected ? '偵測到人物' : '未偵測到人物';
       const hitCount = clip.person_hits ?? clip.face_hits ?? 0;
       const signals = clip.media_signals || {};
@@ -2363,7 +2632,8 @@ async function loadCustomerServiceData(options = {}) {
       const timeText = log.timestamp
         ? new Date(Number(log.timestamp) * 1000).toLocaleString()
         : '-';
-      const mediaSrc = log.media_url ? `${API_BASE}${log.media_url}` : '';
+      const suffix = log.media_url && log.media_url.includes('?') ? api.adminQuerySuffix('&') : api.adminQuerySuffix();
+      const mediaSrc = log.media_url ? `${API_BASE}${log.media_url}${suffix}` : '';
       const serviceState = log.customer_service_state || '-';
       const needsHumanStaff = log.needs_human_staff === true ? '是' : '否';
       const servicePriority = log.customer_service_priority || log.priority || 'normal';
@@ -2470,6 +2740,7 @@ if (isAdminMode()) {
   switchMainView('admin');
   initRealtimeClients();
 } else {
+  applyKioskLanguage();
   cartManager.renderCart();
   applyFeaturesToPOS();
   initAdminToggles();

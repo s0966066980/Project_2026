@@ -58,5 +58,41 @@
         "review_notes": "移除簡體字",
         "metadata": {},
         "raw_review": "{\n\"status\": \"approved\",\n\"reviewed_text\": {\n  \"menu_name\": \"\",\n  \"price\": \"\",\n  \"description\": \"\"\n},\n\"notes\": \"移除簡體字\"\n}"
+    },
+    {
+        "timestamp": "2026-05-21T12:59:12.259233",
+        "doc_id": "2c381174-15a8-4563-bd5b-0b71b89572eb",
+        "source_type": "customer_service",
+        "source_id": "cs_pos_yo6nqj25k_1779339549",
+        "source_text": "客服問答紀錄\nSession: pos_yo6nqj25k\n語言: zh\n情緒分析: 無法判斷：目前影像不足，先依語音內容協助。\n回覆模式: ollama\n優先級: normal\n顧客問題: 幫我點餐\n客服回覆: 已通知客服人員，請稍候。\n客服摘要: 幫我點餐",
+        "reviewed_text": "{\r\n  \"id\": \"cs_pos_yo6nqj25k_1779339549\",\r\n  \"name\": \" pos_yo6nqj25k \",\r\n  \"price\": \"\",\r\n  \"description\": \"\"\r\n}",
+        "review_status": "revised",
+        "review_notes": "移除不必要的空白字符，修正簡體字和錯字。",
+        "metadata": {},
+        "raw_review": "{\"status\": \"revised\", \"reviewed_text\": \"{\\r\\n  \\\"id\\\": \\\"cs_pos_yo6nqj25k_1779339549\\\",\\r\\n  \\\"name\\\": \\\" pos_yo6nqj25k \\\",\\r\\n  \\\"price\\\": \\\"\\\",\\r\\n  \\\"description\\\": \\\"\\\"\\r\\n}\", \"notes\": \"移除不必要的空白字符，修正簡體字和錯字。\" }"
+    },
+    {
+        "timestamp": "2026-05-21T16:11:17.299043",
+        "doc_id": "031d9f77-ab33-4561-b688-514706bd569e",
+        "source_type": "customer_service",
+        "source_id": "cs_pos_kbibl2iuf_1779351072",
+        "source_text": "客服問答紀錄\nSession: pos_kbibl2iuf\n語言: zh\n情緒分析: 平靜：顧客狀態穩定\n回覆模式: ollama\n優先級: normal\n顧客問題: 推薦我餐點\n客服回覆: 請您選擇您想要的主餐，例如：大麥克®、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!\n客服摘要: 推薦我餐點",
+        "reviewed_text": "{\"customer_problem\": \"推薦我餐點\", \"system_response\": \"請您選擇您想要的主餐，例如：大麥克\\u00ae、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!\", \"customer_state\": \"平靜\", \"emotion_analysis\": \"穩定\", \"response_mode\": \"ollama\", \"priority\": \"正常\", \"cart_actions\": \"成功加入購物車的餐點：none\"}",
+        "review_status": "approved",
+        "review_notes": "移除無關餐點推薦，保留顧客語音點餐對話紀錄",
+        "metadata": {},
+        "raw_review": "{\"status\": \"approved\", \"reviewed_text\": \"{\\\"customer_problem\\\": \\\"推薦我餐點\\\", \\\"system_response\\\": \\\"請您選擇您想要的主餐，例如：大麥克\\\\u00ae、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!\\\", \\\"customer_state\\\": \\\"平靜\\\", \\\"emotion_analysis\\\": \\\"穩定\\\", \\\"response_mode\\\": \\\"ollama\\\", \\\"priority\\\": \\\"正常\\\", \\\"cart_actions\\\": \\\"成功加入購物車的餐點：none\\\"}\", \"notes\": \"移除無關餐點推薦，保留顧客語音點餐對話紀錄\" }"
+    },
+    {
+        "timestamp": "2026-05-21T16:13:06.424233",
+        "doc_id": "e24cbad2-8325-4835-bb14-e4ad67e33376",
+        "source_type": "manual",
+        "source_id": "manual_1779351185",
+        "source_text": "註冊商標不要念出來",
+        "reviewed_text": "註冊商標不要念出來",
+        "review_status": "approved",
+        "review_notes": "",
+        "metadata": {},
+        "raw_review": "{\"status\": \"approved\", \"reviewed_text\": \"\", \"notes\": \"\"}"
     }
 ]

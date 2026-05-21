@@ -25,7 +25,8 @@ def create_router(deps: dict) -> APIRouter:
         return {"logs": logs[-300:]}
 
     @router.get("/customer_service_media/{filename}")
-    async def get_customer_service_media(filename: str):
+    async def get_customer_service_media(request: Request, filename: str):
+        require_admin_token(request)
         safe_name = os.path.basename(filename)
         media_path = os.path.join(config.CUSTOMER_SERVICE_MEDIA_DIR, safe_name)
         if not os.path.exists(media_path):

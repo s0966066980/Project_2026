@@ -347,5 +347,97 @@
         "ollama_result": "{\n  \"customer_reply\": \"\",\n  \"staff_summary\": \"\",\n  \"priority\": \"normal\",\n  \"mentioned_ids\": [\"M01\"]\n}",
         "media_filename": "cs_pos_nblucrjsb_1778747203.webm",
         "media_url": "/api/customer_service_media/cs_pos_nblucrjsb_1778747203.webm"
+    },
+    {
+        "timestamp": 1779339552.2625215,
+        "session_id": "pos_yo6nqj25k",
+        "source_id": "cs_pos_yo6nqj25k_1779339549",
+        "rag_doc_id": "2c381174-15a8-4563-bd5b-0b71b89572eb",
+        "mode": "ollama",
+        "language": "zh",
+        "raw_language": "zh",
+        "emotion": "無法判斷：目前影像不足，先依語音內容協助。",
+        "user_text": "幫我點餐",
+        "customer_reply": "已通知客服人員，請稍候。",
+        "staff_summary": "幫我點餐",
+        "priority": "normal",
+        "customer_service_state": "normal_question",
+        "customer_service_priority": "normal",
+        "needs_human_staff": false,
+        "service_state_evidence": [
+            "emotion_label=無法判斷",
+            "no high-risk customer service condition detected"
+        ],
+        "emotion_structured": {
+            "emotion_label": "無法判斷",
+            "emotion_display": "無法判斷：目前影像不足，先依語音內容協助。",
+            "emotion_evidence": "情緒模型服務未連線",
+            "emotion_distribution": {
+                "無法判斷": 46,
+                "平靜": 6,
+                "開心": 6,
+                "疲憊": 6,
+                "猶豫": 6,
+                "困惑": 6,
+                "焦躁": 6,
+                "生氣": 6,
+                "難過": 6,
+                "驚訝": 6
+            },
+            "media_signals": {
+                "duration_sec": 1.5,
+                "audio_mean_db": -12.4,
+                "audio_silent": false,
+                "motion_score": 0.0092,
+                "motion_level": "subtle"
+            }
+        },
+        "mentioned_ids": [],
+        "ollama_result": "{\n  \"customer_reply\": \"我們可以幫您選擇一個合適的雞肉餐點。您想嘗試麥克鷄塊®(6塊)，價格 $64。還有其他 Recommendation 可以考慮\",\n  \"staff_summary\": \"客服目前處理 orders Demo001，顧客語音中提到想要點餐雞肉，已幫助添加購物車 MCD001、MCD020、MCD021 和 MCD022\",\n  \"priority\": \"normal\",\n  \"mentioned_ids\": [\"demo001\"]\n}",
+        "media_filename": "cs_pos_yo6nqj25k_1779339549.webm",
+        "media_url": "/api/customer_service_media/cs_pos_yo6nqj25k_1779339549.webm"
+    },
+    {
+        "timestamp": 1779351077.3008938,
+        "session_id": "pos_kbibl2iuf",
+        "source_id": "cs_pos_kbibl2iuf_1779351072",
+        "rag_doc_id": "031d9f77-ab33-4561-b688-514706bd569e",
+        "mode": "ollama",
+        "language": "zh",
+        "raw_language": "zh",
+        "emotion": "平靜：顧客狀態穩定",
+        "user_text": "推薦我餐點",
+        "customer_reply": "請您選擇您想要的主餐，例如：大麥克®、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!",
+        "staff_summary": "推薦我餐點",
+        "priority": "normal",
+        "customer_service_state": "normal_question",
+        "customer_service_priority": "normal",
+        "needs_human_staff": false,
+        "service_state_evidence": [
+            "emotion_label=平靜",
+            "no high-risk customer service condition detected"
+        ],
+        "emotion_structured": {
+            "emotion_label": "平靜",
+            "emotion_display": "平靜：顧客狀態穩定",
+            "emotion_evidence": "語氣穩定且無明顯急躁動作，顧客姿勢穩定平靜",
+            "emotion_distribution": {
+                "平靜": 90,
+                "猶豫": 5,
+                "疲憊": 3,
+                "焦躁": 2
+            },
+            "media_signals": {
+                "duration_sec": 2.38,
+                "audio_mean_db": -15.6,
+                "audio_silent": false,
+                "motion_score": 0.0103,
+                "motion_level": "subtle"
+            }
+        },
+        "mentioned_ids": [],
+        "ollama_result": "{\n  \"customer_reply\": \"請您選擇您想要的主餐，例如：大麥克®、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!\",\n  \"staff_summary\": \"\",\n  \"priority\": \"normal\",\n  \"mentioned_ids\": [\"M01\"]\n}",
+        "media_filename": "cs_pos_kbibl2iuf_1779351072.webm",
+        "media_url": "/api/customer_service_media/cs_pos_kbibl2iuf_1779351072.webm"
     }
 ]

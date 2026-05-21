@@ -1,13 +1,14 @@
 import asyncio
 from collections import Counter
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 from repositories import interaction_event_repository
 from realtime import event_bus
 from services import barrier_state_service
 from services import interaction_event_service
 from services import intervention_service
+from utils.auth_utils import require_admin_token
 
 
 def _is_successful_intervention(log: dict) -> bool:
@@ -91,7 +92,8 @@ def create_router(deps: dict | None = None) -> APIRouter:
         return {"status": "success", "event": saved_event, "risk_result": risk_result}
 
     @router.get("/interaction_events/{session_id}")
-    async def get_interaction_events(session_id: str, limit: int = 200):
+    async def get_interaction_events(request: Request, session_id: str, limit: int = 200):
+        require_admin_token(request)
         events = await asyncio.to_thread(
             interaction_event_repository.get_interaction_events, session_id, limit
         )
@@ -182,14 +184,16 @@ def create_router(deps: dict | None = None) -> APIRouter:
         return {"status": "success" if updated else "not_found", "log": updated}
 
     @router.get("/intervention_logs/{session_id}")
-    async def get_intervention_logs(session_id: str, limit: int = 200):
+    async def get_intervention_logs(request: Request, session_id: str, limit: int = 200):
+        require_admin_token(request)
         logs = await asyncio.to_thread(
             interaction_event_repository.get_intervention_logs, session_id, limit
         )
         return {"status": "success", "session_id": session_id, "logs": logs}
 
     @router.get("/intervention_stats")
-    async def get_intervention_stats():
+    async def get_intervention_stats(request: Request):
+        require_admin_token(request)
         logs = await asyncio.to_thread(
             interaction_event_repository.get_intervention_logs, "", 3000
         )

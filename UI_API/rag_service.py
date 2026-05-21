@@ -4,11 +4,24 @@ import os
 import re
 import shutil
 import uuid
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlsplit
 
 import config
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"The class `Chroma` was deprecated.*",
+    category=Warning,
+)
+try:
+    from langchain_core._api.deprecation import LangChainDeprecationWarning
+
+    warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
+except Exception:
+    pass
 
 try:
     from langchain_community.vectorstores import Chroma

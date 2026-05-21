@@ -1,0 +1,1101 @@
+[
+    {
+        "session_id": "pos_kbibl2iuf",
+        "timestamp": "2026-05-21T16:09:45.862857",
+        "barrier_result": {
+            "barrier_state": "operation_confusion",
+            "severity": 0.85,
+            "confidence": 0.95,
+            "evidence": [
+                "risk_score >= threshold",
+                "page_id=menu_page",
+                "emotion_label=平靜",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3"
+            ],
+            "risk_score": 5,
+            "recommended_action": "show_operation_hint",
+            "emotion_label": "平靜",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -16.9,
+                "audio_silent": false,
+                "motion_score": 0.0654,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_operation_hint",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您操作，請先點選想要的餐點再加入購物車。",
+            "ui_patch": {
+                "show_modal": "operation_hint",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": true
+            },
+            "reason": "偵測到操作困惑，介面切換為較簡化的協助模式。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "And I think that that was very efficient. And so many ways eventually I think you will see a lot of people still working",
+                "audio_silent": false,
+                "audio_mean_db": -16.9
+            },
+            "emotion_evidence": {
+                "emotion_label": "平靜",
+                "emotion_display": "平靜：顧客狀態穩定",
+                "emotion_evidence": "語氣穩定，表情-平靜，無明顯急躁動作、手勢或身體姿勢變化。保守判斷，依據臉部表情、姿態等線索",
+                "emotion_distribution": {
+                    "平靜": 70,
+                    "猶豫": 15,
+                    "困惑": 5,
+                    "疲憊": 10
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 5,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：5\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3"
+            }
+        },
+        "intervention_id": "int_pos_kbibl2iuf_1779350985863"
+    },
+    {
+        "session_id": "pos_kbibl2iuf",
+        "timestamp": "2026-05-21T16:10:18.740003",
+        "barrier_result": {
+            "barrier_state": "operation_confusion",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "risk_score >= threshold",
+                "page_id=menu_page",
+                "emotion_label=平靜",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 36,
+            "recommended_action": "show_operation_hint",
+            "emotion_label": "平靜",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -14.5,
+                "audio_silent": false,
+                "motion_score": 0.0654,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_operation_hint",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您操作，請先點選想要的餐點再加入購物車。",
+            "ui_patch": {
+                "show_modal": "operation_hint",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": true
+            },
+            "reason": "偵測到操作困惑，介面切換為較簡化的協助模式。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "And they love the company in every single second. And so I think that what people misunderstand is somehow the best jarg",
+                "audio_silent": false,
+                "audio_mean_db": -14.5
+            },
+            "emotion_evidence": {
+                "emotion_label": "平靜",
+                "emotion_display": "平靜：顧客狀態穩定",
+                "emotion_evidence": "語氣穩定，無明顯急躁或正向線索。人士麵部表情穩定，不伴有明顯的疲憊或生氣跡象，語音內容表達出開心情感，但含有理性的思考",
+                "emotion_distribution": {
+                    "平靜": 50,
+                    "猶豫": 15,
+                    "困惑": 10,
+                    "疲憊": 10,
+                    "焦躁": 5
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 36,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：36\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：And I think that that was very efficient. And so many ways eventually I think yo"
+            }
+        },
+        "intervention_id": "int_pos_kbibl2iuf_1779351018740"
+    },
+    {
+        "session_id": "pos_kbibl2iuf",
+        "timestamp": "2026-05-21T16:10:48.888900",
+        "barrier_result": {
+            "barrier_state": "payment_confusion",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "page_id=payment_page",
+                "payment risk triggered",
+                "emotion_label=平靜",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "latest_page_id=payment_page and max_dwell_time_sec > 25"
+            ],
+            "risk_score": 100,
+            "recommended_action": "show_payment_tutorial",
+            "emotion_label": "平靜",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -29.6,
+                "audio_silent": false,
+                "motion_score": 0.0654,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_payment_tutorial",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您完成付款，請選擇下方付款方式。",
+            "ui_patch": {
+                "show_modal": "payment_guide",
+                "highlight": [
+                    "payment_method_panel"
+                ],
+                "disable_promotion": true,
+                "simplified_mode": false
+            },
+            "reason": "偵測到付款頁停留與付款失敗，顧客可能付款卡關。",
+            "ui_context": {
+                "page_id": "payment_page",
+                "cart_count": 2,
+                "cart_total": 204,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "payment_page",
+            "cart_count": 2,
+            "cart_total": 204,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "And there's a nice part to the team. If you want to do what's for everythings, it shouldn't be easy. I think that that's",
+                "audio_silent": false,
+                "audio_mean_db": -29.6
+            },
+            "emotion_evidence": {
+                "emotion_label": "平靜",
+                "emotion_display": "平靜：顧客狀態穩定",
+                "emotion_evidence": "語氣穩定且無明顯急躁動作，保守判斷，顧客說的內容為提供資訊",
+                "emotion_distribution": {
+                    "平靜": 70,
+                    "猶豫": 15,
+                    "困惑": 5,
+                    "疲憊": 10
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "payment_page",
+                "risk_score": 100,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "latest_page_id=payment_page and max_dwell_time_sec > 25"
+                ],
+                "interaction_context": "目前頁面：checkout_page\r\n購物車數量：2\r\n風險分數：100\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、latest_page_id=payment_page and max_dwell_time_sec > 25\r\n最近語音：And they love the company in every single second. And so I think that what peopl"
+            }
+        },
+        "intervention_id": "int_pos_kbibl2iuf_1779351048889"
+    },
+    {
+        "session_id": "pos_kbibl2iuf",
+        "timestamp": "2026-05-21T16:11:23.598054",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 108,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -22.3,
+                "audio_silent": false,
+                "motion_score": 0.0654,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": true,
+                "service_open": true
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": true,
+            "service_open": true
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "推薦我餐點",
+                "audio_silent": false,
+                "audio_mean_db": -22.3
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客可能還在選擇，可提供簡短推薦。",
+                "emotion_evidence": "麵部表情顯示複雜動作，臉部肌肉張力升高；口唇運動顯示疑慮、不確定感",
+                "emotion_distribution": {
+                    "猶豫": 30,
+                    "疲憊": 25,
+                    "困惑": 20,
+                    "焦躁": 10,
+                    "平靜": 15
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 108,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：108\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：And there's a nice part to the team. If you want to do what's for everythings, i"
+            }
+        },
+        "intervention_id": "int_pos_kbibl2iuf_1779351083598"
+    },
+    {
+        "session_id": "pos_kbibl2iuf",
+        "timestamp": "2026-05-21T16:12:15.954153",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "max_idle_time_sec > 20",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 67,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -16.9,
+                "audio_silent": false,
+                "motion_score": 0.0654,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "in the 128th just as we were running out of money and save the company. We have plenty of money to save and with humilit",
+                "audio_silent": false,
+                "audio_mean_db": -16.9
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客可能還在選擇，可提供簡短推薦。",
+                "emotion_evidence": "語音文字中提及『』，但口罩下眼角下垂、口角開大表明猶豫和困惑的跡象、情緒判斷基於多種線索如語音內容與口罩表情",
+                "emotion_distribution": {
+                    "猶豫": 45,
+                    "疲憊": 30,
+                    "困惑": 15,
+                    "焦躁": 10
+                },
+                "emotion_available": true,
+                "emotion_error": "",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 67,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "max_idle_time_sec > 20",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：67\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、max_idle_time_sec > 20、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：推薦我餐點"
+            }
+        },
+        "intervention_id": "int_pos_kbibl2iuf_1779351135955"
+    },
+    {
+        "session_id": "pos_3qos0lf0e",
+        "timestamp": "2026-05-21T16:20:09.924593",
+        "barrier_result": {
+            "barrier_state": "operation_confusion",
+            "severity": 0.85,
+            "confidence": 0.95,
+            "evidence": [
+                "risk_score >= threshold",
+                "page_id=menu_page",
+                "emotion_label=平靜",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3"
+            ],
+            "risk_score": 5,
+            "recommended_action": "show_operation_hint",
+            "emotion_label": "平靜",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -35.3,
+                "audio_silent": false,
+                "motion_score": 0.0677,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_operation_hint",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您操作，請先點選想要的餐點再加入購物車。",
+            "ui_patch": {
+                "show_modal": "operation_hint",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": true
+            },
+            "reason": "偵測到操作困惑，介面切換為較簡化的協助模式。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "白色 山白色一手倒一头一手倒一头一手倒一头一手倒一头",
+                "audio_silent": false,
+                "audio_mean_db": -35.3
+            },
+            "emotion_evidence": {
+                "emotion_label": "平靜",
+                "emotion_display": "平靜：顧客狀態穩定",
+                "emotion_evidence": "語氣穩定且無明顯急躁動作。保守判斷，因為看不到明顯的情緒線索，需要多注意",
+                "emotion_distribution": {
+                    "平靜": 60,
+                    "猶豫": 15,
+                    "困惑": 5,
+                    "疲憊": 10,
+                    "焦躁": 0
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 5,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：5\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3"
+            }
+        },
+        "intervention_id": "int_pos_3qos0lf0e_1779351609925"
+    },
+    {
+        "session_id": "pos_3qos0lf0e",
+        "timestamp": "2026-05-21T16:20:41.844773",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "max_idle_time_sec > 20",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 16,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -18.1,
+                "audio_silent": false,
+                "motion_score": 0.0859,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "犯會 你們在中那時候 easier",
+                "audio_silent": false,
+                "audio_mean_db": -18.1
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客表現出來很為憤慮，說話的語氣中立但有點懷疑",
+                "emotion_evidence": "該文本內容與顧客抱怨的問題相關，表示顧客正在嘗試詢問或找尋答案",
+                "emotion_distribution": {
+                    "猶豫": 40,
+                    "疲憊": 30,
+                    "困惑": 15,
+                    "焦躁": 10,
+                    "生氣": 5
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 16,
+                "trigger_reasons": [
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "max_idle_time_sec > 20",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：16\r\n觸發原因：event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、max_idle_time_sec > 20、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：白色 山白色一手倒一头一手倒一头一手倒一头一手倒一头"
+            }
+        },
+        "intervention_id": "int_pos_3qos0lf0e_1779351641845"
+    },
+    {
+        "session_id": "pos_0ogekv4f6",
+        "timestamp": "2026-05-21T16:35:20.433524",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 0.85,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=voice_order_failed",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3"
+            ],
+            "risk_score": 5,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -19.4,
+                "audio_silent": false,
+                "motion_score": 0.0947,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "推进餐店给我",
+                "audio_silent": false,
+                "audio_mean_db": -19.4
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "猶豫：顧客說「推進餐店给我」，語氣有些催促",
+                "emotion_evidence": "顧客說『推進』，這是一個促進性詞彙，表明顧客想要加速服務。雖然沒有明顯的消極性詞彙，但語氣仍然有點強勁",
+                "emotion_distribution": {
+                    "猶豫": 40,
+                    "疲憊": 30,
+                    "困惑": 15,
+                    "焦躁": 10,
+                    "生氣": 5
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 5,
+                "trigger_reasons": [
+                    "event_type=voice_order_failed",
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：5\r\n觸發原因：event_type=voice_order_failed、event_type=invalid_touch、max_invalid_touch_count >= 3"
+            }
+        },
+        "intervention_id": "int_pos_0ogekv4f6_1779352520434"
+    },
+    {
+        "session_id": "pos_0ogekv4f6",
+        "timestamp": "2026-05-21T16:35:36.499127",
+        "barrier_result": {
+            "barrier_state": "menu_hesitation",
+            "severity": 0.99,
+            "confidence": 0.95,
+            "evidence": [
+                "emotion_label=猶豫",
+                "page_id=menu_page",
+                "event_type=voice_order_failed",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3"
+            ],
+            "risk_score": 7,
+            "recommended_action": "recommend_popular_combo",
+            "emotion_label": "猶豫",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -28.3,
+                "audio_silent": false,
+                "motion_score": 0.0917,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "recommend_popular_combo",
+            "action_level": "low",
+            "staff_notify": false,
+            "tts_text": "需要我推薦熱門搭配嗎？",
+            "ui_patch": {
+                "show_modal": "",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": false
+            },
+            "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "有什麼推薦的餐點",
+                "audio_silent": false,
+                "audio_mean_db": -28.3
+            },
+            "emotion_evidence": {
+                "emotion_label": "猶豫",
+                "emotion_display": "顧客猶豫不決：需要確認點餐",
+                "emotion_evidence": "顧客說不知道，選不出菜",
+                "emotion_distribution": {
+                    "猶豫": 40,
+                    "困惑": 20,
+                    "疲憊": 10,
+                    "焦躁": 10
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 7,
+                "trigger_reasons": [
+                    "event_type=voice_order_failed",
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3"
+                ],
+                "interaction_context": "目前頁面：menu_page\r\n購物車數量：0\r\n風險分數：7\r\n觸發原因：event_type=voice_order_failed、event_type=invalid_touch、max_invalid_touch_count >= 3\r\n最近語音：推进餐店给我"
+            }
+        },
+        "intervention_id": "int_pos_0ogekv4f6_1779352536499"
+    },
+    {
+        "session_id": "pos_0ogekv4f6",
+        "timestamp": "2026-05-21T16:36:12.236804",
+        "barrier_result": {
+            "barrier_state": "operation_confusion",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "risk_score >= threshold",
+                "page_id=menu_page",
+                "emotion_label=無法判斷",
+                "event_type=voice_order_failed",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "max_idle_time_sec > 20",
+                "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+            ],
+            "risk_score": 12,
+            "recommended_action": "show_operation_hint",
+            "emotion_label": "無法判斷",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -25.6,
+                "audio_silent": false,
+                "motion_score": 0.0945,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_operation_hint",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您操作，請先點選想要的餐點再加入購物車。",
+            "ui_patch": {
+                "show_modal": "operation_hint",
+                "highlight": [],
+                "disable_promotion": false,
+                "simplified_mode": true
+            },
+            "reason": "偵測到操作困惑，介面切換為較簡化的協助模式。",
+            "ui_context": {
+                "page_id": "menu_page",
+                "cart_count": 0,
+                "cart_total": 0,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": true
+            }
+        },
+        "ui_context": {
+            "page_id": "menu_page",
+            "cart_count": 0,
+            "cart_total": 0,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": true
+        },
+        "result": {},
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "",
+                "audio_silent": false,
+                "audio_mean_db": -25.6
+            },
+            "emotion_evidence": {
+                "emotion_label": "無法判斷",
+                "emotion_display": "無法判斷：顧客狀態未能被有效判斷",
+                "emotion_evidence": "雖然看不到明顯的情緒線索，卻觀察到顧客的語言與表情均為平靜，但無法確定其實際情緒狀態",
+                "emotion_distribution": {
+                    "猶豫": 30,
+                    "困惑": 20,
+                    "疲憊": 20,
+                    "焦躁": 10
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "menu_page",
+                "risk_score": 12,
+                "trigger_reasons": [
+                    "event_type=voice_order_failed",
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "max_idle_time_sec > 20",
+                    "latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30"
+                ],
+                "interaction_context": "目前頁面：payment_page\r\n購物車數量：1\r\n風險分數：12\r\n觸發原因：event_type=voice_order_failed、event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、max_idle_time_sec > 20、latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30\r\n最近語音：有什麼推薦的餐點"
+            }
+        },
+        "intervention_id": "int_pos_0ogekv4f6_1779352572237"
+    },
+    {
+        "session_id": "pos_0ogekv4f6",
+        "timestamp": "2026-05-21T16:36:52.023415",
+        "barrier_result": {
+            "barrier_state": "payment_confusion",
+            "severity": 1.0,
+            "confidence": 0.95,
+            "evidence": [
+                "page_id=payment_page",
+                "payment risk triggered",
+                "emotion_label=平靜",
+                "event_type=voice_order_failed",
+                "event_type=invalid_touch",
+                "max_invalid_touch_count >= 3",
+                "max_dwell_time_sec > 30",
+                "max_idle_time_sec > 20",
+                "latest_page_id=payment_page and max_dwell_time_sec > 25"
+            ],
+            "risk_score": 14,
+            "recommended_action": "show_payment_tutorial",
+            "emotion_label": "平靜",
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -16.0,
+                "audio_silent": false,
+                "motion_score": 0.0919,
+                "motion_level": "active"
+            }
+        },
+        "intervention": {
+            "action": "show_payment_tutorial",
+            "action_level": "medium",
+            "staff_notify": false,
+            "tts_text": "我可以協助您完成付款，請選擇下方付款方式。",
+            "ui_patch": {
+                "show_modal": "payment_guide",
+                "highlight": [
+                    "payment_method_panel"
+                ],
+                "disable_promotion": true,
+                "simplified_mode": false
+            },
+            "reason": "偵測到付款頁停留與付款失敗，顧客可能付款卡關。",
+            "ui_context": {
+                "page_id": "payment_page",
+                "cart_count": 1,
+                "cart_total": 45,
+                "voice_ask_enabled": true,
+                "recommend_enabled": true,
+                "promotion_paused": false,
+                "service_open": false
+            }
+        },
+        "ui_context": {
+            "page_id": "payment_page",
+            "cart_count": 1,
+            "cart_total": 45,
+            "voice_ask_enabled": true,
+            "recommend_enabled": true,
+            "promotion_paused": false,
+            "service_open": false
+        },
+        "result": {
+            "checkout_success": true,
+            "payment_success": true,
+            "time_to_checkout_sec": 30,
+            "resolved_by_checkout": true
+        },
+        "multimodal_evidence": {
+            "visual_evidence": {
+                "person_detected": true,
+                "person_hits": 1,
+                "frames_checked": 2,
+                "motion_level": "active"
+            },
+            "audio_evidence": {
+                "speech_text": "",
+                "audio_silent": false,
+                "audio_mean_db": -16.0
+            },
+            "emotion_evidence": {
+                "emotion_label": "平靜",
+                "emotion_display": "平靜：顧客狀態穩定",
+                "emotion_evidence": "保守判斷，根據臉部表情和動作幅度，無明顯負麵或正向線索，表現為低強度平靜",
+                "emotion_distribution": {
+                    "平靜": 90,
+                    "猶豫": 5,
+                    "困惑": 3,
+                    "疲憊": 2
+                },
+                "emotion_available": false,
+                "emotion_error": "connection_failed",
+                "model_source": "Emotion-LLaMA"
+            },
+            "pos_evidence": {
+                "page_id": "payment_page",
+                "risk_score": 14,
+                "trigger_reasons": [
+                    "event_type=voice_order_failed",
+                    "event_type=invalid_touch",
+                    "max_invalid_touch_count >= 3",
+                    "max_dwell_time_sec > 30",
+                    "max_idle_time_sec > 20",
+                    "latest_page_id=payment_page and max_dwell_time_sec > 25"
+                ],
+                "interaction_context": "目前頁面：payment_page\r\n購物車數量：1\r\n風險分數：14\r\n觸發原因：event_type=voice_order_failed、event_type=invalid_touch、max_invalid_touch_count >= 3、max_dwell_time_sec > 30、max_idle_time_sec > 20、latest_page_id=payment_page and max_dwell_time_sec > 25\r\n最近語音：有什麼推薦的餐點"
+            }
+        },
+        "intervention_id": "int_pos_0ogekv4f6_1779352612024",
+        "result_updated_at": "2026-05-21T16:37:22.319524"
+    }
+]

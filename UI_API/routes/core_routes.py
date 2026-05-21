@@ -1,10 +1,11 @@
 import asyncio
+import importlib.util
 import json
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Form, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 import config
 import database
@@ -47,6 +48,16 @@ def _mark_latest_intervention_checkout(session_id: str, checkout_success: bool =
     return interaction_event_repository.update_intervention_result(intervention_id, result)
 
 
+def _load_demo_tool_html() -> str:
+    tool_path = Path(__file__).resolve().parents[2] / "tools" / "pos_interaction_demo_ui.py"
+    spec = importlib.util.spec_from_file_location("project_2026_pos_demo_tool", tool_path)
+    if not spec or not spec.loader:
+        raise RuntimeError("demo tool module not found")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return str(getattr(module, "HTML_CONTENT", ""))
+
+
 def create_router(deps: dict) -> APIRouter:
     router = APIRouter(tags=["core"])
 
@@ -68,11 +79,15 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/demo-tool")
     async def serve_demo_tool():
-        tool_path = Path(__file__).resolve().parents[2] / "tools" / "pos_interaction_demo.html"
-        return FileResponse(tool_path)
+        return HTMLResponse(_load_demo_tool_html())
+
+    @router.get("/api/public_settings")
+    async def get_public_settings():
+        return config.load_public_settings()
 
     @router.get("/api/settings")
-    async def get_settings():
+    async def get_settings(request: Request):
+        require_admin_token(request)
         return config.load_settings()
 
     @router.post("/api/settings")
@@ -91,7 +106,8 @@ def create_router(deps: dict) -> APIRouter:
         return {"status": "success"}
 
     @router.get("/api/logs")
-    async def get_logs():
+    async def get_logs(request: Request):
+        require_admin_token(request)
         logs = await asyncio.to_thread(log_repository.get_session_logs)
         indexed_logs = []
         for idx, log in enumerate(logs):

@@ -17,7 +17,8 @@ def create_router(deps: dict) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["rag"])
 
     @router.get("/rag_docs")
-    async def get_rag_docs():
+    async def get_rag_docs(request: Request):
+        require_admin_token(request)
         review_logs = await asyncio.to_thread(log_repository.get_rag_review_logs)
         indexed_review_logs = []
         for idx, log in enumerate(review_logs):

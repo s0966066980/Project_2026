@@ -1,4 +1,5 @@
 import json
+import time
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -49,6 +50,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
 
     @router.websocket("/ws/{client_type}/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, client_type: str, session_id: str):
+        # TODO: 正式版改用短效 token，或在連線後第一則訊息完成 auth，避免 token 出現在 URL。
         client_type = str(client_type or "").lower()
         if client_type not in ALLOWED_CLIENT_TYPES:
             await websocket.close(code=1008)
@@ -60,6 +62,8 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             await websocket.close(code=1008)
             return
         await manager.connect(client_type, session_id, websocket)
+        rate_window_started = time.monotonic()
+        message_count = 0
         try:
             while True:
                 try:
@@ -103,6 +107,16 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                         "session_id": session_id,
                         "payload": {"client_type": client_type},
                     })
+                    continue
+
+                now = time.monotonic()
+                if now - rate_window_started >= 60:
+                    rate_window_started = now
+                    message_count = 0
+                message_count += 1
+                if message_count > 100:
+                    await websocket.close(code=1013)
+                    break
         finally:
             await manager.disconnect(client_type, session_id, websocket)
 

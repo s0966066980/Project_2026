@@ -172,19 +172,54 @@ if __name__ == "__main__":
         print("=" * 65 + "\n")
         sys.exit(0)
 
+    def _print_access_urls():
+        local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+        print(f"🖥️ POS local URL:   http://{local_host}:{pos_port}/pos")
+        print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
+
+    def _print_ngrok_tunnel(tunnel, label: str = "POS", path: str = "/pos", token: str = ""):
+        public_url = str(getattr(tunnel, "public_url", "") or tunnel)
+        if not public_url:
+            return
+        print(f"🌍 {label} ngrok URL: {public_url}{path}")
+        if token:
+            print(f"🔐 {label} token URL: {public_url}{path}?token={token}")
+
+    _print_access_urls()
     if config.ENABLE_NGROK and config.NGROK_AUTHTOKEN:
         try:
             from pyngrok import ngrok
 
             ngrok.set_auth_token(config.NGROK_AUTHTOKEN)
-            tunnel = ngrok.connect(pos_port)
-            print(f"🌍 Public HTTPS URL: {tunnel.public_url}")
+            pos_tunnel = ngrok.connect(pos_port)
+            _print_ngrok_tunnel(pos_tunnel, "POS", "/pos", config.POS_DEMO_TOKEN)
+            print(f"🧪 Demo tool URL:   {pos_tunnel.public_url}/demo-tool")
+            if admin_port != pos_port:
+                admin_tunnel = ngrok.connect(admin_port)
+                _print_ngrok_tunnel(admin_tunnel, "Admin", "/admin", config.ADMIN_DEMO_TOKEN)
         except ImportError:
             print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
-        except Exception:
-            print("ℹ️ ngrok endpoint 已被其他程序使用或暫時不可用；本機 API 照常啟動。")
+        except Exception as e:
+            print(f"⚠️ ngrok tunnel 啟動失敗，本機 API 照常啟動: {e}")
+            try:
+                from pyngrok import ngrok
+
+                tunnels = ngrok.get_tunnels()
+                if tunnels:
+                    print("ℹ️ 目前偵測到既有 ngrok tunnel：")
+                    for existing_tunnel in tunnels:
+                        public_url = str(getattr(existing_tunnel, "public_url", "") or existing_tunnel)
+                        config_desc = str(getattr(existing_tunnel, "config", "") or "")
+                        print(f"🌍 Existing ngrok URL: {public_url} ({config_desc})")
+                else:
+                    print("ℹ️ 沒有可列出的既有 ngrok tunnel。")
+            except Exception as list_error:
+                print(f"ℹ️ 無法列出既有 ngrok tunnel: {list_error}")
     else:
-        print("ℹ️ ngrok 未啟用，只啟動本機 API。")
+        if config.NGROK_AUTHTOKEN:
+            print("ℹ️ ngrok token 已設定，但 ENABLE_NGROK=false；若要顯示外網網址，請設定 ENABLE_NGROK=true 後重啟。")
+        else:
+            print("ℹ️ ngrok 未啟用，只啟動本機 API。")
     print("=" * 65 + "\n")
 
     servers = [

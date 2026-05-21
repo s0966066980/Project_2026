@@ -7,7 +7,7 @@
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=mediafix-20260520">
+<link rel="stylesheet" href="/static/styles.css?v=uifix-20260521">
 
 </head>
 <body class="h-screen w-full overflow-hidden">
@@ -60,6 +60,9 @@
 
   <!-- 開始 overlay -->
   <div id="startupOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500" style="background:linear-gradient(135deg,#13201e,#274b47)">
+    <button id="startupLangBtn" class="startup-lang-btn" type="button">
+      <i class="fas fa-globe"></i><span>中文</span><i class="fas fa-chevron-down"></i>
+    </button>
     <div class="mb-6 w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.12)"><i class="fas fa-utensils text-3xl"></i></div>
     <h1 class="text-4xl md:text-5xl font-bold mb-3 text-center tracking-tight">智慧點餐</h1>
     <p class="text-lg mb-10" style="color:rgba(255,255,255,0.5)">AI-Powered Smart Kiosk</p>
@@ -276,10 +279,15 @@
 
   <div id="kioskBottomBar" class="kiosk-bottom-bar">
     <button id="kioskHomeBtn" class="kiosk-bottom-home" type="button"><i class="fas fa-home"></i><span>回首頁</span></button>
-    <button id="kioskCartBtn" class="kiosk-bottom-cart" type="button">
-      <span class="kiosk-cart-icon"><i class="fas fa-shopping-cart"></i><b id="kioskBottomCount">0</b></span>
-      <strong id="kioskBottomTotal">$0</strong>
-    </button>
+    <div class="kiosk-bottom-right">
+      <button id="kioskVoiceBtn" class="kiosk-bottom-voice" type="button" title="語音發問">
+        <i class="fas fa-microphone"></i>
+      </button>
+      <button id="kioskCartBtn" class="kiosk-bottom-cart" type="button">
+        <span class="kiosk-cart-icon"><i class="fas fa-shopping-cart"></i><b id="kioskBottomCount">0</b></span>
+        <strong id="kioskBottomTotal">$0</strong>
+      </button>
+    </div>
   </div>
 
 </div>
@@ -296,7 +304,7 @@
       <button onclick="switchAdminTab('menu')"       id="tab-btn-menu"      class="admin-tab">菜單管理</button>
       <button onclick="switchAdminTab('rag')"        id="tab-btn-rag"       class="admin-tab">RAG 文本</button>
       <button onclick="switchAdminTab('service');loadCustomerServiceData()" id="tab-btn-service" class="admin-tab">客服系統</button>
-      <button onclick="switchMainView('pos')" class="btn-primary px-4 py-1.5 text-sm ml-2"><i class="fas fa-arrow-left mr-2"></i>返回</button>
+      <button onclick="window.location.href='/admin'" class="btn-primary px-4 py-1.5 text-sm ml-2"><i class="fas fa-arrow-left mr-2"></i>返回首頁</button>
     </div>
   </nav>
 
@@ -440,32 +448,15 @@
     <!-- 功能模組 -->
     <div id="tab-features" class="admin-tab-content hidden">
       <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">功能模組</h2>
-      <p class="text-sm mb-6" style="color:var(--text2)">開關即時生效，儲存於瀏覽器 localStorage。</p>
+      <p class="text-sm mb-6" style="color:var(--text2)">僅保留目前正式 POS 流程會用到的顧客端功能；偵測與 debug 類功能已移至事件觸發流程或專用紀錄頁。</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- 每個 toggle card -->
         <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-eye mr-2" style="color:var(--accent2)"></i>情緒偵測顯示</p><p class="text-xs" style="color:var(--text2)">顯示攝影機畫面與即時情緒標籤。</p></div>
-          <div id="tog-emotion" class="toggle-track on shrink-0" onclick="toggleFeature('emotion',this)"><div class="toggle-knob"></div></div>
-        </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音發問</p><p class="text-xs" style="color:var(--text2)">開啟後語音會送 Ollama 做問答；關閉時仍可語音點餐。</p></div>
+          <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音發問</p><p class="text-xs" style="color:var(--text2)">POS 購物車旁保留語音按鈕；開啟後可用 Ollama 問答，關閉時仍可語音點餐。</p></div>
           <div id="tog-voiceAsk" class="toggle-track shrink-0" onclick="toggleFeature('voiceAsk',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-bolt mr-2" style="color:var(--warning)"></i>AI 浮動推播</p><p class="text-xs" style="color:var(--text2)">依效能設定節流更新浮動推薦卡片。</p></div>
           <div id="tog-recommend" class="toggle-track on shrink-0" onclick="toggleFeature('recommend',this)"><div class="toggle-knob"></div></div>
-        </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--info)"></i>Emotion-LLaMA 例行偵測</p><p class="text-xs" style="color:var(--text2)">預設關閉；事件風險升高、客服或實驗觀察時再觸發多模態分析。</p></div>
-          <div id="tog-emotionBackend" class="toggle-track shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
-        </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-comment-medical mr-2" style="color:var(--info)"></i>情緒分析泡泡</p><p class="text-xs" style="color:var(--text2)">以左側聊天室泡泡顯示 Emotion-LLaMA 分析內容。</p></div>
-          <div id="tog-emotionChat" class="toggle-track shrink-0" onclick="toggleFeature('emotionChat',this)"><div class="toggle-knob"></div></div>
-        </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-video mr-2" style="color:var(--accent2)"></i>偵測鏡頭顯示</p><p class="text-xs" style="color:var(--text2)">在情緒泡泡旁顯示鏡頭預覽與人物偵測框，預設關閉。</p></div>
-          <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-columns mr-2" style="color:var(--accent2)"></i>A/B 推播測試</p><p class="text-xs" style="color:var(--text2)">同時顯示兩個不同 Prompt 的推薦結果。</p></div>
@@ -474,6 +465,14 @@
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-language mr-2" style="color:var(--info)"></i>多語言偵測</p><p class="text-xs" style="color:var(--text2)">根據語音自動切換中英文回覆與 TTS。</p></div>
           <div id="tog-multiLang" class="toggle-track on shrink-0" onclick="toggleFeature('multiLang',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-video mr-2" style="color:var(--danger)"></i>偵測鏡頭（YOLO）</p><p class="text-xs" style="color:var(--text2)">開啟後 POS 會啟用鏡頭並以 YOLO11 偵測人物；搭配事件觸發流程可擷取短片段進行多模態分析。</p></div>
+          <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--accent2)"></i>Emotion-LLaMA 後端</p><p class="text-xs" style="color:var(--text2)">開啟後在事件觸發或週期模式中使用 Emotion-LLaMA 進行情緒分析。需先啟動 Emotion-LLaMA Gradio 服務。</p></div>
+          <div id="tog-emotionBackend" class="toggle-track shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
         </div>
       </div>
     </div>
@@ -748,7 +747,7 @@
 
 <audio id="ttsAudio" class="hidden"></audio>
 
-<script type="module" src="/static/app.js?v=mediafix-20260520"></script>
+<script type="module" src="/static/app.js?v=uifix-20260521"></script>
 
 </body>
 </html>

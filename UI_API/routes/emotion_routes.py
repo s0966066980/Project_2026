@@ -19,13 +19,15 @@ def create_router(deps: dict) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["emotion"])
 
     @router.get("/emotion_clips/{session_id}")
-    async def get_emotion_clips(session_id: str):
+    async def get_emotion_clips(request: Request, session_id: str):
+        require_admin_token(request)
         safe_session = emotion_clip_repository.safe_session_id(session_id)
         clips = await asyncio.to_thread(emotion_clip_repository.load_clip_index, safe_session)
         return {"status": "success", "session_id": safe_session, "clips": clips}
 
     @router.get("/emotion_clips/{session_id}/media/{clip_id}")
-    async def get_emotion_clip_media(session_id: str, clip_id: str):
+    async def get_emotion_clip_media(request: Request, session_id: str, clip_id: str):
+        require_admin_token(request)
         safe_session = emotion_clip_repository.safe_session_id(session_id)
         safe_clip = emotion_clip_repository.safe_clip_id(clip_id)
         path = os.path.join(emotion_clip_repository.emotion_clip_dir(safe_session), safe_clip)

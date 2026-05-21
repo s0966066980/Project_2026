@@ -18,8 +18,18 @@ function adminHeaders(extra = {}) {
   return token ? { ...extra, 'X-Admin-Token': token } : extra;
 }
 
+export function adminQuerySuffix(prefix = '?') {
+  const token = demoToken();
+  if (!token) return '';
+  return `${prefix}token=${encodeURIComponent(token)}`;
+}
+
+export async function getPublicSettings() {
+  return asJson(await fetch(`${API_BASE}/api/public_settings`));
+}
+
 export async function getSettings() {
-  return asJson(await fetch(`${API_BASE}/api/settings`));
+  return asJson(await fetch(`${API_BASE}/api/settings`, { headers: adminHeaders() }));
 }
 
 export async function saveSettings(settings) {
@@ -74,7 +84,7 @@ export async function checkout(formData, signal) {
 }
 
 export async function getLogs() {
-  return asJson(await fetch(`${API_BASE}/api/logs`));
+  return asJson(await fetch(`${API_BASE}/api/logs`, { headers: adminHeaders() }));
 }
 
 export async function clearLogs() {
@@ -94,7 +104,7 @@ export async function uploadRagPdf(formData) {
 }
 
 export async function getEmotionClips(sessionId) {
-  return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`));
+  return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`, { headers: adminHeaders() }));
 }
 
 export async function clearEmotionClips(sessionId) {
@@ -102,7 +112,7 @@ export async function clearEmotionClips(sessionId) {
 }
 
 export async function getRagDocs() {
-  return asJson(await fetch(`${API_BASE}/api/rag_docs`));
+  return asJson(await fetch(`${API_BASE}/api/rag_docs`, { headers: adminHeaders() }));
 }
 
 export async function addRagDoc(payload) {
@@ -150,5 +160,5 @@ export async function barrierState(payload) {
 }
 
 export async function getInterventionStats() {
-  return asJson(await fetch(`${API_BASE}/api/intervention_stats`));
+  return asJson(await fetch(`${API_BASE}/api/intervention_stats`, { headers: adminHeaders() }));
 }

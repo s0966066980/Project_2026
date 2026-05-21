@@ -20,7 +20,7 @@ OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generat
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
-ENABLE_NGROK = os.getenv("ENABLE_NGROK", "false").lower() not in ("0", "false", "no", "off")
+ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
 ADMIN_PORT = int(os.getenv("ADMIN_PORT", "8001"))
@@ -77,6 +77,8 @@ DEFAULT_SETTINGS = {
     "GEMINI_NUM_PREDICT": 512,
     "GEMINI_USE_JSON_MIME": False,
     "CUSTOMER_SERVICE_MODE": "ollama",
+    "SAVE_VOICE_ORDER_TO_RAG": False,
+    "DEMO_SAVE_VOICE_ORDER_TO_RAG": False,
     "EVENT_TRIGGERED_MULTIMODAL_ENABLED": True,
     "EMOTION_PERIODIC_ENABLED": False,
     "WHISPER_MODEL_SIZE": "base",
@@ -138,6 +140,24 @@ DEFAULT_SETTINGS = {
     "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
 }
 
+PUBLIC_SETTINGS_KEYS = {
+    "DEMO_PUBLIC_MODE",
+    "EVENT_TRIGGERED_MULTIMODAL_ENABLED",
+    "EMOTION_PERIODIC_ENABLED",
+    "RECOMMEND_INTERVAL_SEC",
+    "RECOMMEND_AFTER_ASK_DELAY_MS",
+    "AUTO_RECOMMEND_MIN_GAP_SEC",
+    "INTERACTION_TRIGGER_THRESHOLD",
+    "INTERACTION_PRE_EVENT_BUFFER_SEC",
+    "INTERACTION_POST_EVENT_BUFFER_SEC",
+    "CUSTOMER_SERVICE_MODE",
+    "TTS_VOICE",
+    "TTS_VOICE_EN",
+    "PERFORMANCE_MODE",
+    "SAVE_VOICE_ORDER_TO_RAG",
+    "DEMO_SAVE_VOICE_ORDER_TO_RAG",
+}
+
 
 def is_demo_public_mode() -> bool:
     env_value = str(os.getenv("DEMO_PUBLIC_MODE", DEMO_PUBLIC_MODE) or "").lower()
@@ -175,12 +195,13 @@ def load_settings():
     if os.path.exists(SETTINGS_JSON_PATH):
         try:
             with open(SETTINGS_JSON_PATH, "r", encoding="utf-8") as f:
-                loaded_data = json.load(f)
+                raw_settings = f.read().strip()
+                loaded_data = json.loads(raw_settings) if raw_settings else {}
                 if isinstance(loaded_data, dict):
                     settings.update(loaded_data)
                     should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS)
         except Exception as e:
-            print(f"Settings 讀取錯誤，將使用預設值覆寫: {e}")
+            print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
             should_write = True
 
     if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
@@ -204,6 +225,11 @@ def load_settings():
     _settings_last_check = now
         
     return settings.copy()
+
+
+def load_public_settings():
+    settings = load_settings()
+    return {key: settings.get(key, DEFAULT_SETTINGS.get(key)) for key in PUBLIC_SETTINGS_KEYS}
 
 def save_settings(new_settings):
     global _settings_cache, _settings_mtime, _settings_last_check
