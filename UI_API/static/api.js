@@ -6,6 +6,18 @@ async function asJson(response) {
   return response.json();
 }
 
+function demoToken() {
+  const params = new URLSearchParams(window.location.search || '');
+  const token = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
+  if (token) sessionStorage.setItem('admin_demo_token', token);
+  return token;
+}
+
+function adminHeaders(extra = {}) {
+  const token = demoToken();
+  return token ? { ...extra, 'X-Admin-Token': token } : extra;
+}
+
 export async function getSettings() {
   return asJson(await fetch(`${API_BASE}/api/settings`));
 }
@@ -13,7 +25,7 @@ export async function getSettings() {
 export async function saveSettings(settings) {
   return asJson(await fetch(`${API_BASE}/api/settings`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(settings)
   }));
 }
@@ -25,7 +37,7 @@ export async function getMenu() {
 export async function saveMenu(menu) {
   return asJson(await fetch(`${API_BASE}/api/menu`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(menu)
   }));
 }
@@ -66,19 +78,19 @@ export async function getLogs() {
 }
 
 export async function clearLogs() {
-  return asJson(await fetch(`${API_BASE}/api/logs`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/logs`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function deleteLog(index) {
-  return asJson(await fetch(`${API_BASE}/api/logs/${encodeURIComponent(index)}`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/logs/${encodeURIComponent(index)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function clearRagDocs() {
-  return asJson(await fetch(`${API_BASE}/api/rag_docs`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/rag_docs`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function uploadRagPdf(formData) {
-  return asJson(await fetch(`${API_BASE}/api/rag_pdf`, { method: 'POST', body: formData }));
+  return asJson(await fetch(`${API_BASE}/api/rag_pdf`, { method: 'POST', headers: adminHeaders(), body: formData }));
 }
 
 export async function getEmotionClips(sessionId) {
@@ -86,7 +98,7 @@ export async function getEmotionClips(sessionId) {
 }
 
 export async function clearEmotionClips(sessionId) {
-  return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function getRagDocs() {
@@ -96,27 +108,27 @@ export async function getRagDocs() {
 export async function addRagDoc(payload) {
   return asJson(await fetch(`${API_BASE}/api/rag_docs`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   }));
 }
 
 export async function deleteRagDoc(docId) {
-  return asJson(await fetch(`${API_BASE}/api/rag_docs/${encodeURIComponent(docId)}`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/rag_docs/${encodeURIComponent(docId)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function deleteRagReviewLog(index) {
-  return asJson(await fetch(`${API_BASE}/api/rag_review_logs/${encodeURIComponent(index)}`, { method: 'DELETE' }));
+  return asJson(await fetch(`${API_BASE}/api/rag_review_logs/${encodeURIComponent(index)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function getCustomerServiceLogs() {
-  return asJson(await fetch(`${API_BASE}/api/customer_service_logs`));
+  return asJson(await fetch(`${API_BASE}/api/customer_service_logs`, { headers: adminHeaders() }));
 }
 
 export async function sendHumanReply(sourceId, payload) {
   return asJson(await fetch(`${API_BASE}/api/customer_service_logs/${encodeURIComponent(sourceId)}/human_reply`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   }));
 }

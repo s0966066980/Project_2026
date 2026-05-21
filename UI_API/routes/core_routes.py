@@ -1,14 +1,16 @@
 import asyncio
 import json
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Body, Form
+from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import FileResponse
 
 import config
 import database
 from repositories import interaction_event_repository, log_repository, session_repository
 from realtime import event_bus
+from utils.auth_utils import require_admin_token
 
 
 def _seconds_since_timestamp(timestamp: str) -> int:
@@ -64,12 +66,18 @@ def create_router(deps: dict) -> APIRouter:
     async def serve_customer_service():
         return FileResponse("index.html")
 
+    @router.get("/demo-tool")
+    async def serve_demo_tool():
+        tool_path = Path(__file__).resolve().parents[2] / "tools" / "pos_interaction_demo.html"
+        return FileResponse(tool_path)
+
     @router.get("/api/settings")
     async def get_settings():
         return config.load_settings()
 
     @router.post("/api/settings")
-    async def update_settings(new_settings: dict = Body(...)):
+    async def update_settings(request: Request, new_settings: dict = Body(...)):
+        require_admin_token(request)
         old_rag_settings = config.get("rag", {})
         config.save_settings(new_settings)
         saved_settings = config.load_settings()
@@ -123,13 +131,15 @@ def create_router(deps: dict) -> APIRouter:
         }
 
     @router.delete("/api/logs")
-    async def clear_logs():
+    async def clear_logs(request: Request):
+        require_admin_token(request)
         await asyncio.to_thread(log_repository.clear_session_logs)
         deps["recommend_cache"].clear()
         return {"status": "success"}
 
     @router.delete("/api/logs/{log_index}")
-    async def delete_log(log_index: int):
+    async def delete_log(request: Request, log_index: int):
+        require_admin_token(request)
         deleted = await asyncio.to_thread(log_repository.delete_session_log, log_index)
         deps["recommend_cache"].clear()
         return {"status": "success" if deleted else "not_found"}

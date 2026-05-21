@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 
 import ai_services
@@ -16,6 +17,20 @@ def _cart_action_names(cart_actions: list[dict], menu_items: list[dict]) -> list
         if item:
             names.append(f"{item.get('name')} x{action.get('quantity', 1)}")
     return names
+
+
+def _looks_like_direct_order(user_text: str) -> bool:
+    normalized = recommendation_service.normalize_order_text(user_text)
+    if not normalized:
+        return False
+    direct_terms = [
+        "我要", "幫我加", "幫我點", "加一", "加兩", "加2", "點一", "點兩",
+        "點2", "來一", "來兩", "來2", "一份", "兩份", "2份", "一個", "兩個",
+        "2個", "一杯", "兩杯", "2杯", "一組", "兩組", "2組",
+    ]
+    if any(term in normalized for term in direct_terms):
+        return True
+    return bool(re.search(r"\d+\s*(份|個|杯|組)", normalized))
 
 
 def build_voice_order_rag_text(
@@ -168,13 +183,22 @@ async def handle_voice_ask(
     cart_actions = recommendation_service.coerce_cart_actions(
         ask_result.get("cart_actions", []), user_text, menu_items
     )
+    menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+    if menu_question_answer and not _looks_like_direct_order(user_text):
+        cart_actions = []
+        ai_response = menu_question_answer.get("ai_response", ai_response) or ai_response
+        mentioned_ids = menu_question_answer.get("mentioned_ids", mentioned_ids) or mentioned_ids
+    elif menu_question_answer and not cart_actions:
+        ai_response = menu_question_answer.get("ai_response", ai_response) or ai_response
+        mentioned_ids = menu_question_answer.get("mentioned_ids", mentioned_ids) or mentioned_ids
     ai_response = recommendation_service.fix_ask_reply_for_intent(
         user_text, detected_lang, ai_response, cart_actions, mentioned_ids
     )
     if cart_actions and detected_lang != "en":
         names = _cart_action_names(cart_actions, menu_items)
         bad_reply = any(phrase in (ai_response or "") for phrase in ["抱歉", "沒有這個品項", "菜單沒有", "找不到", "目前菜單沒有"])
-        if names and (not ai_response or bad_reply):
+        not_confirming_cart = "加入" not in (ai_response or "") and "購物車" not in (ai_response or "")
+        if names and (not ai_response or bad_reply or not_confirming_cart):
             ai_response = "已幫您加入購物車：" + "、".join(names)
 
     session_repository.record_session_state(

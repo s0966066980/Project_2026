@@ -20,18 +20,27 @@ OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generat
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
-ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
+ENABLE_NGROK = os.getenv("ENABLE_NGROK", "false").lower() not in ("0", "false", "no", "off")
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
 ADMIN_PORT = int(os.getenv("ADMIN_PORT", "8001"))
+DEMO_PUBLIC_MODE = os.getenv("DEMO_PUBLIC_MODE", "false")
+POS_DEMO_TOKEN = os.getenv("POS_DEMO_TOKEN", "")
+ADMIN_DEMO_TOKEN = os.getenv("ADMIN_DEMO_TOKEN", "")
+WS_DEMO_TOKEN = os.getenv("WS_DEMO_TOKEN", "")
+PUBLIC_POS_ORIGIN = os.getenv("PUBLIC_POS_ORIGIN", "")
+PUBLIC_ADMIN_ORIGIN = os.getenv("PUBLIC_ADMIN_ORIGIN", "")
 CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ORIGINS",
-        "http://127.0.0.1:8000,http://127.0.0.1:8001",
+        "http://127.0.0.1:8000,http://127.0.0.1:8001,http://localhost:8000,http://localhost:8001,http://0.0.0.0:8000,http://0.0.0.0:8001",
     ).split(",")
     if origin.strip()
 ]
+for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
+    if _public_origin and _public_origin not in CORS_ORIGINS:
+        CORS_ORIGINS.append(_public_origin)
 VECTOR_DB_DIR = "./chroma_db"
 MENU_JSON_PATH = "./menu_data/menu.json"
 LEARNING_DATA_DIR = "./learning_data"
@@ -55,6 +64,7 @@ _settings_last_check = 0.0
 # 動態設定管理器 (支援後台即時讀寫)
 # ==========================================
 DEFAULT_SETTINGS = {
+    "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
     "AI_PROVIDER": "ollama",
     "QA_AI_PROVIDER": "ollama",
     "EMOTION_AI_PROVIDER": "ollama",
@@ -128,6 +138,16 @@ DEFAULT_SETTINGS = {
     "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
 }
 
+
+def is_demo_public_mode() -> bool:
+    env_value = str(os.getenv("DEMO_PUBLIC_MODE", DEMO_PUBLIC_MODE) or "").lower()
+    if env_value in ("1", "true", "yes", "on"):
+        return True
+    try:
+        return bool(load_settings().get("DEMO_PUBLIC_MODE", False))
+    except Exception:
+        return False
+
 def load_settings():
     global _settings_cache, _settings_mtime, _settings_last_check
 
@@ -167,6 +187,9 @@ def load_settings():
         settings["AI_PROVIDER"] = "ollama"
         settings["QA_AI_PROVIDER"] = "ollama"
         settings["EMOTION_AI_PROVIDER"] = "ollama"
+
+    if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
+        settings["DEMO_PUBLIC_MODE"] = True
             
     if should_write:
         try:

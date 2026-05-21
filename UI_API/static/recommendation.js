@@ -63,13 +63,16 @@ export function createRecommendationManager({
     const total = itemList.reduce((sum, item) => sum + Number(item.price || 0), 0);
     const finalText = extractOllamaDescription(ollamaResult, variant) || reason;
     const itemNames = pushItemNames(itemList);
+    const priceText = itemList.length > 1
+      ? `組合 $${total}`
+      : `$${Number(itemList[0].price || 0)}`;
 
     card.innerHTML = `
       <div class="flex items-center justify-end mb-2">
         <button type="button" data-close-push style="color:var(--text2)" class="text-xs opacity-60 hover:opacity-100"><i class="fas fa-times"></i></button>
       </div>
-      <div class="push-title"><i class="fas fa-comment-dots"></i><span>AI 推播</span></div>
       <div class="push-items">${escapeHTML(itemNames)}</div>
+      <div class="push-price">${escapeHTML(priceText)}</div>
       <p class="push-message">${escapeHTML(finalText)}</p>
       <button type="button" data-add-push class="btn-primary w-full py-2 text-sm rounded-xl">
         <i class="fas fa-cart-plus mr-1"></i> ${itemList.length > 1 ? `加入這組 $${total}` : '加入購物車'}

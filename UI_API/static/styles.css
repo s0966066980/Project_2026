@@ -214,6 +214,13 @@
     line-height: 1.45;
     font-weight: 900;
     color: var(--text);
+    margin-bottom: 4px;
+  }
+  .push-price {
+    font-size: 15px;
+    line-height: 1.35;
+    font-weight: 900;
+    color: var(--accent);
     margin-bottom: 8px;
   }
   .push-message {
@@ -1069,8 +1076,8 @@
 
   /* McDonald-style kiosk flow */
   #view-pos {
-    --kiosk-width: min(100dvw, 56.25dvh);
-    --kiosk-height: min(100dvh, 177.78dvw);
+    --kiosk-width: min(100dvw, 177.78dvh);
+    --kiosk-height: min(100dvh, 56.25dvw);
     background: #fffaf5;
     font-family: "Noto Sans TC", "Segoe UI", system-ui, sans-serif;
     width: 100dvw !important;
@@ -1088,7 +1095,7 @@
     width: var(--kiosk-width) !important;
     height: var(--kiosk-height) !important;
     transform: translate(-50%, -50%);
-    background: #fff url('/static/mcd_start.png') center / cover no-repeat !important;
+    background: #fffaf5 url('/static/mcd_start.png') center / cover no-repeat !important;
     color: transparent !important;
   }
   #checkoutOverlay {
@@ -1106,19 +1113,24 @@
   }
   #startupOverlay .flex {
     position: absolute;
-    left: 9.5%;
-    right: 9.5%;
-    bottom: 10.5%;
-    height: 9%;
-    display: block !important;
+    left: 50%;
+    right: auto;
+    bottom: 8%;
+    width: min(520px, 42vw);
+    height: 86px;
+    transform: translateX(-50%);
+    display: flex !important;
   }
   #startupOverlay #startSystemBtn {
-    position: absolute;
-    inset: 0;
     width: 100%;
     height: 100%;
-    opacity: 0.02;
-    border-radius: 22px !important;
+    opacity: 1;
+    border-radius: 18px !important;
+    background: #ffc72c !important;
+    color: #211815 !important;
+    font-size: clamp(28px, 2.4vw, 38px) !important;
+    font-weight: 950;
+    box-shadow: 0 12px 28px rgba(61,35,19,0.18);
   }
   #startupOverlay #startSystemBtn + button {
     display: none !important;

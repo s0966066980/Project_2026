@@ -108,14 +108,31 @@ def create_router(deps: dict) -> APIRouter:
             suffix = os.path.splitext(video.filename or ".webm")[1] or ".webm"
             video_bytes = await video.read()
             if len(video_bytes) < 2000:
+                message = "multimodal video chunk too small"
+                barrier_result, intervention, intervention_log = await _publish_fallback_intervention(
+                    session_id, risk_result, ui_context, recent_events, message
+                )
                 await event_bus.publish_to_admin("emotion_analysis_completed", {
                     "session_id": session_id,
-                    "status": "skipped",
-                    "message": "multimodal video chunk too small",
+                    "status": "success",
+                    "multimodal_skipped": True,
+                    "message": message,
+                    "barrier_result": barrier_result,
+                    "intervention": intervention,
                 })
                 return {
-                    "status": "skipped",
-                    "message": "multimodal video chunk too small",
+                    "status": "success",
+                    "multimodal_skipped": True,
+                    "message": message,
+                    "speech_text": "",
+                    "emotion_available": False,
+                    "emotion_error": message,
+                    "emotion_structured": {},
+                    "multimodal_evidence": {},
+                    "risk_result": risk_result,
+                    "barrier_result": barrier_result,
+                    "intervention": intervention,
+                    "intervention_log": intervention_log,
                 }
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 temp_video_path = tmp.name

@@ -141,6 +141,9 @@ def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> 
     if latest_page_id == "checkout_page" and max_back_count >= 1:
         total_score += 1
         add_reason("latest_page_id=checkout_page and max_back_count >= 1")
+    if latest_page_id == "menu_page" and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30:
+        total_score += 1
+        add_reason("latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30")
 
     risk_result = {
         "risk_score": total_score,

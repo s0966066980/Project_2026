@@ -3,12 +3,13 @@ import os
 import tempfile
 import time
 
-from fastapi import APIRouter, Body, File, Form, UploadFile
+from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 
 import config
 import database
 from repositories import log_repository
 from services import rag_review_service
+from utils.auth_utils import require_admin_token
 from utils.file_utils import write_binary_file
 
 
@@ -29,7 +30,8 @@ def create_router(deps: dict) -> APIRouter:
         }
 
     @router.post("/rag_docs")
-    async def create_rag_doc(payload: dict = Body(...)):
+    async def create_rag_doc(request: Request, payload: dict = Body(...)):
+        require_admin_token(request)
         source_text = (payload.get("source_text") or "").strip()
         source_id = (payload.get("source_id") or f"manual_{int(time.time())}").strip()
         if not source_text:
@@ -46,9 +48,11 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/rag_pdf")
     async def upload_rag_pdf(
+        request: Request,
         pdf: UploadFile = File(...),
         review: str = Form(default="false")
     ):
+        require_admin_token(request)
         if not (pdf.filename or "").lower().endswith(".pdf"):
             return {"status": "error", "message": "只支援 PDF 檔案。"}
         temp_pdf_path = None
@@ -92,20 +96,23 @@ def create_router(deps: dict) -> APIRouter:
                 os.remove(temp_pdf_path)
 
     @router.delete("/rag_docs/{doc_id}")
-    async def delete_rag_doc(doc_id: str):
+    async def delete_rag_doc(request: Request, doc_id: str):
+        require_admin_token(request)
         deleted = await asyncio.to_thread(database.delete_rag_doc, doc_id)
         if deleted:
             deps["recommend_cache"].clear()
         return {"status": "success" if deleted else "not_found"}
 
     @router.delete("/rag_docs")
-    async def clear_rag_docs():
+    async def clear_rag_docs(request: Request):
+        require_admin_token(request)
         await asyncio.to_thread(database.clear_rag_storage)
         deps["recommend_cache"].clear()
         return {"status": "success"}
 
     @router.delete("/rag_review_logs/{log_index}")
-    async def delete_rag_review_log(log_index: int):
+    async def delete_rag_review_log(request: Request, log_index: int):
+        require_admin_token(request)
         deleted = await asyncio.to_thread(log_repository.delete_rag_review_log, log_index)
         return {"status": "success" if deleted else "not_found"}
 

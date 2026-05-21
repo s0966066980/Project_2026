@@ -21,21 +21,31 @@ ORDER_TEXT_REPLACEMENTS = {
     "起士": "起司",
     "芝士": "起司",
     "起私": "起司",
-    "炸基": "炸雞",
-    "炸機": "炸雞",
-    "雞唐": "雞湯",
-    "雞堂": "雞湯",
-    "點擊湯": "點雞湯",
-    "人生": "人參",
-    "人蔘": "人參",
-    "人森": "人參",
-    "莎拉": "沙拉",
-    "沙啦": "沙拉",
-    "梅式": "美式",
-    "美食咖啡": "美式咖啡",
-    "coffe": "coffee",
-    "coffee": "咖啡",
-    "friedchicken": "炸雞",
+    "麥香鷄": "麥香雞",
+    "勁辣鷄腿堡": "勁辣雞腿堡",
+    "麥克鷄塊": "麥克雞塊",
+    "大麥可": "大麥克",
+    "大mac": "大麥克",
+    "bigmac": "大麥克",
+    "big mac": "大麥克",
+    "起司堡": "吉事堡",
+    "4盎司": "四盎司",
+    "魚堡": "麥香魚",
+    "中暑": "中薯",
+    "大暑": "大薯",
+    "薯條": "薯條",
+    "中薯": "薯條",
+    "大薯": "薯條",
+    "數條": "薯條",
+    "署條": "薯條",
+    "暑條": "薯條",
+    "數餅": "薯餅",
+    "署餅": "薯餅",
+    "zero": "零卡",
+    "可口可樂zero": "零卡可樂",
+    "可口可樂零卡": "零卡可樂",
+    "可樂零卡": "零卡可樂",
+    "那堤": "拿鐵",
 }
 
 
@@ -70,9 +80,16 @@ def menu_aliases(item: dict) -> list[str]:
     aliases = {name, name.replace(" ", "")}
     for alias in item.get("aliases") or []:
         aliases.add(str(alias))
-    for token in ["雞湯", "人參湯", "湯", "炸雞", "起司炸雞", "沙拉", "水果沙拉", "咖啡", "美式咖啡", "美式", "人參", "起司"]:
-        if token in name:
-            aliases.add(token)
+    category = str(item.get("category") or "")
+    category_aliases = {
+        "早餐": ["早餐"],
+        "飲料": ["飲料", "喝的"],
+        "McCafé": ["咖啡", "mcafe", "mccafe"],
+        "McCafé®": ["咖啡", "mcafe", "mccafe"],
+        "點心": ["點心", "小點"],
+    }
+    for alias in category_aliases.get(category, []):
+        aliases.add(alias)
     if len(name) >= 4:
         aliases.add(name[-4:])
     if len(name) >= 2:
@@ -109,6 +126,63 @@ def looks_like_all_order_request(text: str) -> bool:
     normalized = normalize_order_text(text)
     patterns = ["全部餐點", "全部都點", "全部點", "都點", "全點", "每個餐點", "每樣", "allitems", "ordereverything"]
     return looks_like_order_request(normalized) and any(pattern in normalized for pattern in patterns)
+
+
+def answer_menu_question_from_text(user_text: str, menu_items: list[dict]) -> dict:
+    normalized = normalize_order_text(user_text)
+    if not normalized or not menu_items:
+        return {}
+
+    def item_text(item: dict) -> str:
+        aliases = "".join(str(alias or "") for alias in item.get("aliases") or [])
+        return normalize_order_text(f"{item.get('name', '')}{item.get('category', '')}{aliases}")
+
+    def item_price(item: dict) -> int:
+        try:
+            return int(float(item.get("price", 0)))
+        except Exception:
+            return 0
+
+    def prep_time(item: dict) -> int:
+        try:
+            return int(float(item.get("prep_time_minutes", item.get("prep_minutes", 99))))
+        except Exception:
+            return 99
+
+    candidates = [item for item in menu_items if item.get("id") and item.get("name")]
+    if any(key in normalized for key in ["最快", "很快", "快做好", "趕時間"]):
+        candidates = sorted(candidates, key=lambda item: (prep_time(item), item_price(item)))
+        if candidates:
+            top = candidates[0]
+            minutes = prep_time(top)
+            return {
+                "ai_response": f"最快可以考慮{top.get('name')}，預估製作約 {minutes} 分鐘，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
+    if any(key in normalized for key in ["雞肉", "雞", "鷄", "chicken"]) and any(key in normalized for key in ["推薦", "有什麼", "想吃"]):
+        chicken_items = [item for item in candidates if any(key in item_text(item) for key in ["雞", "鷄", "chicken"])]
+        if any(key in normalized for key in ["不要辣", "不辣", "不吃辣"]):
+            chicken_items = [item for item in chicken_items if "辣" not in item_text(item)]
+        chicken_items = sorted(chicken_items, key=lambda item: (prep_time(item), item_price(item)))
+        if chicken_items:
+            top = chicken_items[0]
+            return {
+                "ai_response": f"雞肉品項可以考慮{top.get('name')}，這是菜單上的餐點，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
+    if any(key in normalized for key in ["不要辣", "不辣", "不吃辣"]) and any(key in normalized for key in ["推薦", "有什麼", "可以點"]):
+        mild_items = [item for item in candidates if "辣" not in item_text(item)]
+        mild_items = sorted(mild_items, key=lambda item: (prep_time(item), item_price(item)))
+        if mild_items:
+            top = mild_items[0]
+            return {
+                "ai_response": f"不吃辣可以考慮{top.get('name')}，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
+    return {}
 
 
 def fallback_cart_actions_from_text(user_text: str, menu_items: list[dict]) -> list[dict]:

@@ -36,6 +36,15 @@ SCENARIOS = {
         "speech_text": "我看不懂怎麼點。",
         "metadata": {"source": "demo", "reason": "invalid_touch"},
     },
+    "operation_confusion_explicit": {
+        "page_id": "menu_page",
+        "event_type": "invalid_touch",
+        "button_id": "demo_operation_confusion",
+        "invalid_touch_count": 3,
+        "dwell_time_sec": 35,
+        "speech_text": "我不會操作，不知道怎麼點餐。",
+        "metadata": {"source": "demo", "reason": "operation_confusion_explicit"},
+    },
     "coupon_error": {
         "page_id": "coupon_page",
         "event_type": "coupon_error",

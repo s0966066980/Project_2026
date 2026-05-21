@@ -78,6 +78,16 @@ SCENARIOS = {
         "metadata": {"reason": "demo_invalid_touch", "source": "demo"},
         "speech_text": "我看不懂怎麼點。",
     },
+    "操作困惑": {
+        "scenario_key": "operation_confusion_explicit",
+        "page_id": "menu_page",
+        "event_type": "invalid_touch",
+        "button_id": "demo_operation_confusion",
+        "dwell_time_sec": 35,
+        "invalid_touch_count": 3,
+        "metadata": {"reason": "operation_confusion_explicit", "source": "demo"},
+        "speech_text": "我不會操作，不知道怎麼點餐。",
+    },
     "優惠券錯誤": {
         "scenario_key": "coupon_error",
         "page_id": "coupon_page",

@@ -3,10 +3,20 @@ export function connectRealtime(clientType, sessionId, handlers = {}) {
   let closedByUser = false;
   let reconnectTimer = null;
 
+  const demoToken = () => {
+    const params = new URLSearchParams(window.location.search || '');
+    const key = clientType === 'admin' ? 'admin_demo_token' : 'pos_demo_token';
+    const token = params.get('token') || params.get('ws_token') || sessionStorage.getItem(key) || '';
+    if (token) sessionStorage.setItem(key, token);
+    return token;
+  };
+
   const buildUrl = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host || '127.0.0.1:8000';
-    return `${protocol}//${host}/ws/${encodeURIComponent(clientType)}/${encodeURIComponent(sessionId || 'global')}`;
+    const token = demoToken();
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${protocol}//${host}/ws/${encodeURIComponent(clientType)}/${encodeURIComponent(sessionId || 'global')}${query}`;
   };
 
   const scheduleReconnect = () => {

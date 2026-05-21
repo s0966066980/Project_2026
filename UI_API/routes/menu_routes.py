@@ -1,10 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 import database
 from repositories import menu_repository
 from services import rag_review_service
+from utils.auth_utils import require_admin_token
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -15,7 +16,8 @@ def create_router(deps: dict) -> APIRouter:
         return await asyncio.to_thread(menu_repository.get_menu)
 
     @router.post("/menu")
-    async def update_menu(new_menu: list = Body(...)):
+    async def update_menu(request: Request, new_menu: list = Body(...)):
+        require_admin_token(request)
         loop = asyncio.get_running_loop()
         active_ids = {str(item.get("id", "")) for item in new_menu if item.get("id")}
         await asyncio.to_thread(database.mark_missing_menu_rag_docs_deleted, active_ids)

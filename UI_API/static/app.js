@@ -65,6 +65,7 @@ let emotionLoopId = null;
 let detectionLoopId = null;
 let detectionInFlight = false;
 let recommendLoopId = null;
+let demoRecommendTimer = null;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
 let lastMediaSignals = {};
@@ -132,6 +133,10 @@ function isPeriodicEmotionEnabled() {
   return runtimeSettings.EMOTION_PERIODIC_ENABLED === true;
 }
 
+function isDemoPublicMode() {
+  return runtimeSettings.DEMO_PUBLIC_MODE === true || runtimeSettings.DEMO_PUBLIC_MODE === 'true';
+}
+
 async function loadRuntimeSettings() {
   try {
     runtimeSettings = { ...runtimeSettings, ...await api.getSettings() };
@@ -142,9 +147,11 @@ function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
   if (recommendLoopId) clearInterval(recommendLoopId);
+  if (demoRecommendTimer) clearTimeout(demoRecommendTimer);
   emotionLoopId = null;
   detectionLoopId = null;
   recommendLoopId = null;
+  demoRecommendTimer = null;
   if (isSystemRunning && isPosMode()) {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
@@ -250,9 +257,21 @@ function getFeatures() {
       localStorage.setItem('kiosk_feat', JSON.stringify(features));
       localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
     }
-    return features;
+    return applyDemoFeatureDefaults(features);
   }
-  catch { return { ...FEAT_DEFAULTS }; }
+  catch { return applyDemoFeatureDefaults({ ...FEAT_DEFAULTS }); }
+}
+
+function applyDemoFeatureDefaults(features) {
+  if (!isDemoPublicMode()) return features;
+  return {
+    ...features,
+    voiceAsk: true,
+    recommend: true,
+    emotionBackend: false,
+    emotionCamera: false,
+    eventTriggeredMultimodal: true,
+  };
 }
 function saveFeatures(f) {
   localStorage.setItem('kiosk_feat', JSON.stringify(f));
@@ -299,6 +318,9 @@ function applyFeaturesToPOS() {
   // 語音按鈕
   const voice = document.getElementById('mod-voice');
   if (voice) voice.style.display = '';
+  if (ui.askText && isDemoPublicMode()) {
+    ui.askText.textContent = '您可以直接說：我想吃雞肉，有什麼推薦？';
+  }
   // 感測區永遠不佔版面，避免功能關閉後留下空白 UI 欄位
   if (center) center.style.display = 'none';
   // 語音回覆氣泡（關閉語音模組時隱藏）
@@ -430,8 +452,8 @@ async function loadMenu() {
     menuData = await api.getMenu();
   } catch {
     menuData = [
-      { id: 'M01', name: '測試餐點一號', price: 100, description: '後端未連線，這是預設測試資料。' },
-      { id: 'M02', name: '測試餐點二號', price: 150, description: '請確認 http://127.0.0.1:8000 已啟動。' }
+      { id: 'MCD001', name: '測試大麥克', price: 100, category: '超值全餐', description: '後端未連線，這是預設測試資料。' },
+      { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:8000 已啟動。' }
     ];
   }
   renderMenu();
@@ -1001,15 +1023,18 @@ function startPageDwellWatcher() {
 
 function getMenuVisual(item) {
   const id = String(item.id || '').toUpperCase();
-  const presets = {
-    M01: { tag: '人氣推薦', icon: 'fas fa-fire', emoji: '🍗' },
-    M02: { tag: '招牌必點', icon: 'fas fa-star', emoji: '🍤' },
-    M03: { tag: '清爽首選', icon: 'fas fa-leaf', emoji: '🥗' },
-    M04: { tag: '飲品推薦', icon: 'fas fa-mug-hot', emoji: '☕' }
+  const category = String(item.category || '');
+  const categoryVisuals = {
+    '超值全餐': { tag: '超值全餐', icon: 'fas fa-burger', emoji: '🍔' },
+    '極選系列': { tag: '推薦套餐', icon: 'fas fa-star', emoji: '🍔' },
+    '早餐': { tag: '早餐', icon: 'fas fa-sun', emoji: '🥞' },
+    '飲料': { tag: '飲料甜點', icon: 'fas fa-glass-water', emoji: '🥤' },
+    'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
+    'McCafé®': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
+    '點心': { tag: '單點餐品', icon: 'fas fa-cookie-bite', emoji: '🍟' },
   };
-  const fallback = { tag: '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
-  const visual = presets[id] || fallback;
-  return { ...visual, image: item.image || `/static/menu_${id}.png` };
+  const fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
+  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_${id}.png` : '') };
 }
 
 // =========================================================
@@ -1208,6 +1233,16 @@ async function fetchAndDisplayRecommend() {
   } catch { }
 }
 
+function scheduleDemoFirstRecommend() {
+  if (!isDemoPublicMode() || demoRecommendTimer || !isPosActive() || !getFeatures().recommend) return;
+  const delayMs = 8000 + Math.floor(Math.random() * 4000);
+  demoRecommendTimer = setTimeout(async () => {
+    demoRecommendTimer = null;
+    if (!isPosActive() || document.hidden || recommendPending) return;
+    await fetchAndDisplayRecommend();
+  }, delayMs);
+}
+
 function startRecommendLoop() {
   if (isAdminMode()) return;
   if (recommendLoopId) return;
@@ -1216,6 +1251,7 @@ function startRecommendLoop() {
     if (document.hidden) return;
     await fetchAndDisplayRecommend();
   }, Math.max(10, Number(perfValue('RECOMMEND_INTERVAL_SEC')) || 30) * 1000);
+  scheduleDemoFirstRecommend();
 }
 
 // =========================================================
@@ -1361,6 +1397,7 @@ window.addEventListener('beforeunload', () => {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
   if (recommendLoopId) clearInterval(recommendLoopId);
+  if (demoRecommendTimer) clearTimeout(demoRecommendTimer);
   if (pageDwellTimer) clearInterval(pageDwellTimer);
 });
 

@@ -42,6 +42,7 @@ Project_2026/
 ├── Emotion-LLaMA/
 │   └── app_EmotionLlamaClient.py
 ├── tools/
+│   ├── pos_interaction_demo.html
 │   └── pos_interaction_demo_ui.py
 └── UI_API/
     ├── main.py
@@ -64,7 +65,8 @@ Project_2026/
 
 - `UI_API/`：FastAPI 後端、POS 前端、後台管理、語音點餐、客服、RAG、推播、互動障礙偵測、WebSocket 即時通訊。
 - `Emotion-LLaMA/`：Emotion-LLaMA 推論服務，提供情緒與行為證據。
-- `tools/`：專利 PoC 測試工具，可模擬付款失敗、優惠券錯誤、無效點擊、客服求助等事件。
+- `tools/`：專利 PoC 測試工具。`pos_interaction_demo.html` 可由 `/demo-tool`
+  直接在瀏覽器操作；`pos_interaction_demo_ui.py` 保留作為本機 tkinter 測試工具。
 
 ---
 
@@ -121,7 +123,7 @@ POS：http://127.0.0.1:8000
 6. 前往付款頁。
 7. 完成結帳後，系統回寫推播成效與介入成效。
 
-POS UI 預設以 9:16 kiosk 比例排版，會依螢幕大小自動縮放。若螢幕較寬，POS 會保持直式 kiosk frame；若螢幕較窄，畫面會按高度與寬度等比縮放。
+POS UI 預設以 16:9 kiosk 比例排版，會依螢幕大小自動縮放。若螢幕比例不同，畫面會在可視範圍內等比置中。
 
 ### 5. 後台操作
 
@@ -298,6 +300,14 @@ cd /home/oliver/Project_2026
 python3 tools/pos_interaction_demo_ui.py
 ```
 
+HTML 測試工具：
+
+```text
+http://127.0.0.1:8000/demo-tool
+```
+
+HTML 工具會呼叫 `/api/demo/trigger_scenario`、`/api/triggered_multimodal_analysis` 與 `/api/auto_recommend`，並透過 `/ws/demo/{session_id}` 監聽即時介入事件，較適合外網客戶 demo 或專利腳本展示。
+
 建議流程：
 
 1. 啟動 UI_API。
@@ -307,6 +317,53 @@ python3 tools/pos_interaction_demo_ui.py
 5. 按「付款失敗」、「優惠券錯誤」、「無效點擊」等按鈕。
 6. 觀察 POS 是否收到 intervention。
 7. 觀察後台是否更新介入統計。
+
+---
+
+## 外網客戶測試
+
+外網 demo 建議使用反向代理或 ngrok 分別公開 POS 與 Admin：
+
+```text
+POS 測試網址：https://<public-pos-domain>?token=<POS_DEMO_TOKEN>
+Admin 測試網址：https://<public-admin-domain>?token=<ADMIN_DEMO_TOKEN>
+WebSocket：瀏覽器會自動使用 wss://<domain>/ws/...
+```
+
+`.env` 建議設定：
+
+```env
+DEMO_PUBLIC_MODE=true
+POS_DEMO_TOKEN=請填 POS/demo token
+ADMIN_DEMO_TOKEN=請填後台 token
+WS_DEMO_TOKEN=可選的共用 websocket token
+PUBLIC_POS_ORIGIN=https://<public-pos-domain>
+PUBLIC_ADMIN_ORIGIN=https://<public-admin-domain>
+ENABLE_NGROK=false
+```
+
+若要只公開客戶端 POS，可設定：
+
+```env
+ENABLE_NGROK=true
+NGROK_AUTHTOKEN=你的 ngrok token
+```
+
+啟動後系統只會替 POS port 建立 tunnel；Admin 仍建議走獨立受控網址並使用 `ADMIN_DEMO_TOKEN`。若 `DEMO_PUBLIC_MODE=true`，ngrok 網域的 WebSocket Origin 會被允許，但 POS URL 仍建議帶 `?token=<POS_DEMO_TOKEN>`。
+
+安全原則：
+
+- 不建議公開暴露 Admin 無 token 的網址。
+- 後台敏感 API 在 `DEMO_PUBLIC_MODE=true` 時需要 `X-Admin-Token` 或 URL query `token`。
+- WebSocket 在外網 demo 會檢查 token、Origin 與訊息大小。
+- POS 必要 API 不擋 token，避免客戶測試點餐、語音與客服流程中斷。
+- 攝影機與麥克風需由瀏覽器授權；系統只在高風險事件時擷取短片段，預設不長期保存原始影像。
+
+三個建議測試情境：
+
+1. **操作困惑**：開啟 `http://127.0.0.1:8000/demo-tool` 或 `tools/pos_interaction_demo_ui.py`，使用相同 `session_id`，按「操作困惑」。預期 POS 顯示操作提示，後台看到 `operation_confusion` 與 `show_operation_hint`。
+2. **顧客詢問點餐**：在 POS 語音問答說「我要一個大麥克和一份薯條」或「我想吃雞肉，有什麼推薦？」預期 `/api/ask` 回覆只引用菜單品項，直接點餐時產生 `MCDxxx` cart actions。
+3. **AI 主動推薦與 checkout 成效**：`DEMO_PUBLIC_MODE=true` 時，進入菜單頁約 8 到 12 秒會觸發一次推薦。完成 checkout 後，後台推播成效會記錄是否命中。
 
 ---
 

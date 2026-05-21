@@ -2,7 +2,7 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import APIRouter, Body, File, Form, UploadFile
+from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse
 
 import ai_services
@@ -10,6 +10,7 @@ import config
 from repositories import log_repository
 from realtime import event_bus
 from services import customer_service_handler
+from utils.auth_utils import require_admin_token
 from utils.file_utils import write_binary_file
 from utils.text_utils import to_traditional_lite
 
@@ -18,7 +19,8 @@ def create_router(deps: dict) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["customer-service"])
 
     @router.get("/customer_service_logs")
-    async def get_customer_service_logs():
+    async def get_customer_service_logs(request: Request):
+        require_admin_token(request)
         logs = await asyncio.to_thread(log_repository.get_customer_service_logs)
         return {"logs": logs[-300:]}
 
@@ -31,7 +33,8 @@ def create_router(deps: dict) -> APIRouter:
         return FileResponse(media_path)
 
     @router.post("/customer_service_logs/{source_id}/human_reply")
-    async def customer_service_human_reply(source_id: str, payload: dict = Body(...)):
+    async def customer_service_human_reply(request: Request, source_id: str, payload: dict = Body(...)):
+        require_admin_token(request)
         reply = (payload.get("reply") or "").strip()
         lang = payload.get("language") or "zh"
         if not reply:

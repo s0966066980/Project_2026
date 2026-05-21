@@ -1,6 +1,47 @@
+import json
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+import config
 from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
+
+
+def _allowed_origins() -> set[str]:
+    origins = set(config.CORS_ORIGINS or [])
+    for origin in (config.PUBLIC_POS_ORIGIN, config.PUBLIC_ADMIN_ORIGIN):
+        if origin:
+            origins.add(origin)
+    return {origin.rstrip("/") for origin in origins if origin}
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    if not config.is_demo_public_mode():
+        return True
+    if not origin:
+        return False
+    parsed = urlparse(origin)
+    if parsed.hostname in {"127.0.0.1", "0.0.0.0", "localhost", "::1"}:
+        return True
+    if config.ENABLE_NGROK and parsed.hostname and (
+        parsed.hostname.endswith(".ngrok-free.app")
+        or parsed.hostname.endswith(".ngrok-free.dev")
+        or parsed.hostname.endswith(".ngrok.io")
+    ):
+        return True
+    normalized = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return normalized in _allowed_origins()
+
+
+def _token_allowed(client_type: str, token: str) -> bool:
+    if not config.is_demo_public_mode():
+        return True
+    valid_tokens = [config.WS_DEMO_TOKEN]
+    if client_type == "admin":
+        valid_tokens.append(config.ADMIN_DEMO_TOKEN)
+    else:
+        valid_tokens.append(config.POS_DEMO_TOKEN)
+    return bool(token) and token in {value for value in valid_tokens if value}
 
 
 def create_router(_deps: dict | None = None) -> APIRouter:
@@ -12,13 +53,42 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         if client_type not in ALLOWED_CLIENT_TYPES:
             await websocket.close(code=1008)
             return
+        if not _origin_allowed(websocket.headers.get("origin")):
+            await websocket.close(code=1008)
+            return
+        if not _token_allowed(client_type, websocket.query_params.get("token", "")):
+            await websocket.close(code=1008)
+            return
         await manager.connect(client_type, session_id, websocket)
         try:
             while True:
                 try:
-                    message = await websocket.receive_json()
+                    packet = await websocket.receive()
                 except WebSocketDisconnect:
                     break
+                except Exception:
+                    await websocket.send_json({
+                        "type": "error",
+                        "session_id": session_id,
+                        "payload": {"message": "invalid websocket message"},
+                    })
+                    continue
+
+                if packet.get("type") == "websocket.disconnect":
+                    break
+                text = packet.get("text")
+                if text is not None and len(text) > 4096:
+                    await websocket.close(code=1009)
+                    break
+                if text is None:
+                    await websocket.send_json({
+                        "type": "error",
+                        "session_id": session_id,
+                        "payload": {"message": "text websocket message required"},
+                    })
+                    continue
+                try:
+                    message = json.loads(text or "{}")
                 except Exception:
                     await websocket.send_json({
                         "type": "error",

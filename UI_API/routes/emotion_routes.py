@@ -3,7 +3,7 @@ import os
 import tempfile
 import time
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse
 
 import ai_services
@@ -11,6 +11,7 @@ import config
 import database
 from repositories import emotion_clip_repository, session_repository
 from services import customer_service as customer_emotion_service
+from utils.auth_utils import require_admin_token
 from utils.file_utils import write_binary_file
 
 
@@ -33,7 +34,8 @@ def create_router(deps: dict) -> APIRouter:
         return FileResponse(path, media_type="video/webm", filename=safe_clip)
 
     @router.delete("/emotion_clips/{session_id}")
-    async def delete_emotion_clips(session_id: str):
+    async def delete_emotion_clips(request: Request, session_id: str):
+        require_admin_token(request)
         safe_session = emotion_clip_repository.safe_session_id(session_id)
         await asyncio.to_thread(emotion_clip_repository.delete_all_clips, safe_session)
         return {"status": "success", "session_id": safe_session}

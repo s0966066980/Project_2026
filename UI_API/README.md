@@ -88,7 +88,7 @@ pip install -r requirements-lock.txt
 ## 目前整合模組
 
 - FastAPI：API、靜態頁面、WebSocket。
-- POS 前端：9:16 自助點餐 kiosk UI。
+- POS 前端：16:9 自助點餐 kiosk UI。
 - 後台管理：設定、RAG、菜單、客服、影像片段、統計。
 - Whisper：語音辨識與語言判斷。
 - Ollama：預設問答、RAG 審查、推播生成。
@@ -261,7 +261,7 @@ UI_API/
 ## POS 使用流程
 
 1. 使用者進入 `http://127.0.0.1:8000`。
-2. POS 顯示 9:16 kiosk 首頁。
+2. POS 顯示 16:9 kiosk 首頁。
 3. 按「開始點餐」。
 4. 選擇餐點類別。
 5. 點選餐點加入購物車。
@@ -309,6 +309,51 @@ POS 端同時會低成本追蹤操作事件：
 ### S1. Rolling Buffer
 
 POS 在事件觸發式多模態功能啟用時，使用 `static/media_buffer.js` 建立短時間 rolling media buffer。預設保留觸發前 5 秒，不長期保存原始影像。
+
+## 外網客戶測試
+
+外網 demo 使用 `DEMO_PUBLIC_MODE=true` 啟用最小保護層。建議透過反向代理或 ngrok 分別公開：
+
+```text
+POS：https://<public-pos-domain>?token=<POS_DEMO_TOKEN>
+Admin：https://<public-admin-domain>?token=<ADMIN_DEMO_TOKEN>
+WebSocket：wss://<domain>/ws/{client_type}/{session_id}?token=...
+```
+
+`.env` 範例：
+
+```env
+DEMO_PUBLIC_MODE=true
+POS_DEMO_TOKEN=pos-demo-token
+ADMIN_DEMO_TOKEN=admin-demo-token
+WS_DEMO_TOKEN=optional-shared-ws-token
+PUBLIC_POS_ORIGIN=https://<public-pos-domain>
+PUBLIC_ADMIN_ORIGIN=https://<public-admin-domain>
+ENABLE_NGROK=false
+```
+
+若只需要公開客戶端 POS，可設定 `ENABLE_NGROK=true` 與 `NGROK_AUTHTOKEN`。系統只會替 POS port 建立 tunnel；Admin 仍建議使用獨立受控網址與 `ADMIN_DEMO_TOKEN`。`DEMO_PUBLIC_MODE=true` 時，ngrok 網域的 WebSocket Origin 會被允許，但 POS URL 仍建議帶 `?token=<POS_DEMO_TOKEN>`。
+
+HTML 專利腳本測試工具：
+
+```text
+http://127.0.0.1:8000/demo-tool
+```
+
+此工具可送出操作困惑、付款失敗、優惠券錯誤、短片段 fallback 與 AI 主動推薦測試，並即時監聽 `/ws/demo/{session_id}`。
+
+注意事項：
+
+- Admin 不建議無 token 公開；敏感 API 會要求 `X-Admin-Token` 或 URL `token`。
+- POS 必要 API 不要求 admin token，避免顧客點餐、語音、客服測試被阻斷。
+- WebSocket 在 public demo 會檢查 token、Origin 與 4096 字元訊息上限。
+- 攝影機與麥克風需授權。事件觸發式多模態只在高風險事件擷取短片段，預設不長期保存原始影像。
+
+建議客戶測試情境：
+
+1. **操作困惑**：開 POS `?session_id=pos_demo_001`，用 `http://127.0.0.1:8000/demo-tool` 或 `tools/pos_interaction_demo_ui.py` 按「操作困惑」。預期 `barrier_state=operation_confusion`，`intervention.action=show_operation_hint`。
+2. **語音點餐與問答**：在 POS 說「我要一個大麥克和一份薯條」、「我想吃雞肉，有什麼推薦？」、「我不要辣，有什麼可以點？」或「最快可以做好的餐點是什麼？」。預期只回覆菜單存在品項，直接點餐時回傳 `MCDxxx` cart actions。
+3. **主動推薦與 checkout 成效**：public demo 進入菜單頁後約 8 到 12 秒會先觸發一次 `auto_recommend`。推薦卡只顯示品名、價格與自然推薦語；checkout 後照常寫入推播成效。
 
 ### S2. POS 操作事件
 
