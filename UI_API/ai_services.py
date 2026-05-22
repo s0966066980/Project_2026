@@ -8,6 +8,7 @@ import base64
 import math
 import time
 import wave
+import audioop
 from collections import OrderedDict
 import edge_tts
 import whisper
@@ -159,6 +160,50 @@ def _wav_has_enough_audio(path: str, min_duration: float = 0.2) -> bool:
     return _wav_duration_seconds(path) >= min_duration
 
 
+def _wav_rms_db(path: str) -> float:
+    try:
+        with wave.open(path, "rb") as wav_file:
+            sample_width = wav_file.getsampwidth() or 2
+            frames = wav_file.readframes(wav_file.getnframes())
+        if not frames:
+            return -120.0
+        rms = audioop.rms(frames, sample_width)
+        if rms <= 0:
+            return -120.0
+        max_amp = float((1 << (8 * sample_width - 1)) - 1)
+        return 20.0 * math.log10(min(1.0, rms / max_amp))
+    except Exception:
+        return -120.0
+
+
+def _audio_is_too_quiet(path: str) -> bool:
+    threshold = float(config.get("WHISPER_LOW_AUDIO_DB", -48))
+    return _wav_rms_db(path) < threshold
+
+
+_WHISPER_HALLUCINATION_PATTERNS = [
+    "字幕", "字幕組", "聽打", "請訂閱", "點贊", "按讚", "分享", "開啟小鈴鐺",
+    "感謝收看", "謝謝觀看", "下集再見", "我們下次見", "by bwd6",
+    "amara.org", "ming pao", "明鏡", "小編",
+]
+
+
+def _sanitize_transcript(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not cleaned:
+        return ""
+    lower = cleaned.lower()
+    if any(pattern.lower() in lower for pattern in _WHISPER_HALLUCINATION_PATTERNS):
+        return ""
+    meaningful = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]", cleaned)
+    if len(meaningful) < 2:
+        return ""
+    repeated = re.sub(r"[\s，。,.!?！？、]", "", cleaned)
+    if len(repeated) >= 8 and len(set(repeated)) <= 2:
+        return ""
+    return cleaned
+
+
 def _run_async_from_sync(coro):
     try:
         asyncio.get_running_loop()
@@ -240,15 +285,19 @@ async def async_safe_transcribe(file_path: str) -> str:
         if not _wav_has_enough_audio(wav_path):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
             return ""
+        if _audio_is_too_quiet(wav_path):
+            print("⚠️ 語音音量過低，略過 Whisper 辨識。")
+            return ""
         result = await asyncio.to_thread(whisper_model.transcribe, wav_path)
-        return result["text"]
+        return _sanitize_transcript(result.get("text", ""))
     except Exception as e:
         if _is_empty_audio_error(e):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
             return ""
         print(f"⚠️ 音訊重組失敗，嘗試直接辨識: {e}")
         try:
-            return (await asyncio.to_thread(whisper_model.transcribe, file_path))["text"]
+            result = await asyncio.to_thread(whisper_model.transcribe, file_path)
+            return _sanitize_transcript(result.get("text", ""))
         except Exception as e2:
             if _is_empty_audio_error(e2):
                 print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
@@ -279,8 +328,11 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         if not _wav_has_enough_audio(wav_path):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
             return {"text": "", "language": "zh", "raw_language": ""}
+        if _audio_is_too_quiet(wav_path):
+            print("⚠️ 語音音量過低，略過 Whisper 辨識。")
+            return {"text": "", "language": "zh", "raw_language": ""}
         result = await asyncio.to_thread(whisper_model.transcribe, wav_path, task="transcribe")
-        text = (result.get("text") or "").strip()
+        text = _sanitize_transcript(result.get("text", ""))
         raw_lang = result.get("language", "")
         lang = _normalize_language(raw_lang, text)
         return {"text": text, "language": lang, "raw_language": raw_lang}
@@ -291,7 +343,7 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         print(f"⚠️ 語音辨識失敗: {e}")
         try:
             result = await asyncio.to_thread(whisper_model.transcribe, file_path, task="transcribe")
-            text = (result.get("text") or "").strip()
+            text = _sanitize_transcript(result.get("text", ""))
             raw_lang = result.get("language", "")
             return {"text": text, "language": _normalize_language(raw_lang, text), "raw_language": raw_lang}
         except Exception as e2:

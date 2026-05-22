@@ -232,6 +232,7 @@ def create_router(deps: dict) -> APIRouter:
                 no_person,
                 emotion_structured,
                 media_signals,
+                True,
             )
             deps["emotion_cache"][session_id] = {
                 "emotion": raw_emotion,

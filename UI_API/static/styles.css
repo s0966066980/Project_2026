@@ -1647,9 +1647,9 @@
   }
   .kiosk-payment-screen.hidden { display: none; }
   .kiosk-payment-inner {
-    width: min(980px, 76%);
+    width: min(900px, 58vw) !important;
     min-height: 100%;
-    padding: clamp(28px, 4.2vh, 48px) 0 clamp(22px, 3.2vh, 38px);
+    padding: clamp(22px, 3vh, 34px) 0 clamp(18px, 2.4vh, 28px) !important;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1657,59 +1657,61 @@
   .kiosk-payment-mark {
     color: #ffc72c;
     font-family: Georgia, serif;
-    font-size: clamp(54px, 7.6vh, 92px);
+    font-size: clamp(48px, 6vh, 72px) !important;
     font-weight: 700;
-    margin-bottom: clamp(14px, 2.6vh, 28px);
+    margin-bottom: clamp(10px, 1.6vh, 18px) !important;
   }
   .kiosk-payment-inner h1 {
-    font-size: clamp(46px, 5.7vw, 82px);
+    font-size: clamp(42px, 4.3vw, 66px) !important;
     font-weight: 950;
     line-height: 1.1;
-    margin-bottom: clamp(22px, 4vh, 42px);
+    margin-bottom: clamp(20px, 3vh, 32px) !important;
   }
   .kiosk-payment-card {
-    width: min(640px, 64%);
-    min-height: clamp(200px, 30vh, 310px);
+    width: min(560px, 42vw) !important;
+    min-height: clamp(190px, 28vh, 270px) !important;
     border: 2px solid #cfc8c1;
     background: rgba(255,255,255,0.78);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(14px, 2.2vh, 24px);
-    margin-bottom: clamp(20px, 3.6vh, 36px);
+    gap: clamp(12px, 1.8vh, 20px) !important;
+    margin-bottom: clamp(18px, 2.8vh, 28px) !important;
   }
   .kiosk-payment-icon {
-    font-size: clamp(64px, 8vw, 96px);
+    font-size: clamp(58px, 6.4vw, 86px) !important;
     color: #ffc72c;
   }
   .kiosk-payment-kicker {
-    font-size: clamp(22px, 3vw, 32px);
+    font-size: clamp(20px, 2.1vw, 28px) !important;
     font-weight: 900;
   }
   .kiosk-payment-card strong {
-    font-size: clamp(30px, 4vw, 48px);
+    font-size: clamp(34px, 3.6vw, 50px) !important;
     font-weight: 950;
   }
   .kiosk-payment-outline,
   .kiosk-payment-back {
-    width: min(900px, 86%);
-    min-height: clamp(62px, 7.6vh, 84px);
+    width: min(780px, 52vw) !important;
+    min-height: clamp(56px, 7vh, 74px) !important;
     border: 2px solid #cfc8c1;
     background: rgba(255,255,255,0.65);
-    font-size: clamp(26px, 3vw, 38px);
+    font-size: clamp(24px, 2.6vw, 34px) !important;
     font-weight: 900;
     margin-bottom: clamp(18px, 3vh, 30px);
   }
   .kiosk-payment-back {
-    min-height: clamp(56px, 7vh, 76px);
-    margin-bottom: clamp(26px, 4vh, 42px);
+    width: min(360px, 28vw) !important;
+    min-height: clamp(50px, 6.2vh, 66px) !important;
+    margin-bottom: clamp(20px, 3vh, 32px) !important;
   }
   .kiosk-payment-footer {
-    width: min(760px, 72%);
+    width: min(720px, 48vw) !important;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 28px;
+    gap: clamp(18px, 2vw, 28px) !important;
+    margin-top: auto;
   }
   .kiosk-payment-footer button {
     min-height: clamp(56px, 7.2vh, 74px);

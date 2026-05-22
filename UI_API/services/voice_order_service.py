@@ -54,6 +54,32 @@ def _looks_like_menu_question(user_text: str) -> bool:
     return any(term in normalized for term in terms)
 
 
+def _looks_like_service_request(user_text: str) -> bool:
+    normalized = recommendation_service.normalize_order_text(user_text)
+    if not normalized:
+        return False
+    terms = [
+        "客服", "店員", "真人", "幫忙", "協助", "不會操作", "不會點",
+        "不懂", "看不懂", "怎麼用", "怎麼點", "不能刷", "付款失敗",
+        "刷卡失敗", "客訴", "投訴", "經理", "不爽", "太慢", "等很久",
+        "找人", "help", "staff", "cashier", "manager", "complaint",
+    ]
+    return any(term in normalized for term in terms)
+
+
+def _service_assist_reply(user_text: str, detected_lang: str) -> str:
+    normalized = recommendation_service.normalize_order_text(user_text)
+    if detected_lang == "en":
+        if any(term in normalized for term in ["pay", "card", "line pay", "payment"]):
+            return "I can help with payment. Please choose the payment method on the screen. If it still fails, staff will assist you."
+        return "I can help. Please choose a category first, then tap the plus button next to the item to add it to your cart."
+    if any(term in normalized for term in ["不能刷", "付款", "刷卡", "line pay", "悠遊卡", "支付"]):
+        return "我可以協助您付款。請先在付款頁選擇點點卡、信用卡或掃碼支付；如果仍然失敗，店員會協助您。"
+    if any(term in normalized for term in ["客訴", "投訴", "經理", "不爽", "太慢", "等很久"]):
+        return "不好意思讓您久等了，我會通知店員協助您處理。"
+    return "我可以協助您操作。請先選擇餐點分類，再點餐點旁的加號加入購物車；需要付款時再按結帳。"
+
+
 def _should_save_voice_order_to_rag() -> bool:
     save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
     demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
@@ -128,6 +154,40 @@ async def handle_voice_ask(
         return {"status": "error", "message": "無法辨識語音內容"}
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
+
+    if use_ollama and _looks_like_service_request(user_text):
+        ai_response = _service_assist_reply(user_text, detected_lang)
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        dialogue = {
+            "zh": {
+                "user_text": user_text if detected_lang == "zh" else "",
+                "ai_response": ai_response if detected_lang == "zh" else ""
+            },
+            "en": {
+                "user_text": user_text if detected_lang == "en" else "",
+                "ai_response": ai_response if detected_lang == "en" else ""
+            }
+        }
+        return {
+            "status": "success",
+            "mode": "service_assist",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": [],
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": dialogue,
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": True, "reason": "service_assist_rule"},
+            "trigger_recommend": False
+        }
     
     if use_ollama and _looks_like_direct_order(user_text):
         cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
@@ -257,7 +317,7 @@ async def handle_voice_ask(
         f"【RAG 補充內容】\n{rag_context}\n\n"
         "重要限制：請優先遵守【RAG 補充內容】與【RAG 全域規則】中的指示。若無衝突，回答只能引用完整菜單白名單中的餐點、價格與資訊。\n"
         f"{source_rule}"
-        "如果顧客是在直接點餐，例如說「我要兩份炸雞」、「加一杯咖啡」，請在 JSON 加上 cart_actions。\n"
+        "如果顧客是在直接點餐，例如說「我要一個大麥克」、「加一份薯條」，請在 JSON 加上 cart_actions。\n"
         "如果顧客表示很急、趕時間、要很快做好的餐點，請根據完整菜單白名單中的製作時間篩選較快完成的餐點。\n"
         "cart_actions 格式固定為 [{\"action\":\"add\",\"id\":\"菜單ID\",\"quantity\":數量}]；id 必須來自完整菜單白名單，quantity 介於 1 到 10。\n"
         "如果只是詢問或推薦，cart_actions 請輸出空陣列。"
@@ -295,7 +355,11 @@ async def handle_voice_ask(
                 ask_result["cart_actions"] = []
 
 
-    fallback_response = "Sorry, I am still thinking. Please try again." if detected_lang == "en" else "抱歉，系統思考中。"
+    fallback_response = (
+        "You can ask for a recommendation or say an item directly, for example: I want a Big Mac."
+        if detected_lang == "en"
+        else "我可以協助您點餐、推薦餐點或說明付款方式。請直接說想點的餐點，例如「我要一個大麥克」。"
+    )
     ai_response = (ask_result.get("ai_response", fallback_response)
                    if "error" not in ask_result else fallback_response)
     mentioned_ids = ask_result.get("mentioned_ids", [])

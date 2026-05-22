@@ -922,6 +922,9 @@ function showPaymentScreen() {
   ui.kioskPaymentScreen?.classList.remove('hidden');
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
+  promotionPausedUntil = Date.now() + 10 * 60 * 1000;
+  recommendPending = false;
+  stopAutoVoiceOrdering();
   clearPOSFloatingUI();
 }
 
@@ -1529,6 +1532,8 @@ function showEmotionCard(emotionData) {
 async function fetchAndDisplayRecommend() {
   const f = getFeatures();
   if (!f.recommend) return;
+  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
+  if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
   if (Date.now() < promotionPausedUntil) return;
   const fd = new FormData();
   fd.append('session_id', sessionId);
@@ -1575,7 +1580,7 @@ function closeVoiceBubble(stopAudio = true) {
 }
 
 function showVoiceBubble(data) {
-  if (!isPosActive() || !getFeatures().voiceAsk) return;
+  if (!isPosActive()) return;
   const lang = data.detected_lang || 'zh';
   const dialogue = data.dialogue || {
     zh: { user_text: lang === 'zh' ? data.user_text : '', ai_response: lang === 'zh' ? data.ai_response : '' },
@@ -1621,9 +1626,25 @@ function stopAutoVoiceOrdering() {
 function scheduleAutoVoiceOrdering(delayMs = 1200) {
   if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
   if (autoVoiceTimer || autoVoiceInFlight || !askRecorder || askRecorder.state !== 'inactive') return;
+  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
+  if (ui.voiceBubble?.style?.display === 'block') {
+    autoVoiceTimer = setTimeout(() => {
+      autoVoiceTimer = null;
+      scheduleAutoVoiceOrdering(1200);
+    }, 1800);
+    return;
+  }
+  if (ui.audio && !ui.audio.paused) {
+    autoVoiceTimer = setTimeout(() => {
+      autoVoiceTimer = null;
+      scheduleAutoVoiceOrdering(1200);
+    }, 1800);
+    return;
+  }
   autoVoiceTimer = setTimeout(() => {
     autoVoiceTimer = null;
     if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
+    if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
     if (!askRecorder || askRecorder.state !== 'inactive') return;
     autoVoiceInFlight = true;
     startAskRecording({ id: 'autoVoiceOrder' });
@@ -1656,7 +1677,7 @@ function setupAskRecorder() {
       return;
     }
 
-    const voiceAskEnabled = getFeatures().voiceAsk;
+    const voiceAskEnabled = true;
     ui.askText.textContent = voiceAskEnabled ? kt('aiThinking') : kt('recognizingOrder');
     const fd = new FormData();
     fd.append('session_id', sessionId);
@@ -1665,12 +1686,14 @@ function setupAskRecorder() {
     fd.append('use_ollama', String(voiceAskEnabled));
     try {
       const data = await api.ask(fd);
+      if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
+        autoVoiceInFlight = false;
+        return;
+      }
       if (data.status === 'success') {
         lastVoiceText = data.user_text || lastVoiceText;
-        if (voiceAskEnabled) {
-          playVoice(data.audio_base64);
-          showVoiceBubble(data);
-        }
+        if (data.audio_base64) playVoice(data.audio_base64);
+        showVoiceBubble(data);
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         if (appliedOrders.length) {
           trackInteractionEvent({
@@ -1680,8 +1703,6 @@ function setupAskRecorder() {
             metadata: { source: 'voice_order', items: appliedOrders }
           });
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
-        } else if (!voiceAskEnabled) {
-          showPushNotice(data.ai_response || kt('noVoiceOrderItem'));
         }
 
         if (voiceAskEnabled && data.trigger_recommend && getFeatures().recommend) {
@@ -1692,6 +1713,8 @@ function setupAskRecorder() {
           }, Number(perfValue('RECOMMEND_AFTER_ASK_DELAY_MS')) || 1200);
         }
         if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
+      } else {
+        console.debug('[voice assistant skipped]', data.message || data.status);
       }
     } catch {
       trackInteractionEvent({

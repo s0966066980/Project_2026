@@ -85,6 +85,7 @@ def save_clip(
     no_person: bool,
     emotion_structured: dict | None = None,
     media_signals: dict | None = None,
+    force_save_raw_clip: bool = False,
 ) -> dict | None:
     if not source_video_path or not os.path.exists(source_video_path):
         return None
@@ -94,7 +95,7 @@ def save_clip(
     stamp = int(time.time() * 1000)
     clip_id = f"{stamp}_{secrets.token_hex(4)}.webm"
     dest_path = os.path.join(clip_dir, clip_id)
-    save_raw_clip = bool(config.get("PRIVACY_SAVE_RAW_CLIP", False))
+    save_raw_clip = bool(force_save_raw_clip or config.get("PRIVACY_SAVE_RAW_CLIP", False))
     raw_clip_saved = False
     if save_raw_clip:
         try:
