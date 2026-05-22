@@ -4,7 +4,6 @@ from fastapi import APIRouter, Body, Request
 
 import database
 from repositories import menu_repository
-from services import rag_review_service
 from utils.auth_utils import require_admin_token
 
 
@@ -18,27 +17,13 @@ def create_router(deps: dict) -> APIRouter:
     @router.post("/menu")
     async def update_menu(request: Request, new_menu: list = Body(...)):
         require_admin_token(request)
-        loop = asyncio.get_running_loop()
-        active_ids = {str(item.get("id", "")) for item in new_menu if item.get("id")}
-        await asyncio.to_thread(database.mark_missing_menu_rag_docs_deleted, active_ids)
+        if not isinstance(new_menu, list):
+            return {"status": "error", "message": "menu payload must be a list"}
 
-        for item in new_menu:
-            if not item.get("id"):
-                continue
-            source_text = database.build_menu_item_text(item)
-            review_result = await rag_review_service.review_rag_text(
-                source_text,
-                "menu",
-                str(item.get("id")),
-                deps["ollama_semaphore"],
-            )
-            await asyncio.to_thread(
-                database.upsert_reviewed_rag_doc,
-                "menu", str(item.get("id")), source_text, review_result
-            )
-
-        await loop.run_in_executor(None, database.update_menu, new_menu)
+        # 菜單管理只負責保存菜單 JSON。RAG 內容改由手動新增或成功點餐事件建立，
+        # 避免每次修改菜單都被 Ollama/RAG 審查阻塞，造成後台無法儲存。
+        await asyncio.to_thread(database.update_menu, new_menu)
         deps["recommend_cache"].clear()
-        return {"status": "success"}
+        return {"status": "success", "count": len(new_menu)}
 
     return router

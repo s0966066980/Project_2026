@@ -172,6 +172,19 @@ def answer_menu_question_from_text(user_text: str, menu_items: list[dict]) -> di
                 "mentioned_ids": [top.get("id")],
             }
 
+    if any(key in normalized for key in ["飲料", "喝", "可樂", "咖啡", "拿鐵", "甜點", "drink", "coffee"]) and any(key in normalized for key in ["推薦", "有什麼", "想喝", "可以"]):
+        drink_items = [
+            item for item in candidates
+            if any(key in item_text(item) for key in ["飲料", "咖啡", "café", "cafe", "可樂", "雪碧", "茶", "拿鐵"])
+        ]
+        drink_items = sorted(drink_items, key=lambda item: (prep_time(item), item_price(item)))
+        if drink_items:
+            top = drink_items[0]
+            return {
+                "ai_response": f"飲料可以考慮{top.get('name')}，這是菜單上的品項，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
     if any(key in normalized for key in ["不要辣", "不辣", "不吃辣"]) and any(key in normalized for key in ["推薦", "有什麼", "可以點"]):
         mild_items = [item for item in candidates if "辣" not in item_text(item)]
         mild_items = sorted(mild_items, key=lambda item: (prep_time(item), item_price(item)))
@@ -179,6 +192,15 @@ def answer_menu_question_from_text(user_text: str, menu_items: list[dict]) -> di
             top = mild_items[0]
             return {
                 "ai_response": f"不吃辣可以考慮{top.get('name')}，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
+    if any(key in normalized for key in ["推薦", "有什麼", "吃什麼", "喝什麼", "recommend"]):
+        candidates = sorted(candidates, key=lambda item: (prep_time(item), item_price(item)))
+        if candidates:
+            top = candidates[0]
+            return {
+                "ai_response": f"可以先參考{top.get('name')}，這是目前菜單上的品項，價格 ${item_price(top)}。",
                 "mentioned_ids": [top.get("id")],
             }
 
@@ -241,6 +263,11 @@ def coerce_recommendation(
     excluded_ids: set[str] | None = None,
     menu_items: list[dict] | None = None,
 ) -> dict:
+    if isinstance(result, list):
+        first_dict = next((row for row in result if isinstance(row, dict)), {})
+        result = first_dict
+    elif not isinstance(result, dict):
+        result = {}
     excluded_ids = excluded_ids or set()
     source_error = "error" in result
     raw_ids = result.get("recommendation_ids") or result.get("recommendation_id") or []
@@ -302,6 +329,10 @@ def align_recommendation_reason(
     selected_names = [name for name in selected_names if name]
     if not selected_names:
         return reason or "這是根據您當下狀態為您挑選的餐點。"
+    selected_items = [
+        item for item in menu_items
+        if str(item.get("id")) in set(recommendation_ids)
+    ]
 
     selected_id_set = set(recommendation_ids)
     other_names = [
@@ -314,12 +345,33 @@ def align_recommendation_reason(
 
     if not reason or mentions_other:
         if variant == "B" and len(selected_names) > 1:
-            return f"可以搭配{'、'.join(selected_names)}，這組比較符合現在的需求。"
-        return f"推薦您試試{selected_names[0]}，這份會比較符合現在的狀態。"
+            return build_recommendation_copy(selected_items, variant)
+        return build_recommendation_copy(selected_items, variant)
 
     if not mentions_selected:
-        return f"{'、'.join(selected_names)}：{reason}"
+        return build_recommendation_copy(selected_items, variant)
+    generic_reason = len(reason) < 42 or any(key in reason for key in ["比較符合現在", "當下狀態", "經典", "推薦您試試"])
+    if generic_reason:
+        return build_recommendation_copy(selected_items, variant)
     return reason
+
+
+def build_recommendation_copy(selected_items: list[dict], variant: str) -> str:
+    items = [item for item in selected_items if item.get("name")]
+    if not items:
+        return "這份餐點會比較符合現在的需求。"
+    if variant == "B" and len(items) > 1:
+        names = "、".join(str(item.get("name")) for item in items[:3])
+        total = sum(int(float(item.get("price") or 0)) for item in items[:3])
+        return f"如果想一次點得完整，{names} 很適合放在一起；有主餐也有搭配品，合計約 ${total}。"
+    item = items[0]
+    name = str(item.get("name") or "")
+    price = int(float(item.get("price") or 0))
+    desc = str(item.get("description") or "").strip()
+    if desc:
+        desc = re.sub(r"\s+", "，", desc).strip("，。、,. ")[:34]
+        return f"如果想快速決定，可以先選{name}；{desc}，價格 ${price}。"
+    return f"如果想快速決定，可以先選{name}；點餐簡單、接受度高，價格 ${price}。"
 
 
 def history_signature(history: list, ab_mode: str) -> str:
@@ -386,6 +438,7 @@ async def generate_recommendation(
     ab_mode: str,
     emotion_cache: dict,
     ollama_semaphore,
+    emotion_influence: bool = True,
 ) -> dict:
     """
     核心推薦邏輯，包含：
@@ -395,9 +448,6 @@ async def generate_recommendation(
     4. coerce_recommendation 白名單校正
     回傳完整的 response_data dict（不含 cache 操作）。
     """
-    if ollama_semaphore.locked():
-        return {"status": "skipped", "message": "Ollama busy"}
-
     history = session_repository.get_session_history(session_id)
     history_str = "\n".join([
         f"[{r.get('timestamp','')}] "
@@ -412,7 +462,11 @@ async def generate_recommendation(
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
     rag_context = await asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點")
     current_emotion = emotion_cache.get(session_id)
-    emotion_context = build_emotion_prompt_context(current_emotion, history)
+    emotion_context = (
+        build_emotion_prompt_context(current_emotion, history)
+        if emotion_influence and config.get("EMOTION_INFLUENCE_RECOMMEND", True)
+        else "【Emotion-LLaMA 情緒分析】本次推薦不使用情緒分析作為依據。"
+    )
     user_prompt = (
         f"{emotion_context}\n\n"
         f"【顧客近期狀態與對話】\n{history_str}\n\n"
@@ -441,8 +495,16 @@ async def generate_recommendation(
                 combined = await loop.run_in_executor(
                     None, ai_services.ask_ollama, combined_prompt, user_prompt, "AB"
                 )
+            if isinstance(combined, list):
+                combined = next((row for row in combined if isinstance(row, dict)), {})
+            elif not isinstance(combined, dict):
+                combined = {}
             result_a = combined.get("variant_a", {}) if "error" not in combined else combined
             result_b = combined.get("variant_b", {}) if "error" not in combined else combined
+            if not isinstance(result_a, dict):
+                result_a = {}
+            if not isinstance(result_b, dict):
+                result_b = {}
             if "error" not in combined:
                 raw_content = combined.get("_raw_content", json.dumps(combined, ensure_ascii=False))
                 result_a["_raw_content"] = raw_content
@@ -479,6 +541,11 @@ async def generate_recommendation(
         recommendation = await loop.run_in_executor(
             None, ai_services.ask_ollama, prompt, user_prompt, variant
         )
+
+    if isinstance(recommendation, list):
+        recommendation = next((row for row in recommendation if isinstance(row, dict)), {})
+    elif not isinstance(recommendation, dict):
+        recommendation = {}
 
     if "error" in recommendation:
         return {

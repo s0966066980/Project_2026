@@ -299,6 +299,7 @@
     <div class="flex gap-2 flex-wrap">
       <button onclick="switchAdminTab('dashboard')" id="tab-btn-dashboard" class="admin-tab active">儀表板</button>
       <button onclick="switchAdminTab('features')"  id="tab-btn-features"  class="admin-tab">功能模組</button>
+      <button onclick="switchAdminTab('emotion')"   id="tab-btn-emotion"   class="admin-tab">Emotion 功能</button>
       <button onclick="switchAdminTab('settings')"  id="tab-btn-settings"  class="admin-tab">AI 設定</button>
       <button onclick="switchAdminTab('clips');loadEmotionClips()" id="tab-btn-clips" class="admin-tab">影像片段</button>
       <button onclick="switchAdminTab('menu')"       id="tab-btn-menu"      class="admin-tab">菜單管理</button>
@@ -451,6 +452,10 @@
       <p class="text-sm mb-6" style="color:var(--text2)">僅保留目前正式 POS 流程會用到的顧客端功能；偵測與 debug 類功能已移至事件觸發流程或專用紀錄頁。</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="feature-card flex justify-between items-start gap-4">
+          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--accent2)"></i>Emotion 功能</p><p class="text-xs" style="color:var(--text2)">開啟後顯示 Emotion 功能頁，並允許事件觸發式多模態情緒證據流程。</p></div>
+          <div id="tog-emotion" class="toggle-track on shrink-0" onclick="toggleFeature('emotion',this)"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音發問</p><p class="text-xs" style="color:var(--text2)">POS 購物車旁保留語音按鈕；開啟後可用 Ollama 問答，關閉時仍可語音點餐。</p></div>
           <div id="tog-voiceAsk" class="toggle-track shrink-0" onclick="toggleFeature('voiceAsk',this)"><div class="toggle-knob"></div></div>
         </div>
@@ -466,13 +471,49 @@
           <div><p class="font-bold mb-1"><i class="fas fa-language mr-2" style="color:var(--info)"></i>多語言偵測</p><p class="text-xs" style="color:var(--text2)">根據語音自動切換中英文回覆與 TTS。</p></div>
           <div id="tog-multiLang" class="toggle-track on shrink-0" onclick="toggleFeature('multiLang',this)"><div class="toggle-knob"></div></div>
         </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-video mr-2" style="color:var(--danger)"></i>偵測鏡頭（YOLO）</p><p class="text-xs" style="color:var(--text2)">開啟後 POS 會啟用鏡頭並以 YOLO11 偵測人物；搭配事件觸發流程可擷取短片段進行多模態分析。</p></div>
-          <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
+      </div>
+    </div>
+
+    <!-- Emotion 功能 -->
+    <div id="tab-emotion" class="admin-tab-content hidden">
+      <div class="flex justify-between items-center mb-6 gap-3">
+        <div>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">Emotion 功能</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">查看 Emotion-LLaMA 啟動狀態與情緒證據對 AI 推播的影響設定。</p>
         </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--accent2)"></i>Emotion-LLaMA 後端</p><p class="text-xs" style="color:var(--text2)">開啟後在事件觸發或週期模式中使用 Emotion-LLaMA 進行情緒分析。需先啟動 Emotion-LLaMA Gradio 服務。</p></div>
-          <div id="tog-emotionBackend" class="toggle-track shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
+        <button onclick="loadEmotionStatus()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5">
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <h3 class="font-bold mb-4" style="color:var(--text)">推論服務狀態</h3>
+          <div id="emotionStatusBox" class="min-h-[120px]"></div>
+        </div>
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="font-bold mb-1" style="color:var(--text)">Emotion-LLaMA 後端</h3>
+                <p class="text-xs leading-relaxed" style="color:var(--text2)">開啟後在事件觸發或週期模式中使用 Emotion-LLaMA 進行情緒分析。需先啟動 Emotion-LLaMA Gradio 服務。</p>
+              </div>
+              <div id="tog-emotionBackend" class="toggle-track shrink-0" onclick="toggleFeature('emotionBackend',this)"><div class="toggle-knob"></div></div>
+            </div>
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="font-bold mb-1" style="color:var(--text)">偵測鏡頭（YOLO）</h3>
+                <p class="text-xs leading-relaxed" style="color:var(--text2)">開啟後 POS 左上角顯示偵測鏡頭；開始點餐後會先偵測顧客，再啟用語音點餐。</p>
+              </div>
+              <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-bold mb-1" style="color:var(--text)">影響 AI 推播</h3>
+              <p class="text-xs leading-relaxed" style="color:var(--text2)">開啟後，推薦餐點會參考 Emotion-LLaMA 的情緒標籤、判斷依據與分佈；關閉後只依菜單、歷史點餐與 RAG 規則推薦。</p>
+            </div>
+            <div id="tog-emotionRecommend" class="toggle-track on shrink-0" onclick="toggleFeature('emotionRecommend',this)"><div class="toggle-knob"></div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -686,7 +727,7 @@
     <div id="tab-menu" class="admin-tab-content hidden">
       <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold" style="color:var(--text)">菜單管理 (JSON)</h2>
-        <button onclick="saveMenu()" class="btn-primary px-6 py-2 text-sm"><i class="fas fa-save mr-2"></i>儲存並更新 RAG</button>
+        <button onclick="saveMenu()" class="btn-primary px-6 py-2 text-sm"><i class="fas fa-save mr-2"></i>儲存菜單 JSON</button>
       </div>
       <textarea id="menuEditor" class="w-full h-[560px] font-mono text-sm p-4 rounded-2xl outline-none" style="border:1.5px solid var(--border);background:var(--surface)"></textarea>
     </div>
@@ -695,8 +736,8 @@
     <div id="tab-rag" class="admin-tab-content hidden">
       <div class="flex justify-between items-center mb-6 gap-3">
         <div>
-          <h2 class="text-2xl font-bold" style="color:var(--text)">RAG 文本與審查紀錄</h2>
-          <p class="text-sm mt-1" style="color:var(--text2)">所有保存到 RAG 的文本都會先經 Ollama 審查；刪除後會重建向量庫。</p>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">RAG 文本管理</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">RAG 僅保存手動新增、PDF 匯入或成功加入購物車的語音點餐事件；可一鍵使用 Ollama 重新審查並修正格式。</p>
         </div>
         <div class="flex gap-2">
           <button onclick="loadRagData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
@@ -723,8 +764,18 @@
           <div id="ragDocsList" class="p-3 space-y-3 max-h-[520px] overflow-y-auto"></div>
         </div>
         <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
-          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">Ollama 審查紀錄</div>
-          <div id="ragLogsList" class="p-3 space-y-3 max-h-[520px] overflow-y-auto"></div>
+          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">Ollama 一鍵審查</div>
+          <div class="p-4 space-y-4">
+            <p id="ragReviewSummary" class="text-sm leading-relaxed" style="color:var(--text2)">載入中...</p>
+            <div>
+              <label class="block font-semibold mb-2 text-sm" style="color:var(--text)">審查使用模型</label>
+              <input id="ragReviewModel" list="ollamaModelList" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" placeholder="例如 llama3.2">
+              <datalist id="ollamaModelList"></datalist>
+              <p class="text-xs mt-1" style="color:var(--text2)">可輸入本機 Ollama 已安裝的任意模型名稱。</p>
+            </div>
+            <button onclick="reviewAllRagDocs()" class="btn-primary px-5 py-2 text-sm"><i class="fas fa-magic mr-2"></i>一鍵審查並修正 RAG</button>
+            <pre id="ragReviewResult" class="text-xs whitespace-pre-wrap break-words rounded-xl p-3 min-h-[120px]" style="background:var(--surface2);color:var(--text2)">尚未執行審查。</pre>
+          </div>
         </div>
       </div>
     </div>

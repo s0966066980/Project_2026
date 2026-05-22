@@ -223,7 +223,7 @@ async def handle_customer_service(
         priority=priority,
     )
     rag_doc = {}
-    if use_ollama:
+    if use_ollama and config.get("SAVE_CUSTOMER_SERVICE_TO_RAG", False):
         review_result = await rag_review_service.review_rag_text(
             source_text, "customer_service", source_id, deps["ollama_semaphore"]
         )

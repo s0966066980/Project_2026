@@ -40,6 +40,20 @@ def _looks_like_direct_order(user_text: str) -> bool:
     return bool(re.search(r"\d+\s*(份|個|杯|組)", normalized))
 
 
+def _looks_like_menu_question(user_text: str) -> bool:
+    normalized = recommendation_service.normalize_order_text(user_text)
+    if not normalized:
+        return False
+    terms = [
+        "菜單", "餐點", "點餐", "推薦", "吃", "喝", "主餐", "套餐", "單點",
+        "雞", "牛", "魚", "薯條", "雞塊", "漢堡", "飲料", "咖啡", "可樂",
+        "不辣", "最快", "很急", "趕時間", "價格", "多少錢",
+        "menu", "recommend", "chicken", "beef", "fish", "fries", "burger",
+        "drink", "coffee", "fast", "quick",
+    ]
+    return any(term in normalized for term in terms)
+
+
 def _should_save_voice_order_to_rag() -> bool:
     save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
     demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
@@ -115,7 +129,7 @@ async def handle_voice_ask(
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     
-    if _looks_like_direct_order(user_text):
+    if use_ollama and _looks_like_direct_order(user_text):
         cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
         if cart_actions:
             names = _cart_action_names(cart_actions, menu_items)
@@ -127,7 +141,7 @@ async def handle_voice_ask(
                 user_speech=user_text, ai_response=ai_response,
                 language=detected_lang
             )
-            if _should_save_voice_order_to_rag():
+            if _should_save_voice_order_to_rag() and cart_actions:
                 asyncio.create_task(_save_voice_order_rag_doc(
                     session_id, user_text, detected_lang, "direct_order", ai_response,
                     cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
@@ -157,7 +171,7 @@ async def handle_voice_ask(
             user_speech=user_text, ai_response=ai_response,
             language=detected_lang
         )
-        if _should_save_voice_order_to_rag():
+        if _should_save_voice_order_to_rag() and cart_actions:
             asyncio.create_task(_save_voice_order_rag_doc(
                 session_id, user_text, detected_lang, "order_only", ai_response,
                 cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
@@ -177,13 +191,56 @@ async def handle_voice_ask(
         }
 
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
+    menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+    if menu_question_answer and not _looks_like_direct_order(user_text):
+        ai_response = menu_question_answer.get("ai_response", "")
+        mentioned_ids = menu_question_answer.get("mentioned_ids", [])
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        dialogue = {
+            "zh": {
+                "user_text": user_text if detected_lang == "zh" else "",
+                "ai_response": ai_response if detected_lang == "zh" else ""
+            },
+            "en": {
+                "user_text": user_text if detected_lang == "en" else "",
+                "ai_response": ai_response if detected_lang == "en" else ""
+            }
+        }
+        return {
+            "status": "success",
+            "mode": "menu_question",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": mentioned_ids,
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": dialogue,
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": True, "reason": "menu_whitelist_answer"},
+            "trigger_recommend": True
+        }
+
     rag_details = await asyncio.to_thread(database.retrieve_rag_details, user_text)
     rag_context = rag_details.get("context", "")
+    import rag_service
+    is_sufficient = rag_service.is_context_sufficient(rag_details)
+    if not is_sufficient:
+        rag_context = "本次沒有可用的 RAG 補充內容。請將 RAG 視為輔助資料；若問題可由完整菜單白名單或一般點餐流程回答，仍應直接回答，不要要求顧客新增 RAG。"
     qa_provider = str(config.get("QA_AI_PROVIDER", "ollama") or "ollama").lower()
     source_rule = (
         "Gemini 回覆不需要在 ai_response 說明來源、引用 file_name、page 或 chunk_id。\n"
         if qa_provider == "gemini"
-        else "如果使用 RAG 補充內容回答，請在 ai_response 末尾附上來源 file_name、page、chunk_id。\n"
+        else (
+            "如果實際使用 RAG 補充內容回答，才在 ai_response 末尾附上來源 file_name、page、chunk_id；"
+            "若本次沒有可用 RAG，請不要輸出 RAG 不足或要求新增 RAG。\n"
+        )
     )
 
     if detected_lang == "en":
@@ -206,63 +263,36 @@ async def handle_voice_ask(
         "如果只是詢問或推薦，cart_actions 請輸出空陣列。"
     )
     
-    # 1. 檢查檢索品質
     rag_settings = rag_details.get("settings", {})
-    # NOTE: rag_service is imported inline to avoid circular import
-    # (voice_order_service → database → rag_service → ai_services)
-    import rag_service
-    is_sufficient = rag_service.is_context_sufficient(rag_details)
-    
-    if not is_sufficient:
-        # RAG 文件不足，拒答或依賴菜單白名單 fallback
-        menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
-        if menu_question_answer and not _looks_like_direct_order(user_text):
-            ai_response = menu_question_answer.get("ai_response", "")
-            mentioned_ids = menu_question_answer.get("mentioned_ids", [])
-            cart_actions = []
-        else:
-            ai_response = "目前資料庫沒有足夠資訊回答這個問題，請在後台 RAG 文本新增對應資料。"
-            mentioned_ids = []
-            cart_actions = []
-        
-        ask_result = {
-            "ai_response": ai_response,
-            "mentioned_ids": mentioned_ids,
-            "cart_actions": cart_actions
-        }
-    else:
-        # 有足夠 RAG 資訊，呼叫 LLM
-        async with ollama_semaphore:
-            # 決定溫度 (llama3.2 QA 用 0.1)
-            model_name = config.get("ASK_MODEL_NAME", "llama3.2")
-            temp = 0.1 if ("llama" in model_name.lower() or qa_provider == "ollama") else None
-            
-            ask_result = await loop.run_in_executor(
-                None,
-                ai_services.ask_llm,
-                ask_system,
-                user_prompt,
-                "ASK",
-                model_name,
-                qa_provider,
-                temp
-            )
-            
-        # 驗證生成結果
-        if rag_settings.get("answer_verification", True) and "error" not in ask_result:
-            verification_context = full_menu_context + "\n\n" + rag_context
-            verification = await loop.run_in_executor(
-                None,
-                rag_service.verify_answer_grounding,
-                user_text,
-                ask_result.get("ai_response", ""),
-                verification_context
-            )
-            if not verification.get("grounded", True):
-                ask_result["ai_response"] = verification.get("safe_answer", "目前資料庫沒有足夠資訊回答這個問題。")
-                ask_result["mentioned_ids"] = []
-                if not _looks_like_direct_order(user_text):
-                    ask_result["cart_actions"] = []
+
+    async with ollama_semaphore:
+        model_name = config.get("ASK_MODEL_NAME", "llama3.2")
+        temp = 0.1 if ("llama" in model_name.lower() or qa_provider == "ollama") else None
+        ask_result = await loop.run_in_executor(
+            None,
+            ai_services.ask_llm,
+            ask_system,
+            user_prompt,
+            "ASK",
+            model_name,
+            qa_provider,
+            temp
+        )
+
+    if is_sufficient and rag_settings.get("answer_verification", True) and "error" not in ask_result:
+        verification_context = full_menu_context + "\n\n" + rag_context
+        verification = await loop.run_in_executor(
+            None,
+            rag_service.verify_answer_grounding,
+            user_text,
+            ask_result.get("ai_response", ""),
+            verification_context
+        )
+        if not verification.get("grounded", True):
+            ask_result["ai_response"] = verification.get("safe_answer", "目前資料庫沒有足夠資訊回答這個問題。")
+            ask_result["mentioned_ids"] = []
+            if not _looks_like_direct_order(user_text):
+                ask_result["cart_actions"] = []
 
 
     fallback_response = "Sorry, I am still thinking. Please try again." if detected_lang == "en" else "抱歉，系統思考中。"
@@ -279,7 +309,6 @@ async def handle_voice_ask(
     cart_actions = recommendation_service.coerce_cart_actions(
         ask_result.get("cart_actions", []), user_text, menu_items
     )
-    menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
     # Only use menu_question_answer as fallback when LLM result is missing or errored
     if ("error" in ask_result or not ai_response.strip()) and menu_question_answer and not _looks_like_direct_order(user_text):
         cart_actions = []
@@ -300,7 +329,7 @@ async def handle_voice_ask(
         user_speech=user_text, ai_response=ai_response,
         language=detected_lang
     )
-    if _should_save_voice_order_to_rag():
+    if _should_save_voice_order_to_rag() and cart_actions:
         asyncio.create_task(_save_voice_order_rag_doc(
             session_id, user_text, detected_lang, qa_provider, ai_response,
             cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild

@@ -55,24 +55,10 @@ def _docs_to_chroma_documents(rag_docs):
 
 def _ensure_rag_docs_from_menu(menu_items):
     os.makedirs(config.LEARNING_DATA_DIR, exist_ok=True)
-    if os.path.exists(config.RAG_DOCS_JSON_PATH):
-        return False
-    docs = []
-    for item in menu_items:
-        text = build_menu_item_text(item)
-        docs.append({
-            "id": str(uuid.uuid4()),
-            "source_type": "menu",
-            "source_id": item.get("id", ""),
-            "source_text": text,
-            "reviewed_text": text,
-            "review_status": "bootstrap",
-            "created_at": _now_iso(),
-            "updated_at": _now_iso(),
-            "deleted": False
-        })
-    save_rag_docs(docs)
-    return True
+    if not os.path.exists(config.RAG_DOCS_JSON_PATH):
+        save_rag_docs([])
+        return True
+    return False
 
 def init_rag_system(force_rebuild: bool = False):
     print("Initializing RAG System...")
@@ -193,7 +179,7 @@ def upsert_reviewed_rag_doc(source_type: str, source_id: str, source_text: str, 
     })
     return doc
 
-def delete_rag_doc(doc_id: str):
+def delete_rag_doc(doc_id: str, rebuild: bool = True):
     docs = get_rag_docs()
     changed = False
     for doc in docs:
@@ -204,7 +190,8 @@ def delete_rag_doc(doc_id: str):
             break
     if changed:
         save_rag_docs(docs)
-        init_rag_system(force_rebuild=True)
+        if rebuild:
+            init_rag_system(force_rebuild=True)
     return changed
 
 def mark_missing_menu_rag_docs_deleted(active_menu_ids: set[str]):
@@ -310,4 +297,3 @@ def clear_rag_storage():
 
 def load_pdf_chunks(file_path: str, file_name: str = "") -> list[dict]:
     return rag_service.load_pdf_chunks(file_path, file_name)
-

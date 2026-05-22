@@ -6,7 +6,7 @@ import tempfile
 from fastapi import APIRouter, File, Form, UploadFile
 
 import ai_services
-from repositories import interaction_event_repository
+from repositories import emotion_clip_repository, interaction_event_repository
 from realtime import event_bus
 from services import barrier_state_service
 from services import customer_service as customer_emotion_service
@@ -217,6 +217,30 @@ def create_router(deps: dict) -> APIRouter:
                 emotion_available=emotion_available,
                 emotion_error=emotion_error,
             )
+            display_emotion = emotion_structured.get("emotion_display") or emotion_structured.get("emotion_label") or raw_emotion
+            no_person = bool(
+                person_check.get("available")
+                and person_check.get("person_detected") is False
+            )
+            clip = await asyncio.to_thread(
+                emotion_clip_repository.save_clip,
+                session_id,
+                temp_video_path,
+                raw_emotion,
+                display_emotion,
+                person_check,
+                no_person,
+                emotion_structured,
+                media_signals,
+            )
+            deps["emotion_cache"][session_id] = {
+                "emotion": raw_emotion,
+                "emotion_display": display_emotion,
+                "emotion_structured": emotion_structured,
+                "person_check": person_check,
+                "media_signals": media_signals,
+                "clip": clip,
+            }
             barrier_result = barrier_state_service.infer_barrier_state(
                 emotion_structured=emotion_structured,
                 speech_text=speech_text,
@@ -247,6 +271,7 @@ def create_router(deps: dict) -> APIRouter:
                 "emotion_error": emotion_error,
                 "emotion_structured": emotion_structured,
                 "multimodal_evidence": multimodal_evidence,
+                "clip": clip,
                 "risk_result": risk_result,
                 "barrier_result": barrier_result,
                 "intervention": intervention,

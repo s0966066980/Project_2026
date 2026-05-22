@@ -51,7 +51,13 @@ def sanitize_rag_review_result(source_text: str, source_type: str, result: dict)
     return clean
 
 
-async def review_rag_text(source_text: str, source_type: str, source_id: str, ollama_semaphore=None) -> dict:
+async def review_rag_text(
+    source_text: str,
+    source_type: str,
+    source_id: str,
+    ollama_semaphore=None,
+    model_name: str = "",
+) -> dict:
     if not config.get("RAG_REVIEW_ENABLED", True):
         return {
             "status": "approved",
@@ -61,10 +67,13 @@ async def review_rag_text(source_text: str, source_type: str, source_id: str, ol
 
     system_prompt = (
         "你是智慧點餐系統的 RAG 文本審查員。\n"
-        "請審查輸入文本，移除或修正任何可能造成 AI 幻覺的內容。\n"
+        "請審查輸入文本，移除或修正任何可能造成 AI 幻覺的內容，並把內容整理成適合檢索的繁體中文知識文本。\n"
+        "本專案範圍只包含：麥當勞 POS 點餐、菜單、付款、優惠券、客服、RAG、AI 推播、Emotion-LLaMA、互動障礙與服務介入。\n"
+        "若文本明顯與本專案無關，例如股票、醫療、旅遊、一般閒聊、其他餐廳或無法用於本系統，status 必須輸出 rejected，reviewed_text 留空。\n"
         "若是菜單資料，必須保留真實 ID、名稱、價格、描述，不得新增不存在的餐點。\n"
         "若來源類型是 manual，該文本是系統規則或後台補充知識，不是菜單資料；禁止改寫成 id/name/price/description JSON，也禁止創造餐點。\n"
         "若來源類型是 voice_order，該文本是顧客語音點餐對話紀錄；請保留顧客說法、系統回覆、成功加入購物車的餐點與 cart_actions，修正簡體字與明顯錯字即可，不得創造菜單品項。\n"
+        "若文本與本專案相關但格式雜亂，請改寫為清楚的規則、FAQ、操作步驟或客服話術；不要保留無意義符號、重複句或個資。\n"
         "所有中文都必須使用繁體中文，禁止輸出簡體字。\n"
         "輸出只能是合法 JSON：\n"
         "{\n"
@@ -82,7 +91,7 @@ async def review_rag_text(source_text: str, source_type: str, source_id: str, ol
     async def _ask():
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
-            None, ai_services.ask_ollama, system_prompt, user_prompt, "RAG_REVIEW"
+            None, ai_services.ask_ollama, system_prompt, user_prompt, "RAG_REVIEW", model_name
         )
 
     if ollama_semaphore:

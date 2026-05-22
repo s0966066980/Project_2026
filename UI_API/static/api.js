@@ -107,12 +107,32 @@ export async function getEmotionClips(sessionId) {
   return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`, { headers: adminHeaders() }));
 }
 
+export async function getEmotionStatus() {
+  return asJson(await fetch(`${API_BASE}/api/emotion_status`, { headers: adminHeaders() }));
+}
+
 export async function clearEmotionClips(sessionId) {
   return asJson(await fetch(`${API_BASE}/api/emotion_clips/${encodeURIComponent(sessionId)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
 export async function getRagDocs() {
   return asJson(await fetch(`${API_BASE}/api/rag_docs`, { headers: adminHeaders() }));
+}
+
+export async function getRagStatus() {
+  return asJson(await fetch(`${API_BASE}/api/rag_status`, { headers: adminHeaders() }));
+}
+
+export async function getOllamaModels() {
+  return asJson(await fetch(`${API_BASE}/api/ollama_models`, { headers: adminHeaders() }));
+}
+
+export async function reviewAllRagDocs(payload = {}) {
+  return asJson(await fetch(`${API_BASE}/api/rag_docs/review_all`, {
+    method: 'POST',
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  }));
 }
 
 export async function addRagDoc(payload) {

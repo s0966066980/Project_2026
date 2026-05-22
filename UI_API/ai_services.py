@@ -1150,3 +1150,32 @@ async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:
     finally:
         if temp_path and os.path.exists(temp_path):
             await asyncio.to_thread(os.remove, temp_path)
+def check_emotion_llama_status(timeout: float = 2.0) -> dict:
+    url = config.EMOTION_LLAMA_GRADIO_URL.rstrip("/")
+    try:
+        response = requests.get(url, timeout=timeout)
+        return {
+            "available": response.status_code < 500,
+            "status_code": response.status_code,
+            "url": url,
+            "message": "Emotion-LLaMA 推論服務可連線",
+        }
+    except Exception as e:
+        return {
+            "available": False,
+            "status_code": 0,
+            "url": url,
+            "message": str(e),
+        }
+
+
+def list_ollama_models(timeout: float = 3.0) -> list[str]:
+    try:
+        base = config.OLLAMA_API_URL.split("/api/")[0].rstrip("/")
+        response = requests.get(f"{base}/api/tags", timeout=timeout)
+        response.raise_for_status()
+        rows = response.json().get("models", [])
+        names = [str(row.get("name") or "").strip() for row in rows if row.get("name")]
+        return names
+    except Exception:
+        return []

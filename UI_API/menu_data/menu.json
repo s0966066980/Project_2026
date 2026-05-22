@@ -1,542 +1,542 @@
 [
-  {
-    "id": "MCD001",
-    "category": "超值全餐",
-    "name": "大麥克®",
-    "description": "經典雙層牛肉漢堡，搭配招牌醬、生菜、起司、酸黃瓜與芝麻麵包。",
-    "nutrition": "熱量: 約550kcal | 蛋白質: 約25g | 過敏原: 麩質/奶/蛋/芝麻",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "大麥克",
-      "big mac",
-      "巨無霸",
-      "牛肉漢堡",
-      "經典漢堡"
-    ],
-    "price": 78,
-    "image": "/static/menu_images/MCD001.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD002",
-    "category": "超值全餐",
-    "name": "雙層牛肉吉事堡",
-    "description": "雙層牛肉搭配起司與酸黃瓜，適合偏好牛肉與起司的顧客。",
-    "nutrition": "熱量: 約430kcal | 蛋白質: 約25g | 過敏原: 麩質/奶/芝麻",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "雙層牛肉",
-      "雙層吉事",
-      "雙層起司",
-      "double cheeseburger"
-    ],
-    "price": 75,
-    "image": "/static/menu_images/MCD002.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD003",
-    "category": "超值全餐",
-    "name": "四盎司牛肉堡",
-    "description": "厚實牛肉排搭配起司、洋蔥與酸黃瓜，牛肉口感較明顯。",
-    "nutrition": "熱量: 約520kcal | 蛋白質: 約28g | 過敏原: 麩質/奶/芝麻",
-    "prep_time_minutes": 6,
-    "aliases": [
-      "四盎司",
-      "四盎司牛",
-      "quarter pounder",
-      "厚牛肉堡"
-    ],
-    "price": 129,
-    "image": "/static/menu_images/MCD003.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD004",
-    "category": "超值全餐",
-    "name": "雙層四盎司牛肉堡",
-    "description": "雙層厚實牛肉排，肉量充足，適合高飽足需求。",
-    "nutrition": "熱量: 約750kcal | 蛋白質: 約45g | 過敏原: 麩質/奶/芝麻",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "雙層四盎司",
-      "雙層厚牛",
-      "double quarter pounder"
-    ],
-    "price": 169,
-    "image": "/static/menu_images/MCD004.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD005",
-    "category": "超值全餐",
-    "name": "麥香鷄®",
-    "description": "經典炸雞排漢堡，搭配生菜與醬料，口味簡單穩定。",
-    "nutrition": "熱量: 約400kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "麥香雞",
-      "麥香鷄",
-      "mcchicken",
-      "雞堡",
-      "香雞堡"
-    ],
-    "price": 49,
-    "image": "/static/menu_images/MCD005.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD006",
-    "category": "超值全餐",
-    "name": "雙層麥香鷄",
-    "description": "雙層炸雞排漢堡，雞肉份量更足。",
-    "nutrition": "熱量: 約590kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
-    "prep_time_minutes": 6,
-    "aliases": [
-      "雙層麥香雞",
-      "雙層麥香鷄",
-      "雙層雞堡"
-    ],
-    "price": 79,
-    "image": "/static/menu_images/MCD006.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD007",
-    "category": "超值全餐",
-    "name": "勁辣鷄腿堡",
-    "description": "辣味炸雞腿排漢堡，口感酥脆且辣度明顯。",
-    "nutrition": "熱量: 約560kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
-    "prep_time_minutes": 6,
-    "aliases": [
-      "勁辣雞腿堡",
-      "勁辣鷄腿堡",
-      "辣雞堡",
-      "spicy chicken burger"
-    ],
-    "price": 119,
-    "image": "/static/menu_images/MCD007.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD008",
-    "category": "超值全餐",
-    "name": "嫩煎鷄腿堡",
-    "description": "嫩煎雞腿排漢堡，風味較清爽。",
-    "nutrition": "熱量: 約430kcal | 蛋白質: 約24g | 過敏原: 麩質/蛋",
-    "prep_time_minutes": 6,
-    "aliases": [
-      "嫩煎雞腿堡",
-      "板烤雞腿",
-      "烤雞堡",
-      "grilled chicken"
-    ],
-    "price": 119,
-    "image": "/static/menu_images/MCD008.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD009",
-    "category": "超值全餐",
-    "name": "麥香魚®",
-    "description": "魚排漢堡搭配塔塔醬與起司，口味溫和。",
-    "nutrition": "熱量: 約390kcal | 蛋白質: 約16g | 過敏原: 麩質/魚/蛋/奶",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "麥香魚",
-      "魚堡",
-      "filet-o-fish",
-      "魚排堡"
-    ],
-    "price": 79,
-    "image": "/static/menu_images/MCD009.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD010",
-    "category": "超值全餐",
-    "name": "麥克鷄塊®(6塊)",
-    "description": "六塊經典雞塊，可搭配沾醬，適合小份量點心。",
-    "nutrition": "熱量: 約270kcal | 蛋白質: 約15g | 過敏原: 麩質",
-    "prep_time_minutes": 4,
-    "aliases": [
-      "麥克雞塊6塊",
-      "雞塊六塊",
-      "6塊雞塊",
-      "nuggets"
-    ],
-    "price": 64,
-    "image": "/static/menu_images/MCD010.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD011",
-    "category": "超值全餐",
-    "name": "麥克鷄塊®(10塊)",
-    "description": "十塊經典雞塊，適合分享或想吃較多點心的顧客。",
-    "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "麥克雞塊10塊",
-      "雞塊十塊",
-      "10塊雞塊",
-      "nuggets"
-    ],
-    "price": 104,
-    "image": "/static/menu_images/MCD011.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD012",
-    "category": "超值全餐",
-    "name": "原味麥脆鷄腿(2塊)",
-    "description": "兩塊原味麥脆雞腿，外皮酥脆、肉汁感明顯。",
-    "nutrition": "熱量: 約620kcal | 蛋白質: 約38g | 過敏原: 麩質",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "原味麥脆雞",
-      "麥脆雞腿",
-      "原味炸雞",
-      "炸雞腿"
-    ],
-    "price": 129,
-    "image": "/static/menu_images/MCD012.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD013",
-    "category": "超值全餐",
-    "name": "辣味麥脆鷄腿(2塊)",
-    "description": "兩塊辣味麥脆雞腿，適合喜歡辣味炸雞與重口味的顧客。",
-    "nutrition": "熱量: 約640kcal | 蛋白質: 約38g | 過敏原: 麩質",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "辣味麥脆雞",
-      "辣味炸雞",
-      "辣雞腿",
-      "spicy fried chicken"
-    ],
-    "price": 129,
-    "image": "/static/menu_images/MCD013.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD014",
-    "category": "極選系列",
-    "name": "BLT 安格斯牛肉堡",
-    "description": "安格斯牛肉搭配培根、生菜與番茄，屬於升級牛肉堡。",
-    "nutrition": "熱量: 約650kcal | 蛋白質: 約32g | 過敏原: 麩質/奶/蛋",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "BLT安格斯",
-      "安格斯牛肉堡",
-      "angus blt",
-      "高級牛肉堡"
-    ],
-    "price": 139,
-    "image": "/static/menu_images/MCD014.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD015",
-    "category": "極選系列",
-    "name": "BLT 嫩煎鷄腿堡",
-    "description": "嫩煎雞腿搭配培根、生菜與番茄，適合較清爽但仍有份量的選擇。",
-    "nutrition": "熱量: 約560kcal | 蛋白質: 約30g | 過敏原: 麩質/蛋",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "BLT嫩煎雞腿",
-      "BLT雞腿堡",
-      "嫩煎BLT",
-      "grilled chicken blt"
-    ],
-    "price": 139,
-    "image": "/static/menu_images/MCD015.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD016",
-    "category": "極選系列",
-    "name": "帕瑪森安格斯牛肉堡",
-    "description": "安格斯牛肉搭配帕瑪森風味醬料，風味濃郁。",
-    "nutrition": "熱量: 約690kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "帕瑪森安格斯",
-      "帕瑪森牛肉堡",
-      "parmesan angus"
-    ],
-    "price": 149,
-    "image": "/static/menu_images/MCD016.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD017",
-    "category": "極選系列",
-    "name": "蕈菇安格斯牛肉堡",
-    "description": "安格斯牛肉搭配蕈菇風味，口感厚實。",
-    "nutrition": "熱量: 約680kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
-    "prep_time_minutes": 7,
-    "aliases": [
-      "蕈菇安格斯",
-      "菇菇牛肉堡",
-      "mushroom angus"
-    ],
-    "price": 149,
-    "image": "/static/menu_images/MCD017.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD018",
-    "category": "極選系列",
-    "name": "藜麥烤鷄沙拉",
-    "description": "藜麥與烤雞搭配蔬菜，適合較清爽、高蛋白或控制熱量的顧客。",
-    "nutrition": "熱量: 約320kcal | 蛋白質: 約25g | 纖維: 約6g",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "藜麥烤雞沙拉",
-      "烤雞沙拉",
-      "沙拉",
-      "quinoa salad"
-    ],
-    "price": 139,
-    "image": "/static/menu_images/MCD018.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD019",
-    "category": "點心",
-    "name": "薯條",
-    "description": "麥當勞經典薯條，適合搭配漢堡或單點點心。",
-    "nutrition": "熱量: 約320kcal(中份) | 碳水: 約43g | 脂肪: 約15g",
-    "prep_time_minutes": 3,
-    "aliases": [
-      "薯條",
-      "中薯",
-      "大薯",
-      "fries",
-      "馬鈴薯條"
-    ],
-    "price": 45,
-    "image": "/static/menu_images/MCD019.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD020",
-    "category": "點心",
-    "name": "勁辣香鷄翅(2塊)",
-    "description": "兩塊辣味雞翅，適合想吃辣味小點的顧客。",
-    "nutrition": "熱量: 約250kcal | 蛋白質: 約15g | 過敏原: 麩質",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "勁辣雞翅",
-      "辣雞翅",
-      "雞翅",
-      "spicy wings"
-    ],
-    "price": 58,
-    "image": "/static/menu_images/MCD020.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD021",
-    "category": "點心",
-    "name": "蘋果派",
-    "description": "熱甜點，外皮酥脆、內餡為蘋果風味。",
-    "nutrition": "熱量: 約230kcal | 碳水: 約32g | 過敏原: 麩質",
-    "prep_time_minutes": 3,
-    "aliases": [
-      "蘋果派",
-      "apple pie",
-      "派",
-      "甜點"
-    ],
-    "price": 35,
-    "image": "/static/menu_images/MCD021.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD022",
-    "category": "點心",
-    "name": "玉米湯",
-    "description": "熱湯品，適合天氣冷或想搭配清淡配餐的顧客。",
-    "nutrition": "熱量: 約140kcal | 碳水: 約22g | 過敏原: 奶",
-    "prep_time_minutes": 3,
-    "aliases": [
-      "玉米湯",
-      "濃湯",
-      "湯",
-      "corn soup"
-    ],
-    "price": 40,
-    "image": "/static/menu_images/MCD022.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD023",
-    "category": "飲料",
-    "name": "可口可樂",
-    "description": "經典碳酸飲料，適合搭配漢堡、炸雞與薯條。",
-    "nutrition": "熱量: 約150kcal(中杯) | 糖: 約39g",
-    "prep_time_minutes": 1,
-    "aliases": [
-      "可樂",
-      "可口可樂",
-      "coke",
-      "cola"
-    ],
-    "price": 38,
-    "image": "/static/menu_images/MCD023.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD024",
-    "category": "飲料",
-    "name": "可口可樂zero",
-    "description": "零糖碳酸飲料，適合想降低糖分攝取的顧客。",
-    "nutrition": "熱量: 約0kcal | 糖: 0g",
-    "prep_time_minutes": 1,
-    "aliases": [
-      "zero",
-      "零卡可樂",
-      "零糖可樂",
-      "coke zero"
-    ],
-    "price": 38,
-    "image": "/static/menu_images/MCD024.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD025",
-    "category": "飲料",
-    "name": "無糖綠茶(冰)",
-    "description": "無糖茶飲，適合清爽解膩或不想喝含糖飲料的顧客。",
-    "nutrition": "熱量: 約0kcal | 糖: 0g",
-    "prep_time_minutes": 1,
-    "aliases": [
-      "無糖綠茶",
-      "綠茶",
-      "冰綠茶",
-      "tea"
-    ],
-    "price": 38,
-    "image": "/static/menu_images/MCD025.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD026",
-    "category": "McCafé®",
-    "name": "經典美式咖啡(冰)",
-    "description": "冰美式咖啡，適合提神或搭配早餐/下午茶。",
-    "nutrition": "熱量: 約10kcal | 咖啡因: 約120mg",
-    "prep_time_minutes": 2,
-    "aliases": [
-      "冰美式",
-      "美式咖啡",
-      "咖啡",
-      "americano"
-    ],
-    "price": 50,
-    "image": "/static/menu_images/MCD026.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD027",
-    "category": "McCafé®",
-    "name": "經典那堤(熱)",
-    "description": "熱拿鐵咖啡，奶香較明顯，適合溫熱咖啡飲品需求。",
-    "nutrition": "熱量: 約150kcal | 咖啡因: 約100mg | 過敏原: 奶",
-    "prep_time_minutes": 3,
-    "aliases": [
-      "熱拿鐵",
-      "那堤",
-      "拿鐵",
-      "latte"
-    ],
-    "price": 75,
-    "image": "/static/menu_images/MCD027.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD028",
-    "category": "McCafé®",
-    "name": "蜂蜜奶茶(冰)",
-    "description": "蜂蜜風味冰奶茶，適合想喝甜味飲品的顧客。",
-    "nutrition": "熱量: 約220kcal | 糖: 約35g | 過敏原: 奶",
-    "prep_time_minutes": 2,
-    "aliases": [
-      "蜂蜜奶茶",
-      "冰奶茶",
-      "奶茶",
-      "honey milk tea"
-    ],
-    "price": 65,
-    "image": "/static/menu_images/MCD028.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD029",
-    "category": "早餐",
-    "name": "滿福堡®",
-    "description": "經典早餐堡，適合早餐時段快速點餐。",
-    "nutrition": "熱量: 約300kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋/奶",
-    "prep_time_minutes": 4,
-    "aliases": [
-      "滿福堡",
-      "mcmuffin",
-      "早餐堡"
-    ],
-    "price": 58,
-    "image": "/static/menu_images/MCD029.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD030",
-    "category": "早餐",
-    "name": "豬肉滿福堡加蛋",
-    "description": "豬肉滿福堡加蛋，早餐時段高飽足選擇。",
-    "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋/奶",
-    "prep_time_minutes": 5,
-    "aliases": [
-      "豬肉滿福堡加蛋",
-      "豬肉蛋滿福堡",
-      "sausage egg mcmuffin"
-    ],
-    "price": 75,
-    "image": "/static/menu_images/MCD030.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD031",
-    "category": "早餐",
-    "name": "鬆餅(3片)",
-    "description": "三片鬆餅，適合喜歡甜口味早餐的顧客。",
-    "nutrition": "熱量: 約420kcal | 碳水: 約70g | 過敏原: 麩質/蛋/奶",
-    "prep_time_minutes": 4,
-    "aliases": [
-      "鬆餅",
-      "熱香餅",
-      "pancake",
-      "hotcake"
-    ],
-    "price": 69,
-    "image": "/static/menu_images/MCD031.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  },
-  {
-    "id": "MCD032",
-    "category": "早餐",
-    "name": "薯餅",
-    "description": "酥脆早餐配餐，也可作為點心加點。",
-    "nutrition": "熱量: 約150kcal | 碳水: 約15g | 脂肪: 約9g",
-    "prep_time_minutes": 3,
-    "aliases": [
-      "薯餅",
-      "hash brown",
-      "早餐薯餅"
-    ],
-    "price": 32,
-    "image": "/static/menu_images/MCD032.jpg",
-    "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-  }
+    {
+        "id": "MCD001",
+        "category": "超值全餐",
+        "name": "大麥克",
+        "description": "經典雙層牛肉漢堡，搭配招牌醬、生菜、起司、酸黃瓜與芝麻麵包。",
+        "nutrition": "熱量: 約550kcal | 蛋白質: 約25g | 過敏原: 麩質/奶/蛋/芝麻",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "大麥克",
+            "big mac",
+            "巨無霸",
+            "牛肉漢堡",
+            "經典漢堡"
+        ],
+        "price": 78,
+        "image": "/static/menu_images/MCD001.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD002",
+        "category": "超值全餐",
+        "name": "雙層牛肉吉事堡",
+        "description": "雙層牛肉搭配起司與酸黃瓜，適合偏好牛肉與起司的顧客。",
+        "nutrition": "熱量: 約430kcal | 蛋白質: 約25g | 過敏原: 麩質/奶/芝麻",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雙層牛肉",
+            "雙層吉事",
+            "雙層起司",
+            "double cheeseburger"
+        ],
+        "price": 75,
+        "image": "/static/menu_images/MCD002.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD003",
+        "category": "超值全餐",
+        "name": "四盎司牛肉堡",
+        "description": "厚實牛肉排搭配起司、洋蔥與酸黃瓜，牛肉口感較明顯。",
+        "nutrition": "熱量: 約520kcal | 蛋白質: 約28g | 過敏原: 麩質/奶/芝麻",
+        "prep_time_minutes": 6,
+        "aliases": [
+            "四盎司",
+            "四盎司牛",
+            "quarter pounder",
+            "厚牛肉堡"
+        ],
+        "price": 129,
+        "image": "/static/menu_images/MCD003.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD004",
+        "category": "超值全餐",
+        "name": "雙層四盎司牛肉堡",
+        "description": "雙層厚實牛肉排，肉量充足，適合高飽足需求。",
+        "nutrition": "熱量: 約750kcal | 蛋白質: 約45g | 過敏原: 麩質/奶/芝麻",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "雙層四盎司",
+            "雙層厚牛",
+            "double quarter pounder"
+        ],
+        "price": 169,
+        "image": "/static/menu_images/MCD004.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD005",
+        "category": "超值全餐",
+        "name": "麥香鷄®",
+        "description": "經典炸雞排漢堡，搭配生菜與醬料，口味簡單穩定。",
+        "nutrition": "熱量: 約400kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥香雞",
+            "麥香鷄",
+            "mcchicken",
+            "雞堡",
+            "香雞堡"
+        ],
+        "price": 49,
+        "image": "/static/menu_images/MCD005.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD006",
+        "category": "超值全餐",
+        "name": "雙層麥香鷄",
+        "description": "雙層炸雞排漢堡，雞肉份量更足。",
+        "nutrition": "熱量: 約590kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 6,
+        "aliases": [
+            "雙層麥香雞",
+            "雙層麥香鷄",
+            "雙層雞堡"
+        ],
+        "price": 79,
+        "image": "/static/menu_images/MCD006.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD007",
+        "category": "超值全餐",
+        "name": "勁辣鷄腿堡",
+        "description": "辣味炸雞腿排漢堡，口感酥脆且辣度明顯。",
+        "nutrition": "熱量: 約560kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 6,
+        "aliases": [
+            "勁辣雞腿堡",
+            "勁辣鷄腿堡",
+            "辣雞堡",
+            "spicy chicken burger"
+        ],
+        "price": 119,
+        "image": "/static/menu_images/MCD007.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD008",
+        "category": "超值全餐",
+        "name": "嫩煎鷄腿堡",
+        "description": "嫩煎雞腿排漢堡，風味較清爽。",
+        "nutrition": "熱量: 約430kcal | 蛋白質: 約24g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 6,
+        "aliases": [
+            "嫩煎雞腿堡",
+            "板烤雞腿",
+            "烤雞堡",
+            "grilled chicken"
+        ],
+        "price": 119,
+        "image": "/static/menu_images/MCD008.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD009",
+        "category": "超值全餐",
+        "name": "麥香魚®",
+        "description": "魚排漢堡搭配塔塔醬與起司，口味溫和。",
+        "nutrition": "熱量: 約390kcal | 蛋白質: 約16g | 過敏原: 麩質/魚/蛋/奶",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥香魚",
+            "魚堡",
+            "filet-o-fish",
+            "魚排堡"
+        ],
+        "price": 79,
+        "image": "/static/menu_images/MCD009.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD010",
+        "category": "超值全餐",
+        "name": "麥克鷄塊®(6塊)",
+        "description": "六塊經典雞塊，可搭配沾醬，適合小份量點心。",
+        "nutrition": "熱量: 約270kcal | 蛋白質: 約15g | 過敏原: 麩質",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "麥克雞塊6塊",
+            "雞塊六塊",
+            "6塊雞塊",
+            "nuggets"
+        ],
+        "price": 64,
+        "image": "/static/menu_images/MCD010.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD011",
+        "category": "超值全餐",
+        "name": "麥克鷄塊®(10塊)",
+        "description": "十塊經典雞塊，適合分享或想吃較多點心的顧客。",
+        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥克雞塊10塊",
+            "雞塊十塊",
+            "10塊雞塊",
+            "nuggets"
+        ],
+        "price": 104,
+        "image": "/static/menu_images/MCD011.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD012",
+        "category": "超值全餐",
+        "name": "原味麥脆鷄腿(2塊)",
+        "description": "兩塊原味麥脆雞腿，外皮酥脆、肉汁感明顯。",
+        "nutrition": "熱量: 約620kcal | 蛋白質: 約38g | 過敏原: 麩質",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "原味麥脆雞",
+            "麥脆雞腿",
+            "原味炸雞",
+            "炸雞腿"
+        ],
+        "price": 129,
+        "image": "/static/menu_images/MCD012.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD013",
+        "category": "超值全餐",
+        "name": "辣味麥脆鷄腿(2塊)",
+        "description": "兩塊辣味麥脆雞腿，適合喜歡辣味炸雞與重口味的顧客。",
+        "nutrition": "熱量: 約640kcal | 蛋白質: 約38g | 過敏原: 麩質",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "辣味麥脆雞",
+            "辣味炸雞",
+            "辣雞腿",
+            "spicy fried chicken"
+        ],
+        "price": 129,
+        "image": "/static/menu_images/MCD013.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD014",
+        "category": "極選系列",
+        "name": "BLT 安格斯牛肉堡",
+        "description": "安格斯牛肉搭配培根、生菜與番茄，屬於升級牛肉堡。",
+        "nutrition": "熱量: 約650kcal | 蛋白質: 約32g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "BLT安格斯",
+            "安格斯牛肉堡",
+            "angus blt",
+            "高級牛肉堡"
+        ],
+        "price": 139,
+        "image": "/static/menu_images/MCD014.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD015",
+        "category": "極選系列",
+        "name": "BLT 嫩煎鷄腿堡",
+        "description": "嫩煎雞腿搭配培根、生菜與番茄，適合較清爽但仍有份量的選擇。",
+        "nutrition": "熱量: 約560kcal | 蛋白質: 約30g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "BLT嫩煎雞腿",
+            "BLT雞腿堡",
+            "嫩煎BLT",
+            "grilled chicken blt"
+        ],
+        "price": 139,
+        "image": "/static/menu_images/MCD015.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD016",
+        "category": "極選系列",
+        "name": "帕瑪森安格斯牛肉堡",
+        "description": "安格斯牛肉搭配帕瑪森風味醬料，風味濃郁。",
+        "nutrition": "熱量: 約690kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "帕瑪森安格斯",
+            "帕瑪森牛肉堡",
+            "parmesan angus"
+        ],
+        "price": 149,
+        "image": "/static/menu_images/MCD016.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD017",
+        "category": "極選系列",
+        "name": "蕈菇安格斯牛肉堡",
+        "description": "安格斯牛肉搭配蕈菇風味，口感厚實。",
+        "nutrition": "熱量: 約680kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "蕈菇安格斯",
+            "菇菇牛肉堡",
+            "mushroom angus"
+        ],
+        "price": 149,
+        "image": "/static/menu_images/MCD017.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD018",
+        "category": "極選系列",
+        "name": "藜麥烤鷄沙拉",
+        "description": "藜麥與烤雞搭配蔬菜，適合較清爽、高蛋白或控制熱量的顧客。",
+        "nutrition": "熱量: 約320kcal | 蛋白質: 約25g | 纖維: 約6g",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥烤雞沙拉",
+            "烤雞沙拉",
+            "沙拉",
+            "quinoa salad"
+        ],
+        "price": 139,
+        "image": "/static/menu_images/MCD018.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD019",
+        "category": "點心",
+        "name": "薯條",
+        "description": "麥當勞經典薯條，適合搭配漢堡或單點點心。",
+        "nutrition": "熱量: 約320kcal(中份) | 碳水: 約43g | 脂肪: 約15g",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "薯條",
+            "中薯",
+            "大薯",
+            "fries",
+            "馬鈴薯條"
+        ],
+        "price": 45,
+        "image": "/static/menu_images/MCD019.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD020",
+        "category": "點心",
+        "name": "勁辣香鷄翅(2塊)",
+        "description": "兩塊辣味雞翅，適合想吃辣味小點的顧客。",
+        "nutrition": "熱量: 約250kcal | 蛋白質: 約15g | 過敏原: 麩質",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "勁辣雞翅",
+            "辣雞翅",
+            "雞翅",
+            "spicy wings"
+        ],
+        "price": 58,
+        "image": "/static/menu_images/MCD020.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD021",
+        "category": "點心",
+        "name": "蘋果派",
+        "description": "熱甜點，外皮酥脆、內餡為蘋果風味。",
+        "nutrition": "熱量: 約230kcal | 碳水: 約32g | 過敏原: 麩質",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "蘋果派",
+            "apple pie",
+            "派",
+            "甜點"
+        ],
+        "price": 35,
+        "image": "/static/menu_images/MCD021.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD022",
+        "category": "點心",
+        "name": "玉米湯",
+        "description": "熱湯品，適合天氣冷或想搭配清淡配餐的顧客。",
+        "nutrition": "熱量: 約140kcal | 碳水: 約22g | 過敏原: 奶",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "玉米湯",
+            "濃湯",
+            "湯",
+            "corn soup"
+        ],
+        "price": 40,
+        "image": "/static/menu_images/MCD022.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD023",
+        "category": "飲料",
+        "name": "可口可樂",
+        "description": "經典碳酸飲料，適合搭配漢堡、炸雞與薯條。",
+        "nutrition": "熱量: 約150kcal(中杯) | 糖: 約39g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "可樂",
+            "可口可樂",
+            "coke",
+            "cola"
+        ],
+        "price": 38,
+        "image": "/static/menu_images/MCD023.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD024",
+        "category": "飲料",
+        "name": "可口可樂zero",
+        "description": "零糖碳酸飲料，適合想降低糖分攝取的顧客。",
+        "nutrition": "熱量: 約0kcal | 糖: 0g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "zero",
+            "零卡可樂",
+            "零糖可樂",
+            "coke zero"
+        ],
+        "price": 38,
+        "image": "/static/menu_images/MCD024.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD025",
+        "category": "飲料",
+        "name": "無糖綠茶(冰)",
+        "description": "無糖茶飲，適合清爽解膩或不想喝含糖飲料的顧客。",
+        "nutrition": "熱量: 約0kcal | 糖: 0g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "無糖綠茶",
+            "綠茶",
+            "冰綠茶",
+            "tea"
+        ],
+        "price": 38,
+        "image": "/static/menu_images/MCD025.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD026",
+        "category": "McCafé®",
+        "name": "經典美式咖啡(冰)",
+        "description": "冰美式咖啡，適合提神或搭配早餐/下午茶。",
+        "nutrition": "熱量: 約10kcal | 咖啡因: 約120mg",
+        "prep_time_minutes": 2,
+        "aliases": [
+            "冰美式",
+            "美式咖啡",
+            "咖啡",
+            "americano"
+        ],
+        "price": 50,
+        "image": "/static/menu_images/MCD026.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD027",
+        "category": "McCafé®",
+        "name": "經典那堤(熱)",
+        "description": "熱拿鐵咖啡，奶香較明顯，適合溫熱咖啡飲品需求。",
+        "nutrition": "熱量: 約150kcal | 咖啡因: 約100mg | 過敏原: 奶",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "熱拿鐵",
+            "那堤",
+            "拿鐵",
+            "latte"
+        ],
+        "price": 75,
+        "image": "/static/menu_images/MCD027.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD028",
+        "category": "McCafé®",
+        "name": "蜂蜜奶茶(冰)",
+        "description": "蜂蜜風味冰奶茶，適合想喝甜味飲品的顧客。",
+        "nutrition": "熱量: 約220kcal | 糖: 約35g | 過敏原: 奶",
+        "prep_time_minutes": 2,
+        "aliases": [
+            "蜂蜜奶茶",
+            "冰奶茶",
+            "奶茶",
+            "honey milk tea"
+        ],
+        "price": 65,
+        "image": "/static/menu_images/MCD028.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD029",
+        "category": "早餐",
+        "name": "滿福堡®",
+        "description": "經典早餐堡，適合早餐時段快速點餐。",
+        "nutrition": "熱量: 約300kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "滿福堡",
+            "mcmuffin",
+            "早餐堡"
+        ],
+        "price": 58,
+        "image": "/static/menu_images/MCD029.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD030",
+        "category": "早餐",
+        "name": "豬肉滿福堡加蛋",
+        "description": "豬肉滿福堡加蛋，早餐時段高飽足選擇。",
+        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "豬肉滿福堡加蛋",
+            "豬肉蛋滿福堡",
+            "sausage egg mcmuffin"
+        ],
+        "price": 75,
+        "image": "/static/menu_images/MCD030.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD031",
+        "category": "早餐",
+        "name": "鬆餅(3片)",
+        "description": "三片鬆餅，適合喜歡甜口味早餐的顧客。",
+        "nutrition": "熱量: 約420kcal | 碳水: 約70g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "鬆餅",
+            "熱香餅",
+            "pancake",
+            "hotcake"
+        ],
+        "price": 69,
+        "image": "/static/menu_images/MCD031.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    },
+    {
+        "id": "MCD032",
+        "category": "早餐",
+        "name": "薯餅",
+        "description": "酥脆早餐配餐，也可作為點心加點。",
+        "nutrition": "熱量: 約150kcal | 碳水: 約15g | 脂肪: 約9g",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "薯餅",
+            "hash brown",
+            "早餐薯餅"
+        ],
+        "price": 32,
+        "image": "/static/menu_images/MCD032.jpg",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+    }
 ]

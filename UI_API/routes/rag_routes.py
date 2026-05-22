@@ -5,6 +5,7 @@ import time
 
 from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 
+import ai_services
 import config
 import database
 from repositories import log_repository
@@ -110,6 +111,57 @@ def create_router(deps: dict) -> APIRouter:
         await asyncio.to_thread(database.clear_rag_storage)
         deps["recommend_cache"].clear()
         return {"status": "success"}
+
+    @router.get("/ollama_models")
+    async def get_ollama_models(request: Request):
+        require_admin_token(request)
+        models = await asyncio.to_thread(ai_services.list_ollama_models)
+        return {"status": "success", "models": models}
+
+    @router.post("/rag_docs/review_all")
+    async def review_all_rag_docs(request: Request, payload: dict = Body(default={})):
+        require_admin_token(request)
+        model_name = str((payload or {}).get("model_name") or config.get("MODEL_NAME", "llama3.2")).strip()
+        docs = await asyncio.to_thread(database.get_rag_docs)
+        reviewed = []
+        deleted_count = 0
+        for doc in docs:
+            if doc.get("deleted"):
+                continue
+            source_type = str(doc.get("source_type") or "manual")
+            source_id = str(doc.get("source_id") or doc.get("id") or f"rag_{int(time.time())}")
+            source_text = str(doc.get("source_text") or doc.get("reviewed_text") or "").strip()
+            if not source_text:
+                continue
+            review_result = await rag_review_service.review_rag_text(
+                source_text,
+                source_type,
+                source_id,
+                deps["ollama_semaphore"],
+                model_name=model_name,
+            )
+            status = str(review_result.get("status") or "").lower()
+            if status == "rejected":
+                deleted = await asyncio.to_thread(database.delete_rag_doc, doc.get("id"), False)
+                if deleted:
+                    deleted_count += 1
+                continue
+            reviewed.append(await asyncio.to_thread(
+                database.upsert_reviewed_rag_doc,
+                source_type,
+                source_id,
+                source_text,
+                review_result,
+                doc.get("metadata") or {},
+            ))
+        await deps["safe_rebuild_rag"]("bulk RAG review")
+        deps["recommend_cache"].clear()
+        return {
+            "status": "success",
+            "model_name": model_name,
+            "reviewed_count": len(reviewed),
+            "deleted_count": deleted_count,
+        }
 
     @router.delete("/rag_review_logs/{log_index}")
     async def delete_rag_review_log(request: Request, log_index: int):

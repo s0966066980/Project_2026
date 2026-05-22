@@ -80,6 +80,9 @@ let interventionStatsLoading = false;
 let customerServiceLoading = false;
 let posRealtime = null;
 let adminRealtime = null;
+let voiceOrderingAvailable = false;
+let autoVoiceTimer = null;
+let autoVoiceInFlight = false;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
@@ -274,7 +277,7 @@ function perfValue(key) {
 }
 
 function isEventTriggeredMultimodalEnabled() {
-  return runtimeSettings.EVENT_TRIGGERED_MULTIMODAL_ENABLED !== false;
+  return getFeatures().emotion && runtimeSettings.EVENT_TRIGGERED_MULTIMODAL_ENABLED !== false;
 }
 
 function isPeriodicEmotionEnabled() {
@@ -312,7 +315,18 @@ function restartLoops() {
 // =========================================================
 // 功能模組狀態
 // =========================================================
-const FEAT_DEFAULTS = { emotion: true, voiceAsk: false, recommend: true, emotionBackend: false, emotionChat: false, emotionCamera: false, abTest: false, multiLang: true };
+const FEAT_DEFAULTS = {
+  emotion: true,
+  voiceAsk: false,
+  recommend: true,
+  emotionBackend: false,
+  emotionChat: false,
+  emotionCamera: false,
+  emotionRecommend: true,
+  eventTriggeredMultimodal: true,
+  abTest: false,
+  multiLang: true
+};
 const FEATURE_SCHEMA_VERSION = 'event-triggered-20260519';
 
 const INTERACTION_LABELS = {
@@ -446,7 +460,7 @@ function toggleFeature(key, el) {
   saveFeatures(f);
   el.classList.toggle('on', f[key]);
   if (key === 'voiceAsk' && !f.voiceAsk && askRecorder?.state === 'recording') askRecorder.stop();
-  if (key === 'emotionBackend' && !f.emotionBackend) stopEmotionLoop();
+  if ((key === 'emotion' || key === 'emotionBackend') && (!f.emotion || !f.emotionBackend)) stopEmotionLoop();
   applyFeaturesToPOS();
   if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend')) {
     ensureMediaTracks({
@@ -462,6 +476,8 @@ function toggleFeature(key, el) {
     });
   }
   if (key === 'abTest') clearAllPushCards();
+  if (key === 'emotion') updateEmotionAdminVisibility();
+  if (key === 'emotionRecommend') loadEmotionStatus();
 }
 
 function applyFeaturesToPOS() {
@@ -472,7 +488,9 @@ function applyFeaturesToPOS() {
   if (cam) cam.style.display = 'none';
   // 語音按鈕
   const voice = document.getElementById('mod-voice');
-  if (voice) voice.style.display = '';
+  if (voice) voice.style.display = 'none';
+  if (ui.serviceFab) ui.serviceFab.style.display = 'none';
+  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.style.display = 'none';
   if (ui.askText && isDemoPublicMode()) {
     ui.askText.textContent = '您可以直接說：我想吃雞肉，有什麼推薦？';
   }
@@ -484,12 +502,13 @@ function applyFeaturesToPOS() {
   if (!f.recommend) clearAllPushCards();
   if (!f.emotionChat) clearEmotionCards();
   if (!f.emotionBackend) stopEmotionLoop();
-  if (!f.emotionCamera && detectionLoopId) {
+  if (!f.emotion && detectionLoopId) {
     clearInterval(detectionLoopId);
     detectionLoopId = null;
-  } else if (f.emotionCamera && !detectionLoopId) {
+  } else if (f.emotion && !detectionLoopId && isSystemRunning && isPosMode()) {
     startDetectionLoop();
   }
+  if (!f.emotion) setVoiceOrderingAvailable(true);
   updateEmotionCameraPanel();
 }
 
@@ -511,6 +530,45 @@ function initAdminToggles() {
     const el = document.getElementById('tog-' + key);
     if (el) el.classList.toggle('on', f[key]);
   });
+  updateEmotionAdminVisibility();
+}
+
+function updateEmotionAdminVisibility() {
+  const visible = Boolean(getFeatures().emotion);
+  const tabBtn = document.getElementById('tab-btn-emotion');
+  const tabContent = document.getElementById('tab-emotion');
+  if (tabBtn) tabBtn.classList.toggle('hidden', !visible);
+  if (!visible && tabContent && !tabContent.classList.contains('hidden')) {
+    switchAdminTab('features');
+  }
+}
+
+async function loadEmotionStatus() {
+  const statusBox = document.getElementById('emotionStatusBox');
+  if (!statusBox) return;
+  statusBox.innerHTML = '<span class="text-sm" style="color:var(--text2)">檢查 Emotion-LLaMA 連線中...</span>';
+  try {
+    const data = await api.getEmotionStatus();
+    const ok = Boolean(data.available);
+    statusBox.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="rounded-xl p-4" style="background:var(--surface2)">
+          <p class="text-xs font-semibold" style="color:var(--text2)">推論服務</p>
+          <p class="text-xl font-extrabold" style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${ok ? '已啟動' : '未連線'}</p>
+        </div>
+        <div class="rounded-xl p-4" style="background:var(--surface2)">
+          <p class="text-xs font-semibold" style="color:var(--text2)">服務位址</p>
+          <p class="text-sm font-bold break-all">${escapeHTML(data.gradio_url || data.url || '-')}</p>
+        </div>
+        <div class="rounded-xl p-4" style="background:var(--surface2)">
+          <p class="text-xs font-semibold" style="color:var(--text2)">AI 推播影響</p>
+          <p class="text-xl font-extrabold" style="color:var(--accent2)">${getFeatures().emotionRecommend ? '開啟' : '關閉'}</p>
+        </div>
+      </div>
+      <p class="text-xs mt-3" style="color:var(--text2)">${escapeHTML(data.message || '')}</p>`;
+  } catch (e) {
+    statusBox.innerHTML = '<span class="text-sm" style="color:var(--danger)">Emotion-LLaMA 狀態讀取失敗。</span>';
+  }
 }
 
 function updateEmotionCameraPanel() {
@@ -519,6 +577,15 @@ function updateEmotionCameraPanel() {
 
 function updateEmotionDetectionOverlay(personCheck = {}) {
   updateEmotionDetectionOverlayUI(personCheck, { features: getFeatures(), isPosActive: isPosActive(), stream });
+  if (personCheck && personCheck.person_detected === true) {
+    setVoiceOrderingAvailable(true);
+    if (detectionLoopId) {
+      clearInterval(detectionLoopId);
+      detectionLoopId = null;
+    }
+  } else if (getFeatures().emotion) {
+    setVoiceOrderingAvailable(false);
+  }
 }
 
 function maybeStartRollingMediaBuffer() {
@@ -542,6 +609,7 @@ function switchMainView(view) {
 
 function switchAdminTab(id) {
   switchAdminTabUI(id, { loadEmotionClips });
+  if (id === 'emotion') loadEmotionStatus();
 }
 
 function findMenuItems(ids = []) {
@@ -1019,13 +1087,12 @@ function handleRealtimeInteractionIntervention(event = {}) {
 
 function handleRealtimeEmotionAnalysisStarted(event = {}) {
   const payload = event.payload || {};
-  showAdminNotice(`事件觸發情緒分析開始：${payload.session_id || payload.page_id || 'POS'}`);
+  console.debug('emotion_analysis_started', payload);
 }
 
 function handleRealtimeEmotionAnalysisCompleted(event = {}) {
   const payload = event.payload || {};
-  const state = payload.barrier_result?.barrier_state || payload.status || 'completed';
-  showAdminNotice(`事件觸發情緒分析完成：${zhInteractionLabel('barrier', state)}`, 'success');
+  console.debug('emotion_analysis_completed', payload);
   loadInterventionStats();
 }
 
@@ -1158,8 +1225,6 @@ async function maybeCheckBarrierState(riskResult = {}) {
     const uiContext = buildUIContext();
     if (isEventTriggeredMultimodalEnabled() && hasRollingMediaBuffer()) {
       ui.pingInd.style.opacity = '1';
-      showPushNotice('情緒分析開始');
-      showAdminNotice('事件觸發式多模態分析開始。');
       const blob = await captureTriggeredClip(Number(runtimeSettings.INTERACTION_POST_EVENT_BUFFER_SEC) || 5);
       const fd = new FormData();
       fd.append('session_id', sessionId);
@@ -1172,7 +1237,6 @@ async function maybeCheckBarrierState(riskResult = {}) {
         lastVoiceText = data.speech_text || lastVoiceText;
         lastEmotionStructured = data.emotion_structured || lastEmotionStructured;
         lastMediaSignals = data.multimodal_evidence?.audio_evidence || lastMediaSignals || {};
-        showPushNotice('分析完成，等待服務介入推送');
         setTimeout(() => {
           if (
             Date.now() - lastInterventionEventAt > 1800
@@ -1308,10 +1372,12 @@ ui.startBtn.onclick = async () => {
     if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
     applyFeaturesToPOS();
-    ui.serviceFab.style.display = 'flex';
+    if (ui.serviceFab) ui.serviceFab.style.display = 'none';
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
+    setVoiceOrderingAvailable(!f.emotion);
+    if (f.emotion) startDetectionLoop();
     updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
@@ -1336,7 +1402,7 @@ function startDetectionLoop() {
 
 function captureDetectionFrame() {
   const f = getFeatures();
-  if (!f.emotionCamera) return;
+  if (!f.emotion) return;
   const panelVisible = ui.emotionCameraPanel && !ui.emotionCameraPanel.classList.contains('hidden');
   if (!isPosActive() && !panelVisible) return;
   if (document.hidden || detectionInFlight) return;
@@ -1467,6 +1533,7 @@ async function fetchAndDisplayRecommend() {
   const fd = new FormData();
   fd.append('session_id', sessionId);
   fd.append('ab_mode', f.abTest ? 'ab' : 'single');
+  fd.append('emotion_influence', String(Boolean(f.emotion && f.emotionRecommend)));
   try {
     const data = await api.autoRecommend(fd);
     if (data.status === 'success') displayRecommendation(data);
@@ -1530,6 +1597,42 @@ function showVoiceBubble(data) {
   voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
 
+function setVoiceOrderingAvailable(available) {
+  voiceOrderingAvailable = Boolean(available);
+  const disabled = isPosMode() && isSystemRunning && getFeatures().emotion && !voiceOrderingAvailable;
+  ui.askBtn?.classList.toggle('opacity-50', disabled);
+  ui.kioskVoiceBtn?.classList.toggle('opacity-50', disabled);
+  if (ui.askText && disabled) ui.askText.textContent = kioskLang === 'en' ? 'Please stand in front of the camera' : '偵測到顧客後即可語音點餐';
+  if (ui.askBtn) ui.askBtn.disabled = disabled;
+  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.disabled = disabled;
+  if (voiceOrderingAvailable) scheduleAutoVoiceOrdering(800);
+  else stopAutoVoiceOrdering();
+}
+
+function stopAutoVoiceOrdering() {
+  if (autoVoiceTimer) clearTimeout(autoVoiceTimer);
+  autoVoiceTimer = null;
+  autoVoiceInFlight = false;
+  if (askRecorder?.state === 'recording') {
+    try { stopAskRecording(); } catch { }
+  }
+}
+
+function scheduleAutoVoiceOrdering(delayMs = 1200) {
+  if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
+  if (autoVoiceTimer || autoVoiceInFlight || !askRecorder || askRecorder.state !== 'inactive') return;
+  autoVoiceTimer = setTimeout(() => {
+    autoVoiceTimer = null;
+    if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
+    if (!askRecorder || askRecorder.state !== 'inactive') return;
+    autoVoiceInFlight = true;
+    startAskRecording({ id: 'autoVoiceOrder' });
+    setTimeout(() => {
+      if (askRecorder?.state === 'recording') stopAskRecording();
+    }, 4500);
+  }, delayMs);
+}
+
 function setupAskRecorder() {
   if (isAdminMode()) return;
   if (askRecorder) return; // 避免重複設定
@@ -1548,6 +1651,8 @@ function setupAskRecorder() {
         metadata: { reason: 'audio_too_short' }
       });
       ui.askText.textContent = kt('holdVoiceOrder');
+      autoVoiceInFlight = false;
+      scheduleAutoVoiceOrdering(900);
       return;
     }
 
@@ -1604,10 +1709,17 @@ function setupAskRecorder() {
       }
     }
     ui.askText.textContent = kt('holdVoiceOrder');
+    autoVoiceInFlight = false;
+    scheduleAutoVoiceOrdering(1200);
   };
+  if (voiceOrderingAvailable) scheduleAutoVoiceOrdering(800);
 }
 
 function startAskRecording(sourceBtn) {
+  if (getFeatures().emotion && !voiceOrderingAvailable) {
+    showPushNotice(kioskLang === 'en' ? 'Please stand in front of the camera first.' : '請先站到鏡頭前，偵測到顧客後即可語音點餐。');
+    return;
+  }
   if (askRecorder && askRecorder.state === 'inactive') {
     trackInteractionEvent({
       event_type: getFeatures().voiceAsk ? 'voice_ask_started' : 'voice_order_started',
@@ -2023,6 +2135,8 @@ function showCompletionOverlay(title, subtitle) {
 async function finishOrder(cartIds, button, loadingText, doneTitle) {
   orderCompleted = true;
   clearPOSFloatingUI();
+  stopAutoVoiceOrdering();
+  stopRollingMediaBuffer();
   recommendPending = false;
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
@@ -2064,6 +2178,8 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   isSystemRunning = false;
   orderCompleted = false;
   clearPOSFloatingUI();
+  stopAutoVoiceOrdering();
+  stopRollingMediaBuffer();
   cartManager.clearCart();
   ui.overlay.classList.remove('hidden');
   ui.overlay.style.opacity = '1';
@@ -2170,6 +2286,7 @@ function loadAdminData() {
   loadCustomerServiceData();
   loadEmotionClips();
   loadRagStatus();
+  loadOllamaModelOptions();
 }
 
 async function loadRagStatus() {
@@ -2177,9 +2294,7 @@ async function loadRagStatus() {
   if (!container) return;
   container.textContent = '載入中...';
   try {
-    const res = await asJson(await fetch(`${API_BASE}/api/rag_status`, {
-      headers: { 'Authorization': `Bearer ${adminToken}` }
-    }));
+    const res = await api.getRagStatus();
     
     if (res.error) {
       container.textContent = `錯誤: ${res.error}`;
@@ -2581,7 +2696,7 @@ async function saveMenu() {
   try {
     const data = JSON.parse(document.getElementById('menuEditor').value);
     await api.saveMenu(data);
-    alert('菜單已儲存並更新 RAG！');
+    alert('菜單 JSON 已儲存。');
   } catch { alert('JSON 格式錯誤！'); }
 }
 
@@ -2589,9 +2704,8 @@ async function loadRagData() {
   try {
     const data = await api.getRagDocs();
     const docs = data.docs || [];
-    const logs = data.review_logs || [];
     const docsBox = document.getElementById('ragDocsList');
-    const logsBox = document.getElementById('ragLogsList');
+    const reviewSummary = document.getElementById('ragReviewSummary');
     if (docsBox) {
       docsBox.innerHTML = '';
       docs.filter(doc => !doc.deleted).reverse().forEach(doc => {
@@ -2624,34 +2738,43 @@ async function loadRagData() {
       });
       if (!docsBox.innerHTML) docsBox.innerHTML = `<p class="text-sm" style="color:var(--text2)">目前沒有 RAG 文本。</p>`;
     }
-    if (logsBox) {
-      logsBox.innerHTML = '';
-      logs.slice().reverse().forEach(log => {
-        const row = document.createElement('div');
-        row.className = 'p-3 rounded-xl';
-        row.style.border = '1.5px solid var(--border)';
-        row.style.background = 'var(--surface)';
-        row.innerHTML = `
-          <div class="flex justify-between gap-3 mb-1">
-            <p class="font-bold text-sm" style="color:var(--text)">${escapeHTML(log.source_type)} / ${escapeHTML(log.source_id)}</p>
-            <button class="text-xs px-2 py-1 rounded-xl" style="color:var(--danger);border:1px solid var(--border)" data-delete-rag-log="${escapeHTML(log._index)}"><i class="fas fa-trash"></i></button>
-          </div>
-          <p class="text-xs mb-2" style="color:var(--text2)">${escapeHTML(log.timestamp)} · ${escapeHTML(log.review_status)}</p>
-          <p class="text-xs mb-1" style="color:var(--text2)">備註：${escapeHTML(log.review_notes || '-')}</p>
-          <details class="text-xs">
-            <summary class="cursor-pointer" style="color:var(--accent2)">查看審查版本</summary>
-            <pre class="mt-2 p-2 whitespace-pre-wrap break-words rounded-xl max-h-36 overflow-y-auto" style="background:var(--surface2);color:var(--text2)">${escapeHTML(log.reviewed_text || '')}</pre>
-          </details>`;
-        row.querySelector('[data-delete-rag-log]').onclick = async () => {
-          if (!confirm('確定刪除這筆 Ollama 審查紀錄？')) return;
-          await api.deleteRagReviewLog(log._index);
-          await loadRagData();
-        };
-        logsBox.appendChild(row);
-      });
-      if (!logsBox.innerHTML) logsBox.innerHTML = `<p class="text-sm" style="color:var(--text2)">目前沒有審查紀錄。</p>`;
+    if (reviewSummary) {
+      const activeCount = docs.filter(doc => !doc.deleted).length;
+      reviewSummary.textContent = `目前 RAG 文本 ${activeCount} 筆。按下一鍵審查後，系統會使用選定 Ollama 模型重新審查並修正格式。`;
     }
+  } catch {
+    showAdminNotice('RAG 資料載入失敗。', 'error');
+  }
+}
+
+async function loadOllamaModelOptions() {
+  const input = document.getElementById('ragReviewModel');
+  const list = document.getElementById('ollamaModelList');
+  if (!input || !list) return;
+  try {
+    const data = await api.getOllamaModels();
+    const models = Array.isArray(data.models) ? data.models : [];
+    list.innerHTML = models.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
+    if (!input.value && models.length) input.value = models[0];
   } catch { }
+}
+
+async function reviewAllRagDocs() {
+  const modelName = document.getElementById('ragReviewModel')?.value?.trim() || fullSettings.MODEL_NAME || 'llama3.2';
+  if (!confirm(`確定使用 ${modelName} 重新審查所有 RAG 文本？`)) return;
+  const resultBox = document.getElementById('ragReviewResult');
+  if (resultBox) resultBox.textContent = 'Ollama 審查中，請稍候...';
+  try {
+    const data = await api.reviewAllRagDocs({ model_name: modelName });
+    if (data.status !== 'success') throw new Error(data.message || '審查失敗');
+    if (resultBox) {
+      resultBox.textContent = `完成：已修正 ${data.reviewed_count || 0} 筆，刪除不相關 ${data.deleted_count || 0} 筆，模型 ${data.model_name || modelName}`;
+    }
+    await loadRagData();
+    await loadRagStatus();
+  } catch (e) {
+    if (resultBox) resultBox.textContent = `審查失敗：${e.message || e}`;
+  }
 }
 
 async function addRagDoc() {
@@ -2774,6 +2897,7 @@ Object.assign(window, {
   switchAdminTab,
   loadInterventionStats,
   loadEmotionClips,
+  loadEmotionStatus,
   loadCustomerServiceData,
   clearPushLogs,
   toggleFeature,
@@ -2783,6 +2907,7 @@ Object.assign(window, {
   loadRagData,
   clearAllRagDocs,
   addRagDoc,
+  reviewAllRagDocs,
   uploadRagPdf,
   updateCartQty: trackedUpdateCartQty,
   deleteCartItem: trackedDeleteCartItem,

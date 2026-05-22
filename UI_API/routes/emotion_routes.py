@@ -18,6 +18,19 @@ from utils.file_utils import write_binary_file
 def create_router(deps: dict) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["emotion"])
 
+    @router.get("/emotion_status")
+    async def get_emotion_status(request: Request):
+        require_admin_token(request)
+        status = await asyncio.to_thread(ai_services.check_emotion_llama_status)
+        return {
+            "status": "success",
+            "enabled": bool(config.get("EVENT_TRIGGERED_MULTIMODAL_ENABLED", True)),
+            "periodic_enabled": bool(config.get("EMOTION_PERIODIC_ENABLED", False)),
+            "influence_recommend": bool(config.get("EMOTION_INFLUENCE_RECOMMEND", True)),
+            "gradio_url": config.EMOTION_LLAMA_GRADIO_URL,
+            **status,
+        }
+
     @router.get("/emotion_clips/{session_id}")
     async def get_emotion_clips(request: Request, session_id: str):
         require_admin_token(request)

@@ -14,11 +14,14 @@ def create_router(deps: dict) -> APIRouter:
     async def process_auto_recommend(
         session_id: str = Form(...),
         ab_mode: str = Form(default="single"),
+        emotion_influence: str = Form(default="true"),
     ):
         try:
             history = session_repository.get_session_history(session_id)
             history_sig = recommendation_service.history_signature(history, ab_mode)
             current_emotion = deps["emotion_cache"].get(session_id)
+            if not isinstance(current_emotion, dict):
+                current_emotion = {}
             emotion_sig = recommendation_service.history_signature(
                 [{"emotion": (current_emotion or {}).get("emotion_display") or (current_emotion or {}).get("emotion", "")}],
                 "emotion",
@@ -29,7 +32,7 @@ def create_router(deps: dict) -> APIRouter:
             if config.get("ENABLE_RECOMMEND_CACHE", True):
                 cached = deps["recommend_cache"].get(cache_key)
                 if cached and now - cached["ts"] < cache_ttl:
-                    cached_data = cached["data"].copy()
+                    cached_data = cached["data"].copy() if isinstance(cached.get("data"), dict) else {}
                     cached_data["cached"] = True
                     return cached_data
 
@@ -38,6 +41,7 @@ def create_router(deps: dict) -> APIRouter:
                 ab_mode=ab_mode,
                 emotion_cache=deps["emotion_cache"],
                 ollama_semaphore=deps["ollama_semaphore"],
+                emotion_influence=str(emotion_influence).lower() not in ("0", "false", "no", "off"),
             )
             if response_data.get("status") == "success" and config.get("ENABLE_RECOMMEND_CACHE", True):
                 recommendation_service.store_recommend_cache(
