@@ -30,6 +30,13 @@ def _looks_like_direct_order(user_text: str) -> bool:
     ]
     if any(term in normalized for term in direct_terms):
         return True
+    # English direct order patterns
+    english_direct_terms = [
+        "i want", "i'd like", "give me", "add a", "add one", "add two",
+        "order a", "order one", "can i get", "i'll have", "i will have",
+    ]
+    if any(term in normalized for term in english_direct_terms):
+        return True
     return bool(re.search(r"\d+\s*(份|個|杯|組)", normalized))
 
 
@@ -201,6 +208,8 @@ async def handle_voice_ask(
     
     # 1. 檢查檢索品質
     rag_settings = rag_details.get("settings", {})
+    # NOTE: rag_service is imported inline to avoid circular import
+    # (voice_order_service → database → rag_service → ai_services)
     import rag_service
     is_sufficient = rag_service.is_context_sufficient(rag_details)
     
@@ -214,7 +223,7 @@ async def handle_voice_ask(
         else:
             ai_response = "目前資料庫沒有足夠資訊回答這個問題，請在後台 RAG 文本新增對應資料。"
             mentioned_ids = []
-            cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
+            cart_actions = []
         
         ask_result = {
             "ai_response": ai_response,
@@ -271,11 +280,9 @@ async def handle_voice_ask(
         ask_result.get("cart_actions", []), user_text, menu_items
     )
     menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
-    if menu_question_answer and not _looks_like_direct_order(user_text):
+    # Only use menu_question_answer as fallback when LLM result is missing or errored
+    if ("error" in ask_result or not ai_response.strip()) and menu_question_answer and not _looks_like_direct_order(user_text):
         cart_actions = []
-        ai_response = menu_question_answer.get("ai_response", ai_response) or ai_response
-        mentioned_ids = menu_question_answer.get("mentioned_ids", mentioned_ids) or mentioned_ids
-    elif menu_question_answer and not cart_actions:
         ai_response = menu_question_answer.get("ai_response", ai_response) or ai_response
         mentioned_ids = menu_question_answer.get("mentioned_ids", mentioned_ids) or mentioned_ids
     ai_response = recommendation_service.fix_ask_reply_for_intent(

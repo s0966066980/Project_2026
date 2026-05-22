@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 import time
 from dotenv import load_dotenv
 from prompts.defaults import (
@@ -59,6 +60,7 @@ EMOTION_LLAMA_TIMEOUT = 120
 _settings_cache = None
 _settings_mtime = None
 _settings_last_check = 0.0
+_settings_lock = threading.Lock()
 
 # ==========================================
 # 動態設定管理器 (支援後台即時讀寫)
@@ -184,6 +186,7 @@ def load_settings():
     except OSError:
         current_mtime = None
 
+    # Fast path: no lock needed if cache is fresh
     if (
         _settings_cache is not None
         and current_mtime == _settings_mtime
@@ -191,46 +194,58 @@ def load_settings():
     ):
         return _settings_cache.copy()
 
-    if _settings_cache is not None and current_mtime == _settings_mtime:
+    with _settings_lock:
+        # Double-check after acquiring lock
+        now = time.time()
+        if (
+            _settings_cache is not None
+            and current_mtime == _settings_mtime
+            and now - _settings_last_check < 1.0
+        ):
+            return _settings_cache.copy()
+
+        if _settings_cache is not None and current_mtime == _settings_mtime:
+            _settings_last_check = now
+            return _settings_cache.copy()
+
+        settings = DEFAULT_SETTINGS.copy()
+        should_write = not os.path.exists(SETTINGS_JSON_PATH)
+
+        if os.path.exists(SETTINGS_JSON_PATH):
+            try:
+                with open(SETTINGS_JSON_PATH, "r", encoding="utf-8") as f:
+                    raw_settings = f.read().strip()
+                    loaded_data = json.loads(raw_settings) if raw_settings else {}
+                    if isinstance(loaded_data, dict):
+                        settings.update(loaded_data)
+                        should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS)
+            except Exception as e:
+                print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
+                should_write = True
+
+        if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
+            settings["AI_PROVIDER"] = "ollama"
+            settings["QA_AI_PROVIDER"] = "ollama"
+            settings["EMOTION_AI_PROVIDER"] = "ollama"
+
+        if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
+            settings["DEMO_PUBLIC_MODE"] = True
+
+        if should_write:
+            try:
+                tmp_path = SETTINGS_JSON_PATH + ".tmp"
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(settings, f, ensure_ascii=False, indent=4)
+                os.replace(tmp_path, SETTINGS_JSON_PATH)
+                current_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
+            except Exception:
+                pass
+
+        _settings_cache = settings.copy()
+        _settings_mtime = current_mtime
         _settings_last_check = now
-        return _settings_cache.copy()
 
-    settings = DEFAULT_SETTINGS.copy() 
-    should_write = not os.path.exists(SETTINGS_JSON_PATH)
-    
-    if os.path.exists(SETTINGS_JSON_PATH):
-        try:
-            with open(SETTINGS_JSON_PATH, "r", encoding="utf-8") as f:
-                raw_settings = f.read().strip()
-                loaded_data = json.loads(raw_settings) if raw_settings else {}
-                if isinstance(loaded_data, dict):
-                    settings.update(loaded_data)
-                    should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS)
-        except Exception as e:
-            print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
-            should_write = True
-
-    if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
-        settings["AI_PROVIDER"] = "ollama"
-        settings["QA_AI_PROVIDER"] = "ollama"
-        settings["EMOTION_AI_PROVIDER"] = "ollama"
-
-    if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
-        settings["DEMO_PUBLIC_MODE"] = True
-            
-    if should_write:
-        try:
-            with open(SETTINGS_JSON_PATH, "w", encoding="utf-8") as f:
-                json.dump(settings, f, ensure_ascii=False, indent=4)
-            current_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
-        except Exception:
-            pass
-
-    _settings_cache = settings.copy()
-    _settings_mtime = current_mtime
-    _settings_last_check = now
-        
-    return settings.copy()
+        return settings.copy()
 
 
 def load_public_settings():
@@ -239,14 +254,16 @@ def load_public_settings():
 
 def save_settings(new_settings):
     global _settings_cache, _settings_mtime, _settings_last_check
-    settings = load_settings()
-    settings.update(new_settings)
-    
-    with open(SETTINGS_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(settings, f, ensure_ascii=False, indent=4)
-    _settings_cache = settings.copy()
-    _settings_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
-    _settings_last_check = time.time()
+    with _settings_lock:
+        settings = load_settings()
+        settings.update(new_settings)
+        tmp_path = SETTINGS_JSON_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=4)
+        os.replace(tmp_path, SETTINGS_JSON_PATH)
+        _settings_cache = settings.copy()
+        _settings_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
+        _settings_last_check = time.time()
 
 def get(key, default=None):
     """供外部服務調用，動態獲取參數，並支援預設值防呆"""

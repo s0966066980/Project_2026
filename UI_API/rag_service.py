@@ -85,28 +85,7 @@ def _now_iso():
 
 
 def _rag_settings() -> dict:
-    defaults = {
-        "use_multi_query": True,
-        "use_hybrid_search": True,
-        "use_reranker": True,
-        "use_context_compression": True,
-        "use_answer_evaluation": True,
-        "strict_grounding": True,
-        "answer_verification": True,
-        "fail_closed_on_eval_error": True,
-        "min_retrieval_score": 0.08,
-        "min_keyword_overlap": 1,
-        "max_answer_chars": 420,
-        "top_k_vector": 10,
-        "top_k_keyword": 10,
-        "top_k_final": 5,
-        "context_max_chars": 2600,
-        "chunk_size": 700,
-        "chunk_overlap": 120,
-        "embedding_model": "nomic-embed-text",
-        "embedding_provider": "ollama",
-        "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
-    }
+    defaults = dict(config.DEFAULT_SETTINGS.get("rag", {}))
     loaded = config.get("rag", {}) or {}
     if not isinstance(loaded, dict):
         loaded = {}

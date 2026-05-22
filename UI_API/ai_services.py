@@ -935,7 +935,7 @@ def _is_gemini_quota_error(error_text: str) -> bool:
         "429" in lowered
         or "resource_exhausted" in lowered
         or "quota" in lowered
-        or "rate" in lowered and "limit" in lowered
+        or ("rate" in lowered and "limit" in lowered)
     )
 
 

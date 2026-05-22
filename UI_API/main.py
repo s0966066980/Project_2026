@@ -35,7 +35,6 @@ app = FastAPI(title="Smart Kiosk POS API", version="9.0", lifespan=lifespan)
 _emotion_semaphore = asyncio.Semaphore(1)
 _yolo_semaphore = asyncio.Semaphore(1)
 _ollama_semaphore = asyncio.Semaphore(1)
-_background_init_lock = threading.Lock()
 _background_init_done = False
 _emotion_cache = {}
 _recommend_cache = {}
@@ -53,10 +52,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 async def _background_init():
     global _background_init_done
-    with _background_init_lock:
-        if _background_init_done:
-            return
-        _background_init_done = True
+    if _background_init_done:
+        return
+    _background_init_done = True
     await _background_init_once()
 
 
