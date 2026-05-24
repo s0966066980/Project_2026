@@ -1,8 +1,1096 @@
 [
     {
         "id": "MCD001",
+        "category": "早餐",
+        "name": "滿福堡®",
+        "description": "經典早餐堡，適合早餐時段快速點餐。",
+        "nutrition": "熱量: 約300kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "滿福堡",
+            "mcmuffin",
+            "早餐堡"
+        ],
+        "price": 58,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-mcmuffin_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/egg-mcmuffin.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜滿福堡®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-mcmuffin_832x822:nutrition-calculator-tile",
+        "official_name": "滿福堡®"
+    },
+    {
+        "id": "MCD002",
+        "category": "早餐",
+        "name": "豬肉滿福堡",
+        "description": "豬肉滿福堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "豬肉滿福堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/sausage-mcmuffin.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜豬肉滿福堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin_832x822:nutrition-calculator-tile",
+        "official_name": "豬肉滿福堡"
+    },
+    {
+        "id": "MCD003",
+        "category": "早餐",
+        "name": "豬肉滿福堡加蛋",
+        "description": "豬肉滿福堡加蛋，早餐時段高飽足選擇。",
+        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "豬肉滿福堡加蛋",
+            "豬肉蛋滿福堡",
+            "sausage egg mcmuffin"
+        ],
+        "price": 75,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin-with-egg_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/sausage-mcmuffin-with-egg.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜豬肉滿福堡加蛋",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin-with-egg_832x822:nutrition-calculator-tile",
+        "official_name": "豬肉滿福堡加蛋"
+    },
+    {
+        "id": "MCD004",
+        "category": "早餐",
+        "name": "無敵豬肉滿福堡加蛋",
+        "description": "無敵豬肉滿福堡加蛋，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "無敵豬肉滿福堡加蛋"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/mega-mcmuffin_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mega-mcmuffin.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜無敵豬肉滿福堡加蛋",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mega-mcmuffin_832x822:nutrition-calculator-tile",
+        "official_name": "無敵豬肉滿福堡加蛋"
+    },
+    {
+        "id": "MCD005",
+        "category": "早餐",
+        "name": "青蔬滿福堡",
+        "description": "青蔬滿福堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "青蔬滿福堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/muffin-with-vegetables_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/muffin-with-vegetables.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜青蔬滿福堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/muffin-with-vegetables_832x822:nutrition-calculator-tile",
+        "official_name": "青蔬滿福堡"
+    },
+    {
+        "id": "MCD006",
+        "category": "早餐",
+        "name": "吉事蛋堡",
+        "description": "吉事蛋堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "吉事蛋堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/egg-burger.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜吉事蛋堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger_832x822:nutrition-calculator-tile",
+        "official_name": "吉事蛋堡"
+    },
+    {
+        "id": "MCD007",
+        "category": "早餐",
+        "name": "豬肉蛋堡",
+        "description": "豬肉蛋堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "豬肉蛋堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-sausage_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/egg-burger-with-sausage.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜豬肉蛋堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-sausage_832x822:nutrition-calculator-tile",
+        "official_name": "豬肉蛋堡"
+    },
+    {
+        "id": "MCD008",
+        "category": "早餐",
+        "name": "火腿蛋堡",
+        "description": "火腿蛋堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "火腿蛋堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-canadian-bacon_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/egg-burger-with-canadian-bacon.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜火腿蛋堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-canadian-bacon_832x822:nutrition-calculator-tile",
+        "official_name": "火腿蛋堡"
+    },
+    {
+        "id": "MCD009",
+        "category": "早餐",
+        "name": "豬肉鬆餅",
+        "description": "豬肉鬆餅，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "豬肉鬆餅"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220豬肉鬆餅832x822_3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hotcakes-with-sausage.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜豬肉鬆餅",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220豬肉鬆餅832x822_3:nutrition-calculator-tile",
+        "official_name": "豬肉鬆餅"
+    },
+    {
+        "id": "MCD010",
+        "category": "早餐",
+        "name": "鬆餅(3片)",
+        "description": "三片鬆餅，適合喜歡甜口味早餐的顧客。",
+        "nutrition": "熱量: 約420kcal | 碳水: 約70g | 過敏原: 麩質/蛋/奶",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "鬆餅",
+            "熱香餅",
+            "pancake",
+            "hotcake"
+        ],
+        "price": 69,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220鬆餅832x822_2:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hotcakes-3-pieces.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜鬆餅(3片)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220鬆餅832x822_2:nutrition-calculator-tile",
+        "official_name": "鬆餅(3片)"
+    },
+    {
+        "id": "MCD011",
+        "category": "早餐",
+        "name": "鷄塊鬆餅大早餐",
+        "description": "鷄塊鬆餅大早餐，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雞塊鬆餅大早餐",
+            "鷄塊鬆餅大早餐"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/grand-breakfast_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/grand-breakfast.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜鷄塊鬆餅大早餐",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/grand-breakfast_832x822:nutrition-calculator-tile",
+        "official_name": "鷄塊鬆餅大早餐"
+    },
+    {
+        "id": "MCD012",
+        "category": "早餐",
+        "name": "番茄嫩蛋焙果堡",
+        "description": "番茄嫩蛋焙果堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "番茄嫩蛋焙果堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/bagel-burger-with-cheese_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/bagel-burger-with-cheese.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜番茄嫩蛋焙果堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/bagel-burger-with-cheese_832x822:nutrition-calculator-tile",
+        "official_name": "番茄嫩蛋焙果堡"
+    },
+    {
+        "id": "MCD013",
+        "category": "早餐",
+        "name": "現烤焙果",
+        "description": "現烤焙果，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "現烤焙果"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/plain-bagel_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/plain-bagel.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜現烤焙果",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/plain-bagel_832x822:nutrition-calculator-tile",
+        "official_name": "現烤焙果"
+    },
+    {
+        "id": "MCD014",
+        "category": "早餐",
+        "name": "蕈菇嫩蛋焙果堡",
+        "description": "蕈菇嫩蛋焙果堡，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "蕈菇嫩蛋焙果堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/早餐蕈菇嫩蛋焙果堡1206:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/bagel-burger-with-mushroom.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜蕈菇嫩蛋焙果堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/早餐蕈菇嫩蛋焙果堡1206:nutrition-calculator-tile",
+        "official_name": "蕈菇嫩蛋焙果堡"
+    },
+    {
+        "id": "MCD015",
+        "category": "早餐",
+        "name": "麥香魚®",
+        "description": "魚排漢堡搭配塔塔醬與起司，口味溫和。",
+        "nutrition": "熱量: 約390kcal | 蛋白質: 約16g | 過敏原: 麩質/魚/蛋/奶",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥香魚",
+            "魚堡",
+            "filet-o-fish",
+            "魚排堡"
+        ],
+        "price": 79,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/filet-o-fish_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/filet-o-fish.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜麥香魚®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/filet-o-fish_832x822:nutrition-calculator-tile",
+        "official_name": "麥香魚®"
+    },
+    {
+        "id": "MCD016",
+        "category": "早餐",
+        "name": "麥香鷄®",
+        "description": "經典炸雞排漢堡，搭配生菜與醬料，口味簡單穩定。",
+        "nutrition": "熱量: 約400kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥香雞",
+            "麥香鷄",
+            "mcchicken",
+            "雞堡",
+            "香雞堡"
+        ],
+        "price": 49,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcchicken_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mcchicken.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜麥香鷄®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcchicken_832x822:nutrition-calculator-tile",
+        "official_name": "麥香鷄®"
+    },
+    {
+        "id": "MCD017",
+        "category": "早餐",
+        "name": "麥克鷄塊®(6塊)",
+        "description": "六塊經典雞塊，可搭配沾醬，適合小份量點心。",
+        "nutrition": "熱量: 約270kcal | 蛋白質: 約15g | 過敏原: 麩質",
+        "prep_time_minutes": 4,
+        "aliases": [
+            "麥克雞塊6塊",
+            "雞塊六塊",
+            "6塊雞塊",
+            "nuggets"
+        ],
+        "price": 64,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-6-pieces.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜麥克鷄塊®(6塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(6塊)"
+    },
+    {
+        "id": "MCD018",
+        "category": "早餐",
+        "name": "麥克鷄塊®(10塊)",
+        "description": "十塊經典雞塊，適合分享或想吃較多點心的顧客。",
+        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥克雞塊10塊",
+            "雞塊十塊",
+            "10塊雞塊",
+            "nuggets"
+        ],
+        "price": 104,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-10-pieces.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜麥克鷄塊®(10塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(10塊)"
+    },
+    {
+        "id": "MCD019",
+        "category": "早餐",
+        "name": "原味可頌",
+        "description": "原味可頌，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "原味可頌"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/croissant.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜原味可頌",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
+        "official_name": "原味可頌"
+    },
+    {
+        "id": "MCD020",
+        "category": "早餐",
+        "name": "巧克力榛果可頌",
+        "description": "巧克力榛果可頌，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "巧克力榛果可頌"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/croissant-chocolate.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜巧克力榛果可頌",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
+        "official_name": "巧克力榛果可頌"
+    },
+    {
+        "id": "MCD021",
+        "category": "早餐",
+        "name": "肉桂捲",
+        "description": "肉桂捲，早餐時段供應品項；實際供應時間與品項依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "肉桂捲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/cinnamon-swirl.html",
+        "source_category": "早餐",
+        "availability_note": "早餐供應時間為上午10:30前；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "早餐｜肉桂捲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
+        "official_name": "肉桂捲"
+    },
+    {
+        "id": "MCD022",
+        "category": "1+1星級點",
+        "name": "麥香鷄®+可樂(小)",
+        "description": "麥香鷄®+可樂(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "可樂(小)",
+            "麥香雞+可樂(小)",
+            "麥香鷄",
+            "麥香鷄+可樂(小)",
+            "麥香鷄®+可樂(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_01_麥香鷄_可樂(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/mcchicken-and-coke.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜麥香鷄®+可樂(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_01_麥香鷄_可樂(小)-:nutrition-calculator-tile",
+        "official_name": "麥香鷄®+可樂(小)"
+    },
+    {
+        "id": "MCD023",
+        "category": "1+1星級點",
+        "name": "吉事漢堡+紅茶(熱)",
+        "description": "吉事漢堡+紅茶(熱)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "吉事漢堡",
+            "吉事漢堡+紅茶(熱)",
+            "紅茶(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_02_吉事漢堡_紅茶(熱):nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/cheese-burger-and-hot-black-tea.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜吉事漢堡+紅茶(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_02_吉事漢堡_紅茶(熱):nutrition-calculator-tile",
+        "official_name": "吉事漢堡+紅茶(熱)"
+    },
+    {
+        "id": "MCD024",
+        "category": "1+1星級點",
+        "name": "麥克鷄塊®(4塊)+無糖綠茶(冰)(小)",
+        "description": "麥克鷄塊®(4塊)+無糖綠茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "無糖綠茶(冰)(小)",
+            "雞塊",
+            "麥克雞塊",
+            "麥克雞塊(4塊)+無糖綠茶(冰)(小)",
+            "麥克鷄塊(4塊)",
+            "麥克鷄塊(4塊)+無糖綠茶(冰)(小)",
+            "麥克鷄塊®(4塊)+無糖綠茶(冰)(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-4-pieces-and-iced-green-tea-sugar-free.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜麥克鷄塊®(4塊)+無糖綠茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-1:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(4塊)+無糖綠茶(冰)(小)"
+    },
+    {
+        "id": "MCD025",
+        "category": "1+1星級點",
+        "name": "勁辣香鷄翅(一份兩塊)+雪碧(小)",
+        "description": "勁辣香鷄翅(一份兩塊)+雪碧(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "勁辣香雞翅(一份兩塊)+雪碧(小)",
+            "勁辣香鷄翅(一份兩塊)",
+            "勁辣香鷄翅(一份兩塊)+雪碧(小)",
+            "雪碧(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_04_勁辣香鷄翅(一份兩塊)-_雪碧(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/spicy-chicken-wing-and-sprite.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜勁辣香鷄翅(一份兩塊)+雪碧(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_04_勁辣香鷄翅(一份兩塊)-_雪碧(小)-:nutrition-calculator-tile",
+        "official_name": "勁辣香鷄翅(一份兩塊)+雪碧(小)"
+    },
+    {
+        "id": "MCD026",
+        "category": "1+1星級點",
+        "name": "薯條(小)+無糖紅茶(冰)(小)",
+        "description": "薯條(小)+無糖紅茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "fries",
+            "無糖紅茶(冰)(小)",
+            "薯條(小)",
+            "薯條(小)+無糖紅茶(冰)(小)",
+            "馬鈴薯條"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_07_薯條小檸檬風味紅茶:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/french-fries-and-iced-black-tea-sugar-free.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜薯條(小)+無糖紅茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_07_薯條小檸檬風味紅茶:nutrition-calculator-tile",
+        "official_name": "薯條(小)+無糖紅茶(冰)(小)"
+    },
+    {
+        "id": "MCD027",
+        "category": "1+1星級點",
+        "name": "大蛋捲冰淇淋+無糖綠茶(冰)(小)",
+        "description": "大蛋捲冰淇淋+無糖綠茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "大蛋捲冰淇淋",
+            "大蛋捲冰淇淋+無糖綠茶(冰)(小)",
+            "無糖綠茶(冰)(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/大蛋捲冰淇淋無糖綠茶冰_no-shadow1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/ice-cream-cone-large-iced-green-tea-sugar-free.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜大蛋捲冰淇淋+無糖綠茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/大蛋捲冰淇淋無糖綠茶冰_no-shadow1:nutrition-calculator-tile",
+        "official_name": "大蛋捲冰淇淋+無糖綠茶(冰)(小)"
+    },
+    {
+        "id": "MCD028",
+        "category": "1+1星級點",
+        "name": "蘋果派+可樂(小)",
+        "description": "蘋果派+可樂(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "可樂(小)",
+            "蘋果派",
+            "蘋果派+可樂(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_09_蘋果派_可樂(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/apple-pie-and-coke.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜蘋果派+可樂(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_09_蘋果派_可樂(小)-:nutrition-calculator-tile",
+        "official_name": "蘋果派+可樂(小)"
+    },
+    {
+        "id": "MCD029",
+        "category": "1+1星級點",
+        "name": "原味麥脆鷄腿(1塊)+雪碧(小)",
+        "description": "原味麥脆鷄腿(1塊)+雪碧(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "原味麥脆雞腿(1塊)+雪碧(小)",
+            "原味麥脆鷄腿(1塊)",
+            "原味麥脆鷄腿(1塊)+雪碧(小)",
+            "雪碧(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/原味麥脆鷄腿(1塊)_雪碧(小)_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mccrispy-thigh-1-pieces-and-sprite.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜原味麥脆鷄腿(1塊)+雪碧(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/原味麥脆鷄腿(1塊)_雪碧(小)_832x822:nutrition-calculator-tile",
+        "official_name": "原味麥脆鷄腿(1塊)+雪碧(小)​"
+    },
+    {
+        "id": "MCD030",
+        "category": "1+1星級點",
+        "name": "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)",
+        "description": "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "檸檬風味紅茶(冰)(小)",
+            "辣味麥脆雞腿(1塊)+檸檬風味紅茶(冰)(小)",
+            "辣味麥脆鷄腿(1塊)",
+            "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/一塊麥脆鷄腿辣味檸檬紅茶:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/spicy-chicken-mccrispy-thigh-1-pieces-and-iced-black-tea-lemon-flavor.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/一塊麥脆鷄腿辣味檸檬紅茶:nutrition-calculator-tile",
+        "official_name": "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)​"
+    },
+    {
+        "id": "MCD031",
+        "category": "1+1星級點",
+        "name": "麥克雙牛堡+檸檬風味紅茶(冰)(小)",
+        "description": "麥克雙牛堡+檸檬風味紅茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "檸檬風味紅茶(冰)(小)",
+            "麥克雙牛堡",
+            "麥克雙牛堡+檸檬風味紅茶(冰)(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_10_麥克雙牛堡_檸檬風味紅茶(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/mcdouble-and-iced-black-tea-lemon-flavor.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜麥克雙牛堡+檸檬風味紅茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_10_麥克雙牛堡_檸檬風味紅茶(小)-:nutrition-calculator-tile",
+        "official_name": "麥克雙牛堡+檸檬風味紅茶(冰)(小)"
+    },
+    {
+        "id": "MCD032",
+        "category": "1+1星級點",
+        "name": "麥香魚®+雪碧(小)",
+        "description": "麥香魚®+雪碧(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雪碧(小)",
+            "麥香魚",
+            "麥香魚+雪碧(小)",
+            "麥香魚®+雪碧(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_11_麥香魚_雪碧(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/filet-o-fish-and-sprite.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜麥香魚®+雪碧(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_11_麥香魚_雪碧(小)-:nutrition-calculator-tile",
+        "official_name": "麥香魚®+雪碧(小)"
+    },
+    {
+        "id": "MCD033",
+        "category": "1+1星級點",
+        "name": "麥克鷄塊®(6塊)+可樂(小)",
+        "description": "麥克鷄塊®(6塊)+可樂(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "可樂(小)",
+            "雞塊",
+            "麥克雞塊",
+            "麥克雞塊(6塊)+可樂(小)",
+            "麥克鷄塊(6塊)",
+            "麥克鷄塊(6塊)+可樂(小)",
+            "麥克鷄塊®(6塊)+可樂(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_12_六塊麥克鷄塊_可樂(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-6-pieces-and-coke.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜麥克鷄塊®(6塊)+可樂(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_12_六塊麥克鷄塊_可樂(小)-:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(6塊)+可樂(小)"
+    },
+    {
+        "id": "MCD034",
+        "category": "1+1星級點",
+        "name": "OREO冰炫風®＋檸檬風味紅茶(冰)(小)",
+        "description": "OREO冰炫風®＋檸檬風味紅茶(冰)(小)，屬於麥當勞 1+1 星級點指定組合；商品不得任意更換或補差價升級。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "OREO冰炫風",
+            "OREO冰炫風®＋檸檬風味紅茶(冰)(小)",
+            "OREO冰炫風＋檸檬風味紅茶(冰)(小)",
+            "檸檬風味紅茶(冰)(小)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_13_OREO冰炫風_檸檬風味紅茶(小)-:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "1+1星級點"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/oreo-mcflurry-and-iced-black-tea-lemon-flavor.html",
+        "source_category": "1+1星級點",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；牛肉類商品與冰品僅供應至凌晨1:00；不適用於歡樂送。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "1+1星級點｜OREO冰炫風®＋檸檬風味紅茶(冰)(小)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_13_OREO冰炫風_檸檬風味紅茶(小)-:nutrition-calculator-tile",
+        "official_name": "OREO冰炫風®＋檸檬風味紅茶(冰)(小)"
+    },
+    {
+        "id": "MCD035",
         "category": "超值全餐",
-        "name": "大麥克",
+        "name": "大麥克®",
         "description": "經典雙層牛肉漢堡，搭配招牌醬、生菜、起司、酸黃瓜與芝麻麵包。",
         "nutrition": "熱量: 約550kcal | 蛋白質: 約25g | 過敏原: 麩質/奶/蛋/芝麻",
         "prep_time_minutes": 5,
@@ -14,11 +1102,26 @@
             "經典漢堡"
         ],
         "price": 78,
-        "image": "/static/menu_images/MCD001.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/big-mac_832x822_2:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/big-mac.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜大麥克®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/big-mac_832x822_2:nutrition-calculator-tile",
+        "official_name": "大麥克®"
     },
     {
-        "id": "MCD002",
+        "id": "MCD036",
         "category": "超值全餐",
         "name": "雙層牛肉吉事堡",
         "description": "雙層牛肉搭配起司與酸黃瓜，適合偏好牛肉與起司的顧客。",
@@ -31,11 +1134,26 @@
             "double cheeseburger"
         ],
         "price": 75,
-        "image": "/static/menu_images/MCD002.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/double-cheese-burger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/double-cheese-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜雙層牛肉吉事堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/double-cheese-burger_832x822:nutrition-calculator-tile",
+        "official_name": "雙層牛肉吉事堡"
     },
     {
-        "id": "MCD003",
+        "id": "MCD037",
         "category": "超值全餐",
         "name": "四盎司牛肉堡",
         "description": "厚實牛肉排搭配起司、洋蔥與酸黃瓜，牛肉口感較明顯。",
@@ -48,11 +1166,26 @@
             "厚牛肉堡"
         ],
         "price": 129,
-        "image": "/static/menu_images/MCD003.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_四盎司牛肉堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/classic-angus-beef-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜四盎司牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_四盎司牛肉堡-1:nutrition-calculator-tile",
+        "official_name": "四盎司牛肉堡"
     },
     {
-        "id": "MCD004",
+        "id": "MCD038",
         "category": "超值全餐",
         "name": "雙層四盎司牛肉堡",
         "description": "雙層厚實牛肉排，肉量充足，適合高飽足需求。",
@@ -64,11 +1197,26 @@
             "double quarter pounder"
         ],
         "price": 169,
-        "image": "/static/menu_images/MCD004.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雙層四盎司牛肉堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/double-classic-angus-beef-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜雙層四盎司牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雙層四盎司牛肉堡-1:nutrition-calculator-tile",
+        "official_name": "雙層四盎司牛肉堡"
     },
     {
-        "id": "MCD005",
+        "id": "MCD039",
         "category": "超值全餐",
         "name": "麥香鷄®",
         "description": "經典炸雞排漢堡，搭配生菜與醬料，口味簡單穩定。",
@@ -82,11 +1230,27 @@
             "香雞堡"
         ],
         "price": 49,
-        "image": "/static/menu_images/MCD005.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcchicken_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mcchicken.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜麥香鷄®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcchicken_832x822:nutrition-calculator-tile",
+        "official_name": "麥香鷄®"
     },
     {
-        "id": "MCD006",
+        "id": "MCD040",
         "category": "超值全餐",
         "name": "雙層麥香鷄",
         "description": "雙層炸雞排漢堡，雞肉份量更足。",
@@ -98,28 +1262,26 @@
             "雙層雞堡"
         ],
         "price": 79,
-        "image": "/static/menu_images/MCD006.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD007",
-        "category": "超值全餐",
-        "name": "勁辣鷄腿堡",
-        "description": "辣味炸雞腿排漢堡，口感酥脆且辣度明顯。",
-        "nutrition": "熱量: 約560kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
-        "prep_time_minutes": 6,
-        "aliases": [
-            "勁辣雞腿堡",
-            "勁辣鷄腿堡",
-            "辣雞堡",
-            "spicy chicken burger"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/雙層麥香鷄:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
         ],
-        "price": 119,
-        "image": "/static/menu_images/MCD007.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/double-mcchicken.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜雙層麥香鷄",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/雙層麥香鷄:nutrition-calculator-tile",
+        "official_name": "雙層麥香鷄"
     },
     {
-        "id": "MCD008",
+        "id": "MCD041",
         "category": "超值全餐",
         "name": "嫩煎鷄腿堡",
         "description": "嫩煎雞腿排漢堡，風味較清爽。",
@@ -132,28 +1294,26 @@
             "grilled chicken"
         ],
         "price": 119,
-        "image": "/static/menu_images/MCD008.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD009",
-        "category": "超值全餐",
-        "name": "麥香魚®",
-        "description": "魚排漢堡搭配塔塔醬與起司，口味溫和。",
-        "nutrition": "熱量: 約390kcal | 蛋白質: 約16g | 過敏原: 麩質/魚/蛋/奶",
-        "prep_time_minutes": 5,
-        "aliases": [
-            "麥香魚",
-            "魚堡",
-            "filet-o-fish",
-            "魚排堡"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/grilled-bbq-chicken-burger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
         ],
-        "price": 79,
-        "image": "/static/menu_images/MCD009.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/grilled-bbq-chicken-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜嫩煎鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/grilled-bbq-chicken-burger_832x822:nutrition-calculator-tile",
+        "official_name": "嫩煎鷄腿堡"
     },
     {
-        "id": "MCD010",
+        "id": "MCD042",
         "category": "超值全餐",
         "name": "麥克鷄塊®(6塊)",
         "description": "六塊經典雞塊，可搭配沾醬，適合小份量點心。",
@@ -166,11 +1326,28 @@
             "nuggets"
         ],
         "price": 64,
-        "image": "/static/menu_images/MCD010.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-6-pieces.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜麥克鷄塊®(6塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(6塊)"
     },
     {
-        "id": "MCD011",
+        "id": "MCD043",
         "category": "超值全餐",
         "name": "麥克鷄塊®(10塊)",
         "description": "十塊經典雞塊，適合分享或想吃較多點心的顧客。",
@@ -183,11 +1360,60 @@
             "nuggets"
         ],
         "price": 104,
-        "image": "/static/menu_images/MCD011.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-10-pieces.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜麥克鷄塊®(10塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(10塊)"
     },
     {
-        "id": "MCD012",
+        "id": "MCD044",
+        "category": "超值全餐",
+        "name": "勁辣鷄腿堡",
+        "description": "辣味炸雞腿排漢堡，口感酥脆且辣度明顯。",
+        "nutrition": "熱量: 約560kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 6,
+        "aliases": [
+            "勁辣雞腿堡",
+            "勁辣鷄腿堡",
+            "辣雞堡",
+            "spicy chicken burger"
+        ],
+        "price": 119,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-filet-burger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-filet-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜勁辣鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-filet-burger_832x822:nutrition-calculator-tile",
+        "official_name": "勁辣鷄腿堡"
+    },
+    {
+        "id": "MCD045",
         "category": "超值全餐",
         "name": "原味麥脆鷄腿(2塊)",
         "description": "兩塊原味麥脆雞腿，外皮酥脆、肉汁感明顯。",
@@ -200,11 +1426,27 @@
             "炸雞腿"
         ],
         "price": 129,
-        "image": "/static/menu_images/MCD012.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_原味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mccrispy-2-pieces.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜原味麥脆鷄腿(2塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_原味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "official_name": "原味麥脆鷄腿(2塊)"
     },
     {
-        "id": "MCD013",
+        "id": "MCD046",
         "category": "超值全餐",
         "name": "辣味麥脆鷄腿(2塊)",
         "description": "兩塊辣味麥脆雞腿，適合喜歡辣味炸雞與重口味的顧客。",
@@ -217,11 +1459,381 @@
             "spicy fried chicken"
         ],
         "price": 129,
-        "image": "/static/menu_images/MCD013.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_辣味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-mccrispy-2-pieces.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜辣味麥脆鷄腿(2塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_辣味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "official_name": "辣味麥脆鷄腿(2塊)"
     },
     {
-        "id": "MCD014",
+        "id": "MCD047",
+        "category": "超值全餐",
+        "name": "麥香魚®",
+        "description": "魚排漢堡搭配塔塔醬與起司，口味溫和。",
+        "nutrition": "熱量: 約390kcal | 蛋白質: 約16g | 過敏原: 麩質/魚/蛋/奶",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥香魚",
+            "魚堡",
+            "filet-o-fish",
+            "魚排堡"
+        ],
+        "price": 79,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/filet-o-fish_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/filet-o-fish.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜麥香魚®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/filet-o-fish_832x822:nutrition-calculator-tile",
+        "official_name": "麥香魚®"
+    },
+    {
+        "id": "MCD048",
+        "category": "超值全餐",
+        "name": "BLT 安格斯牛肉堡",
+        "description": "安格斯牛肉搭配培根、生菜與番茄，屬於升級牛肉堡。",
+        "nutrition": "熱量: 約650kcal | 蛋白質: 約32g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "BLT安格斯",
+            "安格斯牛肉堡",
+            "angus blt",
+            "高級牛肉堡"
+        ],
+        "price": 139,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature832x822_1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/blt-angus-beef-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜BLT 安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature832x822_1:nutrition-calculator-tile",
+        "official_name": "BLT 安格斯牛肉堡"
+    },
+    {
+        "id": "MCD049",
+        "category": "超值全餐",
+        "name": "BLT 嫩煎鷄腿堡",
+        "description": "嫩煎雞腿搭配培根、生菜與番茄，適合較清爽但仍有份量的選擇。",
+        "nutrition": "熱量: 約560kcal | 蛋白質: 約30g | 過敏原: 麩質/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "BLT嫩煎雞腿",
+            "BLT雞腿堡",
+            "嫩煎BLT",
+            "grilled chicken blt"
+        ],
+        "price": 139,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/blt-grilled-chicken-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜BLT 嫩煎鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_3:nutrition-calculator-tile",
+        "official_name": "BLT 嫩煎鷄腿堡"
+    },
+    {
+        "id": "MCD050",
+        "category": "超值全餐",
+        "name": "帕瑪森安格斯牛肉堡",
+        "description": "安格斯牛肉搭配帕瑪森風味醬料，風味濃郁。",
+        "nutrition": "熱量: 約690kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "帕瑪森安格斯",
+            "帕瑪森牛肉堡",
+            "parmesan angus"
+        ],
+        "price": 149,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森安格斯牛肉堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/parmesan-angus-beef-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜帕瑪森安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森安格斯牛肉堡-1:nutrition-calculator-tile",
+        "official_name": "帕瑪森安格斯牛肉堡"
+    },
+    {
+        "id": "MCD051",
+        "category": "超值全餐",
+        "name": "帕瑪森主廚鷄腿堡",
+        "description": "帕瑪森主廚鷄腿堡，屬於超值全餐品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "帕瑪森主廚雞腿堡",
+            "帕瑪森主廚鷄腿堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/parmesan-crispy-chicken-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜帕瑪森主廚鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
+        "official_name": "帕瑪森主廚鷄腿堡"
+    },
+    {
+        "id": "MCD052",
+        "category": "超值全餐",
+        "name": "蕈菇安格斯牛肉堡",
+        "description": "安格斯牛肉搭配蕈菇風味，口感厚實。",
+        "nutrition": "熱量: 約680kcal | 蛋白質: 約35g | 過敏原: 麩質/奶/蛋",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "蕈菇安格斯",
+            "菇菇牛肉堡",
+            "mushroom angus"
+        ],
+        "price": 149,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_4:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mushroom-angus-beef-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜蕈菇安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_4:nutrition-calculator-tile",
+        "official_name": "蕈菇安格斯牛肉堡"
+    },
+    {
+        "id": "MCD053",
+        "category": "超值全餐",
+        "name": "蕈菇主廚鷄腿堡",
+        "description": "蕈菇主廚鷄腿堡，屬於超值全餐品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "蕈菇主廚雞腿堡",
+            "蕈菇主廚鷄腿堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mushroom-crispy-chicken-burger.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜蕈菇主廚鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
+        "official_name": "蕈菇主廚鷄腿堡"
+    },
+    {
+        "id": "MCD054",
+        "category": "超值全餐",
+        "name": "藜麥沙拉",
+        "description": "藜麥沙拉，屬於超值全餐品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜藜麥沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥沙拉"
+    },
+    {
+        "id": "MCD055",
+        "category": "超值全餐",
+        "name": "藜麥鱈魚沙拉",
+        "description": "藜麥鱈魚沙拉，屬於超值全餐品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥鱈魚沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-fish-filet.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜藜麥鱈魚沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥鱈魚沙拉"
+    },
+    {
+        "id": "MCD056",
+        "category": "超值全餐",
+        "name": "藜麥烤鷄沙拉",
+        "description": "藜麥與烤雞搭配蔬菜，適合較清爽、高蛋白或控制熱量的顧客。",
+        "nutrition": "熱量: 約320kcal | 蛋白質: 約25g | 纖維: 約6g",
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥烤雞沙拉",
+            "烤雞沙拉",
+            "沙拉",
+            "quinoa salad"
+        ],
+        "price": 139,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥烤鷄_75dpi_non_sharpen_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-grilled-chicken-filet.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜藜麥烤鷄沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥烤鷄_75dpi_non_sharpen_IT:nutrition-calculator-tile",
+        "official_name": "藜麥烤鷄沙拉"
+    },
+    {
+        "id": "MCD057",
+        "category": "超值全餐",
+        "name": "藜麥辣脆鷄沙拉",
+        "description": "藜麥辣脆鷄沙拉，屬於超值全餐品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥辣脆雞沙拉",
+            "藜麥辣脆鷄沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-spicy-fried-chicken-filet.html",
+        "source_category": "超值全餐",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；清爽配餐僅供應至晚上10:00；炫冰配餐、嫩煎鷄腿堡及牛肉類商品僅供應至凌晨1:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐｜藜麥辣脆鷄沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥辣脆鷄沙拉"
+    },
+    {
+        "id": "MCD058",
         "category": "極選系列",
         "name": "BLT 安格斯牛肉堡",
         "description": "安格斯牛肉搭配培根、生菜與番茄，屬於升級牛肉堡。",
@@ -234,11 +1846,27 @@
             "高級牛肉堡"
         ],
         "price": 139,
-        "image": "/static/menu_images/MCD014.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature832x822_1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/blt-angus-beef-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜BLT 安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature832x822_1:nutrition-calculator-tile",
+        "official_name": "BLT 安格斯牛肉堡"
     },
     {
-        "id": "MCD015",
+        "id": "MCD059",
         "category": "極選系列",
         "name": "BLT 嫩煎鷄腿堡",
         "description": "嫩煎雞腿搭配培根、生菜與番茄，適合較清爽但仍有份量的選擇。",
@@ -251,11 +1879,27 @@
             "grilled chicken blt"
         ],
         "price": 139,
-        "image": "/static/menu_images/MCD015.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/blt-grilled-chicken-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜BLT 嫩煎鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_3:nutrition-calculator-tile",
+        "official_name": "BLT 嫩煎鷄腿堡"
     },
     {
-        "id": "MCD016",
+        "id": "MCD060",
         "category": "極選系列",
         "name": "帕瑪森安格斯牛肉堡",
         "description": "安格斯牛肉搭配帕瑪森風味醬料，風味濃郁。",
@@ -267,11 +1911,59 @@
             "parmesan angus"
         ],
         "price": 149,
-        "image": "/static/menu_images/MCD016.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森安格斯牛肉堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/parmesan-angus-beef-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜帕瑪森安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森安格斯牛肉堡-1:nutrition-calculator-tile",
+        "official_name": "帕瑪森安格斯牛肉堡"
     },
     {
-        "id": "MCD017",
+        "id": "MCD061",
+        "category": "極選系列",
+        "name": "帕瑪森主廚鷄腿堡",
+        "description": "帕瑪森主廚鷄腿堡，屬於極選系列品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "帕瑪森主廚雞腿堡",
+            "帕瑪森主廚鷄腿堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/parmesan-crispy-chicken-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜帕瑪森主廚鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
+        "official_name": "帕瑪森主廚鷄腿堡"
+    },
+    {
+        "id": "MCD062",
         "category": "極選系列",
         "name": "蕈菇安格斯牛肉堡",
         "description": "安格斯牛肉搭配蕈菇風味，口感厚實。",
@@ -283,11 +1975,121 @@
             "mushroom angus"
         ],
         "price": 149,
-        "image": "/static/menu_images/MCD017.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_4:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mushroom-angus-beef-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜蕈菇安格斯牛肉堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220signature8832x822_4:nutrition-calculator-tile",
+        "official_name": "蕈菇安格斯牛肉堡"
     },
     {
-        "id": "MCD018",
+        "id": "MCD063",
+        "category": "極選系列",
+        "name": "蕈菇主廚鷄腿堡",
+        "description": "蕈菇主廚鷄腿堡，屬於極選系列品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "蕈菇主廚雞腿堡",
+            "蕈菇主廚鷄腿堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mushroom-crispy-chicken-burger.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜蕈菇主廚鷄腿堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
+        "official_name": "蕈菇主廚鷄腿堡"
+    },
+    {
+        "id": "MCD064",
+        "category": "極選系列",
+        "name": "藜麥沙拉",
+        "description": "藜麥沙拉，屬於極選系列品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜藜麥沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥沙拉"
+    },
+    {
+        "id": "MCD065",
+        "category": "極選系列",
+        "name": "藜麥鱈魚沙拉",
+        "description": "藜麥鱈魚沙拉，屬於極選系列品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥鱈魚沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-fish-filet.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜藜麥鱈魚沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥鱈魚沙拉"
+    },
+    {
+        "id": "MCD066",
         "category": "極選系列",
         "name": "藜麥烤鷄沙拉",
         "description": "藜麥與烤雞搭配蔬菜，適合較清爽、高蛋白或控制熱量的顧客。",
@@ -300,11 +2102,1531 @@
             "quinoa salad"
         ],
         "price": 139,
-        "image": "/static/menu_images/MCD018.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥烤鷄_75dpi_non_sharpen_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-grilled-chicken-filet.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜藜麥烤鷄沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥烤鷄_75dpi_non_sharpen_IT:nutrition-calculator-tile",
+        "official_name": "藜麥烤鷄沙拉"
     },
     {
-        "id": "MCD019",
+        "id": "MCD067",
+        "category": "極選系列",
+        "name": "藜麥辣脆鷄沙拉",
+        "description": "藜麥辣脆鷄沙拉，屬於極選系列品項；實際價格、內容與供應時間依各地區麥當勞餐廳價目表為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "藜麥辣脆雞沙拉",
+            "藜麥辣脆鷄沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "極選系列",
+            "超值全餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/quinoa-salad-with-spicy-fried-chicken-filet.html",
+        "source_category": "極選系列",
+        "availability_note": "極選系列漢堡供應時間為上午10:30至凌晨1:00；極選系列沙拉僅供應至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "極選系列｜藜麥辣脆鷄沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
+        "official_name": "藜麥辣脆鷄沙拉"
+    },
+    {
+        "id": "MCD068",
+        "category": "超值全餐配餐",
+        "name": "經典配餐：中薯+$38冷/熱飲",
+        "description": "經典配餐：中薯+$38冷/熱飲，為超值全餐可選配餐組合；實際內容、加價與升級規則依官方菜單與餐廳供應為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "$38冷/熱飲",
+            "經典配餐：中薯",
+            "經典配餐：中薯+$38冷/熱飲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1119經典配餐_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐配餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/french-fries-side-order.html",
+        "source_category": "超值全餐配餐",
+        "availability_note": "配餐價格僅限搭配主餐時有效；一份主餐限搭配一份配餐；飲料與薯條升級依官方規則補差額。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐配餐｜經典配餐：中薯+$38冷/熱飲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1119經典配餐_832x822:nutrition-calculator-tile",
+        "official_name": "經典配餐：中薯+$38冷/熱飲"
+    },
+    {
+        "id": "MCD069",
+        "category": "超值全餐配餐",
+        "name": "清爽配餐：四季沙拉+$38冷/熱飲",
+        "description": "清爽配餐：四季沙拉+$38冷/熱飲，為超值全餐可選配餐組合；實際內容、加價與升級規則依官方菜單與餐廳供應為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "$38冷/熱飲",
+            "清爽配餐：四季沙拉",
+            "清爽配餐：四季沙拉+$38冷/熱飲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/24pp-evm_清爽配餐_832x822_IT-Resized:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐配餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/salad-side-order.html",
+        "source_category": "超值全餐配餐",
+        "availability_note": "配餐價格僅限搭配主餐時有效；一份主餐限搭配一份配餐；飲料與薯條升級依官方規則補差額。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐配餐｜清爽配餐：四季沙拉+$38冷/熱飲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/24pp-evm_清爽配餐_832x822_IT-Resized:nutrition-calculator-tile",
+        "official_name": "清爽配餐：四季沙拉+$38冷/熱飲"
+    },
+    {
+        "id": "MCD070",
+        "category": "超值全餐配餐",
+        "name": "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲",
+        "description": "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲，為超值全餐可選配餐組合；實際內容、加價與升級規則依官方菜單與餐廳供應為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "$38冷/熱飲",
+            "勁脆配餐：麥脆雞腿一塊(棒腿或大腿)+$38冷/熱飲",
+            "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)",
+            "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_chicken-mccrispy-side-order:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐配餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mccrispy-side-order.html",
+        "source_category": "超值全餐配餐",
+        "availability_note": "配餐價格僅限搭配主餐時有效；一份主餐限搭配一份配餐；飲料與薯條升級依官方規則補差額。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐配餐｜勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_chicken-mccrispy-side-order:nutrition-calculator-tile",
+        "official_name": "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲"
+    },
+    {
+        "id": "MCD071",
+        "category": "超值全餐配餐",
+        "name": "炫冰配餐：OREO冰炫風®+小薯+$38冷/熱飲",
+        "description": "炫冰配餐：OREO冰炫風®+小薯+$38冷/熱飲，為超值全餐可選配餐組合；實際內容、加價與升級規則依官方菜單與餐廳供應為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "$38冷/熱飲",
+            "小薯",
+            "炫冰配餐：OREO冰炫風",
+            "炫冰配餐：OREO冰炫風+小薯+$38冷/熱飲",
+            "炫冰配餐：OREO冰炫風®+小薯+$38冷/熱飲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry-fries-side-order_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐配餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/mcflurry-fries-side-order.html",
+        "source_category": "超值全餐配餐",
+        "availability_note": "配餐價格僅限搭配主餐時有效；一份主餐限搭配一份配餐；飲料與薯條升級依官方規則補差額。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐配餐｜炫冰配餐：OREO冰炫風®+小薯+$38冷/熱飲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry-fries-side-order_832x822:nutrition-calculator-tile",
+        "official_name": "炫冰配餐：OREO冰炫風®+小薯+$38冷/熱飲"
+    },
+    {
+        "id": "MCD072",
+        "category": "超值全餐配餐",
+        "name": "豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲",
+        "description": "豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲，為超值全餐可選配餐組合；實際內容、加價與升級規則依官方菜單與餐廳供應為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "$38冷/熱飲",
+            "nuggets",
+            "小薯",
+            "豪吃配餐：六塊麥克雞塊+小薯+$38冷/熱飲",
+            "豪吃配餐：六塊麥克鷄塊",
+            "豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲",
+            "雞塊",
+            "麥克雞塊"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1119豪吃配餐_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐配餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/nuggets-fries-side-order.html",
+        "source_category": "超值全餐配餐",
+        "availability_note": "配餐價格僅限搭配主餐時有效；一份主餐限搭配一份配餐；飲料與薯條升級依官方規則補差額。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "超值全餐配餐｜豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1119豪吃配餐_832x822:nutrition-calculator-tile",
+        "official_name": "豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲"
+    },
+    {
+        "id": "MCD073",
+        "category": "麥當勞分享盒",
+        "name": "麥脆鷄腿分享盒(6塊)",
+        "description": "麥脆鷄腿分享盒(6塊)，適合多人分享；實際內容、口味與供應方式依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥脆雞腿分享盒(6塊)",
+            "麥脆鷄腿分享盒(6塊)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "麥當勞分享盒"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mccrispy-sharing-box-6-pieces.html",
+        "source_category": "麥當勞分享盒",
+        "availability_note": "上午10:30後供應，供應時間為上午10:30至凌晨5:00；不適用於歡樂送；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "麥當勞分享盒｜麥脆鷄腿分享盒(6塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥脆鷄腿分享盒(6塊)"
+    },
+    {
+        "id": "MCD074",
+        "category": "麥當勞分享盒",
+        "name": "麥克鷄塊分享盒(20塊)",
+        "description": "麥克鷄塊分享盒(20塊)，適合多人分享；實際內容、口味與供應方式依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "雞塊",
+            "麥克雞塊",
+            "麥克雞塊分享盒(20塊)",
+            "麥克鷄塊分享盒(20塊)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "麥當勞分享盒"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-sharing-box.html",
+        "source_category": "麥當勞分享盒",
+        "availability_note": "上午10:30後供應，供應時間為上午10:30至凌晨5:00；不適用於歡樂送；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "麥當勞分享盒｜麥克鷄塊分享盒(20塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊分享盒(20塊)"
+    },
+    {
+        "id": "MCD075",
+        "category": "麥當勞分享盒",
+        "name": "麥克鷄塊分享盒(30塊)",
+        "description": "麥克鷄塊分享盒(30塊)，適合多人分享；實際內容、口味與供應方式依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "雞塊",
+            "麥克雞塊",
+            "麥克雞塊分享盒(30塊)",
+            "麥克鷄塊分享盒(30塊)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "麥當勞分享盒"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-sharing-box-6-pieces.html",
+        "source_category": "麥當勞分享盒",
+        "availability_note": "上午10:30後供應，供應時間為上午10:30至凌晨5:00；不適用於歡樂送；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "麥當勞分享盒｜麥克鷄塊分享盒(30塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊分享盒(30塊)"
+    },
+    {
+        "id": "MCD076",
+        "category": "麥當勞分享盒",
+        "name": "鷄塊鷄腿分享盒",
+        "description": "鷄塊鷄腿分享盒，適合多人分享；實際內容、口味與供應方式依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雞塊雞腿分享盒",
+            "鷄塊鷄腿分享盒"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-n-mccrispy-sharing-box_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "麥當勞分享盒"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-n-mccrispy-sharing-box.html",
+        "source_category": "麥當勞分享盒",
+        "availability_note": "上午10:30後供應，供應時間為上午10:30至凌晨5:00；不適用於歡樂送；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "麥當勞分享盒｜鷄塊鷄腿分享盒",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-n-mccrispy-sharing-box_832x822:nutrition-calculator-tile",
+        "official_name": "鷄塊鷄腿分享盒"
+    },
+    {
+        "id": "MCD077",
+        "category": "麥當勞分享盒",
+        "name": "勁辣香鷄翅分享盒",
+        "description": "勁辣香鷄翅分享盒，適合多人分享；實際內容、口味與供應方式依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "勁辣香雞翅分享盒",
+            "勁辣香鷄翅分享盒"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-sharing-box_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "麥當勞分享盒"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/spicy-chicken-wing-sharing-box.html",
+        "source_category": "麥當勞分享盒",
+        "availability_note": "上午10:30後供應，供應時間為上午10:30至凌晨5:00；不適用於歡樂送；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "麥當勞分享盒｜勁辣香鷄翅分享盒",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-sharing-box_832x822:nutrition-calculator-tile",
+        "official_name": "勁辣香鷄翅分享盒"
+    },
+    {
+        "id": "MCD078",
+        "category": "Happy Meal®",
+        "name": "四塊麥克鷄塊Happy Meal®",
+        "description": "四塊麥克鷄塊Happy Meal®，屬於 Happy Meal 兒童餐組合；通常含主餐、配餐、飲料與讀本/贈品，實際內容依餐廳供應。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "四塊麥克雞塊Happy Meal",
+            "四塊麥克鷄塊Happy Meal",
+            "四塊麥克鷄塊Happy Meal®",
+            "雞塊",
+            "麥克雞塊"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1024四塊麥克鷄塊餐組happymeal:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "Happy Meal®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/chicken-mcnuggets-4-pieces-happy-meal.html",
+        "source_category": "Happy Meal®",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；玉米杯僅供應至晚上10:00；牛肉類商品僅供應至凌晨1:00；主餐恕不單點。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "Happy Meal®｜四塊麥克鷄塊Happy Meal®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1024四塊麥克鷄塊餐組happymeal:nutrition-calculator-tile",
+        "official_name": "四塊麥克鷄塊Happy Meal®"
+    },
+    {
+        "id": "MCD079",
+        "category": "Happy Meal®",
+        "name": "漢堡Happy Meal®",
+        "description": "漢堡Happy Meal®，屬於 Happy Meal 兒童餐組合；通常含主餐、配餐、飲料與讀本/贈品，實際內容依餐廳供應。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "漢堡Happy Meal",
+            "漢堡Happy Meal®"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1024漢堡餐組:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "Happy Meal®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/burger-happy-meal.html",
+        "source_category": "Happy Meal®",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；玉米杯僅供應至晚上10:00；牛肉類商品僅供應至凌晨1:00；主餐恕不單點。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "Happy Meal®｜漢堡Happy Meal®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1024漢堡餐組:nutrition-calculator-tile",
+        "official_name": "漢堡Happy Meal®"
+    },
+    {
+        "id": "MCD080",
+        "category": "Happy Meal®",
+        "name": "陽光鱈魚堡Happy Meal®",
+        "description": "陽光鱈魚堡Happy Meal®，屬於 Happy Meal 兒童餐組合；通常含主餐、配餐、飲料與讀本/贈品，實際內容依餐廳供應。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "陽光鱈魚堡Happy Meal",
+            "陽光鱈魚堡Happy Meal®"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces-happy-meal_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "Happy Meal®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/meal/mcfish-happy-meal.html",
+        "source_category": "Happy Meal®",
+        "availability_note": "供應時間為上午10:30至凌晨5:00；玉米杯僅供應至晚上10:00；牛肉類商品僅供應至凌晨1:00；主餐恕不單點。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "Happy Meal®｜陽光鱈魚堡Happy Meal®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces-happy-meal_832x822:nutrition-calculator-tile",
+        "official_name": "陽光鱈魚堡Happy Meal®"
+    },
+    {
+        "id": "MCD081",
+        "category": "McCafé®",
+        "name": "金選美式咖啡(冰)-大杯",
+        "description": "金選美式咖啡(冰)-大杯，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "coffee",
+            "金選美式咖啡(冰)-大杯"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-select-brew-americano-large.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜金選美式咖啡(冰)-大杯",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
+        "official_name": "金選美式咖啡(冰)-大杯"
+    },
+    {
+        "id": "MCD082",
+        "category": "McCafé®",
+        "name": "金選美式咖啡(熱)",
+        "description": "金選美式咖啡(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "coffee",
+            "金選美式咖啡(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選美式熱:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/select-brew-americano.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜金選美式咖啡(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選美式熱:nutrition-calculator-tile",
+        "official_name": "金選美式咖啡(熱)​"
+    },
+    {
+        "id": "MCD083",
+        "category": "McCafé®",
+        "name": "金選美式咖啡(冰)",
+        "description": "金選美式咖啡(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "coffee",
+            "金選美式咖啡(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-select-brew-americano-large.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜金選美式咖啡(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
+        "official_name": "金選美式咖啡(冰)-大杯"
+    },
+    {
+        "id": "MCD084",
+        "category": "McCafé®",
+        "name": "金選那堤(熱)",
+        "description": "金選那堤(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "latte",
+            "拿鐵",
+            "金選那堤(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤熱:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/select-brew-latte.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜金選那堤(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤熱:nutrition-calculator-tile",
+        "official_name": "金選那堤(熱)​"
+    },
+    {
+        "id": "MCD085",
+        "category": "McCafé®",
+        "name": "金選那堤(冰)",
+        "description": "金選那堤(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "latte",
+            "拿鐵",
+            "金選那堤(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤冰:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-select-brew-latte.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜金選那堤(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤冰:nutrition-calculator-tile",
+        "official_name": "金選那堤(冰)​"
+    },
+    {
+        "id": "MCD086",
+        "category": "McCafé®",
+        "name": "義式濃縮咖啡(熱)",
+        "description": "義式濃縮咖啡(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "coffee",
+            "義式濃縮咖啡(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524義式濃縮咖啡:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/espresso.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜義式濃縮咖啡(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524義式濃縮咖啡:nutrition-calculator-tile",
+        "official_name": "義式濃縮咖啡(熱)"
+    },
+    {
+        "id": "MCD087",
+        "category": "McCafé®",
+        "name": "經典美式咖啡(熱)",
+        "description": "經典美式咖啡(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "coffee",
+            "經典美式咖啡(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典美式咖啡:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/americano.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典美式咖啡(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典美式咖啡:nutrition-calculator-tile",
+        "official_name": "經典美式咖啡(熱)"
+    },
+    {
+        "id": "MCD088",
+        "category": "McCafé®",
+        "name": "經典美式咖啡(冰)",
+        "description": "冰美式咖啡，適合提神或搭配早餐/下午茶。",
+        "nutrition": "熱量: 約10kcal | 咖啡因: 約120mg",
+        "prep_time_minutes": 2,
+        "aliases": [
+            "冰美式",
+            "美式咖啡",
+            "咖啡",
+            "americano"
+        ],
+        "price": 50,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典美式咖啡:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-americano.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典美式咖啡(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典美式咖啡:nutrition-calculator-tile",
+        "official_name": "經典美式咖啡(冰)"
+    },
+    {
+        "id": "MCD089",
+        "category": "McCafé®",
+        "name": "經典那堤(熱)",
+        "description": "熱拿鐵咖啡，奶香較明顯，適合溫熱咖啡飲品需求。",
+        "nutrition": "熱量: 約150kcal | 咖啡因: 約100mg | 過敏原: 奶",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "熱拿鐵",
+            "那堤",
+            "拿鐵",
+            "latte"
+        ],
+        "price": 75,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典那堤:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/latte.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典那堤(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典那堤:nutrition-calculator-tile",
+        "official_name": "經典那堤(熱)"
+    },
+    {
+        "id": "MCD090",
+        "category": "McCafé®",
+        "name": "經典那堤(冰)",
+        "description": "經典那堤(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "latte",
+            "拿鐵",
+            "經典那堤(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典那堤:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-latte.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典那堤(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典那堤:nutrition-calculator-tile",
+        "official_name": "經典那堤(冰)"
+    },
+    {
+        "id": "MCD091",
+        "category": "McCafé®",
+        "name": "經典卡布奇諾(熱)",
+        "description": "經典卡布奇諾(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "經典卡布奇諾(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/別具滋味頁_經典卡布奇諾(熱)_832x8222023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/cappuccino.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典卡布奇諾(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/別具滋味頁_經典卡布奇諾(熱)_832x8222023:nutrition-calculator-tile",
+        "official_name": "經典卡布奇諾(熱)"
+    },
+    {
+        "id": "MCD092",
+        "category": "McCafé®",
+        "name": "經典卡布奇諾(冰)",
+        "description": "經典卡布奇諾(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "經典卡布奇諾(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典卡布奇諾:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-cappuccino.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜經典卡布奇諾(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典卡布奇諾:nutrition-calculator-tile",
+        "official_name": "經典卡布奇諾(冰)"
+    },
+    {
+        "id": "MCD093",
+        "category": "McCafé®",
+        "name": "蜂蜜紅茶(冰)",
+        "description": "蜂蜜紅茶(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "蜂蜜紅茶(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜紅茶冰_0321n3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/honey-black-tea-iced.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜蜂蜜紅茶(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜紅茶冰_0321n3:nutrition-calculator-tile",
+        "official_name": "蜂蜜紅茶(冰)"
+    },
+    {
+        "id": "MCD094",
+        "category": "McCafé®",
+        "name": "蜂蜜奶茶(熱)",
+        "description": "蜂蜜奶茶(熱)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "蜂蜜奶茶(熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/honey-milk-tea-hot_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/honey-milk-tea-hot.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜蜂蜜奶茶(熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/honey-milk-tea-hot_832x822:nutrition-calculator-tile",
+        "official_name": "蜂蜜奶茶(熱)"
+    },
+    {
+        "id": "MCD095",
+        "category": "McCafé®",
+        "name": "蜂蜜奶茶(冰)",
+        "description": "蜂蜜風味冰奶茶，適合想喝甜味飲品的顧客。",
+        "nutrition": "熱量: 約220kcal | 糖: 約35g | 過敏原: 奶",
+        "prep_time_minutes": 2,
+        "aliases": [
+            "蜂蜜奶茶",
+            "冰奶茶",
+            "奶茶",
+            "honey milk tea"
+        ],
+        "price": 65,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜奶茶冰_0321n3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/honey-milk-tea-iced.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜蜂蜜奶茶(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜奶茶冰_0321n3:nutrition-calculator-tile",
+        "official_name": "蜂蜜奶茶(冰)"
+    },
+    {
+        "id": "MCD096",
+        "category": "McCafé®",
+        "name": "焦糖奶茶(冰)",
+        "description": "焦糖奶茶(冰)，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "焦糖奶茶(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_別具滋味產品圖_焦糖奶茶冰n1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/caramel-milk-tea-iced.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜焦糖奶茶(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_別具滋味產品圖_焦糖奶茶冰n1:nutrition-calculator-tile",
+        "official_name": "焦糖奶茶(冰)"
+    },
+    {
+        "id": "MCD097",
+        "category": "McCafé®",
+        "name": "原味可頌",
+        "description": "原味可頌，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "原味可頌"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/croissant.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜原味可頌",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
+        "official_name": "原味可頌"
+    },
+    {
+        "id": "MCD098",
+        "category": "McCafé®",
+        "name": "巧克力榛果可頌",
+        "description": "巧克力榛果可頌，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "巧克力榛果可頌"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/croissant-chocolate.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜巧克力榛果可頌",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
+        "official_name": "巧克力榛果可頌"
+    },
+    {
+        "id": "MCD099",
+        "category": "McCafé®",
+        "name": "肉桂捲",
+        "description": "肉桂捲，屬於 McCafé 飲品或現烤法點品項；供應時間與冰熱選項依餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "肉桂捲"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "McCafé®",
+            "早餐"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/cinnamon-swirl.html",
+        "source_category": "McCafé®",
+        "availability_note": "現烤法點供應時間為凌晨5:00至晚上10:00；部分餐廳未供應或僅供應部分品項。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "McCafé®｜肉桂捲",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
+        "official_name": "肉桂捲"
+    },
+    {
+        "id": "MCD100",
+        "category": "飲料",
+        "name": "紅茶 (熱)",
+        "description": "紅茶 (熱)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "紅茶 (熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-0309:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hot-black-tea.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜紅茶 (熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-0309:nutrition-calculator-tile",
+        "official_name": "紅茶 (熱)"
+    },
+    {
+        "id": "MCD101",
+        "category": "飲料",
+        "name": "奶茶 (熱)",
+        "description": "奶茶 (熱)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "奶茶 (熱)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_2:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hot-milk-tea-medium.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜奶茶 (熱)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_2:nutrition-calculator-tile",
+        "official_name": "奶茶 (熱)"
+    },
+    {
+        "id": "MCD102",
+        "category": "飲料",
+        "name": "奶茶(冰)",
+        "description": "奶茶(冰)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "奶茶(冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-milk-tea_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-milk-tea-large.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜奶茶(冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-milk-tea_832x822:nutrition-calculator-tile",
+        "official_name": "奶茶(冰)"
+    },
+    {
+        "id": "MCD103",
+        "category": "飲料",
+        "name": "台灣鮮榨柳丁汁(瓶裝)",
+        "description": "台灣鮮榨柳丁汁(瓶裝)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "台灣鮮榨柳丁汁(瓶裝)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/taiwan-fresh-orange-juice_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/taiwan-fresh-orange-juice.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜台灣鮮榨柳丁汁(瓶裝)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/taiwan-fresh-orange-juice_832x822:nutrition-calculator-tile",
+        "official_name": "台灣鮮榨柳丁汁(瓶裝)"
+    },
+    {
+        "id": "MCD104",
+        "category": "飲料",
+        "name": "鮮乳(盒裝)",
+        "description": "鮮乳(盒裝)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "鮮乳(盒裝)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/milk_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/milk.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜鮮乳(盒裝)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/milk_832x822:nutrition-calculator-tile",
+        "official_name": "鮮乳(盒裝)"
+    },
+    {
+        "id": "MCD105",
+        "category": "飲料",
+        "name": "Evian 礦泉水",
+        "description": "Evian 礦泉水，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "Evian 礦泉水"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/0602Evian礦泉水832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/evian-water.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜Evian 礦泉水",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0602Evian礦泉水832x822:nutrition-calculator-tile",
+        "official_name": "Evian 礦泉水"
+    },
+    {
+        "id": "MCD106",
+        "category": "飲料",
+        "name": "可口可樂",
+        "description": "經典碳酸飲料，適合搭配漢堡、炸雞與薯條。",
+        "nutrition": "熱量: 約150kcal(中杯) | 糖: 約39g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "可樂",
+            "可口可樂",
+            "coke",
+            "cola"
+        ],
+        "price": 38,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/可口可樂_832x822_1029:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/coke.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜可口可樂",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/可口可樂_832x822_1029:nutrition-calculator-tile",
+        "official_name": "可口可樂"
+    },
+    {
+        "id": "MCD107",
+        "category": "飲料",
+        "name": "可口可樂zero",
+        "description": "零糖碳酸飲料，適合想降低糖分攝取的顧客。",
+        "nutrition": "熱量: 約0kcal | 糖: 0g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "zero",
+            "零卡可樂",
+            "零糖可樂",
+            "coke zero"
+        ],
+        "price": 38,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/planp零卡可樂_832x822n:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/coke-zero.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜可口可樂zero",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/planp零卡可樂_832x822n:nutrition-calculator-tile",
+        "official_name": "可口可樂zero"
+    },
+    {
+        "id": "MCD108",
+        "category": "飲料",
+        "name": "雪碧",
+        "description": "雪碧，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雪碧"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雪碧2023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/sprite.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜雪碧",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雪碧2023:nutrition-calculator-tile",
+        "official_name": "雪碧"
+    },
+    {
+        "id": "MCD109",
+        "category": "飲料",
+        "name": "檸檬風味紅茶 (冰)",
+        "description": "檸檬風味紅茶 (冰)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "檸檬風味紅茶 (冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-lemon-flavor_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-black-tea-lemon-flavor.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜檸檬風味紅茶 (冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-lemon-flavor_832x822:nutrition-calculator-tile",
+        "official_name": "檸檬風味紅茶 (冰)"
+    },
+    {
+        "id": "MCD110",
+        "category": "飲料",
+        "name": "無糖紅茶 (冰)",
+        "description": "無糖紅茶 (冰)，飲料品項；杯型、冰熱與升級規則依餐廳與套餐設定為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "無糖紅茶 (冰)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-sugar-free_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-black-tea-sugar-free.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜無糖紅茶 (冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-sugar-free_832x822:nutrition-calculator-tile",
+        "official_name": "無糖紅茶 (冰)"
+    },
+    {
+        "id": "MCD111",
+        "category": "飲料",
+        "name": "無糖綠茶 (冰)",
+        "description": "無糖茶飲，適合清爽解膩或不想喝含糖飲料的顧客。",
+        "nutrition": "熱量: 約0kcal | 糖: 0g",
+        "prep_time_minutes": 1,
+        "aliases": [
+            "無糖綠茶",
+            "綠茶",
+            "冰綠茶",
+            "tea"
+        ],
+        "price": 38,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-green-tea-sugar-free_860x822_2:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "飲料"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/iced-green-tea-sugar-free.html",
+        "source_category": "飲料",
+        "availability_note": "飲料供應依各餐廳與時段為準；套餐飲料可依官方規則補差額升級。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "飲料｜無糖綠茶 (冰)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-green-tea-sugar-free_860x822_2:nutrition-calculator-tile",
+        "official_name": "無糖綠茶 (冰)"
+    },
+    {
+        "id": "MCD112",
+        "category": "點心",
+        "name": "麥克雙牛堡",
+        "description": "麥克雙牛堡，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "麥克雙牛堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_3:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/McDouble.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜麥克雙牛堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_3:nutrition-calculator-tile",
+        "official_name": "麥克雙牛堡"
+    },
+    {
+        "id": "MCD113",
+        "category": "點心",
+        "name": "漢堡",
+        "description": "漢堡，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "漢堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/hamburger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hamburger.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜漢堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/hamburger_832x822:nutrition-calculator-tile",
+        "official_name": "漢堡"
+    },
+    {
+        "id": "MCD114",
+        "category": "點心",
+        "name": "吉事漢堡",
+        "description": "吉事漢堡，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "吉事漢堡"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/cheese-burger_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/cheese-burger.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜吉事漢堡",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cheese-burger_832x822:nutrition-calculator-tile",
+        "official_name": "吉事漢堡"
+    },
+    {
+        "id": "MCD115",
         "category": "點心",
         "name": "薯條",
         "description": "麥當勞經典薯條，適合搭配漢堡或單點點心。",
@@ -318,11 +3640,247 @@
             "馬鈴薯條"
         ],
         "price": 45,
-        "image": "/static/menu_images/MCD019.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/french-fries-small_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/french-fries-small.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜薯條",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/french-fries-small_832x822:nutrition-calculator-tile",
+        "official_name": "薯條"
     },
     {
-        "id": "MCD020",
+        "id": "MCD116",
+        "category": "點心",
+        "name": "薯餅",
+        "description": "酥脆早餐配餐，也可作為點心加點。",
+        "nutrition": "熱量: 約150kcal | 碳水: 約15g | 脂肪: 約9g",
+        "prep_time_minutes": 3,
+        "aliases": [
+            "薯餅",
+            "hash brown",
+            "早餐薯餅"
+        ],
+        "price": 32,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/hash-browns_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/hash-browns.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜薯餅",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/hash-browns_832x822:nutrition-calculator-tile",
+        "official_name": "薯餅"
+    },
+    {
+        "id": "MCD117",
+        "category": "點心",
+        "name": "原味麥脆鷄腿(棒腿)",
+        "description": "原味麥脆鷄腿(棒腿)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "原味麥脆雞腿(棒腿)",
+            "原味麥脆鷄腿(棒腿)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mccrispy-drumstick-1-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜原味麥脆鷄腿(棒腿)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
+        "official_name": "原味麥脆鷄腿(棒腿)"
+    },
+    {
+        "id": "MCD118",
+        "category": "點心",
+        "name": "原味麥脆鷄腿(大腿)",
+        "description": "原味麥脆鷄腿(大腿)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "原味麥脆雞腿(大腿)",
+            "原味麥脆鷄腿(大腿)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220原味大腿832x822_1:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mccrispy-thigh-1-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜原味麥脆鷄腿(大腿)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220原味大腿832x822_1:nutrition-calculator-tile",
+        "official_name": "原味麥脆鷄腿(大腿)"
+    },
+    {
+        "id": "MCD119",
+        "category": "點心",
+        "name": "原味麥脆鷄腿(2塊)",
+        "description": "兩塊原味麥脆雞腿，外皮酥脆、肉汁感明顯。",
+        "nutrition": "熱量: 約620kcal | 蛋白質: 約38g | 過敏原: 麩質",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "原味麥脆雞",
+            "麥脆雞腿",
+            "原味炸雞",
+            "炸雞腿"
+        ],
+        "price": 129,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_原味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mccrispy-2-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜原味麥脆鷄腿(2塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_原味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "official_name": "原味麥脆鷄腿(2塊)"
+    },
+    {
+        "id": "MCD120",
+        "category": "點心",
+        "name": "辣味麥脆鷄腿(棒腿)",
+        "description": "辣味麥脆鷄腿(棒腿)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "辣味麥脆雞腿(棒腿)",
+            "辣味麥脆鷄腿(棒腿)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-mccrispy-drumstick-1-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜辣味麥脆鷄腿(棒腿)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
+        "official_name": "辣味麥脆鷄腿(棒腿)"
+    },
+    {
+        "id": "MCD121",
+        "category": "點心",
+        "name": "辣味麥脆鷄腿(大腿)",
+        "description": "辣味麥脆鷄腿(大腿)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "辣味麥脆雞腿(大腿)",
+            "辣味麥脆鷄腿(大腿)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/辣味麥脆鷄腿大腿_無影_75dpi:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-mccrispy-thigh-1-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜辣味麥脆鷄腿(大腿)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/辣味麥脆鷄腿大腿_無影_75dpi:nutrition-calculator-tile",
+        "official_name": "辣味麥脆鷄腿(大腿)"
+    },
+    {
+        "id": "MCD122",
+        "category": "點心",
+        "name": "辣味麥脆鷄腿(2塊)",
+        "description": "兩塊辣味麥脆雞腿，適合喜歡辣味炸雞與重口味的顧客。",
+        "nutrition": "熱量: 約640kcal | 蛋白質: 約38g | 過敏原: 麩質",
+        "prep_time_minutes": 7,
+        "aliases": [
+            "辣味麥脆雞",
+            "辣味炸雞",
+            "辣雞腿",
+            "spicy fried chicken"
+        ],
+        "price": 129,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_辣味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-mccrispy-2-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜辣味麥脆鷄腿(2塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_辣味麥脆鷄腿2pc2023:nutrition-calculator-tile",
+        "official_name": "辣味麥脆鷄腿(2塊)"
+    },
+    {
+        "id": "MCD123",
         "category": "點心",
         "name": "勁辣香鷄翅(2塊)",
         "description": "兩塊辣味雞翅，適合想吃辣味小點的顧客。",
@@ -335,11 +3893,57 @@
             "spicy wings"
         ],
         "price": 58,
-        "image": "/static/menu_images/MCD020.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-2-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-wing-2-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜勁辣香鷄翅(2塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-2-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "勁辣香鷄翅(2塊)"
     },
     {
-        "id": "MCD021",
+        "id": "MCD124",
+        "category": "點心",
+        "name": "勁辣香鷄翅(6塊)",
+        "description": "勁辣香鷄翅(6塊)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "勁辣香雞翅(6塊)",
+            "勁辣香鷄翅(6塊)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/spicy-chicken-wing-6-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜勁辣香鷄翅(6塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "勁辣香鷄翅(6塊)"
+    },
+    {
+        "id": "MCD125",
         "category": "點心",
         "name": "蘋果派",
         "description": "熱甜點，外皮酥脆、內餡為蘋果風味。",
@@ -352,11 +3956,116 @@
             "甜點"
         ],
         "price": 35,
-        "image": "/static/menu_images/MCD021.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/apple-pie_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/apple-pie.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜蘋果派",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/apple-pie_832x822:nutrition-calculator-tile",
+        "official_name": "蘋果派"
     },
     {
-        "id": "MCD022",
+        "id": "MCD126",
+        "category": "點心",
+        "name": "玉米杯",
+        "description": "玉米杯，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "玉米杯"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/planp玉米杯_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/corn-cup.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜玉米杯",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/planp玉米杯_832x822:nutrition-calculator-tile",
+        "official_name": "玉米杯"
+    },
+    {
+        "id": "MCD127",
+        "category": "點心",
+        "name": "四季沙拉",
+        "description": "四季沙拉，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "四季沙拉"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/planp四季沙拉_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/salad-large.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜四季沙拉",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/planp四季沙拉_832x822:nutrition-calculator-tile",
+        "official_name": "四季沙拉"
+    },
+    {
+        "id": "MCD128",
+        "category": "點心",
+        "name": "水果袋",
+        "description": "水果袋，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "水果袋"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/sliced-apple_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/sliced-guava.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜水果袋",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/sliced-apple_832x822:nutrition-calculator-tile",
+        "official_name": "水果袋"
+    },
+    {
+        "id": "MCD129",
         "category": "點心",
         "name": "玉米湯",
         "description": "熱湯品，適合天氣冷或想搭配清淡配餐的顧客。",
@@ -369,174 +4078,306 @@
             "corn soup"
         ],
         "price": 40,
-        "image": "/static/menu_images/MCD022.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD023",
-        "category": "飲料",
-        "name": "可口可樂",
-        "description": "經典碳酸飲料，適合搭配漢堡、炸雞與薯條。",
-        "nutrition": "熱量: 約150kcal(中杯) | 糖: 約39g",
-        "prep_time_minutes": 1,
-        "aliases": [
-            "可樂",
-            "可口可樂",
-            "coke",
-            "cola"
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/corn-soup-small_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
         ],
-        "price": 38,
-        "image": "/static/menu_images/MCD023.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/corn-soup-small.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜玉米湯",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/corn-soup-small_832x822:nutrition-calculator-tile",
+        "official_name": "玉米湯"
     },
     {
-        "id": "MCD024",
-        "category": "飲料",
-        "name": "可口可樂zero",
-        "description": "零糖碳酸飲料，適合想降低糖分攝取的顧客。",
-        "nutrition": "熱量: 約0kcal | 糖: 0g",
-        "prep_time_minutes": 1,
-        "aliases": [
-            "zero",
-            "零卡可樂",
-            "零糖可樂",
-            "coke zero"
-        ],
-        "price": 38,
-        "image": "/static/menu_images/MCD024.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD025",
-        "category": "飲料",
-        "name": "無糖綠茶(冰)",
-        "description": "無糖茶飲，適合清爽解膩或不想喝含糖飲料的顧客。",
-        "nutrition": "熱量: 約0kcal | 糖: 0g",
-        "prep_time_minutes": 1,
-        "aliases": [
-            "無糖綠茶",
-            "綠茶",
-            "冰綠茶",
-            "tea"
-        ],
-        "price": 38,
-        "image": "/static/menu_images/MCD025.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD026",
-        "category": "McCafé®",
-        "name": "經典美式咖啡(冰)",
-        "description": "冰美式咖啡，適合提神或搭配早餐/下午茶。",
-        "nutrition": "熱量: 約10kcal | 咖啡因: 約120mg",
-        "prep_time_minutes": 2,
-        "aliases": [
-            "冰美式",
-            "美式咖啡",
-            "咖啡",
-            "americano"
-        ],
-        "price": 50,
-        "image": "/static/menu_images/MCD026.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD027",
-        "category": "McCafé®",
-        "name": "經典那堤(熱)",
-        "description": "熱拿鐵咖啡，奶香較明顯，適合溫熱咖啡飲品需求。",
-        "nutrition": "熱量: 約150kcal | 咖啡因: 約100mg | 過敏原: 奶",
-        "prep_time_minutes": 3,
-        "aliases": [
-            "熱拿鐵",
-            "那堤",
-            "拿鐵",
-            "latte"
-        ],
-        "price": 75,
-        "image": "/static/menu_images/MCD027.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD028",
-        "category": "McCafé®",
-        "name": "蜂蜜奶茶(冰)",
-        "description": "蜂蜜風味冰奶茶，適合想喝甜味飲品的顧客。",
-        "nutrition": "熱量: 約220kcal | 糖: 約35g | 過敏原: 奶",
-        "prep_time_minutes": 2,
-        "aliases": [
-            "蜂蜜奶茶",
-            "冰奶茶",
-            "奶茶",
-            "honey milk tea"
-        ],
-        "price": 65,
-        "image": "/static/menu_images/MCD028.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD029",
-        "category": "早餐",
-        "name": "滿福堡®",
-        "description": "經典早餐堡，適合早餐時段快速點餐。",
-        "nutrition": "熱量: 約300kcal | 蛋白質: 約15g | 過敏原: 麩質/蛋/奶",
-        "prep_time_minutes": 4,
-        "aliases": [
-            "滿福堡",
-            "mcmuffin",
-            "早餐堡"
-        ],
-        "price": 58,
-        "image": "/static/menu_images/MCD029.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
-    },
-    {
-        "id": "MCD030",
-        "category": "早餐",
-        "name": "豬肉滿福堡加蛋",
-        "description": "豬肉滿福堡加蛋，早餐時段高飽足選擇。",
-        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質/蛋/奶",
+        "id": "MCD130",
+        "category": "點心",
+        "name": "蛋捲冰淇淋",
+        "description": "蛋捲冰淇淋，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
         "prep_time_minutes": 5,
         "aliases": [
-            "豬肉滿福堡加蛋",
-            "豬肉蛋滿福堡",
-            "sausage egg mcmuffin"
+            "蛋捲冰淇淋"
         ],
-        "price": 75,
-        "image": "/static/menu_images/MCD030.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/ice-cream-cone.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜蛋捲冰淇淋",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone_832x822:nutrition-calculator-tile",
+        "official_name": "蛋捲冰淇淋"
     },
     {
-        "id": "MCD031",
-        "category": "早餐",
-        "name": "鬆餅(3片)",
-        "description": "三片鬆餅，適合喜歡甜口味早餐的顧客。",
-        "nutrition": "熱量: 約420kcal | 碳水: 約70g | 過敏原: 麩質/蛋/奶",
+        "id": "MCD131",
+        "category": "點心",
+        "name": "大蛋捲冰淇淋",
+        "description": "大蛋捲冰淇淋，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "大蛋捲冰淇淋"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone-large_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/ice-cream-cone-large.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜大蛋捲冰淇淋",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone-large_832x822:nutrition-calculator-tile",
+        "official_name": "大蛋捲冰淇淋"
+    },
+    {
+        "id": "MCD132",
+        "category": "點心",
+        "name": "OREO冰炫風®",
+        "description": "OREO冰炫風®，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "OREO冰炫風",
+            "OREO冰炫風®"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/mcflurry.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜OREO冰炫風®",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry_832x822:nutrition-calculator-tile",
+        "official_name": "OREO冰炫風®"
+    },
+    {
+        "id": "MCD133",
+        "category": "點心",
+        "name": "雙倍OREO冰炫風",
+        "description": "雙倍OREO冰炫風，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "雙倍OREO冰炫風"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220doubleoreo832822-0321:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/double-oreo-mcflurry.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜雙倍OREO冰炫風",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220doubleoreo832822-0321:nutrition-calculator-tile",
+        "official_name": "雙倍OREO冰炫風"
+    },
+    {
+        "id": "MCD134",
+        "category": "點心",
+        "name": "奶昔(香草風味)",
+        "description": "奶昔(香草風味)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "奶昔(香草風味)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/251117_香草奶昔:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/vanilla-shake.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜奶昔(香草風味)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/251117_香草奶昔:nutrition-calculator-tile",
+        "official_name": "奶昔(香草風味)"
+    },
+    {
+        "id": "MCD135",
+        "category": "點心",
+        "name": "奶昔(草莓風味)",
+        "description": "奶昔(草莓風味)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "奶昔(草莓風味)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/251117_草莓奶昔:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/strawberry-shake.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜奶昔(草莓風味)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/251117_草莓奶昔:nutrition-calculator-tile",
+        "official_name": "奶昔(草莓風味)"
+    },
+    {
+        "id": "MCD136",
+        "category": "點心",
+        "name": "麥克鷄塊®(4塊)",
+        "description": "麥克鷄塊®(4塊)，點心/配餐品項；數量、口味與供應時間依各餐廳為準。",
+        "nutrition": null,
+        "prep_time_minutes": 5,
+        "aliases": [
+            "nuggets",
+            "雞塊",
+            "麥克雞塊",
+            "麥克雞塊(4塊)",
+            "麥克鷄塊(4塊)",
+            "麥克鷄塊®(4塊)"
+        ],
+        "price": 0,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-4-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜麥克鷄塊®(4塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "price_pending": true,
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(4塊)"
+    },
+    {
+        "id": "MCD137",
+        "category": "點心",
+        "name": "麥克鷄塊®(6塊)",
+        "description": "六塊經典雞塊，可搭配沾醬，適合小份量點心。",
+        "nutrition": "熱量: 約270kcal | 蛋白質: 約15g | 過敏原: 麩質",
         "prep_time_minutes": 4,
         "aliases": [
-            "鬆餅",
-            "熱香餅",
-            "pancake",
-            "hotcake"
+            "麥克雞塊6塊",
+            "雞塊六塊",
+            "6塊雞塊",
+            "nuggets"
         ],
-        "price": 69,
-        "image": "/static/menu_images/MCD031.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "price": 64,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-6-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜麥克鷄塊®(6塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-6-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(6塊)"
     },
     {
-        "id": "MCD032",
-        "category": "早餐",
-        "name": "薯餅",
-        "description": "酥脆早餐配餐，也可作為點心加點。",
-        "nutrition": "熱量: 約150kcal | 碳水: 約15g | 脂肪: 約9g",
-        "prep_time_minutes": 3,
+        "id": "MCD138",
+        "category": "點心",
+        "name": "麥克鷄塊®(10塊)",
+        "description": "十塊經典雞塊，適合分享或想吃較多點心的顧客。",
+        "nutrition": "熱量: 約450kcal | 蛋白質: 約25g | 過敏原: 麩質",
+        "prep_time_minutes": 5,
         "aliases": [
-            "薯餅",
-            "hash brown",
-            "早餐薯餅"
+            "麥克雞塊10塊",
+            "雞塊十塊",
+            "10塊雞塊",
+            "nuggets"
         ],
-        "price": 32,
-        "image": "/static/menu_images/MCD032.jpg",
-        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html"
+        "price": 104,
+        "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
+        "available_categories": [
+            "早餐",
+            "超值全餐",
+            "點心"
+        ],
+        "source_url": "https://www.mcdonalds.com/tw/zh-tw/product/chicken-mcnuggets-10-pieces.html",
+        "source_category": "點心",
+        "availability_note": "供應時間、數量及口味以各麥當勞餐廳實際供應為準。",
+        "price_note": "官方完整菜單頁未列固定單品價格；價格以各地區麥當勞餐廳價目表或歡樂送價目表為準。",
+        "rag_metadata": {
+            "chunk_type": "menu_item",
+            "retrieval_title": "點心｜麥克鷄塊®(10塊)",
+            "language": "zh-TW",
+            "source": "McDonald's Taiwan full menu"
+        },
+        "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-10-pieces_832x822:nutrition-calculator-tile",
+        "official_name": "麥克鷄塊®(10塊)"
     }
 ]

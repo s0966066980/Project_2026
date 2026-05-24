@@ -160,6 +160,10 @@ POS UI 預設以 16:9 kiosk 比例排版，會依螢幕大小自動縮放。若�
 
 後台不會自動啟動 POS 的 emotion loop、recommend loop、media recorder 或 interaction watcher。
 
+目前正式菜單使用 `UI_API/menu_data/menu.json`，已整理為麥當勞台灣品項資料。品項圖片直接引用麥當勞台灣
+完整菜單頁的線上圖片 URL，避免本機圖片與官方內容不同步。RAG 可額外匯入 PDF，例如超值全餐規則或活動說明；
+菜單問答仍以菜單 JSON 白名單為主，RAG 作為政策、規則與補充資料。
+
 ---
 
 ## 系統邏輯

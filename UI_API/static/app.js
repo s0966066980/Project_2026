@@ -100,12 +100,16 @@ const interactionState = {
 };
 
 const KIOSK_GROUPS = [
-  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['極選系列'] },
+  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
   { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
-  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/single.jpg', categories: ['點心', '早餐'] },
+  { id: 'premium', label: '極選系列', labelEn: 'Signature Meals', image: '/static/menu_images/MCD014.jpg', categories: ['極選系列'] },
+  { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/mcd_categories/single.jpg', categories: ['超值全餐配餐'] },
+  { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/mcd_categories/value.jpg', categories: ['1+1星級點'] },
+  { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/mcd_categories/recommended.jpg', categories: ['麥當勞分享盒'] },
+  { id: 'happymeal', label: 'Happy Meal®', labelEn: 'Happy Meal®', image: '/static/mcd_categories/single.jpg', categories: ['Happy Meal®'] },
+  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/single.jpg', categories: ['點心'] },
   { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
-  { id: 'kids', label: '兒童餐', labelEn: 'Happy Meals', image: '/static/mcd_categories/kids.jpg', categories: ['早餐', '點心'] },
-  { id: 'deals', label: '最新優惠', labelEn: 'Deals', image: '/static/mcd_categories/deals.jpg', categories: [] },
+  { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
 ];
 
 const KIOSK_TEXT = {
@@ -238,6 +242,8 @@ const KIOSK_TEXT = {
       '牛肉系列': 'Beef',
       '雞肉系列': 'Chicken',
       '魚肉系列': 'Fish',
+      '安格斯系列': 'Angus',
+      '早餐系列': 'Breakfast',
       '點心飲料': 'Snacks & Drinks',
     },
   },
@@ -490,7 +496,7 @@ function applyFeaturesToPOS() {
   const voice = document.getElementById('mod-voice');
   if (voice) voice.style.display = 'none';
   if (ui.serviceFab) ui.serviceFab.style.display = 'none';
-  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.style.display = 'none';
+  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.style.display = 'inline-flex';
   if (ui.askText && isDemoPublicMode()) {
     ui.askText.textContent = '您可以直接說：我想吃雞肉，有什麼推薦？';
   }
@@ -736,9 +742,9 @@ function showMenuGroup(groupId, filter = '全部') {
 
 function groupItems(groupId) {
   const group = KIOSK_GROUPS.find(g => g.id === groupId) || KIOSK_GROUPS[1];
-  if (groupId === 'deals') return menuData.slice(0, 10);
   const allowed = new Set((group.categories || []).map(String));
-  return menuData.filter(item => allowed.has(String(item.category || '')));
+  const items = menuData.filter(item => allowed.has(String(item.category || '')));
+  return group.featuredLimit ? items.slice(0, group.featuredLimit) : items;
 }
 
 function itemMatchesSubFilter(item, filter) {
@@ -747,13 +753,17 @@ function itemMatchesSubFilter(item, filter) {
   if (filter === '牛肉系列') return /牛|安格斯|大麥克|吉事|四盎司/.test(name);
   if (filter === '雞肉系列') return /雞|脆|辣/.test(name);
   if (filter === '魚肉系列') return /魚/.test(name);
+  if (filter === '安格斯系列') return /安格斯/.test(name);
+  if (filter === '早餐系列') return String(item.category || '') === '早餐' || /滿福|鬆餅|薯餅/.test(name);
   if (filter === '點心飲料') return /薯|派|湯|茶|可樂|咖啡|那堤|奶茶/.test(name);
   return true;
 }
 
 function subFiltersForGroup(groupId) {
   if (groupId === 'value' || groupId === 'recommended') return ['全部', '牛肉系列', '雞肉系列', '魚肉系列'];
-  if (groupId === 'single' || groupId === 'drinks' || groupId === 'deals') return ['全部', '點心飲料'];
+  if (groupId === 'premium') return ['全部', '安格斯系列', '雞肉系列'];
+  if (groupId === 'single' || groupId === 'drinks') return ['全部', '點心飲料'];
+  if (groupId === 'breakfast') return ['全部', '早餐系列'];
   return ['全部'];
 }
 
@@ -805,7 +815,7 @@ function renderKioskMenuItems() {
       </div>
       <div class="kiosk-menu-copy">
         <h3>${escapeHTML(item.name)}</h3>
-        <strong>$${escapeHTML(item.price)}</strong>
+        <strong>${escapeHTML(formatItemPrice(item))}</strong>
       </div>
       <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(kt('addToCart'))}"><i class="fas fa-plus"></i></button>`;
     row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
@@ -1324,17 +1334,40 @@ function startPageDwellWatcher() {
 function getMenuVisual(item) {
   const id = String(item.id || '').toUpperCase();
   const category = String(item.category || '');
+  const name = String(item.name || '');
   const categoryVisuals = {
     '超值全餐': { tag: '超值全餐', icon: 'fas fa-burger', emoji: '🍔' },
+    '超值全餐配餐': { tag: '配餐', icon: 'fas fa-cubes-stacked', emoji: '🍟' },
     '極選系列': { tag: '推薦套餐', icon: 'fas fa-star', emoji: '🍔' },
+    '1+1星級點': { tag: '1+1', icon: 'fas fa-plus', emoji: '✨' },
+    '麥當勞分享盒': { tag: '分享盒', icon: 'fas fa-box', emoji: '📦' },
+    'Happy Meal®': { tag: 'Happy Meal', icon: 'fas fa-child-reaching', emoji: '🧒' },
     '早餐': { tag: '早餐', icon: 'fas fa-sun', emoji: '🥞' },
     '飲料': { tag: '飲料甜點', icon: 'fas fa-glass-water', emoji: '🥤' },
     'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
     'McCafé®': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
     '點心': { tag: '單點餐品', icon: 'fas fa-cookie-bite', emoji: '🍟' },
   };
-  const fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
+  let fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
+  // 細項表情：依品名再校正一次預設 emoji，避免分享盒/1+1 全部變相同圖示。
+  if (/薯條|薯餅/.test(name)) fallback = { ...fallback, emoji: '🍟' };
+  else if (/雞翅|鷄翅|鷄塊|雞塊|麥脆/.test(name)) fallback = { ...fallback, emoji: '🍗' };
+  else if (/咖啡|拿鐵|那堤|拿提|美式/.test(name)) fallback = { ...fallback, emoji: '☕' };
+  else if (/可樂|雪碧|汽水/.test(name)) fallback = { ...fallback, emoji: '🥤' };
+  else if (/茶/.test(name)) fallback = { ...fallback, emoji: '🍵' };
+  else if (/沙拉|藜麥/.test(name)) fallback = { ...fallback, emoji: '🥗' };
+  else if (/魚/.test(name)) fallback = { ...fallback, emoji: '🐟' };
+  else if (/派/.test(name)) fallback = { ...fallback, emoji: '🥧' };
+  else if (/玉米|湯/.test(name)) fallback = { ...fallback, emoji: '🌽' };
+  else if (/鬆餅|滿福|焙果/.test(name)) fallback = { ...fallback, emoji: '🥞' };
+  else if (/Happy Meal|快樂兒童餐/.test(name)) fallback = { ...fallback, emoji: '🧒' };
   return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : '') };
+}
+
+function formatItemPrice(item) {
+  const price = Number(item.price || 0);
+  if (price > 0) return `$${price}`;
+  return kioskLang === 'en' ? 'Store Price' : '依店價';
 }
 
 // =========================================================
@@ -1379,7 +1412,7 @@ ui.startBtn.onclick = async () => {
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
-    setVoiceOrderingAvailable(!f.emotion);
+    setVoiceOrderingAvailable(true);
     if (f.emotion) startDetectionLoop();
     updateEmotionCameraPanel();
     startPageDwellWatcher();
@@ -1607,11 +1640,10 @@ function setVoiceOrderingAvailable(available) {
   const disabled = isPosMode() && isSystemRunning && getFeatures().emotion && !voiceOrderingAvailable;
   ui.askBtn?.classList.toggle('opacity-50', disabled);
   ui.kioskVoiceBtn?.classList.toggle('opacity-50', disabled);
-  if (ui.askText && disabled) ui.askText.textContent = kioskLang === 'en' ? 'Please stand in front of the camera' : '偵測到顧客後即可語音點餐';
+  if (ui.askText && disabled) ui.askText.textContent = kioskLang === 'en' ? 'Voice ordering is not ready yet' : '語音點餐尚未準備完成';
   if (ui.askBtn) ui.askBtn.disabled = disabled;
   if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.disabled = disabled;
-  if (voiceOrderingAvailable) scheduleAutoVoiceOrdering(800);
-  else stopAutoVoiceOrdering();
+  if (!voiceOrderingAvailable) stopAutoVoiceOrdering();
 }
 
 function stopAutoVoiceOrdering() {
@@ -1621,37 +1653,6 @@ function stopAutoVoiceOrdering() {
   if (askRecorder?.state === 'recording') {
     try { stopAskRecording(); } catch { }
   }
-}
-
-function scheduleAutoVoiceOrdering(delayMs = 1200) {
-  if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
-  if (autoVoiceTimer || autoVoiceInFlight || !askRecorder || askRecorder.state !== 'inactive') return;
-  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
-  if (ui.voiceBubble?.style?.display === 'block') {
-    autoVoiceTimer = setTimeout(() => {
-      autoVoiceTimer = null;
-      scheduleAutoVoiceOrdering(1200);
-    }, 1800);
-    return;
-  }
-  if (ui.audio && !ui.audio.paused) {
-    autoVoiceTimer = setTimeout(() => {
-      autoVoiceTimer = null;
-      scheduleAutoVoiceOrdering(1200);
-    }, 1800);
-    return;
-  }
-  autoVoiceTimer = setTimeout(() => {
-    autoVoiceTimer = null;
-    if (!isPosMode() || !isSystemRunning || orderCompleted || !voiceOrderingAvailable) return;
-    if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
-    if (!askRecorder || askRecorder.state !== 'inactive') return;
-    autoVoiceInFlight = true;
-    startAskRecording({ id: 'autoVoiceOrder' });
-    setTimeout(() => {
-      if (askRecorder?.state === 'recording') stopAskRecording();
-    }, 4500);
-  }, delayMs);
 }
 
 function setupAskRecorder() {
@@ -1673,7 +1674,6 @@ function setupAskRecorder() {
       });
       ui.askText.textContent = kt('holdVoiceOrder');
       autoVoiceInFlight = false;
-      scheduleAutoVoiceOrdering(900);
       return;
     }
 
@@ -1733,14 +1733,12 @@ function setupAskRecorder() {
     }
     ui.askText.textContent = kt('holdVoiceOrder');
     autoVoiceInFlight = false;
-    scheduleAutoVoiceOrdering(1200);
   };
-  if (voiceOrderingAvailable) scheduleAutoVoiceOrdering(800);
 }
 
 function startAskRecording(sourceBtn) {
-  if (getFeatures().emotion && !voiceOrderingAvailable) {
-    showPushNotice(kioskLang === 'en' ? 'Please stand in front of the camera first.' : '請先站到鏡頭前，偵測到顧客後即可語音點餐。');
+  if (!voiceOrderingAvailable) {
+    showPushNotice(kioskLang === 'en' ? 'Voice ordering is not ready yet.' : '語音點餐尚未準備完成。');
     return;
   }
   if (askRecorder && askRecorder.state === 'inactive') {
@@ -2086,6 +2084,9 @@ function renderOrderConfirm() {
     const quantity = Number(item.quantity || 0);
     const price = Number(item.price || 0);
     const visual = getMenuVisual(item);
+    const lineLabel = price > 0
+      ? `$${price * quantity}`
+      : (kioskLang === 'en' ? 'Store Price' : '依店價');
     return `
       <div class="order-summary-item">
         <div class="order-summary-photo">
@@ -2094,7 +2095,7 @@ function renderOrderConfirm() {
         <div class="order-summary-name">${escapeHTML(item.name)}</div>
         <div class="order-summary-meta">
           <span class="order-summary-qty">× ${quantity}</span>
-          <strong class="order-summary-price">$${price * quantity}</strong>
+          <strong class="order-summary-price">${escapeHTML(lineLabel)}</strong>
         </div>
       </div>
     `;

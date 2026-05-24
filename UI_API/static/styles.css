@@ -1153,8 +1153,7 @@
   }
 
   #posServiceFab,
-  #mod-voice,
-  #kioskVoiceBtn {
+  #mod-voice {
     display: none !important;
   }
 
