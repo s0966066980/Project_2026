@@ -1,4 +1,4 @@
-from utils.text_utils import to_traditional_lite
+from utils.text_utils import normalize_emotion_label, to_traditional_lite
 
 
 PAYMENT_TERMS = ["不能刷", "付款", "刷卡", "LINE Pay", "line pay", "悠遊卡"]
@@ -36,8 +36,12 @@ def _emotion_label(emotion_structured: dict | None) -> str:
     emotion = _safe_dict(emotion_structured)
     label = str(emotion.get("emotion_label") or "").strip()
     if label:
-        return label
+        normalized = normalize_emotion_label(label)
+        return normalized or label
     display = str(emotion.get("emotion_display") or "")
+    normalized = normalize_emotion_label(display)
+    if normalized and normalized != display:
+        return normalized
     for candidate in ["生氣", "焦躁", "困惑", "猶豫", "疲憊", "平靜", "無法判斷"]:
         if candidate in display:
             return candidate
@@ -71,10 +75,14 @@ def infer_customer_service_state(
     has_urgent = _contains_any(text, URGENT_TERMS)
 
     if has_urgent:
-        priority = "medium"
         evidence.append("user_text contains waiting or urgent request")
 
-    if has_payment_issue:
+    if has_complaint:
+        state = "complaint_risk"
+        priority = "high"
+        needs_human_staff = True
+        evidence.append("user_text contains complaint risk")
+    elif has_payment_issue:
         state = "payment_issue"
         priority = "medium"
         evidence.append("user_text contains payment issue")
@@ -88,11 +96,7 @@ def infer_customer_service_state(
         evidence.append("user_text contains operation confusion")
     elif has_urgent:
         state = "urgent_request"
-    if has_complaint:
-        state = "complaint_risk"
-        priority = "high"
-        needs_human_staff = True
-        evidence.append("user_text contains complaint risk")
+        priority = "medium"
 
     if emotion_label:
         evidence.append(f"emotion_label={emotion_label}")

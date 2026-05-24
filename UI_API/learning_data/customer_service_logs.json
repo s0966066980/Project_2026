@@ -402,12 +402,12 @@
         "session_id": "pos_kbibl2iuf",
         "source_id": "cs_pos_kbibl2iuf_1779351072",
         "rag_doc_id": "031d9f77-ab33-4561-b688-514706bd569e",
-        "mode": "ollama",
+        "mode": "human_replied",
         "language": "zh",
         "raw_language": "zh",
         "emotion": "平靜：顧客狀態穩定",
         "user_text": "推薦我餐點",
-        "customer_reply": "請您選擇您想要的主餐，例如：大麥克®、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!",
+        "customer_reply": "su3cl3",
         "staff_summary": "推薦我餐點",
         "priority": "normal",
         "customer_service_state": "normal_question",
@@ -438,6 +438,53 @@
         "mentioned_ids": [],
         "ollama_result": "{\n  \"customer_reply\": \"請您選擇您想要的主餐，例如：大麥克®、雙層牛肉吉事堡、四盎司牛肉堡等。您還可以加上點心或飲品，如薯條、可口可樂zero、無糖綠茶(冰)等。請讓我們幫助您點餐!\",\n  \"staff_summary\": \"\",\n  \"priority\": \"normal\",\n  \"mentioned_ids\": [\"M01\"]\n}",
         "media_filename": "cs_pos_kbibl2iuf_1779351072.webm",
-        "media_url": "/api/customer_service_media/cs_pos_kbibl2iuf_1779351072.webm"
+        "media_url": "/api/customer_service_media/cs_pos_kbibl2iuf_1779351072.webm",
+        "human_reply": "su3cl3",
+        "reply_language": "zh",
+        "updated_at": "2026-05-22T11:37:34.551821"
+    },
+    {
+        "timestamp": 1779445492.1835914,
+        "session_id": "pos_zt1e3g41w",
+        "source_id": "cs_pos_zt1e3g41w_1779445492",
+        "rag_doc_id": "",
+        "mode": "ollama",
+        "language": "zh",
+        "raw_language": "zh",
+        "emotion": "in the video, the person's facial expressions, including lower eyebrows, eyebrow raised, and slight frown, suggest a low-intensity emotional state of frustration or annoyance the person's body language, such as sitting with their arms crossed, further reinforces this interpretation the audio tone is neutral, which is consistent with the person's facial expressions and body language the person's speech content, which includes counting numbers and repeating the word 5x4, appears to be a repetitive task or action, possibly indicating（Emotion-LLaMA 本次失敗，使用快取）",
+        "user_text": "我不會點餐",
+        "customer_reply": "可以的，您先點選想要的餐點，餐點會加入右側購物車；確認數量沒問題後，再按「確認結帳」就可以完成點餐。",
+        "staff_summary": "顧客詢問如何點餐，已說明點選餐點、加入購物車、確認數量與結帳流程。",
+        "priority": "high",
+        "customer_service_state": "operation_confusion",
+        "customer_service_priority": "medium",
+        "needs_human_staff": false,
+        "service_state_evidence": [
+            "user_text contains operation confusion",
+            "emotion_label=猶豫"
+        ],
+        "emotion_structured": {
+            "emotion_label": "猶豫",
+            "emotion_display": "猶豫：顧客可能還在選擇，可提供簡短推薦。",
+            "emotion_evidence": "聲音較少，改以表情、姿態與動作線索判斷。",
+            "emotion_distribution": {
+                "猶豫": 40,
+                "困惑": 30,
+                "疲憊": 15,
+                "焦躁": 10,
+                "生氣": 5
+            },
+            "media_signals": {
+                "duration_sec": -9223372036854776.0,
+                "audio_mean_db": -47.6,
+                "audio_silent": true,
+                "motion_score": 0.1078,
+                "motion_level": "active"
+            }
+        },
+        "mentioned_ids": [],
+        "ollama_result": "{\n  \"customer_reply\": \"您不會點餐，我們可以幫您找到菜單並讓您選擇想要的食物嗎？\",\n  \"staff_summary\": \"\",\n  \"priority\": \"high\",\n  \"mentioned_ids\": []\n}",
+        "media_filename": "cs_pos_zt1e3g41w_1779445492.webm",
+        "media_url": "/api/customer_service_media/cs_pos_zt1e3g41w_1779445492.webm"
     }
 ]

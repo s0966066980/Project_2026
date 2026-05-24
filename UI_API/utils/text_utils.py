@@ -44,6 +44,29 @@ def latin_noise_count(text: str) -> int:
     return sum(1 for ch in cleaned if "A" <= ch.upper() <= "Z")
 
 
+_EMOTION_LABEL_SYNONYMS = {
+    "生氣": ["生氣", "憤怒", "怒氣", "不悅", "不爽", "氣憤", "angry", "anger", "mad", "furious"],
+    "焦躁": ["焦躁", "焦慮", "急躁", "不耐", "不耐煩", "煩躁", "anxious", "irritated", "impatient", "frustrated"],
+    "猶豫": ["猶豫", "遲疑", "困惑", "迷惘", "不確定", "hesitant", "confused", "uncertain", "unsure"],
+    "疲憊": ["疲憊", "疲倦", "勞累", "倦怠", "tired", "exhausted", "weary"],
+    "難過": ["難過", "傷心", "悲傷", "失落", "沮喪", "sad", "unhappy", "depressed", "down"],
+    "開心": ["開心", "高興", "愉快", "快樂", "歡喜", "happy", "joyful", "pleased", "cheerful"],
+    "平靜": ["平靜", "中性", "冷靜", "平穩", "neutral", "calm", "relaxed"],
+}
+
+
+def normalize_emotion_label(label: str) -> str:
+    """Map free-form emotion descriptions (zh / en / mixed) onto the canonical zh label."""
+    raw = str(label or "").strip().lower()
+    if not raw:
+        return ""
+    for canonical, aliases in _EMOTION_LABEL_SYNONYMS.items():
+        for alias in aliases:
+            if alias.lower() in raw:
+                return canonical
+    return label
+
+
 def remove_latin_noise(text: str) -> str:
     clean = str(text or "")
     replacements = {

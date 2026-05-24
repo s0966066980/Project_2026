@@ -1,5 +1,6 @@
 import os
 import asyncio
+import hashlib
 import requests
 import json
 import re
@@ -9,6 +10,7 @@ import math
 import time
 import wave
 import audioop
+import threading
 from collections import OrderedDict
 import edge_tts
 import whisper
@@ -23,10 +25,12 @@ except Exception:
 os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "quiet")
 
 whisper_model = None
+_whisper_thread_lock = threading.Lock()
 _tts_cache = OrderedDict()
 _TTS_CACHE_LIMIT = 64
 _yolo_detector = None
 _yolo_detector_key = None
+_yolo_thread_lock = threading.Lock()
 _gemini_client = None
 _gemini_cooldown_until = 0.0
 _gemini_last_error = ""
@@ -131,8 +135,12 @@ async def async_probe_media(file_path: str) -> dict:
 
 
 async def _convert_media_to_wav(file_path: str, wav_path: str):
+    max_sec = float(config.get("WHISPER_MAX_AUDIO_SEC", 18))
     await _run_process([
         "ffmpeg", "-y", "-i", file_path,
+        "-t", str(max_sec),
+        "-vn", "-sn", "-dn",
+        "-af", "aresample=async=1:first_pts=0",
         "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav_path
     ])
 
@@ -140,6 +148,14 @@ async def _convert_media_to_wav(file_path: str, wav_path: str):
 def _is_empty_audio_error(error: Exception) -> bool:
     text = str(error or "").lower()
     return "0 elements" in text or "cannot reshape tensor" in text
+
+
+def _is_whisper_sequence_error(error: Exception) -> bool:
+    text = str(error or "").lower()
+    return (
+        "key and value must have the same sequence length" in text
+        or "expected key.size(1) == value.size(1)" in text
+    )
 
 
 def _wav_duration_seconds(path: str) -> float:
@@ -255,6 +271,20 @@ def init_whisper():
             whisper_model = None
 
 
+def _transcribe_with_whisper(path: str, **kwargs) -> dict:
+    if whisper_model is None:
+        return {}
+    options = {
+        "fp16": False,
+        "temperature": 0.0,
+        "condition_on_previous_text": False,
+        "verbose": False,
+    }
+    options.update(kwargs)
+    with _whisper_thread_lock:
+        return whisper_model.transcribe(path, **options)
+
+
 def init_yolo_detector():
     model, error = _load_yolo_detector()
     if model is None:
@@ -288,19 +318,25 @@ async def async_safe_transcribe(file_path: str) -> str:
         if _audio_is_too_quiet(wav_path):
             print("⚠️ 語音音量過低，略過 Whisper 辨識。")
             return ""
-        result = await asyncio.to_thread(whisper_model.transcribe, wav_path)
+        result = await asyncio.to_thread(_transcribe_with_whisper, wav_path)
         return _sanitize_transcript(result.get("text", ""))
     except Exception as e:
         if _is_empty_audio_error(e):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
             return ""
+        if _is_whisper_sequence_error(e):
+            print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e}")
+            return ""
         print(f"⚠️ 音訊重組失敗，嘗試直接辨識: {e}")
         try:
-            result = await asyncio.to_thread(whisper_model.transcribe, file_path)
+            result = await asyncio.to_thread(_transcribe_with_whisper, file_path)
             return _sanitize_transcript(result.get("text", ""))
         except Exception as e2:
             if _is_empty_audio_error(e2):
                 print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+                return ""
+            if _is_whisper_sequence_error(e2):
+                print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e2}")
                 return ""
             print(f"⚠️ 直接辨識也失敗: {e2}")
             return ""
@@ -331,7 +367,7 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         if _audio_is_too_quiet(wav_path):
             print("⚠️ 語音音量過低，略過 Whisper 辨識。")
             return {"text": "", "language": "zh", "raw_language": ""}
-        result = await asyncio.to_thread(whisper_model.transcribe, wav_path, task="transcribe")
+        result = await asyncio.to_thread(_transcribe_with_whisper, wav_path, task="transcribe")
         text = _sanitize_transcript(result.get("text", ""))
         raw_lang = result.get("language", "")
         lang = _normalize_language(raw_lang, text)
@@ -340,15 +376,21 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         if _is_empty_audio_error(e):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
             return {"text": "", "language": "zh", "raw_language": ""}
+        if _is_whisper_sequence_error(e):
+            print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e}")
+            return {"text": "", "language": "zh", "raw_language": ""}
         print(f"⚠️ 語音辨識失敗: {e}")
         try:
-            result = await asyncio.to_thread(whisper_model.transcribe, file_path, task="transcribe")
+            result = await asyncio.to_thread(_transcribe_with_whisper, file_path, task="transcribe")
             text = _sanitize_transcript(result.get("text", ""))
             raw_lang = result.get("language", "")
             return {"text": text, "language": _normalize_language(raw_lang, text), "raw_language": raw_lang}
         except Exception as e2:
             if _is_empty_audio_error(e2):
                 print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
+                return {"text": "", "language": "zh", "raw_language": ""}
+            if _is_whisper_sequence_error(e2):
+                print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e2}")
                 return {"text": "", "language": "zh", "raw_language": ""}
             print(f"⚠️ 直接辨識也失敗: {e2}")
             return {"text": "", "language": "zh", "raw_language": ""}
@@ -553,23 +595,24 @@ async def async_get_emotion_from_llama(
         )
         payload = {"data": [prepared_path, prompt]}
         base_url = config.EMOTION_LLAMA_GRADIO_URL.rstrip('/')
+        response = None
         for endpoint in [f"{base_url}/api/predict/", f"{base_url}/api/predict", f"{base_url}/run/predict"]:
             try:
-                response = await asyncio.to_thread(
+                candidate = await asyncio.to_thread(
                     requests.post, endpoint, json=payload, timeout=config.EMOTION_LLAMA_TIMEOUT
                 )
-                if response.status_code == 200:
-                    break
             except requests.RequestException:
                 continue
-        else:
+            if candidate.status_code == 200:
+                response = candidate
+                break
+        if response is None:
             return {
                 "emotion_raw": "Emotion-LLaMA 未執行",
                 "emotion_available": False,
                 "emotion_error": "connection_failed",
             }
 
-        response.raise_for_status()
         res_data = response.json()
         if "data" not in res_data and "event_id" in res_data:
             return {"emotion_raw": "排隊中(請關閉Gradio Queue)"}
@@ -638,6 +681,28 @@ def _load_yolo_detector():
         _yolo_detector_key = None
         return None, f"yolo_load_failed:{e}"
 
+def _yolo_result_to_boxes(result, width: int, height: int) -> list[dict]:
+    boxes = []
+    if result is None or getattr(result, "boxes", None) is None:
+        return boxes
+    for xyxy, conf in zip(result.boxes.xyxy, result.boxes.conf):
+        x1, y1, x2, y2 = [float(v) for v in xyxy.tolist()]
+        x1 = max(0.0, min(x1, width - 1))
+        y1 = max(0.0, min(y1, height - 1))
+        x2 = max(x1 + 1.0, min(x2, width))
+        y2 = max(y1 + 1.0, min(y2, height))
+        boxes.append({
+            "label": "person",
+            "confidence": round(float(conf), 3),
+            "x": round(x1 / width, 4),
+            "y": round(y1 / height, 4),
+            "w": round((x2 - x1) / width, 4),
+            "h": round((y2 - y1) / height, 4)
+        })
+    boxes.sort(key=lambda item: item["confidence"], reverse=True)
+    return boxes
+
+
 def _detect_people_in_frame(frame) -> dict:
     try:
         import cv2  # noqa: F401
@@ -680,33 +745,16 @@ def _detect_people_in_frame(frame) -> dict:
     height, width = frame.shape[:2]
     conf_threshold = float(config.get("YOLO_CONFIDENCE_THRESHOLD", 0.35))
     nms_threshold = float(config.get("YOLO_NMS_THRESHOLD", 0.4))
-    results = model.predict(
-        source=frame,
-        imgsz=320,
-        conf=conf_threshold,
-        iou=nms_threshold,
-        classes=[0],
-        verbose=False
-    )
-    boxes = []
-    if results:
-        result = results[0]
-        if result.boxes is not None:
-            for xyxy, conf in zip(result.boxes.xyxy, result.boxes.conf):
-                x1, y1, x2, y2 = [float(v) for v in xyxy.tolist()]
-                x1 = max(0.0, min(x1, width - 1))
-                y1 = max(0.0, min(y1, height - 1))
-                x2 = max(x1 + 1.0, min(x2, width))
-                y2 = max(y1 + 1.0, min(y2, height))
-                boxes.append({
-                    "label": "person",
-                    "confidence": round(float(conf), 3),
-                    "x": round(x1 / width, 4),
-                    "y": round(y1 / height, 4),
-                    "w": round((x2 - x1) / width, 4),
-                    "h": round((y2 - y1) / height, 4)
-                })
-    boxes.sort(key=lambda item: item["confidence"], reverse=True)
+    with _yolo_thread_lock:
+        results = model.predict(
+            source=frame,
+            imgsz=320,
+            conf=conf_threshold,
+            iou=nms_threshold,
+            classes=[0],
+            verbose=False
+        )
+    boxes = _yolo_result_to_boxes(results[0] if results else None, width, height)
     return {
         "available": True,
         "person_detected": bool(boxes),
@@ -810,9 +858,7 @@ def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: 
             step = max(1, frame_count // max_frames)
             positions = list(range(0, frame_count, step))[:max_frames]
 
-        person_hits = 0
-        frames_checked = 0
-        best_boxes = []
+        frames = []
         for pos in positions:
             if frame_count > 0:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
@@ -820,16 +866,43 @@ def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: 
                 ok, frame = cap.read()
             if not ok or frame is None:
                 continue
+            frames.append(frame)
 
-            frames_checked += 1
-            frame_result = _detect_people_in_frame(frame)
-            frame_boxes = frame_result.get("boxes", [])
-            if frame_boxes:
-                person_hits += 1
-                if not best_boxes or max(b["confidence"] for b in frame_boxes) > max(b["confidence"] for b in best_boxes):
-                    best_boxes = frame_boxes
-                if person_hits >= max(1, int(min_face_hits)):
-                    break
+        frames_checked = len(frames)
+        if not frames:
+            return {
+                "available": True,
+                "person_detected": False,
+                "frames_checked": 0,
+                "person_hits": 0,
+                "face_hits": 0,
+                "boxes": [],
+                "detector": "yolo11n",
+                "reason": "no_readable_frames"
+            }
+
+        height, width = frames[0].shape[:2]
+        conf_threshold = float(config.get("YOLO_CONFIDENCE_THRESHOLD", 0.35))
+        nms_threshold = float(config.get("YOLO_NMS_THRESHOLD", 0.4))
+        with _yolo_thread_lock:
+            results = model.predict(
+                source=frames,
+                imgsz=320,
+                conf=conf_threshold,
+                iou=nms_threshold,
+                classes=[0],
+                verbose=False
+            ) or []
+
+        person_hits = 0
+        best_boxes = []
+        for result in results:
+            frame_boxes = _yolo_result_to_boxes(result, width, height)
+            if not frame_boxes:
+                continue
+            person_hits += 1
+            if not best_boxes or frame_boxes[0]["confidence"] > best_boxes[0]["confidence"]:
+                best_boxes = frame_boxes
 
         return {
             "available": True,
@@ -837,9 +910,9 @@ def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: 
             "frames_checked": frames_checked,
             "person_hits": person_hits,
             "face_hits": person_hits,
-            "boxes": best_boxes,
+            "boxes": best_boxes[:3],
             "detector": "yolo11n",
-            "reason": "ok" if frames_checked else "no_readable_frames"
+            "reason": "ok"
         }
     finally:
         cap.release()
@@ -848,21 +921,19 @@ def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: 
 def _repair_and_extract_json(content: str) -> dict | None:
     """
     強健 JSON 擷取器：
-    1. 先嘗試直接 parse（最快）
+    1. 直接 parse
     2. 剝 markdown fence
-    3. 括號深度追蹤（處理欄位內含引號）
-    4. ★ 新增：自動補上缺失的結尾 }（處理 Ollama 截斷問題）
+    3. 括號深度追蹤
+    4. 若仍截斷，用 state machine 安全補上引號/括號
     """
     if not content or not isinstance(content, str):
         return None
 
-    # Step 1: 直接 parse
     try:
         return json.loads(content.strip())
     except json.JSONDecodeError:
         pass
 
-    # Step 2: markdown fence
     fence = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
     if fence:
         try:
@@ -870,17 +941,17 @@ def _repair_and_extract_json(content: str) -> dict | None:
         except json.JSONDecodeError:
             pass
 
-    # Step 3: 括號深度追蹤
     start = content.find('{')
     if start == -1:
+        print(f"⚠️ 找不到 JSON，Ollama 原始輸出:\n{content}")
         return None
 
+    fragment = content[start:]
     depth = 0
     in_string = False
     escape_next = False
     end_idx = -1
-
-    for i, ch in enumerate(content[start:], start):
+    for i, ch in enumerate(fragment):
         if escape_next:
             escape_next = False
             continue
@@ -901,33 +972,33 @@ def _repair_and_extract_json(content: str) -> dict | None:
                 break
 
     if end_idx != -1:
-        candidate = content[start:end_idx + 1]
+        candidate = fragment[:end_idx + 1]
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
             pass
 
-    # Step 4: ★ 修復截斷 JSON（補上缺失的 "} 組合）
-    # 場景：Ollama 輸出被截斷，最後一個字串欄位沒有結尾引號和 }
-    if start != -1:
-        fragment = content[start:]
-        # 計算還缺幾個 }
-        open_count = fragment.count('{')
-        close_count = fragment.count('}')
-        missing = open_count - close_count
-
-        if 0 < missing <= 3:
-            # 如果最後一個字元不是引號，先補引號再補括號
-            stripped = fragment.rstrip()
-            if stripped and stripped[-1] not in ('}', '"', ']'):
-                stripped += '"'
-            repaired = stripped + ('}' * missing)
-            try:
-                result = json.loads(repaired)
-                print(f"🔧 JSON 自動修復成功（補了 {missing} 個括號）")
+    # 仍截斷：state machine 已知道是否還在字串中、還缺幾個結尾 }
+    if 0 < depth <= 5:
+        repaired = fragment
+        # 截斷在字串中 → 先補結束引號
+        if in_string:
+            if escape_next:
+                # 截斷在 escape 字元後（例如 "...\\）— 移除尾部不完整的反斜線
+                repaired = repaired.rstrip("\\")
+            repaired += '"'
+        # 移除尾端可能造成 parse error 的開放結構（例如 "key": 或結尾逗號）
+        stripped = repaired.rstrip()
+        if stripped.endswith((',', ':')):
+            stripped = stripped[:-1].rstrip()
+        repaired = stripped + ('}' * depth)
+        try:
+            result = json.loads(repaired)
+            if isinstance(result, dict):
+                print(f"🔧 JSON 自動修復成功（補了 {depth} 個括號）")
                 return result
-            except json.JSONDecodeError:
-                pass
+        except json.JSONDecodeError:
+            pass
 
     print(f"⚠️ 找不到 JSON，Ollama 原始輸出:\n{content}")
     return None
@@ -1084,20 +1155,12 @@ def ask_gemini(system_prompt: str, user_prompt: str, ab_variant: str = "", model
                 "_provider_error": "gemini_cooldown",
             }
         force_json_mime = _should_use_gemini_json_mime(model)
-        try:
-            content = _generate_gemini_content(
-                system_prompt,
-                user_prompt,
-                model,
-                force_json_mime,
-            )
-        except Exception as first_error:
-            first_error_text = str(first_error)
-            if force_json_mime and model.startswith("gemma-") and _is_gemini_internal_error(first_error_text):
-                print("⚠️ Gemma API JSON MIME 模式回傳 500，改用同模型純文字 JSON 指令重試一次。")
-                content = _generate_gemini_content(system_prompt, user_prompt, model, False)
-            else:
-                raise
+        content = _generate_gemini_content(
+            system_prompt,
+            user_prompt,
+            model,
+            force_json_mime,
+        )
         if config.get("OLLAMA_LOG_RAW", False):
             print(f"📝 Gemini[{model}]{'['+ab_variant+']' if ab_variant else ''} 原始回應:\n{content[:400]}\n{'='*40}")
         return _parse_llm_json_response(content, ab_variant)
@@ -1177,7 +1240,8 @@ async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:
     else:
         voice = config.get("TTS_VOICE", "zh-TW-HsiaoChenNeural")
 
-    cache_key = f"{lang}:{voice}:{text}"
+    text_digest = hashlib.sha1(str(text or "").encode("utf-8")).hexdigest()
+    cache_key = f"{lang}:{voice}:{text_digest}"
     if config.get("ENABLE_TTS_CACHE", True) and cache_key in _tts_cache:
         _tts_cache.move_to_end(cache_key)
         return _tts_cache[cache_key]

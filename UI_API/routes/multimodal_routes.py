@@ -165,11 +165,13 @@ def create_router(deps: dict) -> APIRouter:
                     "intervention_log": intervention_log,
                 }
 
-            media_signals = await ai_services.async_analyze_emotion_media_signals(temp_video_path)
-            person_check = await customer_emotion_service.detect_person_for_emotion(
-                temp_video_path, deps.get("yolo_semaphore")
-            )
             if str(detect_only).lower() == "true":
+                media_signals, person_check = await asyncio.gather(
+                    ai_services.async_analyze_emotion_media_signals(temp_video_path),
+                    customer_emotion_service.detect_person_for_emotion(
+                        temp_video_path, deps.get("yolo_semaphore")
+                    ),
+                )
                 await event_bus.publish_to_admin("emotion_analysis_completed", {
                     "session_id": session_id,
                     "status": "success",
@@ -184,7 +186,13 @@ def create_router(deps: dict) -> APIRouter:
                     "detect_only": True,
                 }
 
-            stt_result = await ai_services.async_safe_transcribe_with_language(temp_video_path)
+            media_signals, person_check, stt_result = await asyncio.gather(
+                ai_services.async_analyze_emotion_media_signals(temp_video_path),
+                customer_emotion_service.detect_person_for_emotion(
+                    temp_video_path, deps.get("yolo_semaphore")
+                ),
+                ai_services.async_safe_transcribe_with_language(temp_video_path),
+            )
             speech_text = (stt_result.get("text") or "").strip()
 
             async with deps["emotion_semaphore"]:

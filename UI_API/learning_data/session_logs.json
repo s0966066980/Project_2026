@@ -1,55 +1,26 @@
 [
     {
-        "timestamp": "2026-05-21T16:37:22.307345",
-        "session_id": "pos_0ogekv4f6",
+        "timestamp": "2026-05-24T20:51:52.975001",
+        "session_id": "pos_rktwvfvo4",
         "emotions_summary": "未知",
-        "speech_summary": "推薦餐店給我 / 有什麼推薦的餐點",
+        "speech_summary": "但是你知道石油是很多東西的根源所以如果說積極活動體",
         "languages": [
             "zh"
         ],
-        "pushed_ids": [
-            "MCD006",
-            "MCD001",
-            "MCD019",
-            "MCD024",
-            "MCD003",
-            "MCD004",
-            "MCD018",
-            "MCD002"
-        ],
+        "pushed_ids": [],
         "pushed_variants": {
-            "A": [
-                "MCD001"
-            ],
-            "B": [
-                "MCD004",
-                "MCD018",
-                "MCD024",
-                "MCD002",
-                "MCD019",
-                "MCD001",
-                "MCD006"
-            ],
+            "A": [],
+            "B": [],
             "single": []
         },
         "variant_success": {
             "A": {
-                "pushed_ids": [
-                    "MCD001"
-                ],
+                "pushed_ids": [],
                 "is_success": false
             },
             "B": {
-                "pushed_ids": [
-                    "MCD006",
-                    "MCD001",
-                    "MCD019",
-                    "MCD024",
-                    "MCD004",
-                    "MCD018",
-                    "MCD002"
-                ],
-                "is_success": true
+                "pushed_ids": [],
+                "is_success": false
             },
             "single": {
                 "pushed_ids": [],
@@ -57,8 +28,39 @@
             }
         },
         "final_cart_ids": [
-            "MCD019"
+            "MCD031"
         ],
-        "is_success": true
+        "is_success": false
+    },
+    {
+        "timestamp": "2026-05-24T22:08:42.313852",
+        "session_id": "pos_3gzzqc3nh",
+        "emotions_summary": "未知",
+        "speech_summary": "",
+        "languages": [],
+        "pushed_ids": [],
+        "pushed_variants": {
+            "A": [],
+            "B": [],
+            "single": []
+        },
+        "variant_success": {
+            "A": {
+                "pushed_ids": [],
+                "is_success": false
+            },
+            "B": {
+                "pushed_ids": [],
+                "is_success": false
+            },
+            "single": {
+                "pushed_ids": [],
+                "is_success": false
+            }
+        },
+        "final_cart_ids": [
+            "MCD022"
+        ],
+        "is_success": false
     }
 ]

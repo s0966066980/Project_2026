@@ -64,8 +64,12 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     ui.cartList.innerHTML = '';
     keys.forEach(id => {
       const item = cart[id];
-      total += item.price * item.quantity;
+      const itemPrice = Number(item.price || 0);
+      total += itemPrice * item.quantity;
       qty += item.quantity;
+      const priceLabel = itemPrice > 0
+        ? `$${itemPrice}`
+        : ((typeof kioskLang !== 'undefined' && kioskLang === 'en') ? 'Store Price' : '依店價');
       ui.cartList.innerHTML += `
         <div class="cart-item p-4 flex justify-between items-center">
           <div class="kiosk-cart-product">
@@ -73,7 +77,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
           </div>
           <div class="min-w-0 flex-1 mr-2">
             <p class="font-bold text-base truncate" style="color:var(--text)">${escapeHTML(item.name)}</p>
-            <p class="text-sm font-extrabold mt-1" style="color:var(--accent)">$${escapeHTML(item.price)}</p>
+            <p class="text-sm font-extrabold mt-1" style="color:var(--accent)">${escapeHTML(priceLabel)}</p>
           </div>
           <div class="flex items-center gap-1.5">
             <div class="flex items-center rounded-xl border px-1 h-9" style="background:var(--surface2);border-color:var(--border)">

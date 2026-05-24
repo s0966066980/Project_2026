@@ -1,4 +1,5 @@
 from services import interaction_event_service
+from utils.text_utils import normalize_emotion_label
 
 
 BARRIER_STATES = {
@@ -78,7 +79,7 @@ def infer_barrier_state(
     page_id = _latest_page(events, ui_context)
     speech = speech_text or ""
     emotion = emotion_structured or {}
-    emotion_label = str(emotion.get("emotion_label") or "")
+    emotion_label = normalize_emotion_label(emotion.get("emotion_label") or "")
     evidence = []
 
     payment_fail_count = _max_field(events, "payment_fail_count")

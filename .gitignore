@@ -46,6 +46,10 @@ UI_API/learning_data/customer_service_media/
 UI_API/learning_data/emotion_order_media/
 UI_API/learning_data/rag_vector_meta.json
 
+# Generated audio fixtures / transient samples
+Emotion-LLaMA/audio.wav
+*.tmp.wav
+
 # Model weights and checkpoint binaries
 *.pt
 *.pth
@@ -70,3 +74,6 @@ Emotion-LLaMA/.git/
 UI_API/.git/
 Emotion-LLaMA/checkpoints/**/.git/
 .nested_git_backup/
+
+# Backup files with timestamp suffix
+*.bak.*

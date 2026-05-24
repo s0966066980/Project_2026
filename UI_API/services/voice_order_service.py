@@ -1,12 +1,13 @@
 import asyncio
-import re
 import time
 
 import ai_services
 import config
 import database
+import rag_service
 from repositories import menu_repository, session_repository
 from services import rag_review_service
+from services import query_router_service
 from services import recommendation_service
 
 
@@ -19,50 +20,21 @@ def _cart_action_names(cart_actions: list[dict], menu_items: list[dict]) -> list
     return names
 
 
-def _looks_like_direct_order(user_text: str) -> bool:
-    normalized = recommendation_service.normalize_order_text(user_text)
-    if not normalized:
-        return False
-    direct_terms = [
-        "我要", "幫我加", "幫我點", "加一", "加兩", "加2", "點一", "點兩",
-        "點2", "來一", "來兩", "來2", "一份", "兩份", "2份", "一個", "兩個",
-        "2個", "一杯", "兩杯", "2杯", "一組", "兩組", "2組",
-    ]
-    if any(term in normalized for term in direct_terms):
-        return True
-    # English direct order patterns
-    english_direct_terms = [
-        "i want", "i'd like", "give me", "add a", "add one", "add two",
-        "order a", "order one", "can i get", "i'll have", "i will have",
-    ]
-    if any(term in normalized for term in english_direct_terms):
-        return True
-    return bool(re.search(r"\d+\s*(份|個|杯|組)", normalized))
-
-
-def _looks_like_menu_question(user_text: str) -> bool:
-    normalized = recommendation_service.normalize_order_text(user_text)
-    if not normalized:
-        return False
-    terms = [
-        "菜單", "餐點", "點餐", "推薦", "吃", "喝", "主餐", "套餐", "單點",
-        "雞", "牛", "魚", "薯條", "雞塊", "漢堡", "飲料", "咖啡", "可樂",
-        "不辣", "最快", "很急", "趕時間", "價格", "多少錢",
-        "menu", "recommend", "chicken", "beef", "fish", "fries", "burger",
-        "drink", "coffee", "fast", "quick",
-    ]
-    return any(term in normalized for term in terms)
-
-
 def _looks_like_service_request(user_text: str) -> bool:
     normalized = recommendation_service.normalize_order_text(user_text)
     if not normalized:
         return False
+    # 限縮為「明確請求客服 / 反映問題」的短語，避免「幫我加一份薯條」這類點餐請求誤判
     terms = [
-        "客服", "店員", "真人", "幫忙", "協助", "不會操作", "不會點",
-        "不懂", "看不懂", "怎麼用", "怎麼點", "不能刷", "付款失敗",
-        "刷卡失敗", "客訴", "投訴", "經理", "不爽", "太慢", "等很久",
-        "找人", "help", "staff", "cashier", "manager", "complaint",
+        "找客服", "叫客服", "請客服", "需要客服",
+        "找店員", "叫店員", "請店員", "需要店員", "店員協助",
+        "找真人", "叫真人", "需要真人", "真人協助",
+        "幫我處理", "請幫忙", "需要幫忙", "請協助",
+        "不會操作", "不會用", "不會點",
+        "看不懂", "怎麼操作", "怎麼用", "怎麼點",
+        "不能刷", "付款失敗", "刷卡失敗",
+        "客訴", "投訴", "找經理", "不爽", "太慢", "等很久",
+        "call staff", "need staff", "cashier", "manager", "complaint",
     ]
     return any(term in normalized for term in terms)
 
@@ -78,6 +50,41 @@ def _service_assist_reply(user_text: str, detected_lang: str) -> str:
     if any(term in normalized for term in ["客訴", "投訴", "經理", "不爽", "太慢", "等很久"]):
         return "不好意思讓您久等了，我會通知店員協助您處理。"
     return "我可以協助您操作。請先選擇餐點分類，再點餐點旁的加號加入購物車；需要付款時再按結帳。"
+
+
+def _dialogue(user_text: str, ai_response: str, detected_lang: str) -> dict:
+    return {
+        "zh": {
+            "user_text": user_text if detected_lang == "zh" else "",
+            "ai_response": ai_response if detected_lang == "zh" else ""
+        },
+        "en": {
+            "user_text": user_text if detected_lang == "en" else "",
+            "ai_response": ai_response if detected_lang == "en" else ""
+        }
+    }
+
+
+def _runtime_setting_reply(user_text: str, detected_lang: str) -> str:
+    status = rag_service.get_status()
+    customer_mode = config.get("CUSTOMER_SERVICE_MODE", "ollama")
+    ask_model = config.get("ASK_MODEL_NAME", "llama3.2")
+    model_name = config.get("MODEL_NAME", "llama3.2")
+    recommend_interval = config.get("RECOMMEND_INTERVAL_SEC", 30)
+    rag_ready = "已就緒" if status.get("rag_ready") else "未就緒"
+    if detected_lang == "en":
+        return (
+            f"Current service mode is {customer_mode}. "
+            f"QA model is {ask_model}; local default model is {model_name}. "
+            f"RAG is {rag_ready}, with {status.get('chunk_count', 0)} chunks. "
+            f"Recommendation interval is {recommend_interval} seconds."
+        )
+    return (
+        f"目前客服模式是 {customer_mode}。"
+        f"語音問答模型是 {ask_model}，本地預設模型是 {model_name}。"
+        f"RAG 狀態：{rag_ready}，目前有 {status.get('chunk_count', 0)} 個 chunk。"
+        f"主動推薦間隔為 {recommend_interval} 秒。"
+    )
 
 
 def _should_save_voice_order_to_rag() -> bool:
@@ -154,8 +161,9 @@ async def handle_voice_ask(
         return {"status": "error", "message": "無法辨識語音內容"}
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
+    route = query_router_service.route_query(user_text, menu_items)
 
-    if use_ollama and _looks_like_service_request(user_text):
+    if use_ollama and route.get("intent") != "direct_order" and _looks_like_service_request(user_text):
         ai_response = _service_assist_reply(user_text, detected_lang)
         session_repository.record_session_state(
             session_id=session_id, emotion="",
@@ -163,16 +171,6 @@ async def handle_voice_ask(
             language=detected_lang
         )
         audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
-        dialogue = {
-            "zh": {
-                "user_text": user_text if detected_lang == "zh" else "",
-                "ai_response": ai_response if detected_lang == "zh" else ""
-            },
-            "en": {
-                "user_text": user_text if detected_lang == "en" else "",
-                "ai_response": ai_response if detected_lang == "en" else ""
-            }
-        }
         return {
             "status": "success",
             "mode": "service_assist",
@@ -183,13 +181,14 @@ async def handle_voice_ask(
             "cart_actions": [],
             "detected_lang": detected_lang,
             "raw_detected_lang": stt_result.get("raw_language", ""),
-            "dialogue": dialogue,
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
             "citations": [],
             "retrieval_evaluation": {"sufficient": True, "reason": "service_assist_rule"},
+            "rag_debug": {"route": route},
             "trigger_recommend": False
         }
     
-    if use_ollama and _looks_like_direct_order(user_text):
+    if use_ollama and route.get("intent") == "direct_order":
         cart_actions = recommendation_service.coerce_cart_actions([], user_text, menu_items)
         if cart_actions:
             names = _cart_action_names(cart_actions, menu_items)
@@ -217,6 +216,8 @@ async def handle_voice_ask(
                 "cart_actions": cart_actions,
                 "detected_lang": detected_lang,
                 "raw_detected_lang": stt_result.get("raw_language", ""),
+                "dialogue": _dialogue(user_text, ai_response, detected_lang),
+                "rag_debug": {"route": route},
                 "trigger_recommend": False
             }
 
@@ -247,12 +248,18 @@ async def handle_voice_ask(
             "cart_actions": cart_actions,
             "detected_lang": detected_lang,
             "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "rag_debug": {"route": route},
             "trigger_recommend": False
         }
 
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
-    menu_question_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
-    if menu_question_answer and not _looks_like_direct_order(user_text):
+    menu_question_answer = (
+        recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+        if route.get("intent") == "menu_question"
+        else {}
+    )
+    if route.get("intent") == "menu_question" and menu_question_answer:
         ai_response = menu_question_answer.get("ai_response", "")
         mentioned_ids = menu_question_answer.get("mentioned_ids", [])
         session_repository.record_session_state(
@@ -261,16 +268,6 @@ async def handle_voice_ask(
             language=detected_lang
         )
         audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
-        dialogue = {
-            "zh": {
-                "user_text": user_text if detected_lang == "zh" else "",
-                "ai_response": ai_response if detected_lang == "zh" else ""
-            },
-            "en": {
-                "user_text": user_text if detected_lang == "en" else "",
-                "ai_response": ai_response if detected_lang == "en" else ""
-            }
-        }
         return {
             "status": "success",
             "mode": "menu_question",
@@ -281,18 +278,120 @@ async def handle_voice_ask(
             "cart_actions": [],
             "detected_lang": detected_lang,
             "raw_detected_lang": stt_result.get("raw_language", ""),
-            "dialogue": dialogue,
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
             "citations": [],
             "retrieval_evaluation": {"sufficient": True, "reason": "menu_whitelist_answer"},
+            "rag_debug": {
+                "route": route,
+                "quality_gate": None,
+                "retrieval_evaluation": {"sufficient": True, "reason": "menu_whitelist_answer"},
+                "citations": [],
+                "verification": None,
+            },
             "trigger_recommend": True
         }
 
-    rag_details = await asyncio.to_thread(database.retrieve_rag_details, user_text)
+    if route.get("intent") == "menu_question":
+        route = {
+            **route,
+            "intent": "rag_question",
+            "confidence": min(float(route.get("confidence", 0.5)), 0.55),
+            "reason": "menu_question_fallback_to_rag",
+            "requires_rag": True,
+            "requires_llm": True,
+        }
+
+    if route.get("intent") == "runtime_setting":
+        ai_response = _runtime_setting_reply(user_text, detected_lang)
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        return {
+            "status": "success",
+            "mode": "runtime_setting",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": [],
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": True, "reason": "runtime_setting"},
+            "rag_debug": {"route": route},
+            "trigger_recommend": False
+        }
+
+    if route.get("intent") == "unknown":
+        ai_response = (
+            "I can currently help with ordering, menu recommendations, operation guidance, and prepared RAG documents."
+            if detected_lang == "en"
+            else "我目前只能協助點餐、菜單推薦、操作說明與已建立的 RAG 文件內容。"
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        return {
+            "status": "success",
+            "mode": "unknown",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": [],
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": False, "reason": "unknown_intent"},
+            "rag_debug": {"route": route},
+            "trigger_recommend": False
+        }
+
+    rag_details = await asyncio.to_thread(rag_service.retrieve_with_retry, user_text)
+    global_context = await asyncio.to_thread(database.get_global_rag_context)
+    if global_context:
+        rag_details["context"] = "\n\n".join(
+            part for part in [global_context, rag_details.get("context", "").strip()] if part
+        )
     rag_context = rag_details.get("context", "")
-    import rag_service
     is_sufficient = rag_service.is_context_sufficient(rag_details)
     if not is_sufficient:
-        rag_context = "本次沒有可用的 RAG 補充內容。請將 RAG 視為輔助資料；若問題可由完整菜單白名單或一般點餐流程回答，仍應直接回答，不要要求顧客新增 RAG。"
+        ai_response = (
+            "The current documents do not contain enough information to answer. Please add the corresponding RAG document or confirm the setting."
+            if detected_lang == "en"
+            else "目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。"
+        )
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        return {
+            "status": "success",
+            "mode": "rag_question",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": [],
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "citations": rag_details.get("citations", []),
+            "retrieval_evaluation": rag_details.get("evaluation", {}),
+            "rag_debug": {
+                "route": route,
+                "quality_gate": rag_details.get("quality_gate"),
+                "retrieval_evaluation": rag_details.get("evaluation"),
+                "citations": rag_details.get("citations"),
+                "verification": None,
+            },
+            "trigger_recommend": False
+        }
     qa_provider = str(config.get("QA_AI_PROVIDER", "ollama") or "ollama").lower()
     source_rule = (
         "Gemini 回覆不需要在 ai_response 說明來源、引用 file_name、page 或 chunk_id。\n"
@@ -339,11 +438,12 @@ async def handle_voice_ask(
             temp
         )
 
-    if is_sufficient and rag_settings.get("answer_verification", True) and "error" not in ask_result:
+    verification = None
+    if rag_settings.get("answer_verification", True) and "error" not in ask_result:
         verification_context = full_menu_context + "\n\n" + rag_context
         verification = await loop.run_in_executor(
             None,
-            rag_service.verify_answer_grounding,
+            rag_service.verify_claims_grounding,
             user_text,
             ask_result.get("ai_response", ""),
             verification_context
@@ -351,8 +451,7 @@ async def handle_voice_ask(
         if not verification.get("grounded", True):
             ask_result["ai_response"] = verification.get("safe_answer", "目前資料庫沒有足夠資訊回答這個問題。")
             ask_result["mentioned_ids"] = []
-            if not _looks_like_direct_order(user_text):
-                ask_result["cart_actions"] = []
+            ask_result["cart_actions"] = []
 
 
     fallback_response = (
@@ -360,59 +459,45 @@ async def handle_voice_ask(
         if detected_lang == "en"
         else "我可以協助您點餐、推薦餐點或說明付款方式。請直接說想點的餐點，例如「我要一個大麥克」。"
     )
-    ai_response = (ask_result.get("ai_response", fallback_response)
-                   if "error" not in ask_result else fallback_response)
-    mentioned_ids = ask_result.get("mentioned_ids", [])
-    if isinstance(mentioned_ids, str):
-        mentioned_ids = [mentioned_ids]
-    elif not isinstance(mentioned_ids, list):
+    has_error = "error" in ask_result
+    ai_response = ask_result.get("ai_response", fallback_response) if not has_error else fallback_response
+
+    if has_error:
         mentioned_ids = []
-    menu_ids = [item.get("id") for item in menu_items if item.get("id")]
-    mentioned_ids = [recommendation_service.clean_menu_id(item_id, menu_ids) for item_id in mentioned_ids]
-    mentioned_ids = [item_id for item_id in mentioned_ids if item_id]
-    cart_actions = recommendation_service.coerce_cart_actions(
-        ask_result.get("cart_actions", []), user_text, menu_items
-    )
-    # Only use menu_question_answer as fallback when LLM result is missing or errored
-    if ("error" in ask_result or not ai_response.strip()) and menu_question_answer and not _looks_like_direct_order(user_text):
         cart_actions = []
-        ai_response = menu_question_answer.get("ai_response", ai_response) or ai_response
-        mentioned_ids = menu_question_answer.get("mentioned_ids", mentioned_ids) or mentioned_ids
+    else:
+        menu_ids = [item.get("id") for item in menu_items if item.get("id")]
+        raw_ids = ask_result.get("mentioned_ids") or []
+        if isinstance(raw_ids, str):
+            raw_ids = [raw_ids]
+        if not isinstance(raw_ids, list):
+            raw_ids = []
+        mentioned_ids = [recommendation_service.clean_menu_id(item_id, menu_ids) for item_id in raw_ids]
+        mentioned_ids = [item_id for item_id in mentioned_ids if item_id]
+        cart_actions = recommendation_service.coerce_cart_actions(
+            ask_result.get("cart_actions", []), user_text, menu_items
+        )
+
     ai_response = recommendation_service.fix_ask_reply_for_intent(
         user_text, detected_lang, ai_response, cart_actions, mentioned_ids
     )
-    if cart_actions and detected_lang != "en":
-        names = _cart_action_names(cart_actions, menu_items)
-        bad_reply = any(phrase in (ai_response or "") for phrase in ["抱歉", "沒有這個品項", "菜單沒有", "找不到", "目前菜單沒有"])
-        not_confirming_cart = "加入" not in (ai_response or "") and "購物車" not in (ai_response or "")
-        if names and (not ai_response or bad_reply or not_confirming_cart):
-            ai_response = "已幫您加入購物車：" + "、".join(names)
+
+    if cart_actions and _should_save_voice_order_to_rag():
+        asyncio.create_task(_save_voice_order_rag_doc(
+            session_id, user_text, detected_lang, "rag_question", ai_response,
+            cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
+        ))
 
     session_repository.record_session_state(
         session_id=session_id, emotion="",
         user_speech=user_text, ai_response=ai_response,
         language=detected_lang
     )
-    if _should_save_voice_order_to_rag() and cart_actions:
-        asyncio.create_task(_save_voice_order_rag_doc(
-            session_id, user_text, detected_lang, qa_provider, ai_response,
-            cart_actions, menu_items, ollama_semaphore, schedule_rag_rebuild
-        ))
-
     audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
-    dialogue = {
-        "zh": {
-            "user_text": user_text if detected_lang == "zh" else "",
-            "ai_response": ai_response if detected_lang == "zh" else ""
-        },
-        "en": {
-            "user_text": user_text if detected_lang == "en" else "",
-            "ai_response": ai_response if detected_lang == "en" else ""
-        }
-    }
 
     return {
         "status": "success",
+        "mode": "rag_question",
         "user_text": user_text,
         "ai_response": ai_response,
         "audio_base64": audio_base64,
@@ -420,8 +505,15 @@ async def handle_voice_ask(
         "cart_actions": cart_actions,
         "detected_lang": detected_lang,
         "raw_detected_lang": stt_result.get("raw_language", ""),
-        "dialogue": dialogue,
+        "dialogue": _dialogue(user_text, ai_response, detected_lang),
         "citations": [] if qa_provider == "gemini" else rag_details.get("citations", []),
         "retrieval_evaluation": rag_details.get("evaluation", {}),
+        "rag_debug": {
+            "route": route,
+            "quality_gate": rag_details.get("quality_gate"),
+            "retrieval_evaluation": rag_details.get("evaluation"),
+            "citations": rag_details.get("citations"),
+            "verification": verification,
+        },
         "trigger_recommend": not bool(cart_actions)
     }

@@ -239,6 +239,9 @@ def _split_text(text: str, metadata: dict, chunk_prefix: str) -> list[RagChunk]:
     clean = (text or "").strip()
     if not clean:
         return []
+    parent_text = clean[:3000]
+    first_line = next((line.strip() for line in clean.splitlines() if line.strip()), "")
+    parent_id = str(metadata.get("source_id") or metadata.get("doc_id") or chunk_prefix)
 
     chunks = []
     if RecursiveCharacterTextSplitter:
@@ -262,6 +265,9 @@ def _split_text(text: str, metadata: dict, chunk_prefix: str) -> list[RagChunk]:
             **metadata,
             "chunk_id": chunk_id,
             "chunk_index": idx + 1,
+            "parent_id": parent_id,
+            "parent_text": parent_text,
+            "section_title": metadata.get("section_title") or first_line[:80],
         }
         chunks.append(RagChunk(chunk_id=chunk_id, content=part.strip(), metadata=chunk_meta))
     return chunks
@@ -318,14 +324,15 @@ def init(rag_docs: list[dict], force_rebuild: bool = False):
         raise RuntimeError("langchain Chroma is not available.")
 
     chunks = rag_docs_to_chunks(rag_docs)
-    if not chunks:
-        chunks = [RagChunk(
-            chunk_id="empty_chunk_1",
-            content="目前沒有可用的 RAG 補充文本。",
-            metadata={"chunk_id": "empty_chunk_1", "file_name": "empty", "page": "-"},
-        )]
     _chunk_cache = chunks
     _build_bm25(chunks)
+
+    if not chunks:
+        _vectorstore = None
+        _rag_ready = True
+        write_vector_meta(config.VECTOR_DB_DIR, _embedding_provider or "")
+        print("✅ RAG System ready. No documents indexed.")
+        return
 
     active_dir = active_vector_db_dir()
     has_persisted = has_chroma_db(active_dir)
@@ -459,16 +466,20 @@ def _generate_multi_queries(question: str) -> list[str]:
     settings = _rag_settings()
     if not settings.get("use_multi_query", True) or ai_services is None:
         return [question]
+    target_count = max(1, int(settings.get("multi_query_count", 2)))
+    if target_count <= 1:
+        rewritten = _rewrite_query_deterministic(question)
+        return [question] + ([rewritten] if rewritten and rewritten != question else [])
     system_prompt = (
-        "你是本地 RAG 查詢改寫器。請根據使用者問題產生 3 個語意不同但目標一致的檢索查詢。"
-        "不要回答問題，只輸出 JSON：{\"queries\":[\"查詢1\",\"查詢2\",\"查詢3\"]}"
+        "你是本地 RAG 查詢改寫器。請根據使用者問題產生 N 個語意不同但目標一致的檢索查詢。"
+        f"N={target_count}。不要回答問題，只輸出 JSON：{{\"queries\":[...]}}"
     )
     user_prompt = f"使用者問題：{question}"
     try:
         result = ai_services.ask_ollama(system_prompt, user_prompt, "RAG_MULTI_QUERY")
         queries = result.get("queries", []) if isinstance(result, dict) else []
         queries = [str(q).strip() for q in queries if str(q).strip()]
-        return [question] + queries[:3]
+        return [question] + queries[:target_count]
     except Exception:
         return [question]
 
@@ -608,6 +619,53 @@ def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
             }
         return {"grounded": True, "unsupported_claims": [], "safe_answer": answer, "reason": "verification_failed_open"}
 
+
+def verify_claims_grounding(question: str, answer: str, context: str) -> dict:
+    if ai_services is None:
+        return {"grounded": True, "claims": [], "safe_answer": answer}
+
+    system_prompt = (
+        "你是 RAG claim verifier。請把回答拆成 atomic claims，逐條判斷是否被 context 支持。\n"
+        "只輸出 JSON：\n"
+        "{\n"
+        "  \"grounded\": true/false,\n"
+        "  \"claims\": [\n"
+        "    {\"claim\": \"...\", \"supported\": true/false, \"evidence\": \"...\"}\n"
+        "  ],\n"
+        "  \"safe_answer\": \"...\"\n"
+        "}\n"
+        "規則：價格、活動、優惠、政策、設定、模型名稱、門檻、日期、數字都必須在 context 明確出現。\n"
+        "菜單白名單只支持餐點名稱、ID、價格、分類、製作時間與 aliases。\n"
+        "RAG 補充內容支持政策、操作規則、客服話術、後台規範。\n"
+        "若任一重要 claim unsupported，grounded=false。\n"
+        "safe_answer 必須移除 unsupported claims；若無可保留內容，回覆："
+        "目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。"
+    )
+    user_prompt = f"問題：{question}\n\n回答：{answer}\n\nContext:\n{context}"
+    try:
+        result = ai_services.ask_llm(
+            system_prompt,
+            user_prompt,
+            "RAG_CLAIM_VERIFY",
+            config.get("ASK_MODEL_NAME", "llama3.2"),
+            "ollama",
+            0.1,
+        )
+        if isinstance(result, dict) and "grounded" in result:
+            return result
+        raise ValueError("Missing 'grounded' field in claim verification response")
+    except Exception as e:
+        settings = _rag_settings()
+        if settings.get("fail_closed_on_eval_error", True):
+            return {
+                "grounded": False,
+                "claims": [{"claim": "verification_failed", "supported": False, "evidence": str(e)}],
+                "safe_answer": "目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。",
+                "reason": str(e),
+            }
+        return {"grounded": True, "claims": [], "safe_answer": answer, "reason": "verification_failed_open"}
+
+
 def is_context_sufficient(retrieval_details: dict) -> bool:
     if not retrieval_details:
         return False
@@ -645,12 +703,27 @@ def _citation_for(chunk: RagChunk) -> dict:
 def format_context(chunks: list[RagChunk], evaluation: dict) -> str:
     if evaluation and evaluation.get("sufficient") is False:
         return "【RAG 檢索評估】目前文件沒有足夠資訊回答這個問題，請不要臆測。"
+    settings = _rag_settings()
+    max_chars = int(settings.get("context_max_chars", 2600))
     lines = ["【RAG 檢索補充】"]
+    used_parents = set()
+    used_chars = 0
     for idx, chunk in enumerate(chunks, 1):
         citation = _citation_for(chunk)
+        meta = chunk.metadata or {}
+        parent_id = str(meta.get("parent_id") or citation["chunk_id"])
+        content = str(meta.get("parent_text") or chunk.content or "").strip()
+        if parent_id in used_parents:
+            continue
+        remaining = max_chars - used_chars
+        if remaining <= 0:
+            break
+        content = content[:min(3000, remaining)]
+        used_parents.add(parent_id)
+        used_chars += len(content)
         lines.append(
             f"來源 {idx}: file_name={citation['file_name']} page={citation['page']} chunk_id={citation['chunk_id']}\n"
-            f"{chunk.content}"
+            f"{content}"
         )
     if chunks:
         lines.append("【引用規則】若回答引用 RAG 補充內容，請顯示來源 file_name、page、chunk_id。")
@@ -661,6 +734,19 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
     global _last_retrieval
     settings = _rag_settings()
     query = f"{question} {emotion_desc}".strip()
+    if not _chunk_cache:
+        empty_eval = {"sufficient": False, "reason": "no_documents"}
+        empty_gate = {"sufficient": False, "reason": "no_documents"}
+        _last_retrieval = {
+            "question": question,
+            "queries": [question],
+            "citations": [],
+            "evaluation": empty_eval,
+            "quality_gate": empty_gate,
+            "settings": settings,
+        }
+        return _last_retrieval | {"context": format_context([], empty_eval), "chunks": []}
+
     queries = _generate_multi_queries(query)
     result_groups = []
     for q in queries:
@@ -673,8 +759,14 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
     ranked = _rerank(query, merged)
     compressed = _compress(query, ranked)
     quality_gate = _retrieval_quality_gate(query, compressed)
-    evaluation = _evaluate_answerability(query, compressed)
-    
+
+    # 若 quality_gate 已通過且 overlap 足夠強，可跳過 LLM 答覆性評估以降低 Ollama 呼叫次數。
+    overlap_skip_threshold = int(settings.get("eval_skip_overlap", 3))
+    if quality_gate.get("sufficient") and int(quality_gate.get("max_overlap", 0)) >= overlap_skip_threshold:
+        evaluation = {"sufficient": True, "reason": "skipped_high_keyword_overlap"}
+    else:
+        evaluation = _evaluate_answerability(query, compressed)
+
     if quality_gate["sufficient"] is False:
         if quality_gate.get("reason") == "needs_answerability_no_keyword_overlap":
             if not evaluation.get("sufficient", False):
@@ -695,6 +787,47 @@ def retrieve(question: str, emotion_desc: str = "") -> dict:
         "settings": settings,
     }
     return _last_retrieval | {"context": context, "chunks": compressed}
+
+
+def _rewrite_query_deterministic(question: str) -> str:
+    tokens = _tokenize(question)
+    stop_tokens = set(_tokenize("請問 可以 麻煩 我想 知道 一下 這個 那個 怎麼辦 如何 為什麼 是什麼"))
+    kept = []
+    for token in tokens:
+        if token in stop_tokens or len(token.strip()) == 0:
+            continue
+        if token not in kept:
+            kept.append(token)
+    keywords = " ".join(kept[:24]).strip()
+    return keywords or question
+
+
+def retrieve_with_retry(question: str, emotion_desc: str = "") -> dict:
+    first = retrieve(question, emotion_desc)
+    if is_context_sufficient(first):
+        first["retry"] = {"attempted": False}
+        return first
+
+    settings = _rag_settings()
+    rewritten_query = _rewrite_query_deterministic(question)
+    if settings.get("use_multi_query", True):
+        generated = [q for q in _generate_multi_queries(question) if q and q != question]
+        if generated:
+            rewritten_query = f"{rewritten_query} {generated[0]}".strip()
+
+    second = retrieve(rewritten_query, emotion_desc)
+    second["original_question"] = question
+    second["rewritten_query"] = rewritten_query
+    second["retry"] = {
+        "attempted": True,
+        "first_quality_gate": first.get("quality_gate", {}),
+        "first_evaluation": first.get("evaluation", {}),
+    }
+    if not is_context_sufficient(second):
+        second.setdefault("evaluation", {})["sufficient"] = False
+        second["evaluation"]["reason"] = "retrieval_retry_failed"
+        second["context"] = format_context(second.get("chunks", []), second["evaluation"])
+    return second
 
 
 def get_last_retrieval() -> dict:

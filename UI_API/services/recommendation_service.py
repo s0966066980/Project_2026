@@ -2,14 +2,35 @@ import asyncio
 from datetime import datetime
 import hashlib
 import json
-import random
 import re
+import time
 
 import ai_services
 import config
 import database
 from repositories import menu_repository, session_repository
 from utils.text_utils import to_traditional_lite
+
+
+_RECOMMEND_RAG_CACHE = {"ts": 0.0, "context": ""}
+_RECOMMEND_RAG_TTL_SEC = 60.0
+
+
+async def _get_cached_recommend_rag_context() -> str:
+    now = time.time()
+    cached = _RECOMMEND_RAG_CACHE
+    if cached["context"] and now - cached["ts"] < _RECOMMEND_RAG_TTL_SEC:
+        return cached["context"]
+    context = await asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點")
+    _RECOMMEND_RAG_CACHE["ts"] = now
+    _RECOMMEND_RAG_CACHE["context"] = context
+    return context
+
+
+def _deterministic_variant_score(session_id: str, history_len: int) -> float:
+    key = f"{session_id or 'anonymous'}:{history_len}"
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return (int(digest[:8], 16) % 1000) / 1000.0
 
 
 ZH_NUMBERS = {
@@ -194,6 +215,28 @@ def answer_menu_question_from_text(user_text: str, menu_items: list[dict]) -> di
                 "ai_response": f"不吃辣可以考慮{top.get('name')}，價格 ${item_price(top)}。",
                 "mentioned_ids": [top.get("id")],
             }
+
+    if any(key in normalized for key in ["便宜", "最便宜", "省錢", "低價"]):
+        cheap_items = sorted(candidates, key=lambda item: (item_price(item), prep_time(item)))
+        if cheap_items:
+            top = cheap_items[0]
+            return {
+                "ai_response": f"想省一點可以考慮{top.get('name')}，價格 ${item_price(top)}。",
+                "mentioned_ids": [top.get("id")],
+            }
+
+    menu_hint_terms = ["薯條", "早餐", "咖啡", "可樂", "漢堡", "牛肉", "魚", "雞塊", "點心"]
+    matched_items = [
+        item for item in candidates
+        if any(term in normalized and term in item_text(item) for term in menu_hint_terms)
+    ]
+    if matched_items and any(key in normalized for key in ["推薦", "有什麼", "可以", "想吃", "想喝"]):
+        matched_items = sorted(matched_items, key=lambda item: (prep_time(item), item_price(item)))
+        top = matched_items[0]
+        return {
+            "ai_response": f"可以考慮{top.get('name')}，這是菜單上的品項，價格 ${item_price(top)}。",
+            "mentioned_ids": [top.get("id")],
+        }
 
     if any(key in normalized for key in ["推薦", "有什麼", "吃什麼", "喝什麼", "recommend"]):
         candidates = sorted(candidates, key=lambda item: (prep_time(item), item_price(item)))
@@ -460,7 +503,7 @@ async def generate_recommendation(
     experiences = await asyncio.to_thread(database.get_successful_experiences)
     pairing_context = await asyncio.to_thread(database.get_order_pairing_context)
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
-    rag_context = await asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點")
+    rag_context = await _get_cached_recommend_rag_context()
     current_emotion = emotion_cache.get(session_id)
     emotion_context = (
         build_emotion_prompt_context(current_emotion, history)
@@ -534,7 +577,8 @@ async def generate_recommendation(
             "variant_b": rec_b,
         }
 
-    use_diversity = random.random() < 0.4
+    diversity_ratio = float(config.get("RECOMMEND_DIVERSITY_RATIO", 0.4))
+    use_diversity = _deterministic_variant_score(session_id, len(history)) < diversity_ratio
     prompt = prompt_b_base if use_diversity else base_prompt
     variant = "B" if use_diversity else "A"
     async with ollama_semaphore:

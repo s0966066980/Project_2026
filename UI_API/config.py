@@ -93,6 +93,8 @@ DEFAULT_SETTINGS = {
     "RAG_TOP_K": 3,
     "rag": {
         "use_multi_query": True,
+        "multi_query_count": 2,
+        "eval_skip_overlap": 3,
         "use_hybrid_search": True,
         "use_reranker": True,
         "use_context_compression": True,

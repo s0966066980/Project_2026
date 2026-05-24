@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import uuid
 from datetime import datetime
 import config
@@ -9,6 +10,20 @@ from services import recommendation_service
 
 def _now_iso():
     return datetime.now().isoformat()
+
+
+_HISTORY_CACHE_TTL_SEC = 30.0
+_history_cache: dict[str, tuple[float, object]] = {}
+
+
+def _cached_history(key: str, builder):
+    now = time.time()
+    cached = _history_cache.get(key)
+    if cached and now - cached[0] < _HISTORY_CACHE_TTL_SEC:
+        return cached[1]
+    value = builder()
+    _history_cache[key] = (now, value)
+    return value
 
 
 
@@ -71,9 +86,13 @@ def init_rag_system(force_rebuild: bool = False):
 
     rag_service.init(_active_rag_documents(), force_rebuild=force_rebuild)
 
-def update_menu(new_menu_data):
+def update_menu(new_menu_data, rebuild_rag: bool = True):
+    """Save menu to disk. By default rebuilds RAG synchronously; callers that
+    want to defer the rebuild (typically request handlers) should pass
+    rebuild_rag=False and trigger a background rebuild themselves."""
     menu_repository.save_menu(new_menu_data)
-    init_rag_system(force_rebuild=True)
+    if rebuild_rag:
+        init_rag_system(force_rebuild=True)
 
 
 def retrieve_menu_from_rag(query: str, emotion_desc: str = "") -> str:
@@ -212,13 +231,12 @@ def mark_missing_menu_rag_docs_deleted(active_menu_ids: set[str]):
 
 
 
-def get_successful_experiences() -> str:
-    """提取過去成功的推薦經驗作為 Ollama 的學習依據"""
+def _build_successful_experiences() -> str:
     try:
         logs = log_repository.get_session_logs()
         successes = [log for log in logs if log.get("is_success", False)][-3:]
-        if not successes: return "尚無歷史成功經驗。"
-        
+        if not successes:
+            return "尚無歷史成功經驗。"
         exp_text = "【過去成功的推播範例】\n"
         for s in successes:
             exp_text += f"- 當顧客歷史情緒包含「{s.get('emotions_summary', '')}」，推播了餐點 {s.get('pushed_ids')} 並且顧客最終購買了 {s.get('final_cart_ids')}。\n"
@@ -226,7 +244,13 @@ def get_successful_experiences() -> str:
     except Exception:
         return "經驗資料庫讀取失敗。"
 
-def get_order_pairing_context(limit: int = 8) -> str:
+
+def get_successful_experiences() -> str:
+    """提取過去成功的推薦經驗作為 Ollama 的學習依據"""
+    return _cached_history("successful_experiences", _build_successful_experiences)
+
+
+def _build_order_pairing_context(limit: int = 8) -> str:
     logs = log_repository.get_session_logs()
     paired_orders = []
     item_counts = {}
@@ -254,6 +278,10 @@ def get_order_pairing_context(limit: int = 8) -> str:
     if len(lines) == 1:
         lines.append("目前尚無足夠歷史點餐紀錄，請根據菜單類型做合理搭配。")
     return "\n".join(lines)
+
+
+def get_order_pairing_context(limit: int = 8) -> str:
+    return _cached_history(f"order_pairing:{limit}", lambda: _build_order_pairing_context(limit))
 
 def record_final_checkout(
     session_id: str,
