@@ -52,6 +52,8 @@ def build_multimodal_evidence(
         "pos_evidence": {
             "page_id": str(ui.get("page_id") or "unknown"),
             "risk_score": risk.get("risk_score"),
+            "risk_score_scale": risk.get("risk_score_scale", 10),
+            "risk_level": risk.get("risk_level", "none"),
             "trigger_reasons": _safe_list(risk.get("trigger_reasons")),
             "interaction_context": _short_text(interaction_context, 1200),
         },

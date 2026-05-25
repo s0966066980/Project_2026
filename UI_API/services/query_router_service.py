@@ -49,6 +49,23 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
             "requires_llm": False,
         }
 
+    # 1) 「我不知道吃什麼/幫我推薦」這類強烈推薦請求 → 走 AI 推薦 pipeline
+    recommend_terms = [
+        "推薦給我", "幫我推薦", "幫我選", "幫我挑", "我不知道吃什麼",
+        "不知道要吃什麼", "不知道吃啥", "吃什麼好", "要吃什麼", "推薦點什麼",
+        "想吃看看", "有什麼好吃的", "今天吃什麼", "推什麼", "推一下",
+        "recommend me", "what should i eat", "what do you recommend",
+        "any recommendation", "surprise me", "pick for me",
+    ]
+    if _contains_any(user_text, recommend_terms):
+        return {
+            "intent": "ask_recommendation",
+            "confidence": 0.92,
+            "reason": "explicit_recommend_request",
+            "requires_rag": False,
+            "requires_llm": True,
+        }
+
     menu_terms = [
         "推薦", "最快", "雞肉", "雞", "牛肉", "牛", "魚", "不辣",
         "便宜", "飲料", "早餐", "薯條", "咖啡", "可樂", "漢堡",

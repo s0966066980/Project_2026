@@ -291,6 +291,65 @@ async def handle_voice_ask(
             "trigger_recommend": True
         }
 
+    if use_ollama and route.get("intent") == "ask_recommendation":
+        emotion_cache = {}
+        ab_mode = config.get("AB_MODE", "single") if hasattr(config, "get") else "single"
+        rec = await recommendation_service.generate_recommendation(
+            session_id=session_id,
+            ab_mode=str(ab_mode or "single"),
+            emotion_cache=emotion_cache,
+            ollama_semaphore=ollama_semaphore,
+            emotion_influence=False,
+        )
+        rec_ids = []
+        rec_reason = ""
+        if rec.get("status") == "success":
+            if rec.get("mode") == "ab":
+                a = rec.get("variant_a") or {}
+                b = rec.get("variant_b") or {}
+                rec_ids = list((a.get("recommendation_ids") or []) + (b.get("recommendation_ids") or []))
+                rec_reason = a.get("reason") or b.get("reason") or ""
+            else:
+                rec_ids = rec.get("recommendation_ids") or []
+                rec_reason = rec.get("reason") or ""
+        name_by_id = {item.get("id"): item.get("name") for item in menu_items if item.get("id")}
+        rec_names = [name_by_id.get(rid) for rid in rec_ids if name_by_id.get(rid)]
+        if rec_names:
+            if detected_lang == "en":
+                ai_response = f"How about {', '.join(rec_names[:3])}? {rec_reason}".strip()
+            else:
+                ai_response = (rec_reason or "為您推薦：") + "、".join(rec_names[:3])
+        else:
+            ai_response = (
+                "I can suggest a popular set; please try saying which kind of meal you prefer."
+                if detected_lang == "en"
+                else "我可以幫您挑熱門組合；也可以告訴我想吃哪一類餐點。"
+            )
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        return {
+            "status": "success",
+            "mode": "ask_recommendation",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": rec_ids,
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": True, "reason": "ask_recommendation"},
+            "rag_debug": {"route": route, "recommendation": rec},
+            "recommendation_ids": rec_ids,
+            "recommendation_reason": rec_reason,
+            "trigger_recommend": True,
+        }
+
     if route.get("intent") == "menu_question":
         route = {
             **route,

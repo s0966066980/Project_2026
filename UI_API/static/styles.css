@@ -153,8 +153,8 @@
   .cart-item { background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; transition: border-color 0.15s; }
   .cart-item:hover { border-color: var(--accent2); }
 
-  /* 浮動推播 */
-  #floatPush {
+  /* AI 浮層欄：語音回覆 + AI 推播垂直堆疊，避免互相遮蔽 */
+  #aiOverlayStack {
     position: fixed;
     right: 24px;
     bottom: 22px;
@@ -163,11 +163,23 @@
     width: min(88vw, 520px);
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
+    gap: 14px;
+    max-height: calc(100vh - 140px);
+  }
+
+  /* 浮動推播 */
+  #floatPush {
+    position: relative;
+    pointer-events: none;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
     align-items: flex-end;
   }
   #floatPush.ab-mode {
-    width: min(88vw, 560px);
+    width: 100%;
     flex-direction: column;
     align-items: flex-end;
   }
@@ -396,17 +408,14 @@
   }
   .detect-box.undetected span { background:rgba(255,92,64,0.95); }
   @media (max-width: 780px) {
-    #floatPush.ab-mode { flex-direction: column; width: min(92vw, 480px); }
-    #floatPush { right: 12px; bottom: 18px; width: min(92vw, 440px); }
+    #aiOverlayStack { right: 12px; bottom: 18px; width: min(92vw, 440px); }
+    #floatPush.ab-mode { flex-direction: column; }
     #emotionFeed { left: 12px; bottom: 18px; width: min(92vw, 440px); }
     #emotionCameraPanel { left: 12px; top: 12px; bottom: auto; width: min(92vw, 320px); }
   }
   @media (min-width: 1024px) {
-    #floatPush {
+    #aiOverlayStack {
       right: calc(var(--cart-w) + 92px);
-      max-width: calc(100vw - var(--cart-w) - 132px);
-    }
-    #floatPush.ab-mode {
       max-width: calc(100vw - var(--cart-w) - 132px);
     }
     #emotionFeed {
@@ -416,11 +425,8 @@
     #emotionCameraPanel { left: 18px; top: 18px; bottom: auto; }
   }
   @media (min-width: 1280px) {
-    #floatPush {
+    #aiOverlayStack {
       right: calc(var(--cart-w) + 92px);
-      max-width: calc(100vw - var(--cart-w) - 132px);
-    }
-    #floatPush.ab-mode {
       max-width: calc(100vw - var(--cart-w) - 132px);
     }
     #emotionFeed {
@@ -429,31 +435,74 @@
     #emotionCameraPanel { left: 18px; top: 18px; bottom: auto; }
   }
 
-  /* 語音回覆浮層 */
+  /* 語音回覆浮層 — 改為 stack 內 relative，不再 fixed，避免與 #floatPush 互相遮蔽 */
   #voiceReplyBubble {
-    position: fixed; bottom: 24px; right: 24px; z-index: 99;
+    position: relative;
+    width: 100%;
+    pointer-events: all;
     background: rgba(251,252,250,0.97);
     border: 2px solid var(--border);
     border-radius: 8px;
     padding: 16px 20px;
-    max-width: min(92vw, 520px);
     box-shadow: 0 14px 36px rgba(23,35,33,0.16);
     display: none;
     animation: bubbleIn 0.3s ease;
     backdrop-filter: blur(8px);
   }
-  @media (min-width: 1024px) {
-    #voiceReplyBubble {
-      right: calc(var(--cart-w) + 92px);
-      max-width: min(520px, calc(100vw - var(--cart-w) - 132px));
-    }
+
+  /* 客服真人介入 Modal */
+  .cs-urgent-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(15,20,18,0.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
   }
-  @media (min-width: 1280px) {
-    #voiceReplyBubble {
-      right: calc(var(--cart-w) + 92px);
-      max-width: min(520px, calc(100vw - var(--cart-w) - 132px));
-    }
+  .cs-urgent-modal.hidden { display: none; }
+  .cs-urgent-card {
+    width: min(640px, 92vw); max-height: 88vh; overflow: auto;
+    background: var(--surface, #fff); color: var(--text, #111);
+    border-radius: 16px; border: 1px solid var(--border, #ddd);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+    animation: bubbleIn 0.25s ease;
   }
+  .cs-urgent-head {
+    display:flex; align-items:center; gap:10px;
+    padding: 14px 18px; background: var(--danger, #d83a3a); color:#fff;
+    border-radius: 16px 16px 0 0;
+  }
+  .cs-urgent-head strong { font-size: 16px; }
+  .cs-urgent-priority {
+    margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.18); font-size: 12px; font-weight: 700;
+    text-transform: uppercase;
+  }
+  .cs-urgent-close {
+    margin-left: auto; background: transparent; color: #fff;
+    border: none; font-size: 22px; line-height: 1; cursor: pointer;
+  }
+  .cs-urgent-body { padding: 16px 18px 18px; display:flex; flex-direction:column; gap:10px; }
+  .cs-urgent-row { display: flex; flex-direction: column; gap: 2px; }
+  .cs-urgent-row span { font-size: 11px; color: var(--text2, #888); letter-spacing: 0.5px; text-transform: uppercase; }
+  .cs-urgent-row p { font-size: 14px; line-height: 1.5; margin: 0; word-break: break-word; }
+  .cs-urgent-textarea {
+    width: 100%; min-height: 88px; resize: vertical;
+    padding: 10px 12px; font-size: 14px;
+    border: 1.5px solid var(--border, #ccc); border-radius: 10px;
+    background: var(--surface2, #fafafa);
+  }
+  .cs-urgent-actions { display:flex; gap:10px; }
+  .cs-urgent-send {
+    flex: 1; padding: 12px 16px; border-radius: 12px; cursor: pointer;
+    background: var(--accent2, #1f9d55); color: #fff; border: none;
+    font-weight: 700;
+  }
+  .cs-urgent-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cs-urgent-later {
+    padding: 12px 16px; border-radius: 12px; cursor: pointer;
+    background: transparent; color: var(--text2, #555);
+    border: 1.5px solid var(--border, #ddd);
+  }
+  .cs-urgent-status { font-size: 12px; color: var(--text2, #666); margin: 0; }
   #posServiceFab {
     width: 58px;
     height: 58px;

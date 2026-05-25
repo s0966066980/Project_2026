@@ -6,6 +6,7 @@ import time
 import ai_services
 import config
 import database
+from realtime import event_bus
 from repositories import log_repository, menu_repository, session_repository
 from services import customer_service
 from services import customer_service_state_service
@@ -262,6 +263,29 @@ async def handle_customer_service(
         "media_filename": media_filename,
         "media_url": media_url,
     })
+
+    # 即時通知 admin：依 Emotion-LLaMA + 規則判斷是否需要真人介入。
+    # 有需要 → 推送 urgent 事件讓 admin 端跳出回應框；不需要 → 走 LLM 回覆即可。
+    if service_state.get("needs_human_staff"):
+        try:
+            await event_bus.publish_to_admin("customer_service_request", {
+                "session_id": session_id,
+                "source_id": source_id,
+                "user_text": user_text,
+                "emotion": emotion_text,
+                "customer_service_state": service_state.get("customer_service_state"),
+                "needs_human_staff": True,
+                "priority": priority,
+                "urgent": True,
+                "mode": mode,
+                "language": detected_lang,
+                "customer_reply": customer_reply,
+                "staff_summary": staff_summary,
+                "emotion_structured": safe_emotion_structured,
+                "service_state_evidence": service_state.get("evidence", []),
+            })
+        except Exception as publish_error:
+            print(f"⚠️ customer_service admin publish 失敗: {publish_error}")
 
     audio_base64 = ""
     if use_ollama:

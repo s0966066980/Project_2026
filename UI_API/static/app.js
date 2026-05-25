@@ -1088,8 +1088,87 @@ function handleRealtimeHumanReply(event = {}) {
 function handleRealtimeCustomerServiceRequest(event = {}) {
   const payload = event.payload || {};
   showAdminNotice(`收到客服請求：${payload.user_text || payload.customer_service_state || '等待真人處理'}`);
+  // urgent=true 或 needs_human_staff=true 時跳出回應 modal，admin 可即時回覆
+  if (payload.urgent || payload.needs_human_staff) {
+    showCsUrgentModal(payload);
+  }
   loadCustomerServiceData({ silent: true });
 }
+
+let csUrgentActiveSourceId = '';
+
+function showCsUrgentModal(payload = {}) {
+  const modal = document.getElementById('csUrgentModal');
+  if (!modal) return;
+  csUrgentActiveSourceId = String(payload.source_id || '');
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value || '—';
+  };
+  setText('csUrgentUserText', payload.user_text || '（等待語音文字）');
+  setText('csUrgentEmotion', payload.emotion || '—');
+  setText('csUrgentState', payload.customer_service_state || '—');
+  setText('csUrgentDraft', payload.customer_reply || payload.staff_summary || '—');
+  setText('csUrgentPriority', String(payload.priority || 'high').toUpperCase());
+  const replyArea = document.getElementById('csUrgentReply');
+  if (replyArea && !replyArea.value) replyArea.value = payload.customer_reply || '';
+  const sendBtn = document.getElementById('csUrgentSend');
+  if (sendBtn) sendBtn.disabled = !csUrgentActiveSourceId;
+  const status = document.getElementById('csUrgentStatus');
+  if (status) status.style.display = 'none';
+  modal.classList.remove('hidden');
+  // 提示音 + 視覺：暫時不加重以避免干擾，依需要可加 audio
+}
+
+function hideCsUrgentModal() {
+  const modal = document.getElementById('csUrgentModal');
+  if (modal) modal.classList.add('hidden');
+  csUrgentActiveSourceId = '';
+  const replyArea = document.getElementById('csUrgentReply');
+  if (replyArea) replyArea.value = '';
+}
+
+async function submitCsUrgentReply() {
+  const status = document.getElementById('csUrgentStatus');
+  const reply = (document.getElementById('csUrgentReply')?.value || '').trim();
+  if (!csUrgentActiveSourceId) {
+    if (status) { status.textContent = '尚未收到完整客服紀錄，請稍候片刻再回覆。'; status.style.display = 'block'; }
+    return;
+  }
+  if (!reply) {
+    if (status) { status.textContent = '請先輸入回覆內容。'; status.style.display = 'block'; }
+    return;
+  }
+  const sendBtn = document.getElementById('csUrgentSend');
+  if (sendBtn) sendBtn.disabled = true;
+  if (status) { status.textContent = '送出中...'; status.style.display = 'block'; }
+  try {
+    const result = await api.sendHumanReply(csUrgentActiveSourceId, { reply, language: 'zh' });
+    if (result?.status === 'success') {
+      if (status) status.textContent = '已送出，POS 端會立即播放語音。';
+      setTimeout(hideCsUrgentModal, 800);
+      loadCustomerServiceData({ silent: true });
+    } else {
+      if (status) status.textContent = `送出失敗：${result?.message || '未知錯誤'}`;
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  } catch (e) {
+    if (status) status.textContent = `送出失敗：${e.message || e}`;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+(function bindCsUrgentModalControls() {
+  if (typeof document === 'undefined') return;
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('csUrgentClose')?.addEventListener('click', hideCsUrgentModal);
+    document.getElementById('csUrgentLater')?.addEventListener('click', hideCsUrgentModal);
+    document.getElementById('csUrgentSend')?.addEventListener('click', submitCsUrgentReply);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideCsUrgentModal();
+    });
+  });
+})();
 
 function handleRealtimeInteractionIntervention(event = {}) {
   lastInterventionEventAt = Date.now();
@@ -1203,15 +1282,29 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
     coupon_guide: '優惠券協助',
     operation_hint: '操作協助',
   };
-  box.innerHTML = `
-    <div class="flex items-start justify-between gap-3">
-      <div>
-        <p class="text-sm font-bold mb-1" style="color:var(--accent2)">${escapeHTML(titleMap[modalName] || '操作提示')}</p>
-        <p class="text-sm leading-relaxed">${escapeHTML(intervention.tts_text || intervention.reason || '需要協助時可通知店員。')}</p>
-        ${intervention.staff_notify ? '<p class="text-xs mt-2 font-bold" style="color:var(--danger)">建議店員協助</p>' : ''}
-      </div>
-      <button type="button" data-close-intervention style="color:var(--text2)"><i class="fas fa-times"></i></button>
-    </div>`;
+  const safeTitle = escapeHTML(titleMap[modalName] || '操作提示');
+  const safeBody = escapeHTML(intervention.tts_text || intervention.reason || '需要協助時可通知店員。');
+  const safeCategory = escapeHTML(barrierResult.intervention_category_label || '');
+  const safeRisk = (barrierResult.risk_score != null)
+    ? escapeHTML(`風險 ${barrierResult.risk_score}/${barrierResult.risk_score_scale || 10}`)
+    : '';
+  const tagHtml = [safeCategory, safeRisk].filter(Boolean)
+    .map(t => '<span class="inline-block text-xs px-2 py-0.5 mr-1 rounded-full" style="background:var(--surface2);color:var(--text2)">' + t + '</span>')
+    .join('');
+  const staffHtml = intervention.staff_notify
+    ? '<p class="text-xs mt-2 font-bold" style="color:var(--danger)">建議店員協助</p>'
+    : '';
+  box.innerHTML = (
+    '<div class="flex items-start justify-between gap-3">'
+    + '<div>'
+    + '<p class="text-sm font-bold mb-1" style="color:var(--accent2)">' + safeTitle + '</p>'
+    + (tagHtml ? '<div class="mb-2">' + tagHtml + '</div>' : '')
+    + '<p class="text-sm leading-relaxed">' + safeBody + '</p>'
+    + staffHtml
+    + '</div>'
+    + '<button type="button" data-close-intervention style="color:var(--text2)"><i class="fas fa-times"></i></button>'
+    + '</div>'
+  );
   box.querySelector('[data-close-intervention]').onclick = () => box.remove();
   if (interactionModalTimer) clearTimeout(interactionModalTimer);
   interactionModalTimer = setTimeout(() => box.remove(), 10000);
@@ -1223,7 +1316,7 @@ function buildInteractionContextForTrigger(riskResult = {}) {
   return [
     `目前頁面：${context.page_id || interactionState.pageId}`,
     `購物車數量：${context.cart_count ?? 0}`,
-    `風險分數：${riskResult.risk_score ?? 0}`,
+    `風險分數：${riskResult.risk_score ?? 0}/${riskResult.risk_score_scale ?? 10}（${riskResult.risk_level || 'none'}）`,
     reasons.length ? `觸發原因：${reasons.join('、')}` : '觸發原因：未提供',
     lastVoiceText ? `最近語音：${lastVoiceText.slice(0, 80)}` : '',
   ].filter(Boolean).join('\n');

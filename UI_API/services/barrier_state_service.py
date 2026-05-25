@@ -65,6 +65,35 @@ def map_barrier_to_default_action(barrier_state: str, severity: float) -> str:
     return mapping.get(barrier_state, "ask_clarifying_question")
 
 
+# 三大分類：對應產品需求「困惑不知道吃什麼 / 不會操作機台 / 需要客服協助」
+INTERVENTION_CATEGORY_MAP = {
+    "menu_hesitation": "menu_confusion",
+    "payment_confusion": "operation_difficulty",
+    "coupon_confusion": "operation_difficulty",
+    "operation_confusion": "operation_difficulty",
+    "impatience_detected": "service_needed",
+    "service_needed": "service_needed",
+    "potential_complaint": "service_needed",
+    "low_confidence": "menu_confusion",
+    "normal_operation": "none",
+}
+
+INTERVENTION_CATEGORY_LABELS = {
+    "menu_confusion": "困惑不知道吃什麼",
+    "operation_difficulty": "不會操作機台",
+    "service_needed": "需要客服協助",
+    "none": "操作正常",
+}
+
+
+def map_barrier_to_category(barrier_state: str) -> dict:
+    key = INTERVENTION_CATEGORY_MAP.get(barrier_state, "menu_confusion")
+    return {
+        "intervention_category": key,
+        "intervention_category_label": INTERVENTION_CATEGORY_LABELS.get(key, ""),
+    }
+
+
 def infer_barrier_state(
     emotion_structured: dict | None,
     speech_text: str = "",
@@ -142,13 +171,17 @@ def infer_barrier_state(
         confidence = 0.35
         severity = 0.2
 
+    category_info = map_barrier_to_category(barrier_state)
     return {
         "barrier_state": barrier_state,
         "severity": severity,
         "confidence": confidence,
         "evidence": evidence,
         "risk_score": risk_score,
+        "risk_score_scale": int(risk.get("risk_score_scale") or 10),
+        "risk_level": risk.get("risk_level") or "none",
         "recommended_action": map_barrier_to_default_action(barrier_state, severity),
         "emotion_label": emotion_label,
         "media_signals": media_signals or {},
+        **category_info,
     }

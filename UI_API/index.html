@@ -12,8 +12,22 @@
 </head>
 <body class="w-full min-h-screen font-sans antialiased bg-[#e2d7cf] text-[#242424] flex flex-col md:flex-row">
 
-<!-- ============ 浮動推播（問題2：浮動字體，不佔欄位） ============ -->
-<div id="floatPush"></div>
+<!-- ============ AI 浮層欄（語音回答 + AI 推播堆疊，不互相遮蔽） ============ -->
+<div id="aiOverlayStack">
+  <!-- 語音回覆氣泡（綁定語音，關閉後不顯示） -->
+  <div id="voiceReplyBubble">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:var(--info)"><i class="fas fa-robot"></i></div>
+      <span class="font-bold text-sm" style="color:var(--text)">AI 助理</span>
+      <button onclick="closeVoiceBubble()" class="ml-auto text-gray-400 hover:text-gray-700"><i class="fas fa-times text-xs"></i></button>
+    </div>
+    <div id="voiceDialogueGrid" class="dialogue-grid"></div>
+    <div id="voiceLangBadge" class="mt-2 inline-block text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)"></div>
+  </div>
+  <!-- AI 推播 / 推薦 -->
+  <div id="floatPush"></div>
+</div>
+
 <div id="emotionFeed"></div>
 <div id="emotionCameraPanel" class="hidden">
   <div class="camera-head">
@@ -28,15 +42,28 @@
   </div>
 </div>
 
-<!-- ============ 語音回覆氣泡（問題3：綁定語音，關閉後不顯示） ============ -->
-<div id="voiceReplyBubble">
-  <div class="flex items-center gap-2 mb-2">
-    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:var(--info)"><i class="fas fa-robot"></i></div>
-    <span class="font-bold text-sm" style="color:var(--text)">AI 助理</span>
-    <button onclick="closeVoiceBubble()" class="ml-auto text-gray-400 hover:text-gray-700"><i class="fas fa-times text-xs"></i></button>
+<!-- ============ 客服真人警報 Modal（needs_human_staff=true 時跳出） ============ -->
+<div id="csUrgentModal" class="cs-urgent-modal hidden" role="dialog" aria-modal="true" aria-labelledby="csUrgentTitle">
+  <div class="cs-urgent-card">
+    <div class="cs-urgent-head">
+      <i class="fas fa-bell"></i>
+      <strong id="csUrgentTitle">客服真人介入請求</strong>
+      <span id="csUrgentPriority" class="cs-urgent-priority">high</span>
+      <button id="csUrgentClose" type="button" class="cs-urgent-close" aria-label="關閉">×</button>
+    </div>
+    <div class="cs-urgent-body">
+      <div class="cs-urgent-row"><span>顧客語音</span><p id="csUrgentUserText">—</p></div>
+      <div class="cs-urgent-row"><span>情緒</span><p id="csUrgentEmotion">—</p></div>
+      <div class="cs-urgent-row"><span>狀態</span><p id="csUrgentState">—</p></div>
+      <div class="cs-urgent-row"><span>建議回覆草稿</span><p id="csUrgentDraft">—</p></div>
+      <textarea id="csUrgentReply" class="cs-urgent-textarea" placeholder="輸入真人客服回覆，按下立即回覆會即時送回 POS 端播放語音"></textarea>
+      <div class="cs-urgent-actions">
+        <button id="csUrgentSend" type="button" class="cs-urgent-send"><i class="fas fa-paper-plane"></i> 立即回覆</button>
+        <button id="csUrgentLater" type="button" class="cs-urgent-later">稍後處理</button>
+      </div>
+      <p id="csUrgentStatus" class="cs-urgent-status" style="display:none"></p>
+    </div>
   </div>
-  <div id="voiceDialogueGrid" class="dialogue-grid"></div>
-  <div id="voiceLangBadge" class="mt-2 inline-block text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)"></div>
 </div>
 
 <div id="posServiceWindow">

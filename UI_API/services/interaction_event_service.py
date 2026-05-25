@@ -145,9 +145,23 @@ def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> 
         total_score += 1
         add_reason("latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30")
 
+    # 量化 0-10。0=無風險、1-3 低、4-6 中、7-10 高。原始累計分數保留在 risk_score_raw。
+    risk_score = min(10, max(0, int(total_score)))
+    if risk_score == 0:
+        risk_level = "none"
+    elif risk_score <= 3:
+        risk_level = "low"
+    elif risk_score <= 6:
+        risk_level = "medium"
+    else:
+        risk_level = "high"
+
     risk_result = {
-        "risk_score": total_score,
-        "triggered": total_score >= threshold,
+        "risk_score": risk_score,
+        "risk_score_raw": total_score,
+        "risk_score_scale": 10,
+        "risk_level": risk_level,
+        "triggered": risk_score >= threshold,
         "threshold": threshold,
         "trigger_reasons": reasons,
         "event_count": len(safe_events),
@@ -161,8 +175,8 @@ def build_interaction_context(events: list, risk_result: dict) -> str:
     recent = safe_events[-8:]
     lines = [
         "【POS 操作事件風險摘要】",
-        f"互動障礙風險分數：{risk_result.get('risk_score', 0)}",
-        f"觸發門檻：{risk_result.get('threshold', 5)}",
+        f"互動障礙風險分數：{risk_result.get('risk_score', 0)}/{risk_result.get('risk_score_scale', 10)}（{risk_result.get('risk_level', 'none')}）",
+        f"觸發門檻：{risk_result.get('threshold', 5)}/{risk_result.get('risk_score_scale', 10)}",
         f"是否觸發多模態分析：{'是' if risk_result.get('triggered') else '否'}",
         "觸發原因：" + ("、".join(risk_result.get("trigger_reasons") or []) or "無"),
         "最近事件：",
