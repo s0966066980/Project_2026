@@ -75,6 +75,11 @@ def _dialogue(user_text: str, ai_response: str, detected_lang: str) -> dict:
 
 
 def _runtime_setting_reply(user_text: str, detected_lang: str) -> str:
+    if config.is_demo_public_mode() or not config.get("ALLOW_POS_RUNTIME_SETTING_QUERY", False):
+        if detected_lang == "en":
+            return "The system has AI ordering, menu recommendations, and customer support assistance enabled."
+        return "目前系統已啟用 AI 點餐、菜單推薦與客服協助功能。"
+
     status = rag_service.get_status()
     customer_mode = config.get("CUSTOMER_SERVICE_MODE", "ollama")
     ask_model = config.get("ASK_MODEL_NAME", "llama3.2")

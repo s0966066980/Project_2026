@@ -27,6 +27,8 @@ SCENARIOS = {
         "event_type": "page_dwell_timeout",
         "button_id": "demo_menu_hesitation",
         "dwell_time_sec": 36,
+        "back_count": 2,
+        "idle_time_sec": 25,
         "speech_text": "我不知道要吃什麼，可以推薦嗎？",
         "metadata": {
             "source": "demo",
@@ -154,7 +156,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
             ui_context=ui_context,
             risk_result=risk_result,
             recent_events=recent_events,
-            emotion_structured={},
+            emotion_structured={"emotion_label": "猶豫"} if scenario == "decision_hesitation" else {},
             speech_text=speech_text,
             media_signals={},
             source="demo_trigger_scenario",

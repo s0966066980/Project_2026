@@ -10,14 +10,11 @@
 
 ## unused_functions
 
-- {"file": "UI_API/ai_services.py", "lineno": 340, "name": "async_safe_transcribe", "reason": "definition name appears only once in scanned source", "type": "AsyncFunctionDef"}
-- {"file": "UI_API/realtime/connection_manager.py", "lineno": 63, "name": "send_to_session", "reason": "definition name appears only once in scanned source", "type": "AsyncFunctionDef"}
-- {"file": "UI_API/services/customer_service.py", "lineno": 431, "name": "emotion_to_traditional_display", "reason": "definition name appears only once in scanned source", "type": "AsyncFunctionDef"}
+- None
 
 ## unused_routes
 
-- {"file": "UI_API/routes/interaction_routes.py", "lineno": 102, "method": "post", "path": "/api/interaction_risk"}
-- {"file": "UI_API/routes/interaction_routes.py", "lineno": 186, "method": "get", "path": "/api/intervention_logs/{session_id}"}
+- None
 
 ## unused_static_assets
 
@@ -33,6 +30,14 @@
 - `Emotion-LLaMA/checkpoints/save_checkpoint/Emoation_LLaMA.pth`
 - `Emotion-LLaMA/checkpoints/transformer/chinese-hubert-large/chinese-hubert-large-fairseq-ckpt.pt`
 - `Emotion-LLaMA/checkpoints/transformer/chinese-hubert-large/pytorch_model.bin`
+- `UI_API/learning_data/emotion_order_media/pos_demo_001/1779710200388_84e881ef.webm`
+- `UI_API/learning_data/emotion_order_media/pos_demo_001/index.json`
+- `UI_API/learning_data/interaction_events.json`
+- `UI_API/learning_data/intervention_logs.json`
+- `UI_API/learning_data/rag_docs.json`
+- `UI_API/learning_data/rag_vector_meta.json`
+- `UI_API/learning_data/session_logs.json`
+- `UI_API/learning_data/settings.json`
 - `UI_API/models/yolo/yolo11n.pt`
 - `UI_API/models/yolo/yolov4-tiny.weights`
 
@@ -101,6 +106,8 @@
 - `/api/auto_recommend`
 - `/api/barrier_state`
 - `/api/customer_service`
+- `/api/debug/interaction_risk`
+- `/api/debug/intervention_logs/{session_id}`
 - `/api/interaction_event`
 - `/api/intervention_result`
 - `/api/rag_status`
@@ -111,3 +118,10 @@
 - `UI_API/main.py`
 - `UI_API/menu_data/menu.json`
 - `tools/pos_interaction_demo_ui.py`
+
+## frontend_split_plan
+
+- {"phase": 1, "scope": "Do not split POS/Admin code in this cleanup pass; app.js still owns boot mode selection, shared state, and legacy-safe event wiring.", "title": "Keep current app.js runtime behavior"}
+- {"phase": 2, "scope": "Move settings, logs, RAG admin, and statistics renderers behind a static/admin module after route/API smoke tests are stable.", "title": "Extract admin-only panels"}
+- {"phase": 3, "scope": "Move POS event capture, risk trigger handling, media-buffer trigger calls, and checkout feedback into a static/pos_interaction module.", "title": "Extract POS interaction pipeline"}
+- {"phase": 4, "scope": "Keep API wrapper, cart helpers, realtime client, media buffer, and UI primitives as shared modules; avoid moving business decisions into frontend.", "title": "Keep shared utilities small"}

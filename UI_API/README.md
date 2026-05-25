@@ -756,13 +756,20 @@ Context + Citation
 | --- | --- |
 | `POST /api/interaction_event` | 上報 POS 操作事件並計算風險 |
 | `GET /api/interaction_events/{session_id}` | 查詢 session 事件 |
-| `POST /api/interaction_risk` | 重算風險 |
 | `POST /api/barrier_state` | 輕量互動障礙推理 |
 | `POST /api/triggered_multimodal_analysis` | 事件觸發式短片段多模態分析 |
 | `POST /api/intervention_result` | 回寫介入結果 |
-| `GET /api/intervention_logs/{session_id}` | 查詢介入紀錄 |
 | `GET /api/intervention_stats` | 介入成效統計 |
 | `POST /api/demo/trigger_scenario` | PoC 情境測試 |
+
+### Debug / Legacy
+
+`ENABLE_DEBUG_ROUTES=false` 為預設值。只有人工除錯需要時才開啟：
+
+| API | 用途 |
+| --- | --- |
+| `POST /api/debug/interaction_risk` | 手動重算風險 |
+| `GET /api/debug/intervention_logs/{session_id}` | 手動查詢單一 session 介入紀錄 |
 
 ### Emotion debug
 

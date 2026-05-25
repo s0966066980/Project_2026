@@ -60,19 +60,6 @@ class ConnectionManager:
                 if not sockets:
                     self.active_connections[client_type].pop(session_key, None)
 
-    async def send_to_session(self, session_id: str, payload: dict):
-        session_key = str(session_id or "global")
-        targets: list[tuple[str, str, Any]] = []
-        async with self._lock:
-            for client_type, sessions in self.active_connections.items():
-                if client_type == "admin":
-                    for websocket in sessions.get("global", set()).copy():
-                        targets.append((client_type, "global", websocket))
-                    continue
-                for websocket in sessions.get(session_key, set()).copy():
-                    targets.append((client_type, session_key, websocket))
-        await self._send_many(targets, payload)
-
     async def send_to_client_type(self, client_type: str, payload: dict):
         client_type = str(client_type or "").lower()
         targets: list[tuple[str, str, Any]] = []

@@ -1,43 +1,8 @@
 {
   "definitely_unused_files": [],
   "maybe_unused_files": [],
-  "unused_functions": [
-    {
-      "file": "UI_API/ai_services.py",
-      "name": "async_safe_transcribe",
-      "type": "AsyncFunctionDef",
-      "lineno": 340,
-      "reason": "definition name appears only once in scanned source"
-    },
-    {
-      "file": "UI_API/realtime/connection_manager.py",
-      "name": "send_to_session",
-      "type": "AsyncFunctionDef",
-      "lineno": 63,
-      "reason": "definition name appears only once in scanned source"
-    },
-    {
-      "file": "UI_API/services/customer_service.py",
-      "name": "emotion_to_traditional_display",
-      "type": "AsyncFunctionDef",
-      "lineno": 431,
-      "reason": "definition name appears only once in scanned source"
-    }
-  ],
-  "unused_routes": [
-    {
-      "file": "UI_API/routes/interaction_routes.py",
-      "method": "post",
-      "path": "/api/interaction_risk",
-      "lineno": 102
-    },
-    {
-      "file": "UI_API/routes/interaction_routes.py",
-      "method": "get",
-      "path": "/api/intervention_logs/{session_id}",
-      "lineno": 186
-    }
-  ],
+  "unused_functions": [],
+  "unused_routes": [],
   "unused_static_assets": [],
   "runtime_data_files": [
     "Emotion-LLaMA/checkpoints/Llama-2-7b-chat-hf/model-00001-of-00002.safetensors",
@@ -48,6 +13,14 @@
     "Emotion-LLaMA/checkpoints/save_checkpoint/Emoation_LLaMA.pth",
     "Emotion-LLaMA/checkpoints/transformer/chinese-hubert-large/chinese-hubert-large-fairseq-ckpt.pt",
     "Emotion-LLaMA/checkpoints/transformer/chinese-hubert-large/pytorch_model.bin",
+    "UI_API/learning_data/emotion_order_media/pos_demo_001/1779710200388_84e881ef.webm",
+    "UI_API/learning_data/emotion_order_media/pos_demo_001/index.json",
+    "UI_API/learning_data/interaction_events.json",
+    "UI_API/learning_data/intervention_logs.json",
+    "UI_API/learning_data/rag_docs.json",
+    "UI_API/learning_data/rag_vector_meta.json",
+    "UI_API/learning_data/session_logs.json",
+    "UI_API/learning_data/settings.json",
     "UI_API/models/yolo/yolo11n.pt",
     "UI_API/models/yolo/yolov4-tiny.weights"
   ],
@@ -56,6 +29,8 @@
     "/api/auto_recommend",
     "/api/barrier_state",
     "/api/customer_service",
+    "/api/debug/interaction_risk",
+    "/api/debug/intervention_logs/{session_id}",
     "/api/interaction_event",
     "/api/intervention_result",
     "/api/rag_status",
@@ -153,5 +128,27 @@
   "websocket_event_names": [
     "emotion_analysis_completed",
     "emotion_analysis_started"
+  ],
+  "frontend_split_plan": [
+    {
+      "phase": 1,
+      "title": "Keep current app.js runtime behavior",
+      "scope": "Do not split POS/Admin code in this cleanup pass; app.js still owns boot mode selection, shared state, and legacy-safe event wiring."
+    },
+    {
+      "phase": 2,
+      "title": "Extract admin-only panels",
+      "scope": "Move settings, logs, RAG admin, and statistics renderers behind a static/admin module after route/API smoke tests are stable."
+    },
+    {
+      "phase": 3,
+      "title": "Extract POS interaction pipeline",
+      "scope": "Move POS event capture, risk trigger handling, media-buffer trigger calls, and checkout feedback into a static/pos_interaction module."
+    },
+    {
+      "phase": 4,
+      "title": "Keep shared utilities small",
+      "scope": "Keep API wrapper, cart helpers, realtime client, media buffer, and UI primitives as shared modules; avoid moving business decisions into frontend."
+    }
   ]
 }

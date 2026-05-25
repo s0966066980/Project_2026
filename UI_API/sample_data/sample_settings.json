@@ -4,6 +4,8 @@
   "MODEL_NAME": "llama3.2",
   "ASK_MODEL_NAME": "llama3.2",
   "CUSTOMER_SERVICE_MODE": "ollama",
+  "ENABLE_DEBUG_ROUTES": false,
+  "ALLOW_POS_RUNTIME_SETTING_QUERY": false,
   "SAVE_VOICE_ORDER_TO_RAG": false,
   "SAVE_CUSTOMER_SERVICE_TO_RAG": false,
   "WHISPER_MODEL_SIZE": "base",

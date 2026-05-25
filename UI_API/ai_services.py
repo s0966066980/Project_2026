@@ -336,51 +336,6 @@ def init_gemini_client():
     _get_gemini_client()
     return True
 
-
-async def async_safe_transcribe(file_path: str) -> str:
-    init_whisper()
-    if not whisper_model:
-        return ""
-    wav_path = file_path + "_safe.wav"
-    try:
-        probe = await async_probe_media(file_path)
-        if not probe.get("valid") or not probe.get("has_audio"):
-            print(f"⚠️ 語音輸入無效或沒有音軌，略過 Whisper 辨識: {probe.get('error') or 'no_audio'}")
-            return ""
-        await _convert_media_to_wav(file_path, wav_path)
-        if not _wav_has_enough_audio(wav_path):
-            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
-            return ""
-        if _audio_is_too_quiet(wav_path):
-            print("⚠️ 語音音量過低，略過 Whisper 辨識。")
-            return ""
-        result = await asyncio.to_thread(_transcribe_with_whisper, wav_path)
-        return _sanitize_transcript(result.get("text", ""), result)
-    except Exception as e:
-        if _is_empty_audio_error(e):
-            print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
-            return ""
-        if _is_whisper_sequence_error(e):
-            print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e}")
-            return ""
-        print(f"⚠️ 音訊重組失敗，嘗試直接辨識: {e}")
-        try:
-            result = await asyncio.to_thread(_transcribe_with_whisper, file_path)
-            return _sanitize_transcript(result.get("text", ""), result)
-        except Exception as e2:
-            if _is_empty_audio_error(e2):
-                print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
-                return ""
-            if _is_whisper_sequence_error(e2):
-                print(f"⚠️ Whisper 解碼狀態錯誤，略過本次語音辨識: {e2}")
-                return ""
-            print(f"⚠️ 直接辨識也失敗: {e2}")
-            return ""
-    finally:
-        if os.path.exists(wav_path):
-            await asyncio.to_thread(os.remove, wav_path)
-
-
 async def async_safe_transcribe_with_language(file_path: str) -> dict:
     """辨識語音並偵測語言，回傳產品支援的 {text, language}，language 只會是 zh 或 en。"""
     init_whisper()

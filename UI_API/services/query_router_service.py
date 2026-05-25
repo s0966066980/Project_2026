@@ -49,7 +49,21 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
             "requires_llm": False,
         }
 
-    # 1) 「我不知道吃什麼/幫我推薦」這類強烈推薦請求 → 走 AI 推薦 pipeline
+    rag_terms = [
+        "政策", "活動", "操作規則", "客服話術", "優惠券規則", "優惠券",
+        "折扣碼", "後台設定", "專利流程", "測試規格", "員工", "制度",
+        "規範", "說明文件", "申請", "隱私", "保留", "刪除紀錄",
+        "policy", "coupon", "rule", "patent", "spec", "admin",
+    ]
+    if _contains_any(user_text, rag_terms):
+        return {
+            "intent": "rag_question",
+            "confidence": 0.84,
+            "reason": "rag_document_terms",
+            "requires_rag": True,
+            "requires_llm": True,
+        }
+
     recommend_terms = [
         "推薦給我", "幫我推薦", "幫我選", "幫我挑", "我不知道吃什麼",
         "不知道要吃什麼", "不知道吃啥", "吃什麼好", "要吃什麼", "推薦點什麼",
@@ -62,7 +76,7 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
             "intent": "ask_recommendation",
             "confidence": 0.92,
             "reason": "explicit_recommend_request",
-            "requires_rag": True,
+            "requires_rag": False,
             "requires_llm": True,
         }
 
@@ -82,24 +96,9 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
             "requires_llm": False,
         }
 
-    rag_terms = [
-        "政策", "活動", "操作規則", "客服話術", "優惠券規則", "優惠券",
-        "折扣碼", "後台設定", "專利流程", "測試規格", "員工", "制度",
-        "規範", "說明文件", "申請", "隱私", "保留", "刪除紀錄",
-        "policy", "coupon", "rule", "patent", "spec", "admin",
-    ]
-    if _contains_any(user_text, rag_terms):
-        return {
-            "intent": "rag_question",
-            "confidence": 0.84,
-            "reason": "rag_document_terms",
-            "requires_rag": True,
-            "requires_llm": True,
-        }
-
     if re.search(r"(怎麼辦|怎麼處理|如何|為什麼|是什麼|能不能)", str(user_text or "")):
         return {
-            "intent": "rag_question",
+            "intent": "general_question",
             "confidence": 0.55,
             "reason": "general_explanation_question",
             "requires_rag": True,

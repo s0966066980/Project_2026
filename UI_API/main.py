@@ -15,6 +15,7 @@ from routes import (
     customer_service_routes,
     emotion_routes,
     demo_routes,
+    debug_routes,
     menu_routes,
     rag_routes,
     recommendation_routes,
@@ -181,6 +182,8 @@ app.include_router(demo_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
 app.include_router(multimodal_routes.create_router(_deps))
 app.include_router(realtime_routes.create_router(_deps))
+if config.get("ENABLE_DEBUG_ROUTES", False):
+    app.include_router(debug_routes.create_router(_deps))
 
 
 if __name__ == "__main__":

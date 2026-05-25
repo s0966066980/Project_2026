@@ -29,6 +29,7 @@ PROTECTED_FILES = {
     "UI_API/index.html",
     "UI_API/menu_data/menu.json",
     "Emotion-LLaMA/app_EmotionLlamaClient.py",
+    "tools/analyze_unused_code.py",
     "tools/pos_interaction_demo_ui.py",
 }
 
@@ -52,6 +53,8 @@ PROTECTED_ENDPOINTS = {
     "/api/rag_status",
     "/api/menu",
     "/api/demo/trigger_scenario",
+    "/api/debug/interaction_risk",
+    "/api/debug/intervention_logs/{session_id}",
     "/ws/{client_type}/{session_id}",
 }
 
@@ -307,6 +310,7 @@ def analyze() -> dict:
         "UI_API/routes/multimodal_routes.py",
         "UI_API/routes/demo_routes.py",
         "UI_API/routes/realtime_routes.py",
+        "UI_API/routes/debug_routes.py",
     }
 
     referenced_static = {normalize_static_ref(item) for item in fe["index_static_refs"]}
@@ -369,6 +373,8 @@ def analyze() -> dict:
     unused_routes = []
     for route in py["route_defs"]:
         path = route["path"]
+        if route.get("file") == "UI_API/routes/debug_routes.py":
+            continue
         if path in PROTECTED_ENDPOINTS:
             continue
         if any(path.startswith(prefix.rstrip("{param}")) for prefix in used_route_paths):
@@ -424,6 +430,8 @@ def analyze() -> dict:
                 "/api/auto_recommend",
                 "/api/customer_service",
                 "/api/rag_status",
+                "/api/debug/interaction_risk",
+                "/api/debug/intervention_logs/{session_id}",
                 "/demo-tool",
             }
         ),
@@ -433,6 +441,28 @@ def analyze() -> dict:
         "python_parse_errors": py["parse_errors"],
         "frontend_api_paths": fe["api_paths"],
         "websocket_event_names": fe["websocket_event_names"],
+        "frontend_split_plan": [
+            {
+                "phase": 1,
+                "title": "Keep current app.js runtime behavior",
+                "scope": "Do not split POS/Admin code in this cleanup pass; app.js still owns boot mode selection, shared state, and legacy-safe event wiring.",
+            },
+            {
+                "phase": 2,
+                "title": "Extract admin-only panels",
+                "scope": "Move settings, logs, RAG admin, and statistics renderers behind a static/admin module after route/API smoke tests are stable.",
+            },
+            {
+                "phase": 3,
+                "title": "Extract POS interaction pipeline",
+                "scope": "Move POS event capture, risk trigger handling, media-buffer trigger calls, and checkout feedback into a static/pos_interaction module.",
+            },
+            {
+                "phase": 4,
+                "title": "Keep shared utilities small",
+                "scope": "Keep API wrapper, cart helpers, realtime client, media buffer, and UI primitives as shared modules; avoid moving business decisions into frontend.",
+            },
+        ],
     }
     return report
 
@@ -455,6 +485,7 @@ def write_reports(report: dict) -> None:
         "maybe_used_static_assets",
         "keep_static_assets",
         "external_entrypoints_to_keep",
+        "frontend_split_plan",
     ]:
         lines.extend([f"## {key}", ""])
         value = report.get(key, [])

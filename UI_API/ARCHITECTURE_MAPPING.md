@@ -10,7 +10,7 @@
 | menu_question / ask_recommendation | `services/voice_order_service.py`, `services/recommendation_service.py` | `POST /api/ask`, `POST /api/auto_recommend` | `ai_response`, `recommendation_ids`, `audio_base64` | 已完成 | RAG 只作全域規則補充，不因 RAG 不足拒答 |
 | rag_question / service_question | `services/voice_order_service.py`, `rag_service.py` | `POST /api/ask`, `/api/rag_status` | `citations`, `retrieval_evaluation`, `verification` | 已完成 | 僅此路徑執行 strict RAG 與 grounding verification |
 | 點餐機操作事件 | `static/app.js`, `routes/interaction_routes.py`, `services/interaction_event_service.py`, `repositories/interaction_event_repository.py` | `POST /api/interaction_event` | `interaction_events.json`, normalized event | 已完成 | 低風險只保存事件 |
-| 互動事件 → 風險分數 | `services/interaction_event_service.py` | `POST /api/interaction_event`, `POST /api/interaction_risk` | `risk_result`, `risk_score`, `triggered` | 已完成 | 以 1-10 scale 回傳 |
+| 互動事件 → 風險分數 | `services/interaction_event_service.py` | `POST /api/interaction_event`; debug: `POST /api/debug/interaction_risk` | `risk_result`, `risk_score`, `triggered` | 已完成 | debug API 由 `ENABLE_DEBUG_ROUTES` 控制 |
 | 是否達門檻 | `services/interaction_event_service.py`, `static/app.js` | `POST /api/interaction_event` | `risk_result.triggered` | 已完成 | `EVENT_TRIGGERED_MULTIMODAL_ENABLED=true` 為主流程 |
 | 否：低風險事件保存 | `repositories/interaction_event_repository.py` | `POST /api/interaction_event` | `interaction_events.json` | 已完成 | 不觸發多模態與介入 |
 | 是：觸發短片段 | `static/media_buffer.js`, `static/app.js`, `routes/multimodal_routes.py` | `POST /api/triggered_multimodal_analysis` | video chunk, `ui_context`, `risk_result` | 已完成 | 預設不是持續監控 |

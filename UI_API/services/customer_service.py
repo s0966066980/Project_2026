@@ -427,11 +427,6 @@ async def emotion_to_structured_display(
     except Exception:
         return build_emotion_structured(source, source, person_check=person_check, speech_text=speech, media_signals=media_signals)
 
-
-async def emotion_to_traditional_display(emotion_text: str, ollama_semaphore=None) -> str:
-    return (await emotion_to_structured_display(emotion_text, ollama_semaphore=ollama_semaphore)).get("emotion_display", "")
-
-
 async def analyze_customer_emotion(
     session_id: str,
     media_path: str,
