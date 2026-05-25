@@ -1,4 +1,5 @@
 from utils.text_utils import normalize_emotion_label, to_traditional_lite
+from services import emotion_risk_service
 
 
 PAYMENT_TERMS = ["不能刷", "付款", "刷卡", "LINE Pay", "line pay", "悠遊卡"]
@@ -62,6 +63,13 @@ def infer_customer_service_state(
     person = _safe_dict(person_check)
     ui = _safe_dict(ui_context)
     risk = _safe_dict(risk_result)
+    emotion_risk = emotion_risk_service.calculate_emotion_risk(
+        emotion_structured,
+        media_signals=media,
+        speech_text=text,
+        person_check=person,
+    )
+    emotion_risk_score = int(emotion_risk.get("emotion_risk_score") or 1)
     evidence = []
 
     state = "normal_question"
@@ -114,6 +122,25 @@ def infer_customer_service_state(
             state = "needs_human_staff"
         evidence.append("irritated emotion with payment or waiting issue")
 
+    if emotion_risk_score >= 9:
+        priority = "high"
+        needs_human_staff = True
+        if state == "normal_question":
+            state = "critical_emotion_risk"
+        evidence.append("emotion_risk_score >= 9")
+    elif emotion_risk_score >= 7:
+        if priority != "high":
+            priority = "high"
+        if state == "normal_question":
+            state = "high_emotion_risk"
+        if emotion_label in {"生氣", "焦躁"} or has_urgent or has_complaint:
+            needs_human_staff = True
+        evidence.append("emotion_risk_score >= 7")
+    elif emotion_risk_score >= 5 and state == "normal_question":
+        state = "emotion_attention"
+        priority = "medium"
+        evidence.append("emotion_risk_score >= 5")
+
     if not text and not emotion_label:
         state = "low_confidence"
         priority = "normal"
@@ -137,4 +164,5 @@ def infer_customer_service_state(
         "priority": priority,
         "needs_human_staff": needs_human_staff,
         "evidence": _dedupe_evidence(evidence),
+        **emotion_risk,
     }

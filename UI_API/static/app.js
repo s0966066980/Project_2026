@@ -83,6 +83,7 @@ let adminRealtime = null;
 let voiceOrderingAvailable = false;
 let autoVoiceTimer = null;
 let autoVoiceInFlight = false;
+let askRecordingStartedAt = 0;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
@@ -1758,12 +1759,14 @@ function setupAskRecorder() {
   askRecorder.ondataavailable = e => chunks.push(e.data);
   askRecorder.onstop = async () => {
     const blob = new Blob(chunks, { type: 'audio/webm' });
+    const durationMs = askRecordingStartedAt ? Date.now() - askRecordingStartedAt : 0;
+    askRecordingStartedAt = 0;
     chunks = [];
-    if (blob.size < 1500) {
+    if (blob.size < 1500 || durationMs < 650) {
       trackInteractionEvent({
         event_type: 'voice_order_failed',
         button_id: 'askBtn',
-        metadata: { reason: 'audio_too_short' }
+        metadata: { reason: 'audio_too_short', duration_ms: durationMs, bytes: blob.size }
       });
       ui.askText.textContent = kt('holdVoiceOrder');
       autoVoiceInFlight = false;
@@ -1840,6 +1843,7 @@ function startAskRecording(sourceBtn) {
       button_id: sourceBtn?.id || 'askBtn',
       metadata: { voice_ask_enabled: getFeatures().voiceAsk }
     });
+    askRecordingStartedAt = Date.now();
     askRecorder.start();
     ui.askBtn.classList.add('recording');
     ui.kioskVoiceBtn?.classList.add('recording');

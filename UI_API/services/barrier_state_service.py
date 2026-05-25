@@ -1,4 +1,5 @@
 from services import interaction_event_service
+from services import emotion_risk_service
 from utils.text_utils import normalize_emotion_label
 
 
@@ -109,6 +110,12 @@ def infer_barrier_state(
     speech = speech_text or ""
     emotion = emotion_structured or {}
     emotion_label = normalize_emotion_label(emotion.get("emotion_label") or "")
+    emotion_risk = emotion_risk_service.calculate_emotion_risk(
+        emotion,
+        media_signals=media_signals,
+        speech_text=speech,
+    )
+    emotion_risk_score = int(emotion_risk.get("emotion_risk_score") or 1)
     evidence = []
 
     payment_fail_count = _max_field(events, "payment_fail_count")
@@ -139,6 +146,12 @@ def infer_barrier_state(
     elif emotion_label == "焦躁" and risk_score >= 5:
         barrier_state = "service_needed" if risk_score >= 8 else "impatience_detected"
         evidence.append(f"emotion_label={emotion_label}")
+    elif emotion_risk_score >= 9:
+        barrier_state = "service_needed"
+        evidence.append("emotion_risk_score >= 9")
+    elif emotion_risk_score >= 7:
+        barrier_state = "potential_complaint" if emotion_label in {"生氣", "焦躁"} else "operation_confusion"
+        evidence.append("emotion_risk_score >= 7")
     elif emotion_label == "猶豫" and page_id == "menu_page":
         barrier_state = "menu_hesitation"
         evidence.extend(["emotion_label=猶豫", "page_id=menu_page"])
@@ -180,6 +193,10 @@ def infer_barrier_state(
         "risk_score": risk_score,
         "risk_score_scale": int(risk.get("risk_score_scale") or 10),
         "risk_level": risk.get("risk_level") or "none",
+        "emotion_risk_score": emotion_risk_score,
+        "emotion_risk_level": emotion_risk.get("emotion_risk_level"),
+        "emotion_risk_rules": emotion_risk.get("emotion_risk_rules", []),
+        "emotion_risk_evidence": emotion_risk.get("emotion_risk_evidence", []),
         "recommended_action": map_barrier_to_default_action(barrier_state, severity),
         "emotion_label": emotion_label,
         "media_signals": media_signals or {},

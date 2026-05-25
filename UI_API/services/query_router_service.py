@@ -62,7 +62,7 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
             "intent": "ask_recommendation",
             "confidence": 0.92,
             "reason": "explicit_recommend_request",
-            "requires_rag": False,
+            "requires_rag": True,
             "requires_llm": True,
         }
 

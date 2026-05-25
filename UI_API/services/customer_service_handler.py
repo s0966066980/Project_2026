@@ -61,6 +61,9 @@ def _safe_emotion_structured(emotion_structured: dict, media_signals: dict) -> d
         "emotion_display": emotion.get("emotion_display", ""),
         "emotion_evidence": emotion.get("emotion_evidence", ""),
         "emotion_distribution": emotion.get("emotion_distribution", {}),
+        "emotion_risk_score": emotion.get("emotion_risk_score"),
+        "emotion_risk_level": emotion.get("emotion_risk_level", ""),
+        "emotion_risk_evidence": emotion.get("emotion_risk_evidence", []),
         "media_signals": signals,
     }
 
@@ -257,6 +260,9 @@ async def handle_customer_service(
         "customer_service_priority": service_state.get("priority"),
         "needs_human_staff": service_state.get("needs_human_staff"),
         "service_state_evidence": service_state.get("evidence", []),
+        "emotion_risk_score": service_state.get("emotion_risk_score"),
+        "emotion_risk_level": service_state.get("emotion_risk_level"),
+        "emotion_risk_evidence": service_state.get("emotion_risk_evidence", []),
         "emotion_structured": safe_emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,
@@ -283,6 +289,8 @@ async def handle_customer_service(
                 "staff_summary": staff_summary,
                 "emotion_structured": safe_emotion_structured,
                 "service_state_evidence": service_state.get("evidence", []),
+                "emotion_risk_score": service_state.get("emotion_risk_score"),
+                "emotion_risk_level": service_state.get("emotion_risk_level"),
             })
         except Exception as publish_error:
             print(f"⚠️ customer_service admin publish 失敗: {publish_error}")
@@ -307,6 +315,10 @@ async def handle_customer_service(
         "customer_service_priority": service_state.get("priority"),
         "needs_human_staff": service_state.get("needs_human_staff"),
         "service_state_evidence": service_state.get("evidence", []),
+        "emotion_risk_score": service_state.get("emotion_risk_score"),
+        "emotion_risk_level": service_state.get("emotion_risk_level"),
+        "emotion_risk_rules": service_state.get("emotion_risk_rules", []),
+        "emotion_risk_evidence": service_state.get("emotion_risk_evidence", []),
         "emotion_structured": safe_emotion_structured,
         "mentioned_ids": mentioned_ids,
         "ollama_result": raw_ollama,

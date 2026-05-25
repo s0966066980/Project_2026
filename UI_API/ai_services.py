@@ -170,9 +170,11 @@ def _wav_duration_seconds(path: str) -> float:
         return 0.0
 
 
-def _wav_has_enough_audio(path: str, min_duration: float = 0.2) -> bool:
+def _wav_has_enough_audio(path: str, min_duration: float | None = None) -> bool:
     if not path or not os.path.exists(path):
         return False
+    if min_duration is None:
+        min_duration = float(config.get("WHISPER_MIN_AUDIO_SEC", 0.45))
     return _wav_duration_seconds(path) >= min_duration
 
 
@@ -200,16 +202,53 @@ def _audio_is_too_quiet(path: str) -> bool:
 _WHISPER_HALLUCINATION_PATTERNS = [
     "字幕", "字幕組", "聽打", "請訂閱", "點贊", "按讚", "分享", "開啟小鈴鐺",
     "感謝收看", "謝謝觀看", "下集再見", "我們下次見", "by bwd6",
-    "amara.org", "ming pao", "明鏡", "小編",
+    "amara.org", "ming pao", "明鏡", "小編", "轉發", "打賞",
 ]
 
 
-def _sanitize_transcript(text: str) -> str:
+def _whisper_quality_reject_reason(result: dict | None) -> str:
+    if not isinstance(result, dict):
+        return ""
+    segments = result.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return ""
+
+    no_speech_values = [
+        float(seg.get("no_speech_prob"))
+        for seg in segments
+        if isinstance(seg, dict) and seg.get("no_speech_prob") is not None
+    ]
+    if no_speech_values and min(no_speech_values) >= float(config.get("WHISPER_MAX_NO_SPEECH_PROB", 0.68)):
+        return "no_speech_prob_high"
+
+    avg_logprobs = [
+        float(seg.get("avg_logprob"))
+        for seg in segments
+        if isinstance(seg, dict) and seg.get("avg_logprob") is not None
+    ]
+    if avg_logprobs and max(avg_logprobs) < float(config.get("WHISPER_MIN_AVG_LOGPROB", -1.15)):
+        return "avg_logprob_low"
+
+    compression_ratios = [
+        float(seg.get("compression_ratio"))
+        for seg in segments
+        if isinstance(seg, dict) and seg.get("compression_ratio") is not None
+    ]
+    if compression_ratios and max(compression_ratios) > float(config.get("WHISPER_MAX_COMPRESSION_RATIO", 2.6)):
+        return "compression_ratio_high"
+    return ""
+
+
+def _sanitize_transcript(text: str, result: dict | None = None) -> str:
     cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
     if not cleaned:
         return ""
     lower = cleaned.lower()
     if any(pattern.lower() in lower for pattern in _WHISPER_HALLUCINATION_PATTERNS):
+        return ""
+    reject_reason = _whisper_quality_reject_reason(result)
+    if reject_reason:
+        print(f"⚠️ Whisper 信心不足，略過本次辨識: {reject_reason}")
         return ""
     meaningful = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]", cleaned)
     if len(meaningful) < 2:
@@ -265,12 +304,18 @@ def init_whisper():
 def _transcribe_with_whisper(path: str, **kwargs) -> dict:
     if whisper_model is None:
         return {}
+    initial_prompt = str(config.get("WHISPER_INITIAL_PROMPT", "") or "").strip()
     options = {
         "fp16": False,
         "temperature": 0.0,
         "condition_on_previous_text": False,
         "verbose": False,
+        "compression_ratio_threshold": float(config.get("WHISPER_MAX_COMPRESSION_RATIO", 2.6)),
+        "logprob_threshold": float(config.get("WHISPER_MIN_AVG_LOGPROB", -1.15)),
+        "no_speech_threshold": float(config.get("WHISPER_MAX_NO_SPEECH_PROB", 0.68)),
     }
+    if initial_prompt:
+        options["initial_prompt"] = initial_prompt
     options.update(kwargs)
     with _whisper_thread_lock:
         return whisper_model.transcribe(path, **options)
@@ -310,7 +355,7 @@ async def async_safe_transcribe(file_path: str) -> str:
             print("⚠️ 語音音量過低，略過 Whisper 辨識。")
             return ""
         result = await asyncio.to_thread(_transcribe_with_whisper, wav_path)
-        return _sanitize_transcript(result.get("text", ""))
+        return _sanitize_transcript(result.get("text", ""), result)
     except Exception as e:
         if _is_empty_audio_error(e):
             print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
@@ -321,7 +366,7 @@ async def async_safe_transcribe(file_path: str) -> str:
         print(f"⚠️ 音訊重組失敗，嘗試直接辨識: {e}")
         try:
             result = await asyncio.to_thread(_transcribe_with_whisper, file_path)
-            return _sanitize_transcript(result.get("text", ""))
+            return _sanitize_transcript(result.get("text", ""), result)
         except Exception as e2:
             if _is_empty_audio_error(e2):
                 print("⚠️ 語音內容為空或過短，略過 Whisper 辨識。")
@@ -355,7 +400,7 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
             print("⚠️ 語音音量過低，略過 Whisper 辨識。")
             return {"text": "", "language": "zh", "raw_language": ""}
         result = await asyncio.to_thread(_transcribe_with_whisper, wav_path, task="transcribe")
-        text = _sanitize_transcript(result.get("text", ""))
+        text = _sanitize_transcript(result.get("text", ""), result)
         raw_lang = result.get("language", "")
         lang = _normalize_language(raw_lang, text)
         return {"text": text, "language": lang, "raw_language": raw_lang}
@@ -369,7 +414,7 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         print(f"⚠️ 語音辨識失敗: {e}")
         try:
             result = await asyncio.to_thread(_transcribe_with_whisper, file_path, task="transcribe")
-            text = _sanitize_transcript(result.get("text", ""))
+            text = _sanitize_transcript(result.get("text", ""), result)
             raw_lang = result.get("language", "")
             return {"text": text, "language": _normalize_language(raw_lang, text), "raw_language": raw_lang}
         except Exception as e2:

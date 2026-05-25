@@ -87,6 +87,107 @@ def _runtime_setting_reply(user_text: str, detected_lang: str) -> str:
     )
 
 
+async def _answer_recommendation_with_rag_llm(
+    user_text: str,
+    detected_lang: str,
+    menu_items: list[dict],
+    ollama_semaphore,
+) -> dict:
+    loop = asyncio.get_running_loop()
+    full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
+    global_context = await asyncio.to_thread(database.get_global_rag_context)
+    try:
+        rag_details = await asyncio.to_thread(rag_service.retrieve_with_retry, user_text)
+    except Exception as exc:
+        rag_details = {
+            "context": "",
+            "citations": [],
+            "evaluation": {"sufficient": False, "reason": f"rag_retrieve_error:{exc}"},
+            "quality_gate": {"passed": False, "reason": "rag_retrieve_error"},
+        }
+    rag_context = "\n\n".join(
+        part for part in [global_context, str(rag_details.get("context", "")).strip()] if part
+    )
+
+    if detected_lang == "en":
+        ask_system = config.get("ASK_SYSTEM_PROMPT_EN")
+        language_contract = "Language contract: the customer asked in English. Reply in English only."
+    else:
+        ask_system = config.get("ASK_SYSTEM_PROMPT")
+        language_contract = "語言契約：顧客使用中文詢問推薦。請只用繁體中文回答。"
+
+    user_prompt = (
+        f"{language_contract}\n\n"
+        f"【顧客詢問推薦】\n{user_text}\n\n"
+        f"{full_menu_context}\n\n"
+        f"【RAG 補充內容】\n{rag_context or '本次沒有額外 RAG 補充，仍可根據完整菜單白名單推薦。'}\n\n"
+        "任務：直接推薦 1 到 3 個真實菜單品項。優先使用 RAG 全域規則與補充內容；"
+        "若 RAG 沒有相關補充，仍必須使用完整菜單白名單與基本 LLM 判斷回答，不能輸出通用預設回覆。\n"
+        "mentioned_ids 必須是完整菜單白名單中的 ID；如果只是推薦，cart_actions 請輸出空陣列。"
+    )
+
+    async with ollama_semaphore:
+        ask_result = await loop.run_in_executor(
+            None,
+            ai_services.ask_llm,
+            ask_system,
+            user_prompt,
+            "ASK_RECOMMEND",
+            config.get("ASK_MODEL_NAME", "llama3.2"),
+            config.get("QA_AI_PROVIDER", "ollama"),
+            0.2,
+        )
+
+    menu_ids = [item.get("id") for item in menu_items if item.get("id")]
+    if "error" not in ask_result and str(ask_result.get("ai_response") or "").strip():
+        raw_ids = ask_result.get("mentioned_ids") or []
+        if isinstance(raw_ids, str):
+            raw_ids = [raw_ids]
+        mentioned_ids = [
+            recommendation_service.clean_menu_id(item_id, menu_ids)
+            for item_id in (raw_ids if isinstance(raw_ids, list) else [])
+        ]
+        mentioned_ids = [item_id for item_id in mentioned_ids if item_id]
+        reply = recommendation_service.fix_ask_reply_for_intent(
+            user_text,
+            detected_lang,
+            str(ask_result.get("ai_response") or "").strip(),
+            [],
+            mentioned_ids,
+        )
+        return {
+            "ok": True,
+            "ai_response": reply,
+            "mentioned_ids": mentioned_ids,
+            "rag_debug": {
+                "source": "rag_llm",
+                "quality_gate": rag_details.get("quality_gate"),
+                "retrieval_evaluation": rag_details.get("evaluation"),
+                "citations": rag_details.get("citations"),
+            },
+            "citations": rag_details.get("citations", []),
+            "retrieval_evaluation": rag_details.get("evaluation", {}),
+        }
+
+    menu_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+    if menu_answer:
+        return {
+            "ok": True,
+            "ai_response": menu_answer.get("ai_response", ""),
+            "mentioned_ids": menu_answer.get("mentioned_ids", []),
+            "rag_debug": {
+                "source": "menu_whitelist_fallback",
+                "llm_error": ask_result.get("error", ""),
+                "quality_gate": rag_details.get("quality_gate"),
+                "retrieval_evaluation": rag_details.get("evaluation"),
+                "citations": rag_details.get("citations"),
+            },
+            "citations": rag_details.get("citations", []),
+            "retrieval_evaluation": rag_details.get("evaluation", {}),
+        }
+    return {"ok": False, "error": ask_result.get("error", "recommendation_unavailable"), "rag_debug": {"source": "failed"}}
+
+
 def _should_save_voice_order_to_rag() -> bool:
     save_voice_order_to_rag = bool(config.get("SAVE_VOICE_ORDER_TO_RAG", False))
     demo_save_voice_order_to_rag = bool(config.get("DEMO_SAVE_VOICE_ORDER_TO_RAG", False))
@@ -292,39 +393,48 @@ async def handle_voice_ask(
         }
 
     if use_ollama and route.get("intent") == "ask_recommendation":
-        emotion_cache = {}
-        ab_mode = config.get("AB_MODE", "single") if hasattr(config, "get") else "single"
-        rec = await recommendation_service.generate_recommendation(
-            session_id=session_id,
-            ab_mode=str(ab_mode or "single"),
-            emotion_cache=emotion_cache,
-            ollama_semaphore=ollama_semaphore,
-            emotion_influence=False,
+        rag_answer = await _answer_recommendation_with_rag_llm(
+            user_text,
+            detected_lang,
+            menu_items,
+            ollama_semaphore,
         )
-        rec_ids = []
+        rec = {}
+        rec_ids = rag_answer.get("mentioned_ids", []) if rag_answer.get("ok") else []
         rec_reason = ""
-        if rec.get("status") == "success":
-            if rec.get("mode") == "ab":
-                a = rec.get("variant_a") or {}
-                b = rec.get("variant_b") or {}
-                rec_ids = list((a.get("recommendation_ids") or []) + (b.get("recommendation_ids") or []))
-                rec_reason = a.get("reason") or b.get("reason") or ""
-            else:
-                rec_ids = rec.get("recommendation_ids") or []
-                rec_reason = rec.get("reason") or ""
-        name_by_id = {item.get("id"): item.get("name") for item in menu_items if item.get("id")}
-        rec_names = [name_by_id.get(rid) for rid in rec_ids if name_by_id.get(rid)]
-        if rec_names:
-            if detected_lang == "en":
-                ai_response = f"How about {', '.join(rec_names[:3])}? {rec_reason}".strip()
-            else:
-                ai_response = (rec_reason or "為您推薦：") + "、".join(rec_names[:3])
-        else:
-            ai_response = (
-                "I can suggest a popular set; please try saying which kind of meal you prefer."
-                if detected_lang == "en"
-                else "我可以幫您挑熱門組合；也可以告訴我想吃哪一類餐點。"
+        ai_response = rag_answer.get("ai_response", "") if rag_answer.get("ok") else ""
+        if not ai_response:
+            emotion_cache = {}
+            ab_mode = config.get("AB_MODE", "single") if hasattr(config, "get") else "single"
+            rec = await recommendation_service.generate_recommendation(
+                session_id=session_id,
+                ab_mode=str(ab_mode or "single"),
+                emotion_cache=emotion_cache,
+                ollama_semaphore=ollama_semaphore,
+                emotion_influence=False,
             )
+            if rec.get("status") == "success":
+                if rec.get("mode") == "ab":
+                    a = rec.get("variant_a") or {}
+                    b = rec.get("variant_b") or {}
+                    rec_ids = list((a.get("recommendation_ids") or []) + (b.get("recommendation_ids") or []))
+                    rec_reason = a.get("reason") or b.get("reason") or ""
+                else:
+                    rec_ids = rec.get("recommendation_ids") or []
+                    rec_reason = rec.get("reason") or ""
+            name_by_id = {item.get("id"): item.get("name") for item in menu_items if item.get("id")}
+            rec_names = [name_by_id.get(rid) for rid in rec_ids if name_by_id.get(rid)]
+            if rec_names:
+                if detected_lang == "en":
+                    ai_response = f"How about {', '.join(rec_names[:3])}? {rec_reason}".strip()
+                else:
+                    ai_response = (rec_reason or "為您推薦：") + "、".join(rec_names[:3])
+            else:
+                ai_response = (
+                    "I can recommend from the current menu after the local model is available."
+                    if detected_lang == "en"
+                    else "目前本地模型暫時無法產生推薦，請稍後再試；也可以直接說想吃主餐、飲料或點心。"
+                )
         session_repository.record_session_state(
             session_id=session_id, emotion="",
             user_speech=user_text, ai_response=ai_response,
@@ -342,9 +452,9 @@ async def handle_voice_ask(
             "detected_lang": detected_lang,
             "raw_detected_lang": stt_result.get("raw_language", ""),
             "dialogue": _dialogue(user_text, ai_response, detected_lang),
-            "citations": [],
-            "retrieval_evaluation": {"sufficient": True, "reason": "ask_recommendation"},
-            "rag_debug": {"route": route, "recommendation": rec},
+            "citations": rag_answer.get("citations", []),
+            "retrieval_evaluation": rag_answer.get("retrieval_evaluation", {"sufficient": True, "reason": "ask_recommendation"}),
+            "rag_debug": {"route": route, "recommendation": rec, **(rag_answer.get("rag_debug") or {})},
             "recommendation_ids": rec_ids,
             "recommendation_reason": rec_reason,
             "trigger_recommend": True,

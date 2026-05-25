@@ -5,6 +5,7 @@ import time
 
 import ai_services
 import config
+from services import emotion_risk_service
 from utils.text_utils import has_cjk, latin_noise_count, remove_latin_noise, to_traditional_lite
 
 
@@ -325,7 +326,7 @@ def build_emotion_structured(
         evidence = emotion_evidence_from_text(source, label, person_check, speech, media_signals)
     if not evidence or len(evidence) > 64:
         evidence = emotion_evidence_from_text(source, label, person_check, speech, media_signals)
-    return {
+    result = {
         "emotion_label": label,
         "emotion_display": display,
         "emotion_evidence": evidence,
@@ -333,6 +334,13 @@ def build_emotion_structured(
         "speech_text": speech,
         "media_signals": media_signals or {},
     }
+    result.update(emotion_risk_service.calculate_emotion_risk(
+        result,
+        media_signals=media_signals,
+        speech_text=speech,
+        person_check=person_check,
+    ))
+    return result
 
 
 async def detect_person_for_emotion(media_path: str, yolo_semaphore=None) -> dict:

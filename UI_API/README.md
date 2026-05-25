@@ -106,6 +106,49 @@ pip install -r requirements-lock.txt
 
 ---
 
+## 2026/05/25 修正重點
+
+### Whisper 語音輸入防錯
+
+`ai_services.py` 目前會在送入 Whisper 前後做多層檢查：
+
+- 前端語音錄音低於 650ms 或資料量過小時不送出。
+- 後端音訊低於 `WHISPER_MIN_AUDIO_SEC` 或音量低於 `WHISPER_LOW_AUDIO_DB` 時略過辨識。
+- Whisper 結果若 `no_speech_prob` 過高、`avg_logprob` 過低或 `compression_ratio` 過高，視為低信心輸出並丟棄。
+- `WHISPER_INITIAL_PROMPT` 預設加入繁體中文點餐常見詞，減少 kiosk 場景詞誤判。
+
+### 推薦餐點問答路徑
+
+顧客直接詢問「推薦餐點」、「不知道吃什麼」、「有什麼好吃的」時，不再只依賴主動推播推薦：
+
+```text
+語音文字
+  ↓
+query_router_service: ask_recommendation
+  ↓
+voice_order_service: RAG + 完整菜單白名單 + ASK LLM
+  ↓
+若 ASK LLM 失敗，再回落到主動推薦 pipeline
+```
+
+這代表即使 RAG 檢索不足，系統仍會用完整菜單白名單與本地 Ollama 產生可用推薦，不會直接輸出通用預設回覆。
+
+### Emotion-LLaMA 風險規則
+
+Emotion-LLaMA 的情緒輸出會透過 `services/emotion_risk_service.py` 轉為 1~10 分：
+
+| 分數 | level | 系統行為 |
+| --- | --- | --- |
+| 1-2 | stable | 不觸發介入，只保存觀察。 |
+| 3-4 | watch | 持續觀察，可用低干擾提示。 |
+| 5-6 | assist | 顯示操作、付款或推薦輔助。 |
+| 7-8 | urgent | 縮短回覆、優先安撫，必要時通知店員。 |
+| 9-10 | critical | 立即通知真人店員，停止推銷式推薦。 |
+
+基礎分數由情緒標籤決定：平靜/開心 1、疲憊 3、猶豫 4、困惑 5、焦躁 7、生氣 9。語音若包含客訴、等待太久、付款失敗或不會操作，會再加權；若沒有顧客或無語音且低信心，分數會被壓低。結果會出現在 `emotion_structured`、客服回應、客服紀錄與互動障礙判斷中。
+
+---
+
 ## 專案結構
 
 ```text
@@ -135,6 +178,7 @@ UI_API/
 │   ├── customer_service.py
 │   ├── customer_service_handler.py
 │   ├── customer_service_state_service.py
+│   ├── emotion_risk_service.py
 │   ├── rag_review_service.py
 │   ├── interaction_event_service.py
 │   ├── barrier_state_service.py
@@ -218,6 +262,7 @@ UI_API/
 - `voice_order_service.py`：Whisper、Ollama 問答、語音點餐 cart_actions。
 - `customer_service_handler.py`：客服 STT、情緒、RAG、LLM、TTS、紀錄。
 - `customer_service_state_service.py`：客服狀態、優先級、真人介入建議。
+- `emotion_risk_service.py`：Emotion-LLaMA 1~10 風險分數與判斷規則。
 - `recommendation_service.py`：AI 推播策略與白名單校正。
 - `rag_review_service.py`：RAG 文本審查與清理。
 
