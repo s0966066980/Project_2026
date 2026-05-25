@@ -8,10 +8,9 @@ from fastapi import APIRouter, File, Form, UploadFile
 import ai_services
 from repositories import emotion_clip_repository, interaction_event_repository
 from realtime import event_bus
-from services import barrier_state_service
 from services import customer_service as customer_emotion_service
 from services import interaction_event_service
-from services import intervention_service
+from services import intervention_pipeline_service
 from services import multimodal_evidence_service
 from utils.file_utils import write_binary_file
 
@@ -26,25 +25,15 @@ def _loads_dict(raw: str) -> dict:
 
 async def _publish_fallback_intervention(session_id: str, risk_result: dict, ui_context: dict, recent_events: list, message: str):
     media_signals = {"reason": message, "audio_silent": True, "motion_level": "unknown"}
-    barrier_result = barrier_state_service.infer_barrier_state(
-        emotion_structured=None,
-        speech_text="",
-        pos_events=recent_events,
+    pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
+        session_id=session_id,
         ui_context=ui_context,
-        media_signals=media_signals,
         risk_result=risk_result,
-    )
-    intervention = intervention_service.decide_intervention(barrier_result, ui_context)
-    intervention_log = None
-    should_log = (
-        intervention.get("action") != "none"
-        and barrier_result.get("barrier_state") != "normal_operation"
-    )
-    if should_log:
-        log_payload = intervention_service.build_intervention_log(
-            session_id, barrier_result, intervention, ui_context
-        )
-        log_payload["multimodal_evidence"] = {
+        recent_events=recent_events,
+        speech_text="",
+        emotion_structured={},
+        media_signals=media_signals,
+        multimodal_evidence={
             "visual_evidence": {"person_detected": None, "reason": message},
             "audio_evidence": {"speech_text": "", "audio_silent": True},
             "emotion_evidence": {
@@ -57,19 +46,14 @@ async def _publish_fallback_intervention(session_id: str, risk_result: dict, ui_
                 "risk_score": risk_result.get("risk_score"),
                 "trigger_reasons": risk_result.get("trigger_reasons", []),
             },
-        }
-        intervention_log = await asyncio.to_thread(
-            interaction_event_repository.append_intervention_log, log_payload
-        )
-    if intervention.get("action") != "none":
-        await event_bus.publish_intervention(session_id, {
-            "barrier_result": barrier_result,
-            "intervention": intervention,
-            "risk_result": risk_result,
-            "intervention_log": intervention_log,
-            "source": "triggered_multimodal_analysis_fallback",
-        })
-    return barrier_result, intervention, intervention_log
+        },
+        source="triggered_multimodal_analysis_fallback",
+    )
+    return (
+        pipeline_result.get("barrier_result"),
+        pipeline_result.get("intervention"),
+        pipeline_result.get("intervention_log"),
+    )
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -250,28 +234,21 @@ def create_router(deps: dict) -> APIRouter:
                 "media_signals": media_signals,
                 "clip": clip,
             }
-            barrier_result = barrier_state_service.infer_barrier_state(
-                emotion_structured=emotion_structured,
-                speech_text=speech_text,
-                pos_events=recent_events,
+            pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
+                session_id=session_id,
                 ui_context=ui_context,
-                media_signals=media_signals,
                 risk_result=risk_result,
+                recent_events=recent_events,
+                speech_text=speech_text,
+                emotion_structured=emotion_structured,
+                media_signals=media_signals,
+                person_check=person_check,
+                multimodal_evidence=multimodal_evidence,
+                source="triggered_multimodal_analysis",
             )
-            intervention = intervention_service.decide_intervention(barrier_result, ui_context)
-            should_log = (
-                intervention.get("action") != "none"
-                and barrier_result.get("barrier_state") != "normal_operation"
-            )
-            intervention_log = None
-            if should_log:
-                log_payload = intervention_service.build_intervention_log(
-                    session_id, barrier_result, intervention, ui_context
-                )
-                log_payload["multimodal_evidence"] = multimodal_evidence
-                intervention_log = await asyncio.to_thread(
-                    interaction_event_repository.append_intervention_log, log_payload
-                )
+            barrier_result = pipeline_result.get("barrier_result")
+            intervention = pipeline_result.get("intervention")
+            intervention_log = pipeline_result.get("intervention_log")
 
             response_data = {
                 "status": "success",
@@ -295,22 +272,6 @@ def create_router(deps: dict) -> APIRouter:
                 "emotion_available": emotion_available,
                 "emotion_error": emotion_error,
             })
-            if intervention.get("action") != "none":
-                await event_bus.publish_intervention(session_id, {
-                    "barrier_result": barrier_result,
-                    "intervention": intervention,
-                    "multimodal_evidence": multimodal_evidence,
-                    "risk_result": risk_result,
-                    "intervention_log": intervention_log,
-                    "source": "triggered_multimodal_analysis",
-                })
-            if intervention.get("staff_notify"):
-                await event_bus.publish_to_admin("staff_notify", {
-                    "session_id": session_id,
-                    "reason": intervention.get("reason", ""),
-                    "barrier_state": barrier_result.get("barrier_state"),
-                    "action": intervention.get("action"),
-                })
             return response_data
         except Exception as e:
             await event_bus.publish_to_admin("emotion_analysis_completed", {

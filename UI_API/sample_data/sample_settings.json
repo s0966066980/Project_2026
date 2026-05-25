@@ -16,7 +16,6 @@
     "use_answer_evaluation": true,
     "strict_grounding": true,
     "answer_verification": true,
-    "min_retrieval_score": 0.08,
     "min_keyword_overlap": 1,
     "embedding_provider": "ollama",
     "embedding_model": "nomic-embed-text"

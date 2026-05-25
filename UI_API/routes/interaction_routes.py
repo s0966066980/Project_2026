@@ -4,10 +4,8 @@ from collections import Counter
 from fastapi import APIRouter, Body, Request
 
 from repositories import interaction_event_repository
-from realtime import event_bus
-from services import barrier_state_service
 from services import interaction_event_service
-from services import intervention_service
+from services import intervention_pipeline_service
 from utils.auth_utils import require_admin_token
 
 
@@ -30,7 +28,9 @@ ISSUE_EVENT_TYPES = {
 
 def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
     barrier_counts = Counter()
+    patent_category_counts = Counter()
     action_counts = Counter()
+    patent_intervention_counts = Counter()
     intervention_page_counts = Counter()
     event_page_issue_counts = Counter()
     event_rows = events or []
@@ -43,10 +43,14 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         ui_context = log.get("ui_context") if isinstance(log.get("ui_context"), dict) else {}
 
         barrier_state = str(barrier.get("barrier_state") or "unknown")
+        patent_category = str(barrier.get("patent_category") or "unknown")
         action = str(intervention.get("action") or "unknown")
+        patent_intervention = str(intervention.get("patent_intervention_type") or "unknown")
         page_id = str(ui_context.get("page_id") or "unknown")
         barrier_counts[barrier_state] += 1
+        patent_category_counts[patent_category] += 1
         action_counts[action] += 1
+        patent_intervention_counts[patent_intervention] += 1
         intervention_page_counts[page_id] += 1
 
     for event in event_rows:
@@ -65,7 +69,9 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         "success_count": success_count,
         "success_rate": round(success_count / total, 4) if total else 0,
         "barrier_state_counts": dict(barrier_counts),
+        "patent_category_counts": dict(patent_category_counts),
         "action_counts": dict(action_counts),
+        "patent_intervention_counts": dict(patent_intervention_counts),
         "intervention_page_counts": dict(intervention_page_counts),
         "event_page_issue_counts": dict(event_page_issue_counts),
         "page_issue_counts": dict(combined_page_counts),
@@ -133,43 +139,19 @@ def create_router(deps: dict | None = None) -> APIRouter:
         events = await asyncio.to_thread(
             interaction_event_repository.get_recent_session_events, session_id
         )
-        risk_result = interaction_event_service.calculate_interaction_risk(events, ui_context)
-        barrier_result = barrier_state_service.infer_barrier_state(
-            emotion_structured=emotion_structured,
-            speech_text=speech_text,
-            pos_events=events,
+        pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
+            session_id=session_id,
             ui_context=ui_context,
+            recent_events=events,
+            speech_text=speech_text,
+            emotion_structured=emotion_structured,
             media_signals=media_signals,
-            risk_result=risk_result,
+            source="barrier_state",
         )
-        intervention = intervention_service.decide_intervention(barrier_result, ui_context)
-        should_log = (
-            intervention.get("action") != "none"
-            and barrier_result.get("barrier_state") != "normal_operation"
-        )
-        intervention_log = None
-        if should_log:
-            log_payload = intervention_service.build_intervention_log(
-                session_id, barrier_result, intervention, ui_context
-            )
-            intervention_log = await asyncio.to_thread(
-                interaction_event_repository.append_intervention_log, log_payload
-            )
-            event_payload = {
-                "barrier_result": barrier_result,
-                "intervention": intervention,
-                "intervention_log": intervention_log,
-                "risk_result": risk_result,
-                "source": "barrier_state",
-            }
-            await event_bus.publish_intervention(session_id, event_payload)
         return {
             "status": "success",
             "session_id": session_id,
-            "risk_result": risk_result,
-            "barrier_result": barrier_result,
-            "intervention": intervention,
-            "intervention_log": intervention_log,
+            **pipeline_result,
         }
 
     @router.post("/intervention_result")

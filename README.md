@@ -220,6 +220,8 @@ risk_score + trigger_reasons
         ↓
         Barrier State Engine
         ↓
+        Intervention Pipeline Service
+        ↓
         Intervention Engine
         ↓
         WebSocket 推送 POS / Admin / Demo
@@ -357,7 +359,7 @@ HTML 測試工具：
 http://127.0.0.1:8000/demo-tool
 ```
 
-Demo 工具會呼叫 `/api/demo/trigger_scenario`、`/api/triggered_multimodal_analysis` 與 `/api/auto_recommend`，並透過 `/ws/demo/{session_id}` 監聽即時介入事件；目前只保留專利 PoC 需要的問題：操作困惑、付款卡關、優惠券卡關、客訴風險、短片段 fallback 與主動推薦。
+Demo 工具會呼叫 `/api/demo/trigger_scenario`、`/api/triggered_multimodal_analysis` 與 `/api/auto_recommend`，並透過 `/ws/demo/{session_id}` 監聽即時介入事件；目前收斂為 PPT 專利 PoC 五種情境：不會操作、無法決定餐點、付款失敗、需要真人客服 / 客訴風險、低風險正常操作。
 
 建議流程：
 

@@ -24,27 +24,43 @@ def _seconds_since_timestamp(timestamp: str) -> int:
         return 0
 
 
-def _build_checkout_intervention_result(open_log: dict, checkout_success: bool) -> dict:
+def _build_checkout_intervention_result(
+    open_log: dict,
+    checkout_success: bool,
+    session_id: str,
+    final_cart_ids: list | None = None,
+) -> dict:
     result = dict(open_log.get("result") if isinstance(open_log.get("result"), dict) else {})
     result.update({
+        "session_id": session_id,
         "checkout_success": bool(checkout_success),
         "payment_success": bool(checkout_success),
         "time_to_checkout_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
         "resolved_by_checkout": bool(checkout_success),
+        "final_cart_ids": list(final_cart_ids or []),
     })
     if not checkout_success:
         result["resolved_by_checkout"] = False
     return result
 
 
-def _mark_latest_intervention_checkout(session_id: str, checkout_success: bool = True) -> dict | None:
+def _mark_latest_intervention_checkout(
+    session_id: str,
+    checkout_success: bool = True,
+    final_cart_ids: list | None = None,
+) -> dict | None:
     open_log = interaction_event_repository.find_latest_open_intervention(session_id)
     if not open_log:
         return None
     intervention_id = str(open_log.get("intervention_id") or "")
     if not intervention_id:
         return None
-    result = _build_checkout_intervention_result(open_log, checkout_success)
+    result = _build_checkout_intervention_result(
+        open_log,
+        checkout_success,
+        session_id,
+        final_cart_ids,
+    )
     return interaction_event_repository.update_intervention_result(intervention_id, result)
 
 
@@ -199,10 +215,17 @@ def create_router(deps: dict) -> APIRouter:
             log_entry = {"skipped": True}
 
         intervention_result = await asyncio.to_thread(
-            _mark_latest_intervention_checkout, session_id, True
+            _mark_latest_intervention_checkout, session_id, True, cart_list
         )
         if intervention_result:
             log_entry = dict(log_entry or {})
+            log_entry["recommendation_result"] = {
+                "session_id": session_id,
+                "pushed_ids": pushed_list,
+                "final_cart_ids": cart_list,
+                "variant_success": log_entry.get("variant_success", {}),
+                "is_success": bool(log_entry.get("is_success", False)),
+            }
             log_entry["intervention_result"] = intervention_result
 
         session_repository.archive_session(session_id)

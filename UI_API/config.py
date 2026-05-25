@@ -102,7 +102,6 @@ DEFAULT_SETTINGS = {
         "strict_grounding": True,
         "answer_verification": True,
         "fail_closed_on_eval_error": True,
-        "min_retrieval_score": 0.08,
         "min_keyword_overlap": 1,
         "max_answer_chars": 420,
         "top_k_vector": 10,

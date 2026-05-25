@@ -10,6 +10,7 @@ from realtime import event_bus
 from repositories import log_repository, menu_repository, session_repository
 from services import customer_service
 from services import customer_service_state_service
+from services import intervention_pipeline_service
 from services import rag_review_service
 from services import recommendation_service
 
@@ -270,6 +271,22 @@ async def handle_customer_service(
         "media_url": media_url,
     })
 
+    intervention_pipeline_result = None
+    if service_state.get("needs_human_staff"):
+        intervention_pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
+            session_id=session_id,
+            ui_context={
+                "page_id": "customer_service",
+                "service_open": True,
+                "cart_count": 0,
+            },
+            speech_text=user_text,
+            emotion_structured=emotion_structured,
+            media_signals=media_signals,
+            person_check=person_check,
+            source="customer_service",
+        )
+
     # 即時通知 admin：依 Emotion-LLaMA + 規則判斷是否需要真人介入。
     # 有需要 → 推送 urgent 事件讓 admin 端跳出回應框；不需要 → 走 LLM 回覆即可。
     if service_state.get("needs_human_staff"):
@@ -326,4 +343,5 @@ async def handle_customer_service(
         "source_id": source_id,
         "media_url": media_url,
         "audio_base64": audio_base64,
+        "intervention_pipeline": intervention_pipeline_result,
     }

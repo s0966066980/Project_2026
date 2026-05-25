@@ -73,10 +73,11 @@ HTML_CONTENT = r"""
           </div>
           <label style="margin-top:14px">顧客語音文字 speech_text<textarea id="speechText">我不會操作，不知道怎麼點餐。</textarea></label>
           <div class="scenario-grid">
-            <button class="accent" data-scenario="operation_confusion_explicit" data-speech="我不會操作，不知道怎麼點餐。">問題 1：不會操作</button>
-            <button data-scenario="payment_failed" data-speech="我不能刷卡，付款一直失敗。">問題 2：付款卡關</button>
-            <button data-scenario="coupon_error" data-speech="優惠券掃碼失敗，折扣碼不能用。">問題 3：優惠券卡關</button>
-            <button data-scenario="complaint_risk" data-speech="付款一直失敗，太誇張了，我要找經理客訴。">問題 4：客訴風險</button>
+            <button class="accent" data-scenario="operation_confusion" data-speech="我不會操作，不知道怎麼點餐。">問題 1：不會操作</button>
+            <button data-scenario="decision_hesitation" data-speech="我不知道要吃什麼，可以推薦嗎？">問題 2：無法決定餐點</button>
+            <button data-scenario="payment_failed" data-speech="我不能刷卡，付款一直失敗。">問題 3：付款失敗</button>
+            <button data-scenario="human_service" data-speech="付款一直失敗，太誇張了，我要找經理客訴。">問題 4：真人客服 / 客訴</button>
+            <button data-scenario="low_risk" data-speech="">問題 5：低風險正常操作</button>
             <button id="shortClipBtn">短片段 fallback</button>
             <button id="recommendBtn">AI 主動推薦</button>
             <button id="clearBtn">清空輸出</button>

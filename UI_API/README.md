@@ -354,7 +354,7 @@ POS 端同時會低成本追蹤操作事件：
 
 ### S1. Rolling Buffer
 
-POS 在事件觸發式多模態功能啟用時，使用 `static/media_buffer.js` 建立短時間 rolling media buffer。預設保留觸發前 5 秒，不長期保存原始影像。
+POS 在事件觸發式多模態功能啟用時，使用 `static/media_buffer.js` 建立短時間 rolling media buffer。預設保留觸發前 5 秒，不長期保存原始影像。主要入口是 `risk_score.triggered=true` 後呼叫 `/api/triggered_multimodal_analysis`，或顧客主動客服請求；`EMOTION_PERIODIC_ENABLED=false` 時不執行週期性情緒監控。
 
 ## 外網客戶測試
 
@@ -387,7 +387,7 @@ python3 tools/pos_interaction_demo_ui.py
 # 或開啟 http://127.0.0.1:8000/demo-tool
 ```
 
-此工具由 `tools/pos_interaction_demo_ui.py` 內嵌 HTML 產生，只保留專利 PoC 問題：操作困惑、付款卡關、優惠券卡關、客訴風險、短片段 fallback 與 AI 主動推薦，並即時監聽 `/ws/demo/{session_id}`。
+此工具由 `tools/pos_interaction_demo_ui.py` 內嵌 HTML 產生，情境收斂為 PPT 專利 PoC 五類：不會操作、無法決定餐點、付款失敗、需要真人客服 / 客訴風險、低風險正常操作，並即時監聽 `/ws/demo/{session_id}`。
 
 注意事項：
 

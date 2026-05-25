@@ -11,7 +11,19 @@ import config
 INTERACTION_EVENTS_PATH = os.path.join(config.LEARNING_DATA_DIR, "interaction_events.json")
 INTERVENTION_LOGS_PATH = os.path.join(config.LEARNING_DATA_DIR, "intervention_logs.json")
 MAX_RECORDS = 3000
-SAFE_METADATA_KEYS = {"source", "reason", "action", "payment", "fulfillment", "from", "to"}
+SAFE_METADATA_KEYS = {
+    "source",
+    "reason",
+    "action",
+    "payment",
+    "fulfillment",
+    "from",
+    "to",
+    "expected",
+    "expected_patent_category",
+    "expected_patent_intervention_type",
+    "legacy_alias",
+}
 SAFE_UI_CONTEXT_KEYS = {"page_id", "cart_count", "promotion_paused", "service_open"}
 
 _cache_lock = threading.Lock()

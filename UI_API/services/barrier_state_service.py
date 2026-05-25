@@ -87,11 +87,39 @@ INTERVENTION_CATEGORY_LABELS = {
 }
 
 
+PATENT_CATEGORY_MAP = {
+    "menu_hesitation": "decision_hesitation",
+    "payment_confusion": "operation_failure",
+    "coupon_confusion": "operation_failure",
+    "operation_confusion": "operation_failure",
+    "impatience_detected": "service_or_question",
+    "service_needed": "service_or_question",
+    "potential_complaint": "service_or_question",
+    "low_confidence": "service_or_question",
+    "normal_operation": "none",
+}
+
+PATENT_CATEGORY_LABELS = {
+    "decision_hesitation": "困惑、無法決定餐點",
+    "operation_failure": "操作失敗、不會點餐",
+    "service_or_question": "詢問餐點、客服情況",
+    "none": "正常操作",
+}
+
+
 def map_barrier_to_category(barrier_state: str) -> dict:
     key = INTERVENTION_CATEGORY_MAP.get(barrier_state, "menu_confusion")
     return {
         "intervention_category": key,
         "intervention_category_label": INTERVENTION_CATEGORY_LABELS.get(key, ""),
+    }
+
+
+def map_barrier_to_patent_category(barrier_state: str) -> dict:
+    key = PATENT_CATEGORY_MAP.get(barrier_state, "service_or_question")
+    return {
+        "patent_category": key,
+        "patent_category_label": PATENT_CATEGORY_LABELS.get(key, ""),
     }
 
 
@@ -185,6 +213,7 @@ def infer_barrier_state(
         severity = 0.2
 
     category_info = map_barrier_to_category(barrier_state)
+    patent_category_info = map_barrier_to_patent_category(barrier_state)
     return {
         "barrier_state": barrier_state,
         "severity": severity,
@@ -201,4 +230,5 @@ def infer_barrier_state(
         "emotion_label": emotion_label,
         "media_signals": media_signals or {},
         **category_info,
+        **patent_category_info,
     }

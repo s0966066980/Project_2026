@@ -143,7 +143,7 @@ S7：系統建立 `multimodal_evidence`，包含視覺證據、語音證據、�
 
 S8：Barrier State Engine 將 `multimodal_evidence`、POS 事件與 UI context 推理為 `barrier_state`。
 
-S9：Intervention Engine 根據 `barrier_state` 產生 `intervention_action`。
+S9：Intervention Pipeline Service 統一呼叫 Barrier State Engine 與 Intervention Engine，根據 `barrier_state` 產生 `intervention_action`，並保存 `intervention_log`。
 
 S10：系統透過 WebSocket 將介入建議即時推送至 POS 與後台 Admin。
 

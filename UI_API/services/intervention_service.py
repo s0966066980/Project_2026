@@ -70,6 +70,35 @@ _STATE_PRESENTATION = {
 }
 
 
+PATENT_INTERVENTION_MAP = {
+    "show_payment_tutorial": "payment_tutorial",
+    "show_coupon_guide": "operation_hint",
+    "show_operation_hint": "operation_hint",
+    "recommend_popular_combo": "recommendation",
+    "call_staff_or_fast_mode": "human_service",
+    "call_staff": "human_service",
+    "ask_clarifying_question": "voice_explanation",
+    "none": "normal_interface",
+}
+
+PATENT_INTERVENTION_LABELS = {
+    "payment_tutorial": "付款教學",
+    "operation_hint": "操作提示",
+    "recommendation": "推薦",
+    "human_service": "真人客服",
+    "voice_explanation": "語音說明",
+    "normal_interface": "維持正常介面",
+}
+
+
+def map_action_to_patent_intervention(action: str) -> dict:
+    key = PATENT_INTERVENTION_MAP.get(action or "none", "voice_explanation")
+    return {
+        "patent_intervention_type": key,
+        "patent_intervention_label": PATENT_INTERVENTION_LABELS.get(key, ""),
+    }
+
+
 def decide_intervention(barrier_result: dict, ui_context: dict | None = None) -> dict:
     result = barrier_result or {}
     state = result.get("barrier_state", "low_confidence")
@@ -99,6 +128,7 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
     else:
         action_level = "none"
 
+    patent_info = map_action_to_patent_intervention(action)
     return {
         "action": action,
         "action_level": action_level,
@@ -107,6 +137,7 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
         "ui_patch": patch,
         "reason": reason,
         "ui_context": ui_context or {},
+        **patent_info,
     }
 
 

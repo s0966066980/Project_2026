@@ -11,6 +11,15 @@ from services import query_router_service
 from services import recommendation_service
 
 
+VOICE_PATHS = {
+    "direct_order": "menu.json -> cart_actions, no RAG unless SAVE_VOICE_ORDER_TO_RAG=true",
+    "menu_question": "menu.json + recommendation_service, RAG only supplements global rules",
+    "ask_recommendation": "menu.json + recommendation_service, RAG only supplements global rules",
+    "rag_question": "strict RAG with retrieve_with_retry and claim verification",
+    "service_question": "strict RAG or customer-service assist depending on wording",
+}
+
+
 def _cart_action_names(cart_actions: list[dict], menu_items: list[dict]) -> list[str]:
     names = []
     for action in cart_actions:
@@ -87,7 +96,7 @@ def _runtime_setting_reply(user_text: str, detected_lang: str) -> str:
     )
 
 
-async def _answer_recommendation_with_rag_llm(
+async def _answer_recommendation_with_menu_llm(
     user_text: str,
     detected_lang: str,
     menu_items: list[dict],
@@ -96,18 +105,11 @@ async def _answer_recommendation_with_rag_llm(
     loop = asyncio.get_running_loop()
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
     global_context = await asyncio.to_thread(database.get_global_rag_context)
-    try:
-        rag_details = await asyncio.to_thread(rag_service.retrieve_with_retry, user_text)
-    except Exception as exc:
-        rag_details = {
-            "context": "",
-            "citations": [],
-            "evaluation": {"sufficient": False, "reason": f"rag_retrieve_error:{exc}"},
-            "quality_gate": {"passed": False, "reason": "rag_retrieve_error"},
-        }
-    rag_context = "\n\n".join(
-        part for part in [global_context, str(rag_details.get("context", "")).strip()] if part
-    )
+    rag_context = str(global_context or "").strip()
+    retrieval_evaluation = {
+        "sufficient": True,
+        "reason": "menu_recommendation_global_rules_only",
+    }
 
     if detected_lang == "en":
         ask_system = config.get("ASK_SYSTEM_PROMPT_EN")
@@ -160,13 +162,14 @@ async def _answer_recommendation_with_rag_llm(
             "ai_response": reply,
             "mentioned_ids": mentioned_ids,
             "rag_debug": {
-                "source": "rag_llm",
-                "quality_gate": rag_details.get("quality_gate"),
-                "retrieval_evaluation": rag_details.get("evaluation"),
-                "citations": rag_details.get("citations"),
+                "source": "menu_recommendation_llm",
+                "quality_gate": None,
+                "retrieval_evaluation": retrieval_evaluation,
+                "citations": [],
+                "voice_path": VOICE_PATHS["ask_recommendation"],
             },
-            "citations": rag_details.get("citations", []),
-            "retrieval_evaluation": rag_details.get("evaluation", {}),
+            "citations": [],
+            "retrieval_evaluation": retrieval_evaluation,
         }
 
     menu_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
@@ -178,12 +181,13 @@ async def _answer_recommendation_with_rag_llm(
             "rag_debug": {
                 "source": "menu_whitelist_fallback",
                 "llm_error": ask_result.get("error", ""),
-                "quality_gate": rag_details.get("quality_gate"),
-                "retrieval_evaluation": rag_details.get("evaluation"),
-                "citations": rag_details.get("citations"),
+                "quality_gate": None,
+                "retrieval_evaluation": retrieval_evaluation,
+                "citations": [],
+                "voice_path": VOICE_PATHS["ask_recommendation"],
             },
-            "citations": rag_details.get("citations", []),
-            "retrieval_evaluation": rag_details.get("evaluation", {}),
+            "citations": [],
+            "retrieval_evaluation": retrieval_evaluation,
         }
     return {"ok": False, "error": ask_result.get("error", "recommendation_unavailable"), "rag_debug": {"source": "failed"}}
 
@@ -393,7 +397,7 @@ async def handle_voice_ask(
         }
 
     if use_ollama and route.get("intent") == "ask_recommendation":
-        rag_answer = await _answer_recommendation_with_rag_llm(
+        rag_answer = await _answer_recommendation_with_menu_llm(
             user_text,
             detected_lang,
             menu_items,
@@ -461,13 +465,36 @@ async def handle_voice_ask(
         }
 
     if route.get("intent") == "menu_question":
-        route = {
-            **route,
-            "intent": "rag_question",
-            "confidence": min(float(route.get("confidence", 0.5)), 0.55),
-            "reason": "menu_question_fallback_to_rag",
-            "requires_rag": True,
-            "requires_llm": True,
+        categories = []
+        for item in menu_items:
+            category = str(item.get("category") or "").strip()
+            if category and category not in categories:
+                categories.append(category)
+        if detected_lang == "en":
+            ai_response = "You can ask about current menu categories such as " + ", ".join(categories[:6]) + "."
+        else:
+            ai_response = "目前可依菜單分類協助推薦，例如：" + "、".join(categories[:6]) + "。也可以直接說想吃雞肉、牛肉、點心或飲料。"
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=ai_response,
+            language=detected_lang
+        )
+        audio_base64 = await ai_services.generate_tts_audio_base64(ai_response, lang=detected_lang)
+        return {
+            "status": "success",
+            "mode": "menu_question",
+            "user_text": user_text,
+            "ai_response": ai_response,
+            "audio_base64": audio_base64,
+            "mentioned_ids": [],
+            "cart_actions": [],
+            "detected_lang": detected_lang,
+            "raw_detected_lang": stt_result.get("raw_language", ""),
+            "dialogue": _dialogue(user_text, ai_response, detected_lang),
+            "citations": [],
+            "retrieval_evaluation": {"sufficient": True, "reason": "menu_question_menu_whitelist_fallback"},
+            "rag_debug": {"route": route, "voice_path": VOICE_PATHS["menu_question"]},
+            "trigger_recommend": True,
         }
 
     if route.get("intent") == "runtime_setting":

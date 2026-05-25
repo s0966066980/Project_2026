@@ -2722,7 +2722,6 @@ async function loadSettings() {
     document.getElementById('inp-rag-strict-grounding').checked = rag.strict_grounding === true;
     document.getElementById('inp-rag-answer-verification').checked = rag.answer_verification === true;
     document.getElementById('inp-rag-fail-closed').checked = rag.fail_closed_on_eval_error === true;
-    document.getElementById('inp-rag-min-score').value = rag.min_retrieval_score || 0.08;
     document.getElementById('inp-rag-min-overlap').value = rag.min_keyword_overlap || 1;
     document.getElementById('inp-rag-max-chars').value = rag.max_answer_chars || 420;
     document.getElementById('inp-rag-top-k-vector').value = rag.top_k_vector || 10;
@@ -2776,7 +2775,6 @@ async function saveSettings() {
     strict_grounding: document.getElementById('inp-rag-strict-grounding').checked,
     answer_verification: document.getElementById('inp-rag-answer-verification').checked,
     fail_closed_on_eval_error: document.getElementById('inp-rag-fail-closed').checked,
-    min_retrieval_score: parseFloat(document.getElementById('inp-rag-min-score').value || '0.08'),
     min_keyword_overlap: parseInt(document.getElementById('inp-rag-min-overlap').value || '1', 10),
     max_answer_chars: parseInt(document.getElementById('inp-rag-max-chars').value || '420', 10),
     top_k_vector: parseInt(document.getElementById('inp-rag-top-k-vector').value || '10', 10),

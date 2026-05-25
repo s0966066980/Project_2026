@@ -65,9 +65,6 @@ def get_global_rag_context(source_types: tuple[str, ...] = ("manual",)) -> str:
             lines.append(f"{idx}. {text}")
     return "\n".join(lines)
 
-def _docs_to_chroma_documents(rag_docs):
-    return rag_service.chunks_to_documents(rag_service.rag_docs_to_chunks(rag_docs))
-
 def _ensure_rag_docs_from_menu(menu_items):
     os.makedirs(config.LEARNING_DATA_DIR, exist_ok=True)
     if not os.path.exists(config.RAG_DOCS_JSON_PATH):
@@ -121,15 +118,6 @@ def retrieve_menu_from_rag(query: str, emotion_desc: str = "") -> str:
         return fallback_context()
 
     return "\n\n".join(part for part in [global_context, result.get("context", "").strip()] if part)
-
-def retrieve_rag_details(query: str, emotion_desc: str = "") -> dict:
-    global_context = get_global_rag_context()
-    result = rag_service.retrieve(query, emotion_desc)
-    result["context"] = "\n\n".join(part for part in [global_context, result.get("context", "").strip()] if part)
-    return result
-
-def get_last_rag_retrieval() -> dict:
-    return rag_service.get_last_retrieval()
 
 def get_rag_docs():
     try:
@@ -212,24 +200,6 @@ def delete_rag_doc(doc_id: str, rebuild: bool = True):
         if rebuild:
             init_rag_system(force_rebuild=True)
     return changed
-
-def mark_missing_menu_rag_docs_deleted(active_menu_ids: set[str]):
-    docs = get_rag_docs()
-    changed = False
-    for doc in docs:
-        if (
-            doc.get("source_type") == "menu"
-            and doc.get("source_id") not in active_menu_ids
-            and not doc.get("deleted")
-        ):
-            doc["deleted"] = True
-            doc["updated_at"] = _now_iso()
-            changed = True
-    if changed:
-        save_rag_docs(docs)
-    return changed
-
-
 
 def _build_successful_experiences() -> str:
     try:
