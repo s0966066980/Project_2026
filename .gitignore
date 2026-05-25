@@ -42,9 +42,8 @@ temp/
 # Runtime/generated local data
 UI_API/chroma_db/
 UI_API/chroma_db_versions/
-UI_API/learning_data/customer_service_media/
-UI_API/learning_data/emotion_order_media/
-UI_API/learning_data/rag_vector_meta.json
+UI_API/learning_data/
+!UI_API/learning_data/.gitkeep
 
 # Generated audio fixtures / transient samples
 Emotion-LLaMA/audio.wav

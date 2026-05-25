@@ -1,0 +1,28 @@
+{
+  "AI_PROVIDER": "ollama",
+  "QA_AI_PROVIDER": "ollama",
+  "MODEL_NAME": "llama3.2",
+  "ASK_MODEL_NAME": "llama3.2",
+  "CUSTOMER_SERVICE_MODE": "ollama",
+  "SAVE_VOICE_ORDER_TO_RAG": false,
+  "SAVE_CUSTOMER_SERVICE_TO_RAG": false,
+  "WHISPER_MODEL_SIZE": "base",
+  "RAG_TOP_K": 3,
+  "rag": {
+    "use_multi_query": true,
+    "use_hybrid_search": true,
+    "use_reranker": true,
+    "use_context_compression": true,
+    "use_answer_evaluation": true,
+    "strict_grounding": true,
+    "answer_verification": true,
+    "min_retrieval_score": 0.08,
+    "min_keyword_overlap": 1,
+    "embedding_provider": "ollama",
+    "embedding_model": "nomic-embed-text"
+  },
+  "INTERACTION_TRIGGER_THRESHOLD": 5,
+  "PRIVACY_SAVE_RAW_CLIP": true,
+  "PRIVACY_RAW_CLIP_RETENTION_MINUTES": 10,
+  "PRIVACY_STORE_EVENT_VECTOR_ONLY": true
+}

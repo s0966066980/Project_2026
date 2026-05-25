@@ -1,0 +1,17 @@
+[
+  {
+    "id": "sample-manual-policy",
+    "source_type": "manual",
+    "source_id": "sample_policy_001",
+    "source_text": "示範 RAG 規則：回答菜單推薦時只能使用 menu_data/menu.json 中存在的餐點，不得編造不存在的優惠或價格。",
+    "reviewed_text": "回答菜單推薦時只能使用 menu_data/menu.json 中存在的餐點，不得編造不存在的優惠或價格。",
+    "review_status": "approved",
+    "review_notes": "sample data only",
+    "metadata": {
+      "purpose": "demo"
+    },
+    "created_at": "2026-05-25T00:00:00",
+    "updated_at": "2026-05-25T00:00:00",
+    "deleted": false
+  }
+]
