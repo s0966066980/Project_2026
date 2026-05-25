@@ -220,15 +220,6 @@ def _sanitize_transcript(text: str) -> str:
     return cleaned
 
 
-def _run_async_from_sync(coro):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    coro.close()
-    raise RuntimeError("This ai_services function is async-capable; call the async_* version inside an event loop.")
-
-
 def _read_binary_file(path: str) -> bytes:
     with open(path, "rb") as f:
         return f.read()
@@ -345,10 +336,6 @@ async def async_safe_transcribe(file_path: str) -> str:
             await asyncio.to_thread(os.remove, wav_path)
 
 
-def safe_transcribe(file_path: str) -> str:
-    return _run_async_from_sync(async_safe_transcribe(file_path))
-
-
 async def async_safe_transcribe_with_language(file_path: str) -> dict:
     """辨識語音並偵測語言，回傳產品支援的 {text, language}，language 只會是 zh 或 en。"""
     init_whisper()
@@ -398,9 +385,6 @@ async def async_safe_transcribe_with_language(file_path: str) -> dict:
         if os.path.exists(wav_path):
             await asyncio.to_thread(os.remove, wav_path)
 
-
-def safe_transcribe_with_language(file_path: str) -> dict:
-    return _run_async_from_sync(async_safe_transcribe_with_language(file_path))
 
 def _build_emotion_llama_prompt(
     speech_text: str = "",
@@ -487,10 +471,6 @@ async def async_prepare_emotion_video(video_path: str) -> tuple[str, str | None]
         return video_path, None
 
 
-def _prepare_emotion_video(video_path: str) -> tuple[str, str | None]:
-    return _run_async_from_sync(async_prepare_emotion_video(video_path))
-
-
 def _measure_motion_signals(video_path: str, signals: dict) -> dict:
     try:
         import cv2
@@ -566,10 +546,6 @@ async def async_analyze_emotion_media_signals(video_path: str) -> dict:
     return await asyncio.to_thread(_measure_motion_signals, video_path, signals)
 
 
-def analyze_emotion_media_signals(video_path: str) -> dict:
-    return _run_async_from_sync(async_analyze_emotion_media_signals(video_path))
-
-
 async def async_get_emotion_from_llama(
     video_path: str,
     speech_text: str = "",
@@ -636,25 +612,6 @@ async def async_get_emotion_from_llama(
             except OSError:
                 pass
 
-
-def get_emotion_from_llama(
-    video_path: str,
-    speech_text: str = "",
-    media_signals: dict | None = None,
-    interaction_context: str = "",
-    ui_context: dict | None = None,
-    risk_result: dict | None = None,
-) -> dict:
-    return _run_async_from_sync(
-        async_get_emotion_from_llama(
-            video_path,
-            speech_text,
-            media_signals,
-            interaction_context=interaction_context,
-            ui_context=ui_context,
-            risk_result=risk_result,
-        )
-    )
 
 def _load_yolo_detector():
     global _yolo_detector, _yolo_detector_key

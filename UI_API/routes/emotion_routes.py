@@ -8,7 +8,6 @@ from fastapi.responses import FileResponse
 
 import ai_services
 import config
-import database
 from repositories import emotion_clip_repository, session_repository
 from services import customer_service as customer_emotion_service
 from utils.auth_utils import require_admin_token

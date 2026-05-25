@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -22,6 +23,18 @@ from routes import (
     interaction_routes,
     realtime_routes,
 )
+
+# Allow same-origin requests over any ngrok/cloudflared/localhost tunnel URL so the
+# app behaves identically whether opened locally or through an HTTPS tunnel.
+_TUNNEL_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]"
+    r"|([a-zA-Z0-9-]+\.)*ngrok(-free)?\.(app|io)"
+    r"|([a-zA-Z0-9-]+\.)*trycloudflare\.com"
+    r"|([a-zA-Z0-9-]+\.)*loca\.lt"
+    r")(:[0-9]+)?$"
+)
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
 @asynccontextmanager
@@ -74,11 +87,12 @@ _rag_rebuild_task = None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
+    allow_origin_regex=_TUNNEL_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 async def _background_init():
     global _background_init_done
@@ -204,14 +218,21 @@ if __name__ == "__main__":
         local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
         print(f"🖥️ POS local URL:   http://{local_host}:{pos_port}/pos")
         print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
+        if pos_port != admin_port:
+            print(f"   (Admin 也可由 POS port 直接造訪：http://{local_host}:{pos_port}/admin)")
 
-    def _print_ngrok_tunnel(tunnel, label: str = "POS", path: str = "/pos", token: str = ""):
-        public_url = str(getattr(tunnel, "public_url", "") or tunnel)
+    def _print_tunnel_paths(public_url: str):
+        """Single ngrok tunnel covers /pos, /admin, /demo-tool — same FastAPI app."""
         if not public_url:
             return
-        print(f"🌍 {label} ngrok URL: {public_url}{path}")
-        if token:
-            print(f"🔐 {label} token URL: {public_url}{path}?token={token}")
+        public_url = public_url.rstrip("/")
+        print(f"🌍 ngrok public URL: {public_url}")
+        print(f"   🖥️  POS:        {public_url}/pos"
+              + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
+        print(f"   🛠️  Admin:      {public_url}/admin"
+              + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
+        print(f"   🧪 Demo tool:  {public_url}/demo-tool")
+        print("   ℹ️  若 ngrok free tier 出現警告頁，按 Visit Site 即可進入。")
 
     _print_access_urls()
     if config.ENABLE_NGROK and config.NGROK_AUTHTOKEN:
@@ -219,12 +240,22 @@ if __name__ == "__main__":
             from pyngrok import ngrok
 
             ngrok.set_auth_token(config.NGROK_AUTHTOKEN)
-            pos_tunnel = ngrok.connect(pos_port)
-            _print_ngrok_tunnel(pos_tunnel, "POS", "/pos", config.POS_DEMO_TOKEN)
-            print(f"🧪 Demo tool URL:   {pos_tunnel.public_url}/demo-tool")
-            if admin_port != pos_port:
-                admin_tunnel = ngrok.connect(admin_port)
-                _print_ngrok_tunnel(admin_tunnel, "Admin", "/admin", config.ADMIN_DEMO_TOKEN)
+            existing = []
+            try:
+                existing = ngrok.get_tunnels()
+            except Exception:
+                existing = []
+            tunnel_url = ""
+            for tunnel in existing:
+                config_data = getattr(tunnel, "config", {}) or {}
+                addr = str(config_data.get("addr") if isinstance(config_data, dict) else "")
+                if addr.endswith(f":{pos_port}") or addr.endswith(f"://localhost:{pos_port}"):
+                    tunnel_url = str(getattr(tunnel, "public_url", "") or "")
+                    break
+            if not tunnel_url:
+                tunnel = ngrok.connect(pos_port)
+                tunnel_url = str(getattr(tunnel, "public_url", "") or "")
+            _print_tunnel_paths(tunnel_url)
         except ImportError:
             print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
         except Exception as e:
@@ -232,17 +263,12 @@ if __name__ == "__main__":
             try:
                 from pyngrok import ngrok
 
-                tunnels = ngrok.get_tunnels()
-                if tunnels:
-                    print("ℹ️ 目前偵測到既有 ngrok tunnel：")
-                    for existing_tunnel in tunnels:
-                        public_url = str(getattr(existing_tunnel, "public_url", "") or existing_tunnel)
-                        config_desc = str(getattr(existing_tunnel, "config", "") or "")
-                        print(f"🌍 Existing ngrok URL: {public_url} ({config_desc})")
-                else:
-                    print("ℹ️ 沒有可列出的既有 ngrok tunnel。")
-            except Exception as list_error:
-                print(f"ℹ️ 無法列出既有 ngrok tunnel: {list_error}")
+                for existing_tunnel in ngrok.get_tunnels() or []:
+                    public_url = str(getattr(existing_tunnel, "public_url", "") or "")
+                    if public_url:
+                        print(f"🌍 既有 ngrok tunnel: {public_url}")
+            except Exception:
+                pass
     else:
         if config.NGROK_AUTHTOKEN:
             print("ℹ️ ngrok token 已設定，但 ENABLE_NGROK=false；若要顯示外網網址，請設定 ENABLE_NGROK=true 後重啟。")

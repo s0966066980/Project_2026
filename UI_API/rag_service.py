@@ -582,44 +582,6 @@ def _retrieval_quality_gate(question: str, chunks: list[RagChunk]) -> dict:
         "max_overlap": max_overlap
     }
 
-def verify_answer_grounding(question: str, answer: str, context: str) -> dict:
-    if ai_services is None:
-        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer}
-        
-    system_prompt = (
-        "你是 RAG 答案驗證器。只判斷回答是否完全被 context 支持。\n"
-        "注意：verification context 可能包含「完整菜單白名單」與「RAG 補充內容」。\n"
-        "- 菜單白名單只能支持：餐點名稱、餐點 ID、價格、分類、製作時間、aliases。\n"
-        "- RAG 補充內容才支持：政策、活動、設定、操作規則、客服話術、後台規範。\n"
-        "若回答把菜單白名單不存在的政策、活動、折扣、系統設定說成事實，grounded=false。\n"
-        "若回答提到任何 context 沒有的數字、價格、模型名稱、門檻、活動日期、優惠內容，grounded=false。\n"
-        "safe_answer 必須是繁體中文短句：「目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。」或只保留 context 支持的內容。\n"
-        "輸出 JSON：\n"
-        "{\n"
-        "  \"grounded\": true/false,\n"
-        "  \"unsupported_claims\": [],\n"
-        "  \"safe_answer\": \"若不支持，改寫成保守回答\"\n"
-        "}"
-    )
-    user_prompt = f"問題：{question}\n\n回答：{answer}\n\nContext:\n{context}"
-    try:
-        # Use low temperature for verification
-        result = ai_services.ask_llm(system_prompt, user_prompt, "RAG_VERIFY", temperature=0.1)
-        if isinstance(result, dict) and "grounded" in result:
-            return result
-        raise ValueError("Missing 'grounded' field in AI response")
-    except Exception as e:
-        settings = _rag_settings()
-        if settings.get("fail_closed_on_eval_error", True):
-            return {
-                "grounded": False,
-                "unsupported_claims": ["verification_failed"],
-                "safe_answer": "目前文件沒有足夠資訊回答，請新增對應 RAG 文件或確認設定。",
-                "reason": str(e)
-            }
-        return {"grounded": True, "unsupported_claims": [], "safe_answer": answer, "reason": "verification_failed_open"}
-
-
 def verify_claims_grounding(question: str, answer: str, context: str) -> dict:
     if ai_services is None:
         return {"grounded": True, "claims": [], "safe_answer": answer}
