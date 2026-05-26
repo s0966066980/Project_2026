@@ -1118,6 +1118,7 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
   clearAllPushCards();
 
   // 使用 closure 計時器（不污染全域 interactionModalTimer）
+  let _renderInFlight = false;
   let _scenarioCardTimer = null;
   const _clearScenarioTimer = () => {
     if (_scenarioCardTimer) { clearTimeout(_scenarioCardTimer); _scenarioCardTimer = null; }
@@ -1210,21 +1211,27 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
 
   // 翻書特效換入新卡（換一個 & 初次顯示皆呼叫此函式）
   async function renderWithFlip(items) {
-    if (!items) items = await resolveItems();
-    const newCard = buildCard(items);
+    if (_renderInFlight) return;
+    _renderInFlight = true;
+    try {
+      if (!items) items = await resolveItems();
+      const newCard = buildCard(items);
 
-    const oldCard = ui.floatPush.firstElementChild;
-    if (oldCard && oldCard.classList.contains('push-card')) {
-      oldCard.classList.add('push-card-flip-out');
-      await new Promise(r => setTimeout(r, 220));
+      const oldCard = ui.floatPush.firstElementChild;
+      if (oldCard && oldCard.classList.contains('push-card')) {
+        oldCard.classList.add('push-card-flip-out');
+        await new Promise(r => setTimeout(r, 220));
+      }
+
+      ui.floatPush.replaceChildren(newCard);
+      newCard.style.animation = 'none';
+      newCard.classList.add('push-card-flip-in');
+
+      _clearScenarioTimer();
+      _scenarioCardTimer = setTimeout(() => { _scenarioCardTimer = null; clearAllPushCards(); }, 10000);
+    } finally {
+      _renderInFlight = false;
     }
-
-    ui.floatPush.replaceChildren(newCard);
-    newCard.style.animation = 'none';
-    newCard.classList.add('push-card-flip-in');
-
-    _clearScenarioTimer();
-    _scenarioCardTimer = setTimeout(() => { _scenarioCardTimer = null; clearAllPushCards(); }, 10000);
   }
 
   await renderWithFlip(await resolveItems());
@@ -1494,9 +1501,6 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
 // 啟動
 // =========================================================
 ui.startBtn.onclick = async () => {
-  // 閒置偵測：任何觸控 / 點擊都重設計時
-  document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); }, { passive: true });
-  document.addEventListener('touchstart',  () => { lastInteractionAt = Date.now(); }, { passive: true });
   if (isAdminMode()) return;
   try {
     await loadRuntimeSettings();
@@ -1521,6 +1525,10 @@ ui.startBtn.onclick = async () => {
     if (f.voiceAssist) setupAskRecorder();
   } catch { alert("無法存取攝影機與麥克風。"); }
 };
+
+// 閒置偵測：任何觸控 / 點擊都重設計時（全域，只需註冊一次）
+document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); }, { passive: true });
+document.addEventListener('touchstart',  () => { lastInteractionAt = Date.now(); }, { passive: true });
 
 ui.startBtn?.addEventListener('pointerdown', () => {
   ui.overlay?.classList.add('startup-pressing');
