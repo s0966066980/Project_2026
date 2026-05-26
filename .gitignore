@@ -1,3 +1,7 @@
+# Development instructions (local only)
+CLAUDE.md
+AGENTS.md
+
 # Environment and secrets
 .env
 .env.*

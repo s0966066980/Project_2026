@@ -58,15 +58,15 @@ python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 
 ```bash
 ollama serve
-ollama pull llama3.2
-ollama pull gemma4
+ollama pull qwen3.5:4b
+ollama pull qwen3.5:9b
 ollama pull nomic-embed-text
 ```
 
 預設模型：
 
-- `MODEL_NAME=llama3.2`
-- `ASK_MODEL_NAME=llama3.2`
+- `MODEL_NAME=qwen3.5:4b`（AI 推播）
+- `VOICE_ASSIST_MODEL=qwen3.5:9b`（語音協助）
 - embedding 預設 `nomic-embed-text`
 
 ### 3. Python 套件
@@ -102,7 +102,6 @@ pip install -r requirements-lock.txt
 - Interaction Event Engine：POS 操作事件與風險分數。
 - Barrier State Engine：互動障礙狀態推理。
 - Intervention Engine：服務介入決策。
-- Customer Service State Engine：客服狀態與優先級推理。
 
 ---
 
@@ -165,7 +164,6 @@ UI_API/
 │   ├── menu_routes.py
 │   ├── rag_routes.py
 │   ├── voice_routes.py
-│   ├── customer_service_routes.py
 │   ├── recommendation_routes.py
 │   ├── emotion_routes.py
 │   ├── interaction_routes.py
@@ -242,7 +240,6 @@ UI_API/
 - `core_routes.py`：首頁、設定、checkout、推播 logs。
 - `menu_routes.py`：菜單讀寫。
 - `voice_routes.py`：語音點餐與語音問答。
-- `customer_service_routes.py`：客服請求、客服紀錄、真人回覆。
 - `recommendation_routes.py`：AI 推播。
 - `rag_routes.py`：RAG 文本、PDF 匯入、審查紀錄。
 - `emotion_routes.py`：debug 情緒偵測、人物偵測、影像片段。
@@ -728,8 +725,6 @@ Context + Citation
 | --- | --- |
 | `POST /api/ask` | 語音點餐與語音問答 |
 | `POST /api/customer_service` | 客服語音分析與回覆 |
-| `GET /api/customer_service_logs` | 客服紀錄 |
-| `POST /api/customer_service_logs/{source_id}/human_reply` | 真人客服回覆 |
 
 ### RAG
 
@@ -879,8 +874,8 @@ ADMIN_PORT=8001
 AI_PROVIDER=ollama
 QA_AI_PROVIDER=ollama
 EMOTION_AI_PROVIDER=ollama
-MODEL_NAME=llama3.2
-ASK_MODEL_NAME=llama3.2
+MODEL_NAME=qwen3.5:4b
+VOICE_ASSIST_MODEL=qwen3.5:9b
 CUSTOMER_SERVICE_MODE=ollama
 EVENT_TRIGGERED_MULTIMODAL_ENABLED=true
 EMOTION_PERIODIC_ENABLED=false

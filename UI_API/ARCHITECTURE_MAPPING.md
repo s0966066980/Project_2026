@@ -21,7 +21,7 @@
 | 互動障礙狀態 | `services/barrier_state_service.py` | `POST /api/barrier_state` | `barrier_state`, `patent_category` | 已完成 | internal state 保留，另映射 PPT 三大類 |
 | 介入決策引擎 | `services/intervention_pipeline_service.py`, `services/intervention_service.py` | `POST /api/barrier_state`, `POST /api/triggered_multimodal_analysis`, `/api/demo/trigger_scenario` | `intervention`, `patent_intervention_type` | 已完成 | route 不再各自重複決策 |
 | 付款教學 / 操作提示 / 推薦 | `services/intervention_service.py`, `static/app.js`, `static/realtime_client.js` | WebSocket `intervention` | `ui_patch`, `tts_text` | 已完成 | 保持現有 POS 呈現 |
-| 需要真人客服 | `routes/customer_service_routes.py`, `services/customer_service_handler.py`, `services/customer_service_state_service.py` | `POST /api/customer_service`, admin WebSocket `staff_notify` | `needs_human_staff`, `priority` | 已完成 | 人工回覆仍由 admin route 推回 POS |
+| 需要真人客服 | `services/customer_service_handler.py`, `services/customer_service_state_service.py` | `POST /api/customer_service`, admin WebSocket `staff_notify` | `needs_human_staff`, `priority` | 已完成 | 人工回覆由 admin route 推回 POS |
 | 即時推播 | `realtime/event_bus.py`, `routes/realtime_routes.py`, `static/realtime_client.js` | `/ws/{session_id}`, `/ws/demo/{session_id}` | `intervention`, `staff_notify`, `human_reply` | 已完成 | 介入推播統一由 pipeline 發出 |
 | 喇叭 → TTS | `ai_services.py`, `services/voice_order_service.py`, `services/customer_service_handler.py` | `POST /api/ask`, `POST /api/customer_service` | `audio_base64` | 已完成 | direct_order/menu_question/rag_question 都回 TTS |
 | 結帳 → 成效回寫 | `routes/core_routes.py`, `repositories/interaction_event_repository.py`, `database.py` | `POST /api/checkout`, `POST /api/intervention_result` | `recommendation_result`, `intervention_result` | 已完成 | 推薦成效與介入成效分開記錄 |
