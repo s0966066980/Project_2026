@@ -1718,12 +1718,42 @@ function setupAskRecorder() {
   };
 }
 
+// 語音模式開始時非同步捕捉 emotion 快照（不阻塞錄音）
+function captureEmotionSnapshotForVoice() {
+  if (!stream || !stream.getVideoTracks().length) return;
+  if (!getFeatures().emotion) return;
+  if (!isPosActive()) return;
+  const rec = createVideoRecorder(stream);
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  rec.onstop = async () => {
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    if (blob.size < 2000) return;
+    const fd = new FormData();
+    fd.append('session_id', sessionId);
+    fd.append('video', blob, 'voice_emotion_snapshot.webm');
+    fd.append('detect_only', 'false');
+    try {
+      const d = await api.pingState(fd);
+      if (d.person_check) updateEmotionDetectionOverlay(d.person_check);
+      if ((d.status === 'success' || d.status === 'not_executed') && d.emotion_structured) {
+        lastEmotionStructured = d.emotion_structured;
+      }
+    } catch { /* 非關鍵路徑，靜默忽略 */ }
+  };
+  try {
+    rec.start();
+    setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, 1000);
+  } catch { /* 無攝影機時靜默跳過 */ }
+}
+
 function startAskRecording(sourceBtn) {
   if (!voiceOrderingAvailable) {
     showPushNotice(kioskLang === 'en' ? 'Voice assist is not ready yet.' : '語音協助尚未準備完成。');
     return;
   }
   if (askRecorder && askRecorder.state === 'inactive') {
+    captureEmotionSnapshotForVoice();
     voiceAssistRecommendFallbackUntil = Date.now() + 45000;
     trackInteractionEvent({
       event_type: 'voice_assist_started',
