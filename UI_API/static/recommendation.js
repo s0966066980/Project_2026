@@ -7,7 +7,8 @@ export function createRecommendationManager({
   addToCart,
   sessionPushedIds,
 }) {
-  let currentCard = null;
+  let currentCard = null;   // scenario card in #floatPush
+  let currentTicker = null; // ticker bar in #recommendTicker
   let dismissTimer = null;
 
   function _extractReason(ollamaResult) {
@@ -24,19 +25,39 @@ export function createRecommendationManager({
     }
   }
 
+  // ── 清除 scenario 卡片（#floatPush）──
   function clearPushCard() {
     if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
     if (currentCard) {
       currentCard.classList.add('push-fade-out');
-      const card = currentCard;
+      const c = currentCard;
       currentCard = null;
-      setTimeout(() => card.remove(), 400);
+      setTimeout(() => c.remove(), 400);
     }
     ui.floatPush.replaceChildren();
   }
 
-  function clearAllPushCards() { clearPushCard(); }
+  // ── 清除跑馬燈（#recommendTicker）──
+  function clearTicker() {
+    if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
+    if (!ui.recommendTicker) return;
+    if (currentTicker) {
+      currentTicker.classList.add('ticker-fade-out');
+      const t = currentTicker;
+      currentTicker = null;
+      setTimeout(() => { t.remove(); ui.recommendTicker.replaceChildren(); }, 400);
+    } else {
+      ui.recommendTicker.replaceChildren();
+    }
+  }
 
+  // ── 清除所有推播（scenario + ticker）──
+  function clearAllPushCards() {
+    clearPushCard();
+    clearTicker();
+  }
+
+  // ── 通知訊息（#floatPush 小提示）──
   function showPushNotice(text) {
     if (!isPosActive()) return;
     clearPushCard();
@@ -51,73 +72,68 @@ export function createRecommendationManager({
     dismissTimer = setTimeout(clearPushCard, 4000);
   }
 
+  // ── 為您推薦跑馬燈（#recommendTicker）──
   function showPushCard(items, reason, ollamaResult) {
-    if (!isPosActive()) return;
+    if (!isPosActive() || !ui.recommendTicker) return;
     const itemList = (Array.isArray(items) ? items : [items]).filter(Boolean).slice(0, 3);
     if (!itemList.length) return;
 
-    clearPushCard();
+    clearTicker();  // 清舊跑馬燈
 
-    const card = document.createElement('div');
-    card.className = 'push-card';
-
-    const total = itemList.reduce((s, item) => s + Number(item.price || 0), 0);
-    const finalText = _extractReason(ollamaResult) || reason || '';
     const names = itemList.map(i => i.name || '').filter(Boolean).join('、');
+    const total = itemList.reduce((s, item) => s + Number(item.price || 0), 0);
     const priceText = itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`;
+    const finalText = _extractReason(ollamaResult) || reason || '';
+    // 跑馬燈文字：「品名　推薦理由　價格」，空白用全形空格分隔
+    const scrollText = [names, finalText, priceText].filter(Boolean).join('　·　');
 
-    // Header row
-    const header = document.createElement('div');
-    header.className = 'push-card-header';
-    const titleEl = document.createElement('span');
-    titleEl.className = 'push-card-title';
-    titleEl.textContent = '為您推薦';
+    const bar = document.createElement('div');
+    bar.className = 'recommend-ticker-bar';
+
+    // 左側標籤
+    const label = document.createElement('span');
+    label.className = 'recommend-ticker-label';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-star';
+    label.appendChild(icon);
+    label.appendChild(document.createTextNode(' 為您推薦'));
+
+    // 滾動文字區
+    const scrollWrap = document.createElement('div');
+    scrollWrap.className = 'recommend-ticker-scroll';
+    const scrollEl = document.createElement('span');
+    scrollEl.className = 'recommend-ticker-text';
+    scrollEl.textContent = scrollText;
+    scrollWrap.appendChild(scrollEl);
+
+    // 加入按鈕
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'recommend-ticker-add';
+    const cartIcon = document.createElement('i');
+    cartIcon.className = 'fas fa-cart-plus';
+    addBtn.appendChild(cartIcon);
+    addBtn.appendChild(document.createTextNode(' 加入'));
+    addBtn.onclick = () => {
+      itemList.forEach(item => addToCart(item));
+      clearTicker();
+    };
+
+    // 關閉按鈕
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
-    closeBtn.className = 'push-close-btn';
+    closeBtn.className = 'recommend-ticker-close';
     closeBtn.setAttribute('aria-label', '關閉');
     const closeIcon = document.createElement('i');
     closeIcon.className = 'fas fa-times';
     closeBtn.appendChild(closeIcon);
-    closeBtn.onclick = clearPushCard;
-    header.appendChild(titleEl);
-    header.appendChild(closeBtn);
+    closeBtn.onclick = clearTicker;
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'push-item-names';
-    nameEl.textContent = names;
+    bar.append(label, scrollWrap, addBtn, closeBtn);
+    ui.recommendTicker.replaceChildren(bar);
+    currentTicker = bar;
 
-    const priceEl = document.createElement('div');
-    priceEl.className = 'push-item-price';
-    priceEl.textContent = priceText;
-
-    const reasonEl = document.createElement('p');
-    reasonEl.className = 'push-reason';
-    reasonEl.textContent = finalText;
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'push-add-btn btn-primary';
-    const cartIcon = document.createElement('i');
-    cartIcon.className = 'fas fa-cart-plus';
-    addBtn.appendChild(cartIcon);
-    addBtn.appendChild(document.createTextNode(
-      itemList.length > 1 ? ` 加入這組 $${total}` : ' 加入購物車'
-    ));
-    addBtn.onclick = () => {
-      itemList.forEach(item => addToCart(item));
-      clearPushCard();
-    };
-
-    card.appendChild(header);
-    card.appendChild(nameEl);
-    card.appendChild(priceEl);
-    card.appendChild(reasonEl);
-    card.appendChild(addBtn);
-    ui.floatPush.appendChild(card);
-    currentCard = card;
-
-    dismissTimer = setTimeout(clearPushCard, 5000);
+    dismissTimer = setTimeout(clearTicker, 8000);
   }
 
   function displayRecommendation(data) {

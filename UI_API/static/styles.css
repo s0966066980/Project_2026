@@ -1939,16 +1939,114 @@
   background: var(--accent2); color: #fff; border-color: var(--accent2);
 }
 
-/* ============ Recommendation popup — bottom-center (Task 3) ============ */
+/* ============ Recommendation popup / ticker ============ */
+/* scenario 卡片（還在猶豫）浮動卡 */
 #floatPush {
   position: fixed;
-  bottom: 110px;   /* 高於底部列（約 80px）+ 間距，避免與語音按鈕重疊 */
+  bottom: 110px;   /* 高於底部列 + 間距 */
   left: 50%;
   transform: translateX(-50%);
   z-index: 980;
   width: clamp(260px, 88vw, 360px);
   pointer-events: none;
 }
+
+/* 為您推薦跑馬燈 — 緊貼底部列上方，全 kiosk 寬度 */
+#recommendTicker {
+  position: fixed;
+  bottom: clamp(92px, 12vh, 118px);   /* kiosk 底部列高度 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 975;
+  width: clamp(300px, min(100dvw, 177.7777dvh), 960px);
+  pointer-events: none;
+}
+@media (orientation: portrait), (max-aspect-ratio: 1/1), (max-width: 900px) {
+  #recommendTicker {
+    bottom: clamp(74px, 10vh, 96px);  /* 行動版底部列高度 */
+    width: 100dvw;
+    left: 0;
+    transform: none;
+  }
+}
+
+/* ── 跑馬燈本體 ── */
+.recommend-ticker-bar {
+  pointer-events: all;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(90deg, #c8102e 0%, #d62b2b 100%);
+  color: #fff;
+  padding: 10px 14px;
+  min-height: 52px;
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.22);
+  animation: ticker-slide-up 0.3s ease-out forwards;
+}
+.recommend-ticker-bar.ticker-fade-out {
+  animation: push-fade-out 0.4s ease forwards;
+}
+@keyframes ticker-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.recommend-ticker-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  padding: 3px 9px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 6px;
+}
+.recommend-ticker-scroll {
+  flex: 1;
+  overflow: hidden;
+  height: 22px;
+  position: relative;
+}
+.recommend-ticker-text {
+  white-space: nowrap;
+  position: absolute;
+  top: 0;
+  left: 0;
+  line-height: 22px;
+  font-size: 14px;
+  font-weight: 600;
+  /* 從右側進入，往左滾出 */
+  padding-left: 100%;
+  animation: ticker-scroll 16s linear infinite;
+}
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-200%); }
+}
+.recommend-ticker-add {
+  flex-shrink: 0;
+  background: #ffc72c;
+  color: #1a1a1a;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.recommend-ticker-add:hover { background: #ffd454; }
+.recommend-ticker-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.65);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: color 0.15s;
+}
+.recommend-ticker-close:hover { color: #fff; }
 .push-card {
   pointer-events: all;
   background: rgba(20, 20, 20, 0.82);

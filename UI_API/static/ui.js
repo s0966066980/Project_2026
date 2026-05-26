@@ -56,6 +56,7 @@ export const ui = {
   emotionBadge: document.getElementById('emotionBadge'),
   emotionText: document.getElementById('emotionText'),
   floatPush: document.getElementById('floatPush'),
+  recommendTicker: document.getElementById('recommendTicker'),
   emotionFeed: document.getElementById('emotionFeed'),
   voiceBubble: document.getElementById('voiceReplyBubble'),
   voiceDialogueGrid: document.getElementById('voiceDialogueGrid'),

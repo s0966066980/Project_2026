@@ -1234,6 +1234,12 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
     return;
   }
   if (modalName === 'recommendation_card') {
+    // 只有顧客超過 15 秒沒有點選任何餐點，才顯示猶豫推播，避免干擾正在選餐的顧客
+    const HESITATION_IDLE_MS = 15_000;
+    if (Date.now() - lastValidOrderActionAt < HESITATION_IDLE_MS) {
+      console.log('[intervention] skip recommendation_card: user acted within 15s');
+      return;
+    }
     showScenarioRecommendationCard(intervention, barrierResult);
     return;
   }
