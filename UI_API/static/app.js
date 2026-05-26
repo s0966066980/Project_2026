@@ -61,6 +61,7 @@ let detectionLoopId = null;
 let detectionInFlight = false;
 let recommendLoopId = null;
 let demoRecommendTimer = null;
+let recommendRequestInFlight = false;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
 let lastMediaSignals = {};
@@ -78,7 +79,6 @@ let voiceOrderingAvailable = false;
 let autoVoiceTimer = null;
 let autoVoiceInFlight = false;
 let askRecordingStartedAt = 0;
-let voiceAssistRecommendFallbackUntil = 0;
 let lastValidOrderActionAt = 0;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
@@ -93,6 +93,9 @@ const interactionState = {
   paymentFailCount: 0,
   couponErrorCount: 0,
   cartEditCount: 0,
+  categorySwitchCount: 0,
+  cartRemoveCount: 0,
+  recommendIgnoreCount: 0,
   lastReportedDwellPage: '',
 };
 
@@ -154,6 +157,8 @@ const KIOSK_TEXT = {
     noVoiceOrderItem: '沒有在菜單中找到可加入購物車的餐點。',
     networkFailed: '網路連線失敗，請稍後再試。',
     voiceOrderFailed: '語音協助失敗，請稍後再試。',
+    voiceTooShort: '沒有聽到完整語音，請再說一次。',
+    voiceMicNotReady: '麥克風尚未準備完成，請確認瀏覽器麥克風權限。',
     zhOutput: '繁體中文輸出',
     enOutput: 'English output',
     checkoutProcessing: '結帳中...',
@@ -211,6 +216,8 @@ const KIOSK_TEXT = {
     noVoiceOrderItem: 'No matching menu item was found.',
     networkFailed: 'Network failed. Please try again later.',
     voiceOrderFailed: 'Voice assistance failed. Please try again later.',
+    voiceTooShort: 'I did not hear a complete request. Please try again.',
+    voiceMicNotReady: 'The microphone is not ready. Please check browser microphone permission.',
     zhOutput: 'Traditional Chinese output',
     enOutput: 'English output',
     checkoutProcessing: 'Checking out...',
@@ -629,11 +636,13 @@ function trackedUpdateCartQty(id, delta) {
 
 function trackedDeleteCartItem(id) {
   lastValidOrderActionAt = Date.now();
+  interactionState.cartRemoveCount += 1;
   cartManager.deleteCartItem(id);
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: `cart_delete_${id}`,
     cart_edit_count: 1,
+    cart_remove_count: interactionState.cartRemoveCount,
     metadata: { action: 'delete', item_id: id }
   });
 }
@@ -712,9 +721,21 @@ function renderKioskCategories() {
 }
 
 function showMenuGroup(groupId, filter = '全部') {
+  const switchingInMenu = kioskScreen === 'menu' && (kioskActiveGroup !== groupId || kioskActiveFilter !== filter);
   kioskScreen = 'menu';
   kioskActiveGroup = groupId;
   kioskActiveFilter = filter;
+  if (switchingInMenu) {
+    interactionState.categorySwitchCount += 1;
+    if (interactionState.categorySwitchCount >= 4) {
+      trackInteractionEvent({
+        event_type: 'category_switch_repeat',
+        button_id: `category_${groupId}`,
+        category_switch_count: interactionState.categorySwitchCount,
+        metadata: { action: 'category_switch', group_id: groupId, filter }
+      });
+    }
+  }
   renderMenu();
 }
 
@@ -866,7 +887,7 @@ function applyKioskLanguage() {
   if (_vaLangText) _vaLangText.textContent = kt('holdVoiceOrder');
   if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
   if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
-  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Tap or hold to close' : '點擊或按住關閉';
+  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音';
   if (ui.cartCountBadge) {
     const qty = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
     ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(qty));
@@ -973,6 +994,9 @@ function normalizeInteractionPayload(event = {}) {
     payment_fail_count: Number(event.payment_fail_count ?? interactionState.paymentFailCount) || 0,
     coupon_error_count: Number(event.coupon_error_count ?? interactionState.couponErrorCount) || 0,
     cart_edit_count: Number(event.cart_edit_count ?? interactionState.cartEditCount) || 0,
+    category_switch_count: Number(event.category_switch_count ?? interactionState.categorySwitchCount) || 0,
+    cart_remove_count: Number(event.cart_remove_count ?? interactionState.cartRemoveCount) || 0,
+    recommend_ignore_count: Number(event.recommend_ignore_count ?? interactionState.recommendIgnoreCount) || 0,
     idle_time_sec: Number(event.idle_time_sec ?? getIdleTimeSec()) || 0,
     metadata,
     ui_context: buildUIContext(metadata.ui_context || {}),
@@ -1090,6 +1114,75 @@ function stopAdminLiveRefresh() {
   adminRefreshTimer = null;
 }
 
+async function showScenarioRecommendationCard(intervention = {}, barrierResult = {}) {
+  if (!isPosActive() || !ui.floatPush) return;
+  clearAllPushCards();
+
+  async function resolveItems(forceDefault = false) {
+    const directIds = Array.isArray(intervention.recommendation_ids)
+      ? intervention.recommendation_ids
+      : [];
+    let items = findMenuItems(directIds);
+    if (items.length) return items.slice(0, 3);
+
+    const fd = new FormData();
+    fd.append('session_id', sessionId);
+    if (forceDefault) {
+      fd.append('force_default', 'true');
+    }
+    try {
+      const data = await api.autoRecommend(fd);
+      if (data.status === 'success') {
+        items = findMenuItems(data.recommendation_ids || []);
+      }
+    } catch { /* fallback below */ }
+    if (!items.length) {
+      items = menuData
+        .filter(item => item && item.id && Number(item.price || 0) > 0)
+        .slice(0, 3);
+    }
+    return items.slice(0, 3);
+  }
+
+  function render(items = []) {
+    const itemList = items.filter(Boolean).slice(0, 3);
+    const names = itemList.map(item => item.name || '').filter(Boolean).join('、') || '熱門餐點';
+    const total = itemList.reduce((sum, item) => sum + Number(item.price || 0), 0);
+    const card = document.createElement('div');
+    card.className = 'push-card';
+    card.innerHTML = `
+      <div class="push-card-header">
+        <span class="push-card-title">還在猶豫嗎？</span>
+        <button type="button" class="push-close-btn" aria-label="關閉"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="push-item-names">${escapeHTML(names)}</div>
+      ${total ? `<div class="push-item-price">${itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`}</div>` : ''}
+      <p class="push-reason">${escapeHTML(intervention.tts_text || '我可以推薦幾個熱門選擇給您。')}</p>
+      <div class="grid gap-2">
+        <button type="button" class="push-add-btn btn-primary" data-add-recommend><i class="fas fa-cart-plus"></i> 加入推薦餐點</button>
+        <button type="button" class="push-add-btn" data-refresh-recommend>換一個推薦</button>
+        <button type="button" class="push-add-btn" data-voice-mode><i class="fas fa-microphone"></i> 語音模式</button>
+      </div>`;
+    ui.floatPush.replaceChildren(card);
+    card.querySelector('.push-close-btn')?.addEventListener('click', clearAllPushCards);
+    card.querySelector('[data-add-recommend]')?.addEventListener('click', () => {
+      itemList.forEach(item => trackedAddToCart(item, { source: 'scenario_recommendation' }));
+      showPushNotice('已加入推薦餐點');
+    });
+    card.querySelector('[data-refresh-recommend]')?.addEventListener('click', async () => {
+      render(await resolveItems(false));
+    });
+    card.querySelector('[data-voice-mode]')?.addEventListener('click', () => {
+      clearAllPushCards();
+      startAskRecording(document.getElementById('voiceAssistBtn'));
+    });
+    if (interactionModalTimer) clearTimeout(interactionModalTimer);
+    interactionModalTimer = setTimeout(clearAllPushCards, 10000);
+  }
+
+  render(await resolveItems(false));
+}
+
 function applyIntervention(intervention = {}, barrierResult = {}) {
   if (!intervention || intervention.action === 'none') return;
   console.log('[interaction intervention]', { intervention, barrierResult });
@@ -1109,6 +1202,10 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   if (!modalName) return;
   if (modalName === 'operation_hint') {
     showTutorialPopup();
+    return;
+  }
+  if (modalName === 'recommendation_card') {
+    showScenarioRecommendationCard(intervention, barrierResult);
     return;
   }
   let box = document.getElementById('interactionInterventionBox');
@@ -1268,7 +1365,7 @@ function startPageDwellWatcher() {
     if (getDwellTimeSec() > 30 && interactionState.lastReportedDwellPage !== pageId) {
       interactionState.lastReportedDwellPage = pageId;
       trackInteractionEvent({
-        event_type: 'page_dwell_timeout',
+        event_type: pageId === 'menu_page' ? 'menu_page_dwell_timeout' : 'page_dwell_timeout',
         button_id: 'page_timer',
         dwell_time_sec: getDwellTimeSec(),
         metadata: { reason: 'same_page_over_30_sec' }
@@ -1519,18 +1616,26 @@ function showEmotionCard(emotionData) {
 async function fetchAndDisplayRecommend() {
   const f = getFeatures();
   if (!f.recommend) return;
+  if (recommendRequestInFlight) return;
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
   if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
   if (Date.now() < promotionPausedUntil) return;
   const fd = new FormData();
   fd.append('session_id', sessionId);
-  if (Date.now() < voiceAssistRecommendFallbackUntil && fullSettings.USE_AI_RECOMMEND !== false) {
-    fd.append('force_default', 'true');
-  }
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 12000);
+  recommendRequestInFlight = true;
+  recommendPending = true;
   try {
-    const data = await api.autoRecommend(fd);
+    const data = await api.autoRecommend(fd, ctrl.signal);
     if (data.status === 'success') displayRecommendation(data);
-  } catch { }
+  } catch (err) {
+    console.warn('[auto_recommend failed]', err);
+  } finally {
+    clearTimeout(tid);
+    recommendRequestInFlight = false;
+    recommendPending = false;
+  }
 }
 
 function scheduleDemoFirstRecommend() {
@@ -1590,6 +1695,19 @@ function showVoiceBubble(data) {
   voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
 
+function showVoiceAssistMessage(message, lang = kioskLang) {
+  const detected = lang === 'en' ? 'en' : 'zh';
+  showVoiceBubble({
+    detected_lang: detected,
+    user_text: '',
+    ai_response: message,
+    dialogue: {
+      zh: { user_text: '', ai_response: detected === 'zh' ? message : '' },
+      en: { user_text: '', ai_response: detected === 'en' ? message : '' },
+    }
+  });
+}
+
 function showVoiceAssistOverlay(state = 'listening') {
   if (!ui.voiceAssistOverlay) return;
   const listening = state !== 'thinking';
@@ -1604,7 +1722,7 @@ function showVoiceAssistOverlay(state = 'listening') {
   }
   if (ui.voiceAssistStopText) {
     ui.voiceAssistStopText.textContent = listening
-      ? (kioskLang === 'en' ? 'Tap or hold to close' : '點擊或按住關閉')
+      ? (kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音')
       : (kioskLang === 'en' ? 'Processing...' : '處理中...');
   }
 }
@@ -1656,6 +1774,7 @@ function setupAskRecorder() {
       });
       const _tooShort = document.getElementById('voiceAssistBtnText');
       if (_tooShort) _tooShort.textContent = kt('holdVoiceOrder');
+      showVoiceAssistMessage(kt('voiceTooShort'));
       autoVoiceInFlight = false;
       return;
     }
@@ -1700,17 +1819,20 @@ function setupAskRecorder() {
         }
 
         if (data.trigger_recommend && getFeatures().recommend) {
-          recommendPending = true;
           setTimeout(async () => {
             await fetchAndDisplayRecommend();
-            recommendPending = false;
           }, Number(perfValue('RECOMMEND_AFTER_ASK_DELAY_MS')) || 1200);
         }
         if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
       } else {
         console.debug('[voice assistant skipped]', data.message || data.status);
+        showVoiceAssistMessage(
+          data.ai_response || data.message || kt('voiceOrderFailed'),
+          data.detected_lang || kioskLang
+        );
+        if (data.audio_base64) playVoice(data.audio_base64);
       }
-    } catch {
+    } catch (err) {
       trackInteractionEvent({
         event_type: 'voice_assist_failed',
         button_id: 'voiceAssistBtn',
@@ -1724,7 +1846,6 @@ function setupAskRecorder() {
     const _doneText = document.getElementById('voiceAssistBtnText');
     if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
-    voiceAssistRecommendFallbackUntil = Date.now() + 15000;
     autoVoiceInFlight = false;
   };
 }
@@ -1763,9 +1884,13 @@ function startAskRecording(sourceBtn) {
     showPushNotice(kioskLang === 'en' ? 'Voice assist is not ready yet.' : '語音協助尚未準備完成。');
     return;
   }
+  if (!askRecorder) setupAskRecorder();
+  if (!askRecorder || askRecorder.state !== 'inactive') {
+    showVoiceAssistMessage(kt('voiceMicNotReady'));
+    return;
+  }
   if (askRecorder && askRecorder.state === 'inactive') {
     captureEmotionSnapshotForVoice();
-    voiceAssistRecommendFallbackUntil = Date.now() + 45000;
     trackInteractionEvent({
       event_type: 'voice_assist_started',
       button_id: sourceBtn?.id || 'voiceAssistBtn',
@@ -1793,14 +1918,18 @@ if (_vaFabBtn) {
     startAskRecording(_vaFabBtn);
   });
 }
-// X 按鈕：點擊或按住均可關閉收音
-ui.voiceAssistStopBtn?.addEventListener('click', () => {
+function stopOrHideVoiceAssistOverlay(event) {
+  event?.preventDefault?.();
   if (askRecorder?.state === 'recording') {
     stopAskRecording();
   } else {
     hideVoiceAssistOverlay();
   }
-});
+}
+
+// X 按鈕：按住即停止收音；click 保留給桌面瀏覽器與舊行為。
+ui.voiceAssistStopBtn?.addEventListener('pointerdown', stopOrHideVoiceAssistOverlay);
+ui.voiceAssistStopBtn?.addEventListener('click', stopOrHideVoiceAssistOverlay);
 
 window.addEventListener('beforeunload', () => {
   try {
@@ -2257,6 +2386,20 @@ async function loadInterventionStats() {
       'page'
     );
 
+    // 三大專利實施例統計
+    const scenarioCounts = data.scenario_counts || {};
+    const scenarioRate = data.scenario_success_rate || {};
+    [
+      ['operation_difficulty', 'operation'],
+      ['menu_hesitation',      'hesitation'],
+      ['payment_problem',      'payment'],
+    ].forEach(([sid, key]) => {
+      const countEl = document.getElementById(`scenario-${key}-count`);
+      const rateEl  = document.getElementById(`scenario-${key}-rate`);
+      if (countEl) countEl.textContent = String(scenarioCounts[sid] ?? 0);
+      if (rateEl)  rateEl.textContent  = `成功率 ${Math.round(Number(scenarioRate[sid] ?? 0) * 100)}%`;
+    });
+
     const tbody = document.getElementById('interventionLogsBody');
     if (!tbody) return;
     const logs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
@@ -2312,6 +2455,12 @@ async function loadInterventionStats() {
     renderCountList('barrierStateCounts', {});
     renderCountList('interventionActionCounts', {});
     renderCountList('pageIssueCounts', {});
+    [['operation','0'],['hesitation','0'],['payment','0']].forEach(([key, val]) => {
+      const c = document.getElementById(`scenario-${key}-count`);
+      const r = document.getElementById(`scenario-${key}-rate`);
+      if (c) c.textContent = val;
+      if (r) r.textContent = '成功率 0%';
+    });
   } finally {
     interventionStatsLoading = false;
   }
