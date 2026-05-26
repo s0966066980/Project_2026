@@ -48,6 +48,7 @@ function buildSessionId() {
 
 const sessionId = buildSessionId();
 let stream, askRecorder;
+let sessionEmotionLog = [];
 let isSystemRunning = false;
 let orderCompleted = false;
 let menuData = [];
@@ -1677,6 +1678,16 @@ function setupAskRecorder() {
         lastVoiceText = data.user_text || lastVoiceText;
         if (data.audio_base64) playVoice(data.audio_base64);
         showVoiceBubble(data);
+        // 累積 session 情緒記錄，結帳時批次寫 RAG
+        if (lastEmotionStructured) {
+          sessionEmotionLog.push({
+            ts: new Date().toISOString(),
+            emotion_label: lastEmotionStructured.emotion_label || lastEmotionStructured.emotion_display || '',
+            emotion_evidence: lastEmotionStructured.emotion_evidence || '',
+            user_text: data.user_text || '',
+            ai_response: data.ai_response || '',
+          });
+        }
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         if (appliedOrders.length) {
           trackInteractionEvent({
@@ -1946,6 +1957,9 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('session_id', sessionId);
   fd.append('pushed_ids', JSON.stringify(Array.from(sessionPushedIds)));
   fd.append('cart_ids', JSON.stringify(cartIds));
+  if (sessionEmotionLog.length > 0) {
+    fd.append('emotion_session_log', JSON.stringify(sessionEmotionLog));
+  }
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 4000);
   try { await api.checkout(fd, ctrl.signal); }

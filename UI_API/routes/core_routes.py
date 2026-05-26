@@ -156,6 +156,7 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
+        emotion_session_log: str = Form(default=""),
     ):
         try:
             pushed_list = json.loads(pushed_ids) if pushed_ids else []
@@ -194,6 +195,19 @@ def create_router(deps: dict) -> APIRouter:
                 "is_success": bool(log_entry.get("is_success", False)),
             }
             log_entry["intervention_result"] = intervention_result
+
+        # 批次寫入 session 情緒記錄到 RAG
+        if emotion_session_log:
+            try:
+                emotion_log_list = json.loads(emotion_session_log)
+                if isinstance(emotion_log_list, list) and emotion_log_list:
+                    saved = await asyncio.to_thread(
+                        database.save_voice_emotion_to_rag, session_id, emotion_log_list
+                    )
+                    if saved:
+                        deps["schedule_rag_rebuild"]("voice emotion session log")
+            except Exception as _e:
+                print(f"⚠️ emotion session log RAG 寫入失敗: {_e}")
 
         session_repository.archive_session(session_id)
         deps["emotion_cache"].pop(session_id, None)

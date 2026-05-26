@@ -293,3 +293,82 @@ def clear_rag_storage():
 
 def load_pdf_chunks(file_path: str, file_name: str = "") -> list[dict]:
     return rag_service.load_pdf_chunks(file_path, file_name)
+
+
+def save_voice_emotion_to_rag(session_id: str, emotion_log: list[dict]) -> int:
+    """將 session 情緒對話記錄批次寫入 RAG（source_type=session_emotion）。"""
+    if not emotion_log:
+        return 0
+    now = _now_iso()
+    lines = [f"Session: {session_id}  記錄時間: {now}"]
+    for entry in emotion_log:
+        ts = entry.get("ts", "")
+        label = entry.get("emotion_label", "")
+        evidence = entry.get("emotion_evidence", "")
+        user_text = entry.get("user_text", "")
+        ai_response = entry.get("ai_response", "")
+        lines.append(
+            f"[{ts}] 情緒={label} | 依據={evidence} | "
+            f"顧客={user_text} | AI={ai_response}"
+        )
+    text = "\n".join(lines)
+    source_id = f"session_emotion_{session_id}_{int(time.time())}"
+    review_result = {
+        "status": "approved",
+        "reviewed_text": text,
+        "notes": "voice session emotion auto-saved at checkout",
+    }
+    upsert_reviewed_rag_doc("session_emotion", source_id, text, review_result)
+    return 1
+
+
+def seed_rag_docs(seeds: list[dict]) -> int:
+    """將知識種子寫入 RAG，已存在（source_id 相同）則跳過。回傳新增筆數。"""
+    existing_ids = {doc.get("source_id") for doc in get_rag_docs() if not doc.get("deleted")}
+    added = 0
+    for seed in seeds:
+        source_id = seed.get("source_id", "")
+        if not source_id or source_id in existing_ids:
+            continue
+        text = seed.get("text", "").strip()
+        if not text:
+            continue
+        review_result = {
+            "status": "approved",
+            "reviewed_text": text,
+            "notes": "auto-seeded knowledge base entry",
+        }
+        upsert_reviewed_rag_doc(
+            seed.get("source_type", "manual"),
+            source_id,
+            text,
+            review_result,
+        )
+        added += 1
+    return added
+
+
+def seed_pdf_to_rag(pdf_path: str, file_name: str) -> int:
+    """將 PDF 匯入為 RAG chunks，已匯入（source_id 含 file_name）則跳過。回傳新增筆數。"""
+    existing_ids = {doc.get("source_id", "") for doc in get_rag_docs() if not doc.get("deleted")}
+    already_seeded = any(file_name in sid for sid in existing_ids)
+    if already_seeded:
+        return 0
+    if not os.path.exists(pdf_path):
+        print(f"⚠️ PDF 不存在，跳過匯入: {pdf_path}")
+        return 0
+    chunks = load_pdf_chunks(pdf_path, file_name)
+    for idx, chunk in enumerate(chunks):
+        metadata = chunk.get("metadata", {})
+        source_id = f"{file_name}:{metadata.get('page', '-')}:chunk_{idx + 1}"
+        source_text = chunk.get("text", "")
+        if not source_text.strip():
+            continue
+        review_result = {
+            "status": "approved",
+            "reviewed_text": source_text,
+            "notes": "PDF auto-seeded on startup",
+        }
+        upsert_reviewed_rag_doc("pdf", source_id, source_text, review_result, metadata)
+    print(f"✅ PDF 匯入完成：{file_name}，共 {len(chunks)} chunks")
+    return len(chunks)
