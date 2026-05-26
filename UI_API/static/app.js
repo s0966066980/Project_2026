@@ -1,5 +1,5 @@
-import * as api from './api.js?v=20260526';
-import { API_BASE } from './api.js?v=20260526';
+import * as api from './api.js?v=20260527';
+import { API_BASE } from './api.js?v=20260527';
 import {
   ui,
   escapeHTML,
@@ -7,22 +7,22 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=20260526';
+} from './ui.js?v=20260527';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=20260526';
-import { createCartManager } from './cart.js?v=20260526';
-import { createRecommendationManager } from './recommendation.js?v=20260526';
-import { connectRealtime } from './realtime_client.js?v=20260526';
+} from './media.js?v=20260527';
+import { createCartManager } from './cart.js?v=20260527';
+import { createRecommendationManager } from './recommendation.js?v=20260527';
+import { connectRealtime } from './realtime_client.js?v=20260527';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js?v=20260526';
+} from './media_buffer.js?v=20260527';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -865,7 +865,7 @@ function applyKioskLanguage() {
   if (_vaLangText) _vaLangText.textContent = kt('holdVoiceOrder');
   if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
   if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
-  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音';
+  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Tap or hold to close' : '點擊或按住關閉';
   if (ui.cartCountBadge) {
     const qty = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
     ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(qty));
@@ -1603,7 +1603,7 @@ function showVoiceAssistOverlay(state = 'listening') {
   }
   if (ui.voiceAssistStopText) {
     ui.voiceAssistStopText.textContent = listening
-      ? (kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音')
+      ? (kioskLang === 'en' ? 'Tap or hold to close' : '點擊或按住關閉')
       : (kioskLang === 'en' ? 'Processing...' : '處理中...');
   }
 }
@@ -1752,22 +1752,13 @@ if (_vaFabBtn) {
     startAskRecording(_vaFabBtn);
   });
 }
-let _voiceStopHoldTimer = null;
-ui.voiceAssistStopBtn?.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  _voiceStopHoldTimer = setTimeout(() => {
-    _voiceStopHoldTimer = null;
-    if (askRecorder?.state === 'recording') {
-      stopAskRecording();
-    } else {
-      hideVoiceAssistOverlay();
-    }
-  }, 400);
-});
-['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => {
-  ui.voiceAssistStopBtn?.addEventListener(ev, () => {
-    if (_voiceStopHoldTimer) { clearTimeout(_voiceStopHoldTimer); _voiceStopHoldTimer = null; }
-  });
+// X 按鈕：點擊或按住均可關閉收音
+ui.voiceAssistStopBtn?.addEventListener('click', () => {
+  if (askRecorder?.state === 'recording') {
+    stopAskRecording();
+  } else {
+    hideVoiceAssistOverlay();
+  }
 });
 
 window.addEventListener('beforeunload', () => {
