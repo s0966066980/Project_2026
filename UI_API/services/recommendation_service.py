@@ -1,6 +1,15 @@
 import asyncio
 import itertools
+import json
+import re
 from datetime import datetime
+
+import ai_services
+import config
+import database
+from repositories import menu_repository
+from utils.text_utils import to_traditional_lite
+
 
 _RECOMMENDATION_STYLES = itertools.cycle([
     {
@@ -24,14 +33,6 @@ _RECOMMENDATION_STYLES = itertools.cycle([
         "prompt_suffix": "推薦性價比最高的搭配，讓顧客用最少的錢吃到最多份量，優先推超值全餐系列。",
     },
 ])
-import json
-import re
-
-import ai_services
-import config
-import database
-from repositories import menu_repository
-from utils.text_utils import to_traditional_lite
 
 
 ZH_NUMBERS = {
