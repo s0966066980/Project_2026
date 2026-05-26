@@ -68,6 +68,8 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
         "推薦給我", "幫我推薦", "幫我選", "幫我挑", "我不知道吃什麼",
         "不知道要吃什麼", "不知道吃啥", "吃什麼好", "要吃什麼", "推薦點什麼",
         "想吃看看", "有什麼好吃的", "今天吃什麼", "推什麼", "推一下",
+        "推薦餐點", "推薦套餐", "推薦什麼", "有推薦", "幫我推薦",
+        "推薦", "推薦一下", "你推薦", "有什麼推薦",
         "recommend me", "what should i eat", "what do you recommend",
         "any recommendation", "surprise me", "pick for me",
     ]
@@ -81,10 +83,10 @@ def route_query(user_text: str, menu_items: list[dict]) -> dict:
         }
 
     menu_terms = [
-        "推薦", "最快", "雞肉", "雞", "牛肉", "牛", "魚", "不辣",
+        "最快", "雞肉", "雞", "牛肉", "牛", "魚", "不辣",
         "便宜", "飲料", "早餐", "薯條", "咖啡", "可樂", "漢堡",
         "套餐", "單點", "菜單", "餐點", "吃什麼", "喝什麼",
-        "recommend", "chicken", "beef", "fish", "fries", "coffee",
+        "chicken", "beef", "fish", "fries", "coffee",
         "drink", "burger", "fast", "quick",
     ]
     if _contains_any(user_text, menu_terms):

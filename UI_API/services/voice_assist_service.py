@@ -40,8 +40,9 @@ async def handle_voice_assist(
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     route = query_router_service.route_query(user_text, menu_items)
     intent = route.get("intent", "")
-    model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
-    fallback_model = config.get("MODEL_NAME", "qwen3.5:4b")
+    # 與 AI 推播使用同一模型（MODEL_NAME），VOICE_ASSIST_MODEL 作為備選
+    model = config.get("MODEL_NAME", "qwen3.5:4b")
+    fallback_model = config.get("VOICE_ASSIST_MODEL", model)
 
     # ---- 直接點餐 ----
     if intent == "direct_order":
@@ -70,10 +71,13 @@ async def handle_voice_assist(
                 "trigger_recommend": False,
             }
 
-    # ---- 菜單直接查詢（不需 LLM）----
+    # ---- 菜單直接查詢（不需 LLM，僅限明確品項查詢，推薦類一律走 LLM）----
     if intent == "menu_question":
         menu_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
-        if menu_answer:
+        # 若靜態回覆有確定結果且非推薦意圖，直接回覆以節省 Ollama 資源
+        recommend_keywords = ["推薦", "recommend", "建議", "幫我選", "幫我挑", "什麼好", "好吃"]
+        is_recommend_query = any(kw in user_text for kw in recommend_keywords)
+        if menu_answer and not is_recommend_query:
             ai_response = menu_answer.get("ai_response", "")
             mentioned_ids = menu_answer.get("mentioned_ids", [])
             session_repository.record_session_state(
@@ -93,8 +97,9 @@ async def handle_voice_assist(
                 "detected_lang": detected_lang,
                 "trigger_recommend": True,
             }
+        # 推薦意圖或靜態無結果 → 落入 Ollama LLM
 
-    # ---- 通用 LLM 問答（qwen3.5:9b）----
+    # ---- 通用 LLM 問答 ----
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
     global_context = await asyncio.to_thread(database.get_global_rag_context)
     rag_context = str(global_context or "").strip()
