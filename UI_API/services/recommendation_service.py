@@ -1,5 +1,29 @@
 import asyncio
+import itertools
 from datetime import datetime
+
+_RECOMMENDATION_STYLES = itertools.cycle([
+    {
+        "key": "popular",
+        "label": "⭐ 人氣組合",
+        "prompt_suffix": "推薦點擊率最高、最多顧客喜愛的搭配，口味大眾化，主餐＋飲料各一。",
+    },
+    {
+        "key": "diet",
+        "label": "🥗 減脂選擇",
+        "prompt_suffix": "推薦低卡、低脂或含蔬菜的選項，適合注重健康的顧客；飲料優先選零卡或無糖。",
+    },
+    {
+        "key": "evil_combo",
+        "label": "😈 邪惡組合",
+        "prompt_suffix": "推薦高熱量、超滿足的邪惡組合，強調美味與份量，讓顧客盡情享受，可含雙層牛肉或大薯。",
+    },
+    {
+        "key": "value",
+        "label": "💰 超值套餐",
+        "prompt_suffix": "推薦性價比最高的搭配，讓顧客用最少的錢吃到最多份量，優先推超值全餐系列。",
+    },
+])
 import json
 import re
 
@@ -401,11 +425,14 @@ def get_default_recommendation(menu_items: list[dict]) -> dict:
         "recommendation_ids": ids,
         "reason": reason,
         "ollama_result": "",
+        "recommendation_style": "popular",
+        "recommendation_label": "⭐ 人氣組合",
     }
 
 
 async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  # noqa: ARG001
-    """Ollama 推播：根據完整菜單與 RAG 推薦餐點。"""
+    """Ollama 推播：根據完整菜單與 RAG 推薦餐點，每次輪換推薦風格。"""
+    style = next(_RECOMMENDATION_STYLES)
     full_menu_context, rag_context = await asyncio.gather(
         asyncio.to_thread(database.build_full_menu_context),
         asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點"),
@@ -413,6 +440,7 @@ async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  #
     user_prompt = (
         f"{full_menu_context}\n\n"
         f"【RAG 補充規則與知識】\n{rag_context or '（無補充）'}\n\n"
+        f"【本次推薦風格】{style['prompt_suffix']}\n\n"
         "推薦規則：\n"
         "1. recommendation_ids 只能使用【完整菜單白名單】中存在的 ID。\n"
         "2. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
@@ -437,6 +465,8 @@ async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  #
         "recommendation_ids": rec["recommendation_ids"],
         "reason": rec["reason"],
         "ollama_result": rec["ollama_result"],
+        "recommendation_style": style["key"],
+        "recommendation_label": style["label"],
     }
 
 
