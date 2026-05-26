@@ -35,9 +35,13 @@ _STATE_PRESENTATION = {
     },
     "menu_hesitation": {
         "action_level": "low",
-        "patch": {},
-        "tts_text": "需要我推薦熱門搭配嗎？",
-        "reason": "偵測到菜單選擇猶豫，可提供熱門組合降低選擇負擔。",
+        "patch": {
+            "show_modal": "recommendation_card",
+            "highlight": ["menu_recommendation_area"],
+            "disable_promotion": False,
+        },
+        "tts_text": "如果還沒決定，我可以推薦幾個熱門餐點給您。",
+        "reason": "偵測到餐點選擇猶豫，提供餐點推薦以降低選擇負擔。",
     },
     "impatience_detected": {
         "action_level": "medium",
@@ -122,6 +126,14 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
                 action_level = preset["severity_high_level"]
             if preset.get("severity_high_notify"):
                 staff_notify = True
+        if state == "payment_confusion" and (
+            severity >= 0.75 or int(result.get("payment_fail_count") or 0) >= 2
+        ):
+            action_level = "high"
+            staff_notify = True
+            if int(result.get("payment_fail_count") or 0) >= 2:
+                action = "call_staff_or_fast_mode"
+                patch["disable_promotion"] = True
     elif state == "normal_operation":
         action = "none"
         action_level = "none"

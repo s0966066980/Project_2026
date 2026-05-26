@@ -116,18 +116,3 @@ def append_customer_service_log(log_entry: dict) -> dict:
     logs.append(log_entry)
     save_customer_service_logs(logs)
     return log_entry
-
-
-def update_customer_service_log(source_id: str, updates: dict, updated_at: str = "") -> dict | None:
-    logs = get_customer_service_logs()
-    updated = None
-    for log in logs:
-        if log.get("source_id") == source_id:
-            log.update(updates)
-            log["updated_at"] = updated_at or datetime.now().isoformat()
-            updated = log
-            break
-    if updated:
-        save_customer_service_logs(logs)
-    return updated
-

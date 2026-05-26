@@ -331,22 +331,7 @@
           <p class="text-4xl font-extrabold" style="color:var(--info)" id="stat-success">0</p>
         </div>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
-          <div class="flex items-baseline justify-between gap-3">
-            <p class="text-xs font-semibold" style="color:var(--text2)">A 版推播成功率</p>
-            <p class="text-2xl font-extrabold" style="color:var(--info)" id="stat-ab-a">0%</p>
-          </div>
-          <p class="text-xs mt-1" style="color:var(--text2)" id="stat-ab-a-detail">0 / 0</p>
-        </div>
-        <div class="rounded-2xl p-4" style="background:var(--surface);border:1.5px solid var(--border)">
-          <div class="flex items-baseline justify-between gap-3">
-            <p class="text-xs font-semibold" style="color:var(--text2)">B 版推播成功率</p>
-            <p class="text-2xl font-extrabold" style="color:var(--warning)" id="stat-ab-b">0%</p>
-          </div>
-          <p class="text-xs mt-1" style="color:var(--text2)" id="stat-ab-b-detail">0 / 0</p>
-        </div>
-      </div>
+
       <div class="flex justify-end mb-2">
         <button onclick="clearPushLogs()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--danger);border:1px solid var(--border)">
           <i class="fas fa-trash mr-1"></i>清空成效資料
@@ -516,10 +501,7 @@
           <div><p class="font-bold mb-1"><i class="fas fa-bolt mr-2" style="color:var(--warning)"></i>AI 浮動推播</p><p class="text-xs" style="color:var(--text2)">依效能設定節流更新浮動推薦卡片。</p></div>
           <div id="tog-recommend" class="toggle-track on shrink-0" onclick="toggleFeature('recommend',this)"><div class="toggle-knob"></div></div>
         </div>
-        <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--success)"></i>AI 推播 (Ollama)</p><p class="text-xs" style="color:var(--text2)">開啟時使用 qwen3.5:4b 根據菜單與 RAG 推薦；關閉時顯示預設熱門餐點。</p></div>
-          <div id="tog-aiRecommend" class="toggle-track on shrink-0" onclick="toggleAiRecommend(this)"><div class="toggle-knob"></div></div>
-        </div>
+
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-language mr-2" style="color:var(--info)"></i>多語言偵測</p><p class="text-xs" style="color:var(--text2)">根據語音自動切換中英文回覆與 TTS。</p></div>
           <div id="tog-multiLang" class="toggle-track on shrink-0" onclick="toggleFeature('multiLang',this)"><div class="toggle-knob"></div></div>
@@ -725,14 +707,9 @@
             <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推播間隔秒</label>
             <input type="number" id="inp-recommend-interval" min="10" max="180" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
           </div>
-          <div>
-            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推播冷卻秒</label>
-            <input type="number" id="inp-recommend-gap" min="5" max="180" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
-          </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm" style="color:var(--text)">
           <label class="flex items-center gap-2"><input type="checkbox" id="inp-tts-cache"> TTS 快取</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="inp-recommend-cache"> 推薦快取</label>
         </div>
         <div>
           <label class="block font-semibold mb-1.5 text-sm" style="color:var(--accent2)">Emotion LLaMA Prompt</label>

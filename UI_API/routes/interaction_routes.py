@@ -6,12 +6,37 @@ from fastapi import APIRouter, Body, Request
 from repositories import interaction_event_repository
 from services import interaction_event_service
 from services import intervention_pipeline_service
+from services import scenario_service
 from utils.auth_utils import require_admin_token
 
 
 def _is_successful_intervention(log: dict) -> bool:
     result = log.get("result") if isinstance(log.get("result"), dict) else {}
-    return bool(result.get("checkout_success") or result.get("payment_success"))
+    resolved_by = str(result.get("resolved_by") or "")
+    return bool(
+        result.get("checkout_success")
+        or result.get("payment_success")
+        or result.get("resolved")
+        or result.get("resolved_by_checkout")
+        or resolved_by in {"cart_add", "recommend_click", "payment_success", "checkout", "counter_payment"}
+    )
+
+
+def _scenario_from_log(log: dict) -> str:
+    if not isinstance(log, dict):
+        return ""
+    candidates = [
+        log.get("scenario_id"),
+        (log.get("barrier_result") or {}).get("scenario_id") if isinstance(log.get("barrier_result"), dict) else "",
+        (log.get("intervention") or {}).get("scenario_id") if isinstance(log.get("intervention"), dict) else "",
+        (log.get("result") or {}).get("scenario_id") if isinstance(log.get("result"), dict) else "",
+    ]
+    for candidate in candidates:
+        normalized = scenario_service.normalize_scenario_id(candidate or "")
+        if normalized in scenario_service.MAIN_SCENARIO_IDS:
+            return normalized
+    barrier = log.get("barrier_result") if isinstance(log.get("barrier_result"), dict) else {}
+    return scenario_service.infer_scenario_from_barrier_state(barrier.get("barrier_state", ""))
 
 
 ISSUE_EVENT_TYPES = {
@@ -23,6 +48,9 @@ ISSUE_EVENT_TYPES = {
     "coupon_error",
     "customer_service_failed",
     "voice_order_failed",
+    "menu_page_dwell_timeout",
+    "category_switch_repeat",
+    "recommendation_ignored",
 }
 
 
@@ -33,6 +61,9 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
     patent_intervention_counts = Counter()
     intervention_page_counts = Counter()
     event_page_issue_counts = Counter()
+    scenario_counts = Counter({scenario_id: 0 for scenario_id in scenario_service.MAIN_SCENARIO_IDS})
+    scenario_success_counts = Counter({scenario_id: 0 for scenario_id in scenario_service.MAIN_SCENARIO_IDS})
+    scenario_recent_logs = {scenario_id: [] for scenario_id in scenario_service.MAIN_SCENARIO_IDS}
     event_rows = events or []
 
     for log in logs:
@@ -52,6 +83,12 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         action_counts[action] += 1
         patent_intervention_counts[patent_intervention] += 1
         intervention_page_counts[page_id] += 1
+        scenario_id = _scenario_from_log(log)
+        if scenario_id in scenario_service.MAIN_SCENARIO_IDS:
+            scenario_counts[scenario_id] += 1
+            if _is_successful_intervention(log):
+                scenario_success_counts[scenario_id] += 1
+            scenario_recent_logs[scenario_id].append(log)
 
     for event in event_rows:
         if not isinstance(event, dict):
@@ -64,6 +101,14 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
     total = len([row for row in logs if isinstance(row, dict)])
     success_count = sum(1 for row in logs if isinstance(row, dict) and _is_successful_intervention(row))
     combined_page_counts = intervention_page_counts + event_page_issue_counts
+    scenario_success_rate = {
+        scenario_id: (
+            round(scenario_success_counts[scenario_id] / scenario_counts[scenario_id], 4)
+            if scenario_counts[scenario_id]
+            else 0
+        )
+        for scenario_id in scenario_service.MAIN_SCENARIO_IDS
+    }
     return {
         "total_interventions": total,
         "success_count": success_count,
@@ -75,6 +120,13 @@ def _build_intervention_stats(logs: list, events: list | None = None) -> dict:
         "intervention_page_counts": dict(intervention_page_counts),
         "event_page_issue_counts": dict(event_page_issue_counts),
         "page_issue_counts": dict(combined_page_counts),
+        "scenario_counts": dict(scenario_counts),
+        "scenario_success_counts": dict(scenario_success_counts),
+        "scenario_success_rate": scenario_success_rate,
+        "scenario_recent_logs": {
+            scenario_id: list(reversed(rows[-10:]))
+            for scenario_id, rows in scenario_recent_logs.items()
+        },
         "recent_logs": list(reversed(logs[-20:])),
         "recent_events": list(reversed(event_rows[-20:])),
     }
@@ -142,6 +194,18 @@ def create_router(deps: dict | None = None) -> APIRouter:
     async def post_intervention_result(payload: dict = Body(...)):
         intervention_id = str(payload.get("intervention_id") or "")
         result = {key: value for key, value in payload.items() if key != "intervention_id"}
+        if not result.get("scenario_id") and intervention_id:
+            logs = await asyncio.to_thread(
+                interaction_event_repository.get_intervention_logs, "", 3000
+            )
+            for log in reversed(logs):
+                if str(log.get("intervention_id") or "") != intervention_id:
+                    continue
+                scenario_id = _scenario_from_log(log)
+                if scenario_id:
+                    result["scenario_id"] = scenario_id
+                    result["scenario_label"] = scenario_service.get_scenario_definition(scenario_id).get("label", "")
+                break
         updated = await asyncio.to_thread(
             interaction_event_repository.update_intervention_result,
             intervention_id,

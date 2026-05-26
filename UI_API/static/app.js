@@ -60,7 +60,6 @@ let emotionLoopId = null;
 let detectionLoopId = null;
 let detectionInFlight = false;
 let recommendLoopId = null;
-let demoRecommendTimer = null;
 let recommendRequestInFlight = false;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
@@ -253,11 +252,9 @@ let runtimeSettings = {
   YOLO_FRAME_INTERVAL_MS: 650,
   RECOMMEND_INTERVAL_SEC: 10,
   RECOMMEND_AFTER_ASK_DELAY_MS: 1200,
-  AUTO_RECOMMEND_MIN_GAP_SEC: 8,
   OLLAMA_NUM_PREDICT: 220,
   RAG_TOP_K: 3,
   ENABLE_TTS_CACHE: true,
-  ENABLE_RECOMMEND_CACHE: true,
   EVENT_TRIGGERED_MULTIMODAL_ENABLED: true,
   EMOTION_PERIODIC_ENABLED: false
 };
@@ -289,11 +286,9 @@ function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
   if (recommendLoopId) clearInterval(recommendLoopId);
-  if (demoRecommendTimer) clearTimeout(demoRecommendTimer);
   emotionLoopId = null;
   detectionLoopId = null;
   recommendLoopId = null;
-  demoRecommendTimer = null;
   if (isSystemRunning && isPosMode()) {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
@@ -1680,25 +1675,13 @@ async function fetchAndDisplayRecommend() {
   }
 }
 
-function scheduleDemoFirstRecommend() {
-  if (!isDemoPublicMode() || demoRecommendTimer || !isPosActive() || !getFeatures().recommend) return;
-  const delayMs = 8000 + Math.floor(Math.random() * 4000);
-  demoRecommendTimer = setTimeout(async () => {
-    demoRecommendTimer = null;
-    if (!isPosActive() || document.hidden || recommendPending) return;
-    await fetchAndDisplayRecommend();
-  }, delayMs);
-}
-
 function startRecommendLoop() {
-  if (isAdminMode()) return;
-  if (recommendLoopId) return;
+  if (isAdminMode() || recommendLoopId) return;
   recommendLoopId = setInterval(async () => {
     if (!isPosActive() || recommendPending) return;
     if (document.hidden) return;
     await fetchAndDisplayRecommend();
   }, Math.max(10, Number(perfValue('RECOMMEND_INTERVAL_SEC')) || 30) * 1000);
-  scheduleDemoFirstRecommend();
 }
 
 // =========================================================
@@ -1983,7 +1966,6 @@ window.addEventListener('beforeunload', () => {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
   if (recommendLoopId) clearInterval(recommendLoopId);
-  if (demoRecommendTimer) clearTimeout(demoRecommendTimer);
   if (pageDwellTimer) clearInterval(pageDwellTimer);
 });
 
@@ -2042,15 +2024,14 @@ document.addEventListener('pointerdown', (event) => {
 
 function applyPerformancePreset(mode) {
   const presets = {
-    eco: { emotion: 30, record: 700, recommend: 60, gap: 45, tokens: 160, rag: 2 },
-    balanced: { emotion: 15, record: 900, recommend: 30, gap: 20, tokens: 220, rag: 3 },
-    quality: { emotion: 8, record: 1500, recommend: 18, gap: 12, tokens: 360, rag: 4 }
+    eco: { emotion: 30, record: 700, recommend: 60, tokens: 160, rag: 2 },
+    balanced: { emotion: 15, record: 900, recommend: 30, tokens: 220, rag: 3 },
+    quality: { emotion: 8, record: 1500, recommend: 18, tokens: 360, rag: 4 }
   };
   const p = presets[mode] || presets.balanced;
   document.getElementById('inp-emotion-interval').value = p.emotion;
   document.getElementById('inp-emotion-record-ms').value = p.record;
   document.getElementById('inp-recommend-interval').value = p.recommend;
-  document.getElementById('inp-recommend-gap').value = p.gap;
   document.getElementById('inp-num-predict').value = p.tokens;
   document.getElementById('inp-rag-top-k').value = p.rag;
 }
@@ -2678,15 +2659,11 @@ async function loadSettings() {
     document.getElementById('inp-emotion-interval').value = fullSettings.EMOTION_PING_INTERVAL_SEC || 15;
     document.getElementById('inp-emotion-record-ms').value = fullSettings.EMOTION_RECORD_MS || 900;
     document.getElementById('inp-recommend-interval').value = fullSettings.RECOMMEND_INTERVAL_SEC || 30;
-    document.getElementById('inp-recommend-gap').value = fullSettings.AUTO_RECOMMEND_MIN_GAP_SEC || 20;
     document.getElementById('inp-tts-cache').checked = fullSettings.ENABLE_TTS_CACHE !== false;
-    document.getElementById('inp-recommend-cache').checked = fullSettings.ENABLE_RECOMMEND_CACHE !== false;
     document.getElementById('inp-emotion-prompt').value = fullSettings.EMOTION_LLAMA_PROMPT || '';
     document.getElementById('inp-recommend-prompt').value = fullSettings.RECOMMEND_SYSTEM_PROMPT || '';
     document.getElementById('inp-ask-prompt').value = fullSettings.ASK_SYSTEM_PROMPT || '';
     document.getElementById('inp-ask-prompt-en').value = fullSettings.ASK_SYSTEM_PROMPT_EN || '';
-    const _togAiRec = document.getElementById('tog-aiRecommend');
-    if (_togAiRec) _togAiRec.classList.toggle('on', fullSettings.USE_AI_RECOMMEND !== false);
     const _vaModelEl = document.getElementById('inp-voice-assist-model');
     if (_vaModelEl) _vaModelEl.value = fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:9b';
     const _vaPromptEl = document.getElementById('inp-voice-assist-prompt');
@@ -2734,9 +2711,7 @@ async function saveSettings() {
   fullSettings.EMOTION_PING_INTERVAL_SEC = parseFloat(document.getElementById('inp-emotion-interval').value || '15');
   fullSettings.EMOTION_RECORD_MS = parseInt(document.getElementById('inp-emotion-record-ms').value || '900', 10);
   fullSettings.RECOMMEND_INTERVAL_SEC = parseFloat(document.getElementById('inp-recommend-interval').value || '30');
-  fullSettings.AUTO_RECOMMEND_MIN_GAP_SEC = parseFloat(document.getElementById('inp-recommend-gap').value || '20');
   fullSettings.ENABLE_TTS_CACHE = document.getElementById('inp-tts-cache').checked;
-  fullSettings.ENABLE_RECOMMEND_CACHE = document.getElementById('inp-recommend-cache').checked;
   fullSettings.EMOTION_LLAMA_PROMPT = document.getElementById('inp-emotion-prompt').value;
   fullSettings.RECOMMEND_SYSTEM_PROMPT = document.getElementById('inp-recommend-prompt').value;
   fullSettings.ASK_SYSTEM_PROMPT = document.getElementById('inp-ask-prompt').value;
@@ -3048,23 +3023,6 @@ window.clearInterventionHistory = async function() {
   }
 };
 
-// =========================================================
-// AI 推播切換
-// =========================================================
-async function toggleAiRecommend(el) {
-  const newVal = !el.classList.contains('on');
-  el.classList.toggle('on', newVal);
-  try {
-    const updated = { ...fullSettings, USE_AI_RECOMMEND: newVal };
-    await api.saveSettings(updated);
-    fullSettings = updated;
-    runtimeSettings = { ...runtimeSettings, USE_AI_RECOMMEND: newVal };
-    showAdminNotice(newVal ? 'AI 推播已啟用（Ollama 推薦）。' : '已切換為預設推播。', 'success');
-  } catch {
-    el.classList.toggle('on', !newVal);
-    showAdminNotice('推播模式儲存失敗。', 'error');
-  }
-}
 
 Object.assign(window, {
   closeVoiceBubble,

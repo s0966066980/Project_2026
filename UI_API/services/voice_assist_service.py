@@ -40,9 +40,8 @@ async def handle_voice_assist(
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     route = query_router_service.route_query(user_text, menu_items)
     intent = route.get("intent", "")
-    # 與 AI 推播使用同一模型（MODEL_NAME），VOICE_ASSIST_MODEL 作為備選
-    model = config.get("MODEL_NAME", "qwen3.5:4b")
-    fallback_model = config.get("VOICE_ASSIST_MODEL", model)
+    model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:9b")
+    fallback_model = config.get("MODEL_NAME", "qwen3.5:4b")
 
     # ---- 直接點餐 ----
     if intent == "direct_order":
@@ -125,6 +124,10 @@ async def handle_voice_assist(
         f"【顧客語音輸入】\n{user_text}\n\n"
         f"{full_menu_context}\n\n"
         f"【RAG 補充內容】\n{rag_context or '（無補充）'}\n\n"
+        "請只輸出 JSON，格式固定為："
+        "{\"ai_response\":\"給顧客的簡短回覆\","
+        "\"cart_actions\":[{\"action\":\"add\",\"id\":\"菜單ID\",\"quantity\":1}],"
+        "\"mentioned_ids\":[\"菜單ID\"]}。\n"
         "若顧客直接點餐，輸出 cart_actions；若是問答，cart_actions 輸出空陣列。\n"
         "mentioned_ids 只能使用完整菜單白名單中的 ID。"
     )
@@ -145,19 +148,44 @@ async def handle_voice_assist(
         result = {}
 
     if "error" in result:
-        fallback = (
-            "Sorry, please try again or tap a menu item directly."
-            if detected_lang == "en"
-            else "暫時無法回答，請直接點選菜單或稍後再試。"
+        fallback_answer = recommendation_service.answer_menu_question_from_text(user_text, menu_items)
+        fallback = str(fallback_answer.get("ai_response") or "").strip()
+        mentioned_ids = fallback_answer.get("mentioned_ids", []) if fallback_answer else []
+        if not fallback:
+            if intent == "ask_recommendation":
+                rec = recommendation_service.get_default_recommendation(menu_items)
+                rec_ids = rec.get("recommendation_ids") or []
+                name_by_id = {item.get("id"): item.get("name") for item in menu_items if item.get("id")}
+                names = [name_by_id.get(item_id) for item_id in rec_ids if name_by_id.get(item_id)]
+                if names:
+                    fallback = (
+                        f"I recommend {', '.join(names[:3])}."
+                        if detected_lang == "en"
+                        else f"可以先參考{'、'.join(names[:3])}。"
+                    )
+                    mentioned_ids = rec_ids
+        if not fallback:
+            fallback = (
+                "I can help with menu questions or add items to your cart. Please say the item name."
+                if detected_lang == "en"
+                else "我可以協助您了解菜單或加入餐點，請直接說想點的餐點名稱。"
+            )
+            mentioned_ids = []
+        session_repository.record_session_state(
+            session_id=session_id, emotion="",
+            user_speech=user_text, ai_response=fallback,
+            language=detected_lang,
         )
         return {
-            "status": "error",
+            "status": "success",
+            "mode": "voice_assist_fallback",
             "message": result.get("error", "llm_error"),
             "ai_response": fallback,
             "audio_base64": await ai_services.generate_tts_audio_base64(fallback, lang=detected_lang),
             "cart_actions": [],
-            "mentioned_ids": [],
+            "mentioned_ids": mentioned_ids,
             "detected_lang": detected_lang,
+            "trigger_recommend": bool(mentioned_ids) or intent == "ask_recommendation",
         }
 
     ai_response = str(result.get("ai_response") or "").strip()

@@ -8,6 +8,9 @@ NUMERIC_FIELDS = {
     "payment_fail_count": 0,
     "coupon_error_count": 0,
     "cart_edit_count": 0,
+    "category_switch_count": 0,
+    "cart_remove_count": 0,
+    "recommend_ignore_count": 0,
     "idle_time_sec": 0.0,
 }
 
@@ -36,11 +39,15 @@ def normalize_interaction_event(payload: dict) -> dict:
         "metadata": raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
         "ui_context": raw.get("ui_context") if isinstance(raw.get("ui_context"), dict) else {},
     }
+    raw_metadata = event["metadata"]
     for field, default in NUMERIC_FIELDS.items():
+        value = raw.get(field)
+        if value is None and isinstance(raw_metadata, dict):
+            value = raw_metadata.get(field)
         if isinstance(default, float):
-            event[field] = _as_float(raw.get(field), default)
+            event[field] = _as_float(value, default)
         else:
-            event[field] = _as_int(raw.get(field), default)
+            event[field] = _as_int(value, default)
     return event
 
 
@@ -86,6 +93,15 @@ def _event_score(event: dict) -> tuple[int, list[str]]:
     elif event_type == "customer_service_failed":
         score += 1
         reasons.append("event_type=customer_service_failed")
+    elif event_type == "menu_page_dwell_timeout":
+        score += 2
+        reasons.append("event_type=menu_page_dwell_timeout")
+    elif event_type == "category_switch_repeat":
+        score += 2
+        reasons.append("event_type=category_switch_repeat")
+    elif event_type == "recommendation_ignored":
+        score += 1
+        reasons.append("event_type=recommendation_ignored")
 
     return score, reasons
 
@@ -112,6 +128,9 @@ def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> 
     max_coupon_error_count = _max_field(safe_events, "coupon_error_count")
     max_back_count = _max_field(safe_events, "back_count")
     max_invalid_touch_count = _max_field(safe_events, "invalid_touch_count")
+    max_category_switch_count = _max_field(safe_events, "category_switch_count")
+    max_cart_remove_count = _max_field(safe_events, "cart_remove_count")
+    max_recommend_ignore_count = _max_field(safe_events, "recommend_ignore_count")
     max_dwell_time_sec = _max_field(safe_events, "dwell_time_sec")
     max_idle_time_sec = _max_field(safe_events, "idle_time_sec")
     latest_page_id = _latest_page_id(safe_events, ui_context)
@@ -128,6 +147,15 @@ def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> 
     if max_invalid_touch_count >= 3:
         total_score += 1
         add_reason("max_invalid_touch_count >= 3")
+    if max_category_switch_count >= 4:
+        total_score += 2
+        add_reason("max_category_switch_count >= 4")
+    if max_cart_remove_count >= 2:
+        total_score += 2
+        add_reason("max_cart_remove_count >= 2")
+    if max_recommend_ignore_count >= 1:
+        total_score += 1
+        add_reason("max_recommend_ignore_count >= 1")
     if max_dwell_time_sec > 30:
         total_score += 2
         add_reason("max_dwell_time_sec > 30")
@@ -144,6 +172,9 @@ def calculate_interaction_risk(events: list, ui_context: dict | None = None) -> 
     if latest_page_id == "menu_page" and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30:
         total_score += 1
         add_reason("latest_page_id=menu_page and max_invalid_touch_count >= 3 and max_dwell_time_sec > 30")
+    if latest_page_id == "menu_page" and max_dwell_time_sec > 40:
+        total_score += 2
+        add_reason("latest_page_id=menu_page and max_dwell_time_sec > 40")
 
     # 量化 0-10。0=無風險、1-3 低、4-6 中、7-10 高。原始累計分數保留在 risk_score_raw。
     risk_score = min(10, max(0, int(total_score)))
@@ -189,6 +220,8 @@ def build_interaction_context(events: list, risk_result: dict) -> str:
             f"按鈕={event.get('button_id', '') or '無'}，"
             f"停留={event.get('dwell_time_sec', 0)}秒，"
             f"返回={event.get('back_count', 0)}次，"
+            f"分類切換={event.get('category_switch_count', 0)}次，"
+            f"移除購物車={event.get('cart_remove_count', 0)}次，"
             f"付款失敗={event.get('payment_fail_count', 0)}次，"
             f"優惠券錯誤={event.get('coupon_error_count', 0)}次"
         )

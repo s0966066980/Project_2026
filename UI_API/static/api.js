@@ -67,8 +67,8 @@ export async function triggeredMultimodalAnalysis(formData) {
   }));
 }
 
-export async function autoRecommend(formData) {
-  return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData }));
+export async function autoRecommend(formData, signal) {
+  return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData, signal }));
 }
 
 export async function ask(formData) {
@@ -143,10 +143,6 @@ export async function deleteRagDoc(docId) {
   return asJson(await fetch(`${API_BASE}/api/rag_docs/${encodeURIComponent(docId)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
-export async function deleteRagReviewLog(index) {
-  return asJson(await fetch(`${API_BASE}/api/rag_review_logs/${encodeURIComponent(index)}`, { method: 'DELETE', headers: adminHeaders() }));
-}
-
 export async function reportInteractionEvent(payload) {
   return asJson(await fetch(`${API_BASE}/api/interaction_event`, {
     method: 'POST',
@@ -169,12 +165,4 @@ export async function getInterventionStats() {
 
 export async function clearInterventionLogs() {
   return asJson(await fetch(`${API_BASE}/api/intervention_logs`, { method: 'DELETE', headers: adminHeaders() }));
-}
-
-export async function startEmotionLlama() {
-  return asJson(await fetch(`${API_BASE}/api/emotion_llama/start`, { method: 'POST', headers: adminHeaders() }));
-}
-
-export async function stopEmotionLlama() {
-  return asJson(await fetch(`${API_BASE}/api/emotion_llama/stop`, { method: 'POST', headers: adminHeaders() }));
 }

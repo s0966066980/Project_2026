@@ -26,6 +26,12 @@ SAFE_METADATA_KEYS = {
     "expected_patent_category",
     "expected_patent_intervention_type",
     "legacy_alias",
+    "scenario_id",
+    "scenario_label",
+    "speech_text",
+    "category_switch_count",
+    "cart_remove_count",
+    "recommend_ignore_count",
 }
 SAFE_UI_CONTEXT_KEYS = {"page_id", "cart_count", "promotion_paused", "service_open"}
 
@@ -178,6 +184,9 @@ def _privacy_event_vector(record: dict) -> dict:
         "payment_fail_count": _as_number(record.get("payment_fail_count")),
         "coupon_error_count": _as_number(record.get("coupon_error_count")),
         "cart_edit_count": _as_number(record.get("cart_edit_count")),
+        "category_switch_count": _as_number(record.get("category_switch_count")),
+        "cart_remove_count": _as_number(record.get("cart_remove_count")),
+        "recommend_ignore_count": _as_number(record.get("recommend_ignore_count")),
         "idle_time_sec": _as_number(record.get("idle_time_sec")),
         "metadata": _safe_metadata(record.get("metadata")),
         "ui_context": _safe_ui_context(record),

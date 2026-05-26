@@ -31,11 +31,17 @@ def _build_checkout_intervention_result(
     final_cart_ids: list | None = None,
 ) -> dict:
     result = dict(open_log.get("result") if isinstance(open_log.get("result"), dict) else {})
+    barrier_result = open_log.get("barrier_result") if isinstance(open_log.get("barrier_result"), dict) else {}
     result.update({
         "session_id": session_id,
+        "scenario_id": open_log.get("scenario_id") or barrier_result.get("scenario_id", ""),
+        "scenario_label": open_log.get("scenario_label") or barrier_result.get("scenario_label", ""),
+        "resolved": bool(checkout_success),
+        "resolved_by": "checkout" if checkout_success else "",
         "checkout_success": bool(checkout_success),
         "payment_success": bool(checkout_success),
         "time_to_checkout_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
+        "time_to_resolution_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
         "resolved_by_checkout": bool(checkout_success),
         "final_cart_ids": list(final_cart_ids or []),
     })

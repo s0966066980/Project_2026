@@ -49,11 +49,7 @@ async def _publish_fallback_intervention(session_id: str, risk_result: dict, ui_
         },
         source="triggered_multimodal_analysis_fallback",
     )
-    return (
-        pipeline_result.get("barrier_result"),
-        pipeline_result.get("intervention"),
-        pipeline_result.get("intervention_log"),
-    )
+    return pipeline_result
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -93,9 +89,12 @@ def create_router(deps: dict) -> APIRouter:
             video_bytes = await video.read()
             if len(video_bytes) < 2000:
                 message = "multimodal video chunk too small"
-                barrier_result, intervention, intervention_log = await _publish_fallback_intervention(
+                pipeline_result = await _publish_fallback_intervention(
                     session_id, risk_result, ui_context, recent_events, message
                 )
+                barrier_result = pipeline_result.get("barrier_result")
+                intervention = pipeline_result.get("intervention")
+                intervention_log = pipeline_result.get("intervention_log")
                 await event_bus.publish_to_admin("emotion_analysis_completed", {
                     "session_id": session_id,
                     "status": "success",
@@ -114,6 +113,8 @@ def create_router(deps: dict) -> APIRouter:
                     "emotion_structured": {},
                     "multimodal_evidence": {},
                     "risk_result": risk_result,
+                    "scenario_id": pipeline_result.get("scenario_id"),
+                    "scenario_label": pipeline_result.get("scenario_label"),
                     "barrier_result": barrier_result,
                     "intervention": intervention,
                     "intervention_log": intervention_log,
@@ -124,9 +125,12 @@ def create_router(deps: dict) -> APIRouter:
             media_probe = await ai_services.async_probe_media(temp_video_path)
             if not media_probe.get("valid") or not media_probe.get("has_video"):
                 message = f"multimodal video unreadable: {media_probe.get('error') or 'no_video'}"
-                barrier_result, intervention, intervention_log = await _publish_fallback_intervention(
+                pipeline_result = await _publish_fallback_intervention(
                     session_id, risk_result, ui_context, recent_events, message
                 )
+                barrier_result = pipeline_result.get("barrier_result")
+                intervention = pipeline_result.get("intervention")
+                intervention_log = pipeline_result.get("intervention_log")
                 await event_bus.publish_to_admin("emotion_analysis_completed", {
                     "session_id": session_id,
                     "status": "skipped",
@@ -144,6 +148,8 @@ def create_router(deps: dict) -> APIRouter:
                     "emotion_structured": {},
                     "multimodal_evidence": {},
                     "risk_result": risk_result,
+                    "scenario_id": pipeline_result.get("scenario_id"),
+                    "scenario_label": pipeline_result.get("scenario_label"),
                     "barrier_result": barrier_result,
                     "intervention": intervention,
                     "intervention_log": intervention_log,
@@ -254,6 +260,8 @@ def create_router(deps: dict) -> APIRouter:
                 "multimodal_evidence": multimodal_evidence,
                 "clip": clip,
                 "risk_result": risk_result,
+                "scenario_id": pipeline_result.get("scenario_id"),
+                "scenario_label": pipeline_result.get("scenario_label"),
                 "barrier_result": barrier_result,
                 "intervention": intervention,
                 "intervention_log": intervention_log,

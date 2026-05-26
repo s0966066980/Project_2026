@@ -1,30 +1,13 @@
 import asyncio
 from datetime import datetime
-import hashlib
 import json
 import re
-import time
 
 import ai_services
 import config
 import database
-from repositories import menu_repository, session_repository
+from repositories import menu_repository
 from utils.text_utils import to_traditional_lite
-
-
-_RECOMMEND_RAG_CACHE = {"ts": 0.0, "context": ""}
-_RECOMMEND_RAG_TTL_SEC = 60.0
-
-
-async def _get_cached_recommend_rag_context() -> str:
-    now = time.time()
-    cached = _RECOMMEND_RAG_CACHE
-    if cached["context"] and now - cached["ts"] < _RECOMMEND_RAG_TTL_SEC:
-        return cached["context"]
-    context = await asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點")
-    _RECOMMEND_RAG_CACHE["ts"] = now
-    _RECOMMEND_RAG_CACHE["context"] = context
-    return context
 
 
 ZH_NUMBERS = {
@@ -298,6 +281,7 @@ def coerce_recommendation(
     menu_ids: list[str],
     menu_items: list[dict] | None = None,
 ) -> dict:
+    raw_result = dict(result or {}) if isinstance(result, dict) else {}
     if isinstance(result, list):
         result = next((row for row in result if isinstance(row, dict)), {})
     elif not isinstance(result, dict):
@@ -320,13 +304,19 @@ def coerce_recommendation(
         cleaned = [fallback] if fallback else []
 
     cleaned = cleaned[:3]
-    reason = (
+    raw_reason = (
         result.get("reason")
         or result.get("empathy_response")
         or "這是根據您當下狀態為您挑選的餐點。"
     )
-    reason = align_recommendation_reason(reason, cleaned, menu_items or [])
-    aligned_result = {"recommendation_ids": cleaned, "reason": reason}
+    reason = align_recommendation_reason(raw_reason, cleaned, menu_items or [])
+    aligned_result = {
+        "recommendation_ids": cleaned,
+        "reason": reason,
+        "ai_raw_reason": raw_reason,
+        "ai_raw_response": raw_result,
+        "ai_used": not source_error,
+    }
     return {
         "recommendation_ids": cleaned,
         "reason": reason,
@@ -365,8 +355,9 @@ def align_recommendation_reason(
     mentions_selected = any(name and name in reason for name in selected_names)
     mentions_other = any(name and name in reason for name in other_names)
     if not reason or mentions_other or not mentions_selected:
-        return _build_recommendation_copy(selected_items)
-    if len(reason) < 42 or any(key in reason for key in ["比較符合現在", "當下狀態", "推薦您試試"]):
+        clean_reason = reason[:46].strip("，。、,. ")
+        if clean_reason and not mentions_other:
+            return f"{'、'.join(selected_names[:3])}：{clean_reason}"
         return _build_recommendation_copy(selected_items)
     return reason
 
@@ -413,105 +404,33 @@ def get_default_recommendation(menu_items: list[dict]) -> dict:
     }
 
 
-def history_signature(history: list) -> str:
-    compact = [
-        {
-            "emotion": record.get("emotion", ""),
-            "user_speech": record.get("user_speech") or record.get("speech", ""),
-        }
-        for record in history[-6:]
-    ]
-    raw = json.dumps({"history": compact}, ensure_ascii=False, sort_keys=True)
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
-
-
-def build_emotion_prompt_context(cached_emotion: dict | None, history: list | None = None) -> str:
-    history = history or []
-    if cached_emotion and not cached_emotion.get("no_person"):
-        structured = cached_emotion.get("emotion_structured") or {}
-        display = cached_emotion.get("emotion_display") or cached_emotion.get("emotion") or ""
-        label = structured.get("emotion_label", "")
-        evidence = structured.get("emotion_evidence", "")
-        distribution = structured.get("emotion_distribution", {})
-        return (
-            "【當前 Emotion-LLaMA 情緒分析】\n"
-            f"顯示: {display}\n"
-            f"標籤: {label}\n"
-            f"判斷依據: {evidence}\n"
-            f"量化分佈: {json.dumps(distribution, ensure_ascii=False)}"
-        )
-    recent_emotion = next((row.get("emotion") for row in reversed(history) if row.get("emotion")), "")
-    if recent_emotion:
-        return f"【最近一次情緒紀錄】\n{recent_emotion}"
-    return "【當前 Emotion-LLaMA 情緒分析】\n未取得可用情緒分析；請只根據語音、歷史紀錄與菜單推薦。"
-
-
-def store_recommend_cache(cache: dict, cache_key: str, data: dict, ts: float):
-    cache[cache_key] = {"ts": ts, "data": data}
-    while len(cache) > 64:
-        oldest_key = next(iter(cache))
-        cache.pop(oldest_key, None)
-
-
-async def generate_recommendation(
-    session_id: str,
-    emotion_cache: dict,
-    ollama_semaphore,
-) -> dict:
-    """Ollama 推播：根據菜單、RAG 與對話歷史推薦餐點（無 A/B 測試）。"""
-    history = session_repository.get_session_history(session_id)
-    history_str = "\n".join([
-        f"[{r.get('timestamp','')}] "
-        + (f"情緒:{r.get('emotion','')} " if r.get("emotion") else "")
-        + (f"顧客說:{r.get('user_speech','') or r.get('speech','')} "
-           if (r.get("user_speech") or r.get("speech")) else "")
-        for r in history[-8:]
-    ]).strip() or "顧客剛開始點餐，尚無紀錄。"
-
-    experiences, pairing_context, full_menu_context, rag_context = await asyncio.gather(
-        asyncio.to_thread(database.get_successful_experiences),
-        asyncio.to_thread(database.get_order_pairing_context),
+async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  # noqa: ARG001
+    """Ollama 推播：根據完整菜單與 RAG 推薦餐點。"""
+    full_menu_context, rag_context = await asyncio.gather(
         asyncio.to_thread(database.build_full_menu_context),
-        _get_cached_recommend_rag_context(),
+        asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點"),
     )
-
     user_prompt = (
-        f"【顧客近期對話與情緒】\n{history_str}\n\n"
-        f"{experiences}\n\n"
-        f"{pairing_context}\n\n"
         f"{full_menu_context}\n\n"
         f"【RAG 補充規則與知識】\n{rag_context or '（無補充）'}\n\n"
         "推薦規則：\n"
         "1. recommendation_ids 只能使用【完整菜單白名單】中存在的 ID。\n"
-        "2. 若顧客歷史有點過某類餐點，優先推薦搭配品（主餐+飲料、主餐+點心）。\n"
-        "3. 若 RAG 全域規則有固定開頭語氣，必須套用。\n"
-        "4. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
+        "2. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
         "推薦 1~3 個餐點。"
     )
-
     system_prompt = config.get("RECOMMEND_SYSTEM_PROMPT")
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     menu_ids = [item.get("id") for item in menu_items if item.get("id")]
     loop = asyncio.get_running_loop()
-
     async with ollama_semaphore:
-        recommendation = await loop.run_in_executor(
-            None, ai_services.ask_ollama, system_prompt, user_prompt
-        )
-
-    if isinstance(recommendation, list):
-        recommendation = next((row for row in recommendation if isinstance(row, dict)), {})
-    elif not isinstance(recommendation, dict):
-        recommendation = {}
-
-    if "error" in recommendation:
-        return {
-            "status": "error",
-            "message": recommendation["error"],
-            "raw_content": recommendation.get("raw_content", ""),
-        }
-
-    rec = coerce_recommendation(recommendation, menu_ids, menu_items=menu_items)
+        raw = await loop.run_in_executor(None, ai_services.ask_ollama, system_prompt, user_prompt)
+    if isinstance(raw, list):
+        raw = next((r for r in raw if isinstance(r, dict)), {})
+    elif not isinstance(raw, dict):
+        raw = {}
+    if "error" in raw:
+        return {"status": "error", "message": raw["error"], "raw_content": raw.get("raw_content", "")}
+    rec = coerce_recommendation(raw, menu_ids, menu_items=menu_items)
     return {
         "status": "success",
         "mode": "ai",

@@ -6,6 +6,7 @@ from services import barrier_state_service
 from services import interaction_event_service
 from services import intervention_service
 from services import multimodal_evidence_service
+from services import scenario_service
 
 
 async def run_intervention_pipeline(
@@ -18,6 +19,7 @@ async def run_intervention_pipeline(
     media_signals: dict | None = None,
     person_check: dict | None = None,
     multimodal_evidence: dict | None = None,
+    scenario_id: str | None = None,
     source: str = "unknown",
     publish: bool = True,
 ) -> dict:
@@ -39,6 +41,9 @@ async def run_intervention_pipeline(
     emotion = emotion_structured if isinstance(emotion_structured, dict) else {}
     media = media_signals if isinstance(media_signals, dict) else {}
     person = person_check if isinstance(person_check, dict) else {}
+    normalized_scenario = scenario_service.normalize_scenario_id(scenario_id or "")
+    if normalized_scenario not in scenario_service.MAIN_SCENARIO_IDS and events:
+        normalized_scenario = scenario_service.infer_scenario_from_event(events[-1], risk)
 
     evidence = multimodal_evidence if isinstance(multimodal_evidence, dict) else None
     if evidence is None:
@@ -62,7 +67,16 @@ async def run_intervention_pipeline(
         media_signals=media,
         risk_result=risk,
     )
+    barrier_scenario = scenario_service.infer_scenario_from_barrier_state(
+        barrier_result.get("barrier_state", "")
+    )
+    if barrier_scenario in scenario_service.MAIN_SCENARIO_IDS:
+        normalized_scenario = barrier_scenario
+    if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
+        scenario_service.attach_scenario_metadata(barrier_result, normalized_scenario)
     intervention = intervention_service.decide_intervention(barrier_result, safe_ui_context)
+    if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
+        scenario_service.attach_scenario_metadata(intervention, normalized_scenario)
 
     intervention_log = None
     should_log = (
@@ -78,6 +92,10 @@ async def run_intervention_pipeline(
         )
         log_payload["source"] = source
         log_payload["multimodal_evidence"] = evidence
+        if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
+            scenario_service.attach_scenario_metadata(log_payload, normalized_scenario)
+        log_payload["patent_category"] = barrier_result.get("patent_category")
+        log_payload["patent_intervention_type"] = intervention.get("patent_intervention_type")
         intervention_log = await asyncio.to_thread(
             interaction_event_repository.append_intervention_log,
             log_payload,
@@ -91,6 +109,8 @@ async def run_intervention_pipeline(
         "multimodal_evidence": evidence,
         "source": source,
     }
+    if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
+        scenario_service.attach_scenario_metadata(result, normalized_scenario)
 
     if publish and intervention.get("action") != "none":
         await event_bus.publish_intervention(safe_session_id, result)

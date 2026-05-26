@@ -5,10 +5,11 @@ from fastapi import APIRouter, Body
 from repositories import interaction_event_repository
 from services import interaction_event_service
 from services import intervention_pipeline_service
+from services import scenario_service
 
 
 SCENARIOS = {
-    "operation_confusion": {
+    "operation_difficulty": {
         "page_id": "menu_page",
         "event_type": "invalid_touch",
         "button_id": "demo_invalid_touch",
@@ -17,27 +18,33 @@ SCENARIOS = {
         "speech_text": "我不會操作，不知道怎麼點餐。",
         "metadata": {
             "source": "demo",
-            "reason": "patent_operation_confusion",
+            "reason": "patent_operation_difficulty",
+            "scenario_id": "operation_difficulty",
+            "scenario_label": "點餐機操作困難",
+            "speech_text": "我不會操作，不知道怎麼點餐。",
             "expected_patent_category": "operation_failure",
             "expected_patent_intervention_type": "operation_hint",
         },
     },
-    "decision_hesitation": {
+    "menu_hesitation": {
         "page_id": "menu_page",
-        "event_type": "page_dwell_timeout",
+        "event_type": "menu_page_dwell_timeout",
         "button_id": "demo_menu_hesitation",
-        "dwell_time_sec": 36,
-        "back_count": 2,
-        "idle_time_sec": 25,
+        "dwell_time_sec": 45,
+        "category_switch_count": 5,
         "speech_text": "我不知道要吃什麼，可以推薦嗎？",
         "metadata": {
             "source": "demo",
-            "reason": "patent_decision_hesitation",
+            "reason": "patent_menu_hesitation",
+            "scenario_id": "menu_hesitation",
+            "scenario_label": "餐點選擇猶豫",
+            "category_switch_count": 5,
+            "speech_text": "我不知道要吃什麼，可以推薦嗎？",
             "expected_patent_category": "decision_hesitation",
             "expected_patent_intervention_type": "recommendation",
         },
     },
-    "payment_failed": {
+    "payment_problem": {
         "page_id": "payment_page",
         "event_type": "payment_failed",
         "button_id": "demo_payment",
@@ -47,6 +54,9 @@ SCENARIOS = {
         "metadata": {
             "source": "demo",
             "payment": "failed",
+            "scenario_id": "payment_problem",
+            "scenario_label": "付款問題",
+            "speech_text": "付款一直失敗，請協助我完成付款。",
             "expected_patent_category": "operation_failure",
             "expected_patent_intervention_type": "payment_tutorial",
         },
@@ -80,20 +90,29 @@ SCENARIOS = {
 }
 
 LEGACY_SCENARIO_ALIASES = {
-    "invalid_touch": "operation_confusion",
-    "operation_confusion_explicit": "operation_confusion",
-    "long_payment_dwell": "payment_failed",
-    "coupon_error": "operation_confusion",
-    "back_navigation": "operation_confusion",
-    "customer_service_requested": "human_service",
-    "complaint_risk": "human_service",
+    "operation_confusion": "operation_difficulty",
+    "operation_confusion_explicit": "operation_difficulty",
+    "invalid_touch": "operation_difficulty",
+    "back_navigation": "operation_difficulty",
+    "decision_hesitation": "menu_hesitation",
+    "ask_recommendation": "menu_hesitation",
+    "menu_confusion": "menu_hesitation",
+    "payment_failed": "payment_problem",
+    "payment_confusion": "payment_problem",
+    "long_payment_dwell": "payment_problem",
+    "coupon_error": "operation_difficulty",
+    "customer_service_requested": "operation_difficulty",
+    "complaint_risk": "operation_difficulty",
+    "human_service": "operation_difficulty",
 }
 
 
 def _scenario_payload(payload: dict) -> tuple[dict, str, str, str]:
-    requested = str((payload or {}).get("scenario") or "operation_confusion")
-    scenario = LEGACY_SCENARIO_ALIASES.get(requested, requested)
-    base = dict(SCENARIOS.get(scenario) or SCENARIOS["operation_confusion"])
+    requested = str((payload or {}).get("scenario") or "operation_difficulty")
+    scenario = LEGACY_SCENARIO_ALIASES.get(requested) or scenario_service.normalize_scenario_id(requested)
+    if scenario not in SCENARIOS:
+        scenario = "operation_difficulty"
+    base = dict(SCENARIOS.get(scenario) or SCENARIOS["operation_difficulty"])
     if requested != scenario:
         metadata = dict(base.get("metadata") or {})
         metadata["legacy_alias"] = requested
@@ -108,6 +127,9 @@ def _scenario_payload(payload: dict) -> tuple[dict, str, str, str]:
         "payment_fail_count": 0,
         "coupon_error_count": 0,
         "cart_edit_count": 0,
+        "category_switch_count": 0,
+        "cart_remove_count": 0,
+        "recommend_ignore_count": 0,
         "idle_time_sec": 0,
         **base,
         **overrides,
@@ -140,6 +162,11 @@ def create_router(deps: dict | None = None) -> APIRouter:
         response = {
             "status": "success",
             "scenario": scenario,
+            "scenario_id": scenario if scenario != "low_risk" else "low_risk",
+            "scenario_label": (
+                scenario_service.get_scenario_definition(scenario).get("label")
+                or ("低風險正常操作" if scenario == "low_risk" else "")
+            ),
             "requested_scenario": requested,
             "event": saved_event,
             "risk_result": risk_result,
@@ -156,13 +183,16 @@ def create_router(deps: dict | None = None) -> APIRouter:
             ui_context=ui_context,
             risk_result=risk_result,
             recent_events=recent_events,
-            emotion_structured={"emotion_label": "猶豫"} if scenario == "decision_hesitation" else {},
+            emotion_structured={"emotion_label": "猶豫"} if scenario == "menu_hesitation" else {},
             speech_text=speech_text,
             media_signals={},
+            scenario_id=scenario if scenario != "low_risk" else None,
             source="demo_trigger_scenario",
         )
 
         response.update({
+            "scenario_id": pipeline_result.get("scenario_id", response["scenario_id"]),
+            "scenario_label": pipeline_result.get("scenario_label", response["scenario_label"]),
             "barrier_result": pipeline_result.get("barrier_result"),
             "intervention": pipeline_result.get("intervention"),
             "intervention_log": pipeline_result.get("intervention_log"),

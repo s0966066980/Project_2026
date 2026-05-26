@@ -1,5 +1,6 @@
 from services import interaction_event_service
 from services import emotion_risk_service
+from services import scenario_service
 from utils.text_utils import normalize_emotion_label
 
 
@@ -36,11 +37,19 @@ def _max_field(pos_events: list | None, field: str) -> int:
     for event in pos_events or []:
         if not isinstance(event, dict):
             continue
+        metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
         try:
-            values.append(int(float(event.get(field) or 0)))
+            values.append(int(float(event.get(field, metadata.get(field)) or 0)))
         except Exception:
             continue
     return max(values) if values else 0
+
+
+def _latest_event_type(pos_events: list | None) -> str:
+    for event in reversed(pos_events or []):
+        if isinstance(event, dict) and event.get("event_type"):
+            return str(event.get("event_type"))
+    return ""
 
 
 def _confidence_from(score: int, evidence_count: int) -> float:
@@ -148,6 +157,11 @@ def infer_barrier_state(
 
     payment_fail_count = _max_field(events, "payment_fail_count")
     coupon_error_count = _max_field(events, "coupon_error_count")
+    category_switch_count = _max_field(events, "category_switch_count")
+    cart_remove_count = _max_field(events, "cart_remove_count")
+    recommend_ignore_count = _max_field(events, "recommend_ignore_count")
+    max_dwell_time_sec = _max_field(events, "dwell_time_sec")
+    latest_event_type = _latest_event_type(events)
 
     barrier_state = "normal_operation"
     if _contains_any(speech, ["客訴", "投訴", "不爽", "太誇張", "我要找人", "經理", "爛"]):
@@ -162,6 +176,28 @@ def infer_barrier_state(
     elif _contains_any(speech, ["優惠券", "折扣碼", "掃碼", "qr", "QR"]) and coupon_error_count >= 1:
         barrier_state = "coupon_confusion"
         evidence.extend(["coupon_error_count >= 1", "speech contains coupon issue"])
+    elif page_id == "menu_page" and (
+        category_switch_count >= 4
+        or cart_remove_count >= 2
+        or recommend_ignore_count >= 1
+        or latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat", "recommendation_ignored")
+        or _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"])
+        or (risk_score >= 5 and max_dwell_time_sec > 40)
+    ):
+        barrier_state = "menu_hesitation"
+        evidence.append("page_id=menu_page")
+        if category_switch_count >= 4:
+            evidence.append("category_switch_count >= 4")
+        if cart_remove_count >= 2:
+            evidence.append("cart_remove_count >= 2")
+        if recommend_ignore_count >= 1:
+            evidence.append("recommend_ignore_count >= 1")
+        if latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat", "recommendation_ignored"):
+            evidence.append(f"event_type={latest_event_type}")
+        if _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"]):
+            evidence.append("speech contains menu hesitation")
+        if risk_score >= 5 and max_dwell_time_sec > 40:
+            evidence.append("risk_score >= 5 and dwell_time_sec > 40")
     elif _contains_any(speech, ["不會", "不懂", "怎麼用", "看不懂", "怎麼點"]):
         barrier_state = "operation_confusion"
         evidence.append("speech contains operation confusion")
@@ -214,6 +250,10 @@ def infer_barrier_state(
 
     category_info = map_barrier_to_category(barrier_state)
     patent_category_info = map_barrier_to_patent_category(barrier_state)
+    scenario_info = {}
+    scenario_id = scenario_service.infer_scenario_from_barrier_state(barrier_state)
+    if scenario_id:
+        scenario_info = scenario_service.attach_scenario_metadata({}, scenario_id)
     return {
         "barrier_state": barrier_state,
         "severity": severity,
@@ -227,8 +267,14 @@ def infer_barrier_state(
         "emotion_risk_rules": emotion_risk.get("emotion_risk_rules", []),
         "emotion_risk_evidence": emotion_risk.get("emotion_risk_evidence", []),
         "recommended_action": map_barrier_to_default_action(barrier_state, severity),
+        "payment_fail_count": payment_fail_count,
+        "coupon_error_count": coupon_error_count,
+        "category_switch_count": category_switch_count,
+        "cart_remove_count": cart_remove_count,
+        "recommend_ignore_count": recommend_ignore_count,
         "emotion_label": emotion_label,
         "media_signals": media_signals or {},
         **category_info,
         **patent_category_info,
+        **scenario_info,
     }
