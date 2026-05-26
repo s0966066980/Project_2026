@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 import tempfile
 import time
 
@@ -12,6 +13,8 @@ from repositories import emotion_clip_repository, session_repository
 from services import customer_service as customer_emotion_service
 from utils.auth_utils import require_admin_token
 from utils.file_utils import write_binary_file
+
+_EMOTION_LLAMA_PROC: subprocess.Popen | None = None
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -29,6 +32,65 @@ def create_router(deps: dict) -> APIRouter:
             "gradio_url": config.EMOTION_LLAMA_GRADIO_URL,
             **status,
         }
+
+    @router.post("/emotion_llama/start")
+    async def start_emotion_llama(request: Request):
+        """Start the independent Emotion-LLaMA client when voice assist needs emotion evidence."""
+        require_admin_token(request)
+        global _EMOTION_LLAMA_PROC
+
+        # Already running?
+        if _EMOTION_LLAMA_PROC is not None and _EMOTION_LLAMA_PROC.poll() is None:
+            return {"status": "already_running", "pid": _EMOTION_LLAMA_PROC.pid}
+
+        client_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "..", "Emotion-LLaMA", "app_EmotionLlamaClient.py",
+        )
+        client_path = os.path.normpath(client_path)
+        if not os.path.exists(client_path):
+            return {"status": "error", "message": f"app_EmotionLlamaClient.py not found at {client_path}"}
+
+        cmd = [
+            "bash", "-c",
+            f"source $(conda info --base)/etc/profile.d/conda.sh && "
+            f"conda activate emotion_ollama && "
+            f"python {client_path}",
+        ]
+        try:
+            proc = await asyncio.to_thread(
+                subprocess.Popen,
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            _EMOTION_LLAMA_PROC = proc
+            return {"status": "success", "pid": proc.pid, "message": "Emotion-LLaMA 啟動中"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @router.post("/emotion_llama/stop")
+    async def stop_emotion_llama(request: Request):
+        """Stop the managed Emotion-LLaMA client process and release GPU/CPU resources."""
+        require_admin_token(request)
+        global _EMOTION_LLAMA_PROC
+        proc = _EMOTION_LLAMA_PROC
+        if proc is None or proc.poll() is not None:
+            _EMOTION_LLAMA_PROC = None
+            return {"status": "not_running"}
+        try:
+            proc.terminate()
+            try:
+                await asyncio.to_thread(proc.wait, timeout=8)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                await asyncio.to_thread(proc.wait, timeout=5)
+            pid = proc.pid
+            _EMOTION_LLAMA_PROC = None
+            return {"status": "success", "pid": pid, "message": "Emotion-LLaMA 已停止"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     @router.get("/emotion_clips/{session_id}")
     async def get_emotion_clips(request: Request, session_id: str):

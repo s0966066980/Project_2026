@@ -258,7 +258,6 @@ def record_final_checkout(
     pushed_ids: list,
     cart_ids: list,
     session_history: list,
-    pushed_variants: dict | None = None
 ):
     """
     結帳時進行全局評估，策略：每位顧客只記錄一筆結果。
@@ -270,7 +269,6 @@ def record_final_checkout(
         pushed_ids=pushed_ids,
         cart_ids=cart_ids,
         session_history=session_history,
-        pushed_variants=pushed_variants
     )
     return log_repository.append_session_log(log_entry)
 

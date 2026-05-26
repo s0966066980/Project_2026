@@ -179,24 +179,19 @@ def create_router(deps: dict) -> APIRouter:
             )
             speech_text = (stt_result.get("text") or "").strip()
 
-            async with deps["emotion_semaphore"]:
-                emotion_data = await ai_services.async_get_emotion_from_llama(
-                    temp_video_path,
-                    speech_text,
-                    media_signals,
-                    interaction_context=interaction_context,
-                    ui_context=ui_context,
-                    risk_result=risk_result,
-                )
-            raw_emotion = emotion_data.get("emotion_raw", "") or "無法辨識具體情緒。"
-            emotion_available = emotion_data.get("emotion_available", True)
-            emotion_error = emotion_data.get("emotion_error", "")
-            emotion_structured = await customer_emotion_service.emotion_to_structured_display(
+            # Emotion-LLaMA is reserved for customer-service mode only (2-5).
+            # General event-triggered pipeline uses YOLO + Whisper only.
+            raw_emotion = "未啟用"
+            emotion_available = False
+            emotion_error = "Emotion-LLaMA 已停用（僅在客服模式啟用）"
+            emotion_structured = customer_emotion_service.build_emotion_structured(
                 raw_emotion,
-                person_check,
-                speech_text,
-                media_signals,
-                deps.get("ollama_semaphore"),
+                "Emotion-LLaMA 未執行：保留給客服模式使用。",
+                "無法判斷",
+                evidence_hint=emotion_error,
+                person_check=person_check,
+                speech_text=speech_text,
+                media_signals=media_signals,
             )
             multimodal_evidence = multimodal_evidence_service.build_multimodal_evidence(
                 emotion_structured=emotion_structured,

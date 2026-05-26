@@ -75,10 +75,6 @@ export async function ask(formData) {
   return asJson(await fetch(`${API_BASE}/api/ask`, { method: 'POST', body: formData }));
 }
 
-export async function customerService(formData) {
-  return asJson(await fetch(`${API_BASE}/api/customer_service`, { method: 'POST', body: formData }));
-}
-
 export async function checkout(formData, signal) {
   return fetch(`${API_BASE}/api/checkout`, { method: 'POST', body: formData, signal });
 }
@@ -151,18 +147,6 @@ export async function deleteRagReviewLog(index) {
   return asJson(await fetch(`${API_BASE}/api/rag_review_logs/${encodeURIComponent(index)}`, { method: 'DELETE', headers: adminHeaders() }));
 }
 
-export async function getCustomerServiceLogs() {
-  return asJson(await fetch(`${API_BASE}/api/customer_service_logs`, { headers: adminHeaders() }));
-}
-
-export async function sendHumanReply(sourceId, payload) {
-  return asJson(await fetch(`${API_BASE}/api/customer_service_logs/${encodeURIComponent(sourceId)}/human_reply`, {
-    method: 'POST',
-    headers: adminHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload)
-  }));
-}
-
 export async function reportInteractionEvent(payload) {
   return asJson(await fetch(`${API_BASE}/api/interaction_event`, {
     method: 'POST',
@@ -181,4 +165,16 @@ export async function barrierState(payload) {
 
 export async function getInterventionStats() {
   return asJson(await fetch(`${API_BASE}/api/intervention_stats`, { headers: adminHeaders() }));
+}
+
+export async function clearInterventionLogs() {
+  return asJson(await fetch(`${API_BASE}/api/intervention_logs`, { method: 'DELETE', headers: adminHeaders() }));
+}
+
+export async function startEmotionLlama() {
+  return asJson(await fetch(`${API_BASE}/api/emotion_llama/start`, { method: 'POST', headers: adminHeaders() }));
+}
+
+export async function stopEmotionLlama() {
+  return asJson(await fetch(`${API_BASE}/api/emotion_llama/stop`, { method: 'POST', headers: adminHeaders() }));
 }

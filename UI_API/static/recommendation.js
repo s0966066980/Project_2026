@@ -1,27 +1,3 @@
-function pushItemNames(items = []) {
-  return (Array.isArray(items) ? items : [items])
-    .filter(Boolean)
-    .map(item => item.name)
-    .filter(Boolean)
-    .join('、');
-}
-
-function extractOllamaDescription(ollamaResult = '', variant = '') {
-  const clean = (text) => String(text || '')
-    .replace(/^(推薦理由|搭配建議|A\s*版|B\s*版|AI\s*推薦)\s*[:：\-]?\s*/i, '')
-    .replace(/["{}[\]]/g, '')
-    .trim();
-  if (!ollamaResult) return '';
-  try {
-    const parsed = JSON.parse(ollamaResult);
-    if (variant === 'A' && parsed.variant_a) return clean(parsed.variant_a.reason || parsed.variant_a.description || '');
-    if (variant === 'B' && parsed.variant_b) return clean(parsed.variant_b.reason || parsed.variant_b.description || '');
-    return clean(parsed.reason || parsed.description || parsed.ai_response || '');
-  } catch {
-    return clean(ollamaResult);
-  }
-}
-
 export function createRecommendationManager({
   ui,
   escapeHTML,
@@ -30,108 +6,129 @@ export function createRecommendationManager({
   findMenuItems,
   addToCart,
   sessionPushedIds,
-  sessionPushedVariants,
 }) {
-  let currentPushCards = [];
+  let currentCard = null;
+  let dismissTimer = null;
 
-  function clearAllPushCards() {
-    ui.floatPush.innerHTML = '';
-    ui.floatPush.classList.remove('ab-mode');
-    currentPushCards = [];
+  function _extractReason(ollamaResult) {
+    const clean = (t) => String(t || '')
+      .replace(/^(推薦理由|搭配建議|AI\s*推薦)\s*[:：\-]?\s*/i, '')
+      .replace(/["{}[\]]/g, '')
+      .trim();
+    if (!ollamaResult) return '';
+    try {
+      const parsed = JSON.parse(ollamaResult);
+      return clean(parsed.reason || parsed.description || parsed.ai_response || '');
+    } catch {
+      return clean(ollamaResult);
+    }
   }
+
+  function clearPushCard() {
+    if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
+    if (currentCard) {
+      currentCard.classList.add('push-fade-out');
+      const card = currentCard;
+      currentCard = null;
+      setTimeout(() => card.remove(), 400);
+    }
+    ui.floatPush.replaceChildren();
+  }
+
+  function clearAllPushCards() { clearPushCard(); }
 
   function showPushNotice(text) {
     if (!isPosActive()) return;
+    clearPushCard();
     const card = document.createElement('div');
-    card.className = 'push-card';
-    card.innerHTML = `<p class="text-[15px] leading-relaxed font-semibold" style="color:var(--text)">${escapeHTML(text)}</p>`;
+    card.className = 'push-card push-notice';
+    const p = document.createElement('p');
+    p.className = 'push-notice-text';
+    p.textContent = text;
+    card.appendChild(p);
     ui.floatPush.appendChild(card);
-    setTimeout(() => {
-      card.classList.add('fade-out');
-      setTimeout(() => card.remove(), 1800);
-    }, 2600);
+    currentCard = card;
+    dismissTimer = setTimeout(clearPushCard, 4000);
   }
 
-  function showPushCard(items, reason, variant = '', ollamaResult = '') {
+  function showPushCard(items, reason, ollamaResult) {
     if (!isPosActive()) return;
     const itemList = (Array.isArray(items) ? items : [items]).filter(Boolean).slice(0, 3);
     if (!itemList.length) return;
 
+    clearPushCard();
+
     const card = document.createElement('div');
     card.className = 'push-card';
 
-    const total = itemList.reduce((sum, item) => sum + Number(item.price || 0), 0);
-    const finalText = extractOllamaDescription(ollamaResult, variant) || reason;
-    const itemNames = pushItemNames(itemList);
-    const priceText = itemList.length > 1
-      ? `組合 $${total}`
-      : `$${Number(itemList[0].price || 0)}`;
+    const total = itemList.reduce((s, item) => s + Number(item.price || 0), 0);
+    const finalText = _extractReason(ollamaResult) || reason || '';
+    const names = itemList.map(i => i.name || '').filter(Boolean).join('、');
+    const priceText = itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`;
 
-    card.innerHTML = `
-      <div class="flex items-center justify-end mb-2">
-        <button type="button" data-close-push style="color:var(--text2)" class="text-xs opacity-60 hover:opacity-100"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="push-items">${escapeHTML(itemNames)}</div>
-      <div class="push-price">${escapeHTML(priceText)}</div>
-      <p class="push-message">${escapeHTML(finalText)}</p>
-      <button type="button" data-add-push class="btn-primary w-full py-2 text-sm rounded-xl">
-        <i class="fas fa-cart-plus mr-1"></i> ${itemList.length > 1 ? `加入這組 $${total}` : '加入購物車'}
-      </button>`;
-    card.querySelector('[data-close-push]').onclick = () => card.classList.add('fade-out');
-    card.querySelector('[data-add-push]').onclick = () => {
-      itemList.forEach(addToCart);
-      card.classList.add('fade-out');
+    // Header row
+    const header = document.createElement('div');
+    header.className = 'push-card-header';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'push-card-title';
+    titleEl.textContent = '為您推薦';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'push-close-btn';
+    closeBtn.setAttribute('aria-label', '關閉');
+    const closeIcon = document.createElement('i');
+    closeIcon.className = 'fas fa-times';
+    closeBtn.appendChild(closeIcon);
+    closeBtn.onclick = clearPushCard;
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'push-item-names';
+    nameEl.textContent = names;
+
+    const priceEl = document.createElement('div');
+    priceEl.className = 'push-item-price';
+    priceEl.textContent = priceText;
+
+    const reasonEl = document.createElement('p');
+    reasonEl.className = 'push-reason';
+    reasonEl.textContent = finalText;
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'push-add-btn btn-primary';
+    const cartIcon = document.createElement('i');
+    cartIcon.className = 'fas fa-cart-plus';
+    addBtn.appendChild(cartIcon);
+    addBtn.appendChild(document.createTextNode(
+      itemList.length > 1 ? ` 加入這組 $${total}` : ' 加入購物車'
+    ));
+    addBtn.onclick = () => {
+      itemList.forEach(item => addToCart(item));
+      clearPushCard();
     };
 
+    card.appendChild(header);
+    card.appendChild(nameEl);
+    card.appendChild(priceEl);
+    card.appendChild(reasonEl);
+    card.appendChild(addBtn);
     ui.floatPush.appendChild(card);
-    currentPushCards.push(card);
+    currentCard = card;
 
-    setTimeout(() => {
-      card.classList.add('fade-out');
-      setTimeout(() => {
-        card.remove();
-        currentPushCards = currentPushCards.filter(existing => existing !== card);
-      }, 1800);
-    }, 9000);
+    dismissTimer = setTimeout(clearPushCard, 5000);
   }
 
   function displayRecommendation(data) {
     const features = getFeatures();
     if (!features.recommend || !isPosActive()) return;
-
-    if (features.abTest && data.mode === 'ab') {
-      clearAllPushCards();
-      ui.floatPush.classList.add('ab-mode');
-      const parseCard = (variantData) => {
-        const ids = variantData.recommendation_ids || [];
-        if (!ids.length || variantData.error) return;
-        const items = findMenuItems(ids);
-        if (items.length) {
-          showPushCard(items, variantData.reason, variantData.variant, variantData.ollama_result || '');
-          items.forEach(item => {
-            sessionPushedIds.add(item.id);
-            if (variantData.variant === 'A' || variantData.variant === 'B') {
-              sessionPushedVariants[variantData.variant].add(item.id);
-            }
-          });
-        }
-      };
-      parseCard(data.variant_a);
-      parseCard(data.variant_b);
-      return;
-    }
-
     const ids = data.recommendation_ids || [];
     if (!ids.length) return;
     const items = findMenuItems(ids);
     if (!items.length) return;
-    clearAllPushCards();
-    showPushCard(items, data.reason, data.variant || '', data.ollama_result || '');
-    items.forEach(item => {
-      sessionPushedIds.add(item.id);
-      const variantKey = data.variant === 'A' || data.variant === 'B' ? data.variant : 'single';
-      sessionPushedVariants[variantKey].add(item.id);
-    });
+    showPushCard(items, data.reason || '', data.ollama_result || '');
+    items.forEach(item => sessionPushedIds.add(item.id));
   }
 
   return {

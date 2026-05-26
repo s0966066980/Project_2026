@@ -80,9 +80,9 @@ def _event_score(event: dict) -> tuple[int, list[str]]:
     elif event_type == "checkout_error":
         score += 3
         reasons.append("event_type=checkout_error")
-    elif event_type == "voice_order_failed":
+    elif event_type in ("voice_order_failed", "voice_assist_failed"):
         score += 1
-        reasons.append("event_type=voice_order_failed")
+        reasons.append(f"event_type={event_type}")
     elif event_type == "customer_service_failed":
         score += 1
         reasons.append("event_type=customer_service_failed")

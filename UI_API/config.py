@@ -9,7 +9,8 @@ from prompts.defaults import (
     CUSTOMER_SERVICE_SYSTEM_PROMPT,
     EMOTION_LLAMA_PROMPT,
     RECOMMEND_SYSTEM_PROMPT,
-    RECOMMEND_SYSTEM_PROMPT_B,
+    VOICE_ASSIST_SYSTEM_PROMPT,
+    VOICE_ASSIST_SYSTEM_PROMPT_EN,
 )
 
 load_dotenv()
@@ -70,8 +71,8 @@ DEFAULT_SETTINGS = {
     "AI_PROVIDER": "ollama",
     "QA_AI_PROVIDER": "ollama",
     "EMOTION_AI_PROVIDER": "ollama",
-    "MODEL_NAME": "llama3.2",
-    "ASK_MODEL_NAME": "llama3.2",
+    "MODEL_NAME": "qwen3.5:4b",
+    "ASK_MODEL_NAME": "qwen3.5:4b",
     "ENABLE_GEMINI_OPTIONS": False,
     "GEMINI_MODEL_NAME": "gemini-3-flash-preview",
     "GEMINI_FALLBACK_TO_OLLAMA": True,
@@ -84,7 +85,12 @@ DEFAULT_SETTINGS = {
     "SAVE_VOICE_ORDER_TO_RAG": False,
     "DEMO_SAVE_VOICE_ORDER_TO_RAG": False,
     "SAVE_CUSTOMER_SERVICE_TO_RAG": False,
-    "EMOTION_INFLUENCE_RECOMMEND": True,
+    "EMOTION_INFLUENCE_RECOMMEND": False,
+    "USE_AI_RECOMMEND": True,          # True=Ollama推播, False=預設熱門推播
+    "VOICE_ASSIST_MODEL": "qwen3.5:9b",  # 語音協助專用模型
+    "VOICE_ASSIST_EMOTION_ENABLED": True,
+    "VOICE_ASSIST_EMOTION_AUTO_START": False,
+    "VOICE_ASSIST_EMOTION_IDLE_TIMEOUT_SEC": 300,
     "EVENT_TRIGGERED_MULTIMODAL_ENABLED": True,
     "EMOTION_PERIODIC_ENABLED": False,
     "WHISPER_MODEL_SIZE": "base",
@@ -124,7 +130,6 @@ DEFAULT_SETTINGS = {
     "AUTO_RECOMMEND_MIN_GAP_SEC": 20,
     "EMOTION_MIN_GAP_SEC": 12,
     "CUSTOMER_EMOTION_WAIT_SEC": 8,
-    "AB_SINGLE_CALL": True,
     "ENABLE_TTS_CACHE": True,
     "ENABLE_RECOMMEND_CACHE": True,
     "WHISPER_MIN_AUDIO_SEC": 0.45,
@@ -153,10 +158,11 @@ DEFAULT_SETTINGS = {
     "EMOTION_LOW_AUDIO_DB": -45,
     "EMOTION_LLAMA_PROMPT": EMOTION_LLAMA_PROMPT,
     "RECOMMEND_SYSTEM_PROMPT": RECOMMEND_SYSTEM_PROMPT,
-    "RECOMMEND_SYSTEM_PROMPT_B": RECOMMEND_SYSTEM_PROMPT_B,
     "ASK_SYSTEM_PROMPT": ASK_SYSTEM_PROMPT,
     "ASK_SYSTEM_PROMPT_EN": ASK_SYSTEM_PROMPT_EN,
     "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
+    "VOICE_ASSIST_SYSTEM_PROMPT": VOICE_ASSIST_SYSTEM_PROMPT,
+    "VOICE_ASSIST_SYSTEM_PROMPT_EN": VOICE_ASSIST_SYSTEM_PROMPT_EN,
 }
 
 PUBLIC_SETTINGS_KEYS = {
@@ -175,6 +181,9 @@ PUBLIC_SETTINGS_KEYS = {
     "PERFORMANCE_MODE",
     "SAVE_VOICE_ORDER_TO_RAG",
     "DEMO_SAVE_VOICE_ORDER_TO_RAG",
+    "USE_AI_RECOMMEND",
+    "VOICE_ASSIST_MODEL",
+    "VOICE_ASSIST_EMOTION_ENABLED",
 }
 
 
@@ -233,6 +242,20 @@ def load_settings():
             except Exception as e:
                 print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
                 should_write = True
+
+        # Restore defaults for prompt fields stored as empty strings
+        _prompt_keys = [
+            "EMOTION_LLAMA_PROMPT",
+            "RECOMMEND_SYSTEM_PROMPT",
+            "ASK_SYSTEM_PROMPT",
+            "ASK_SYSTEM_PROMPT_EN",
+            "VOICE_ASSIST_SYSTEM_PROMPT",
+            "VOICE_ASSIST_SYSTEM_PROMPT_EN",
+            "CUSTOMER_SERVICE_SYSTEM_PROMPT",
+        ]
+        for _k in _prompt_keys:
+            if not settings.get(_k) and DEFAULT_SETTINGS.get(_k):
+                settings[_k] = DEFAULT_SETTINGS[_k]
 
         if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
             settings["AI_PROVIDER"] = "ollama"

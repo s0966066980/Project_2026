@@ -12,7 +12,6 @@ import ai_services
 import database
 from routes import (
     core_routes,
-    customer_service_routes,
     emotion_routes,
     demo_routes,
     debug_routes,
@@ -175,7 +174,6 @@ app.include_router(core_routes.create_router(_deps))
 app.include_router(menu_routes.create_router(_deps))
 app.include_router(rag_routes.create_router(_deps))
 app.include_router(voice_routes.create_router(_deps))
-app.include_router(customer_service_routes.create_router(_deps))
 app.include_router(recommendation_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
 app.include_router(demo_routes.create_router(_deps))
@@ -186,10 +184,61 @@ if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
 
 
+def _ensure_ollama(model: str = "qwen3.5:4b", embed_model: str = "nomic-embed-text", extra_models: list = None):
+    """Start ollama serve if not running, then pull required models in background."""
+    import socket as _sock
+    import subprocess as _sp
+    import time as _t
+
+    def _ollama_running() -> bool:
+        try:
+            with _sock.create_connection(("127.0.0.1", 11434), timeout=1):
+                return True
+        except OSError:
+            return False
+
+    if not _ollama_running():
+        print("⏳ Ollama 未偵測到，正在啟動 ollama serve ...")
+        _sp.Popen(["ollama", "serve"], stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, start_new_session=True)
+        for _ in range(20):
+            _t.sleep(0.5)
+            if _ollama_running():
+                print("✅ ollama serve 已啟動")
+                break
+        else:
+            print("⚠️ ollama serve 啟動超時，請手動執行。")
+            return
+    else:
+        print("✅ ollama serve 已在執行中")
+
+    def _pull():
+        pull_list = [model, embed_model] + (extra_models or [])
+        for m in pull_list:
+            try:
+                result = _sp.run(["ollama", "pull", m], capture_output=True, text=True, timeout=300)
+                if result.returncode == 0:
+                    print(f"✅ ollama pull {m} 完成")
+                else:
+                    print(f"⚠️ ollama pull {m} 失敗：{result.stderr.strip()}")
+            except _sp.TimeoutExpired:
+                print(f"⚠️ ollama pull {m} 超時，請手動執行。")
+            except FileNotFoundError:
+                print("⚠️ ollama 指令不存在，請確認 ollama 已安裝。")
+                break
+
+    threading.Thread(target=_pull, name="ollama-pull", daemon=True).start()
+
+
 if __name__ == "__main__":
     import socket
     import sys
     import uvicorn
+
+    _ensure_ollama(
+        model=config.get("MODEL_NAME", "qwen3.5:4b"),
+        embed_model="nomic-embed-text",
+        extra_models=[config.get("VOICE_ASSIST_MODEL", "qwen3.5:9b")],
+    )
 
     def _port_is_in_use(host: str, port: int) -> bool:
         check_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host

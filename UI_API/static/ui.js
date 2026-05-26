@@ -19,7 +19,6 @@ export const ui = {
   kioskCartBtn: document.getElementById('kioskCartBtn'),
   kioskBottomCount: document.getElementById('kioskBottomCount'),
   kioskBottomTotal: document.getElementById('kioskBottomTotal'),
-  kioskVoiceBtn: document.getElementById('kioskVoiceBtn'),
   continueOrderBtn: document.getElementById('continueOrderBtn'),
   clearCartBtn: document.getElementById('clearCartBtn'),
   startBtn: document.getElementById('startSystemBtn'),
@@ -45,8 +44,13 @@ export const ui = {
   emotionDetectBox: document.getElementById('emotionDetectBox'),
   emotionDetectLabel: document.getElementById('emotionDetectLabel'),
   audio: document.getElementById('ttsAudio'),
-  askBtn: document.getElementById('askBtn'),
-  askText: document.getElementById('askBtnText'),
+  voiceAssistBtn: document.getElementById('voiceAssistBtn'),
+  voiceAssistBtnText: document.getElementById('voiceAssistBtnText'),
+  voiceAssistOverlay: document.getElementById('voiceAssistOverlay'),
+  voiceAssistOverlayTitle: document.getElementById('voiceAssistOverlayTitle'),
+  voiceAssistOverlaySubtitle: document.getElementById('voiceAssistOverlaySubtitle'),
+  voiceAssistStopBtn: document.getElementById('voiceAssistStopBtn'),
+  voiceAssistStopText: document.getElementById('voiceAssistStopText'),
   centerPanel: document.getElementById('centerPanel'),
   pingInd: document.getElementById('pingIndicator'),
   emotionBadge: document.getElementById('emotionBadge'),
@@ -56,17 +60,6 @@ export const ui = {
   voiceBubble: document.getElementById('voiceReplyBubble'),
   voiceDialogueGrid: document.getElementById('voiceDialogueGrid'),
   voiceLangBadge: document.getElementById('voiceLangBadge'),
-  serviceFab: document.getElementById('posServiceFab'),
-  serviceWindow: document.getElementById('posServiceWindow'),
-  serviceClose: document.getElementById('posServiceClose'),
-  serviceRecord: document.getElementById('posServiceRecord'),
-  serviceRecordText: document.getElementById('posServiceRecordText'),
-  serviceResult: document.getElementById('posServiceResult'),
-  adminServiceToggle: document.getElementById('adminServiceOllamaToggle'),
-  adminServiceModeLabel: document.getElementById('adminServiceModeLabel'),
-  adminServiceRecord: document.getElementById('adminServiceRecord'),
-  adminServiceRecordText: document.getElementById('adminServiceRecordText'),
-  adminServiceResult: document.getElementById('adminServiceResult'),
 };
 
 export function escapeHTML(value) {
@@ -80,14 +73,11 @@ export function switchMainView(view, callbacks = {}) {
     callbacks.clearPOSFloatingUI?.();
     ui.posView.classList.replace('flex', 'hidden');
     ui.adminView.classList.replace('hidden', 'flex');
-    ui.serviceFab.style.display = 'none';
-    ui.serviceWindow.classList.remove('open');
     callbacks.loadAdminData?.();
     callbacks.initAdminToggles?.();
   } else {
     ui.adminView.classList.replace('flex', 'hidden');
     ui.posView.classList.replace('hidden', 'flex');
-    ui.serviceFab.style.display = 'flex';
     callbacks.applyFeaturesToPOS?.();
     callbacks.loadMenu?.();
   }

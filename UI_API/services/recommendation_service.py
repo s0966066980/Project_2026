@@ -27,12 +27,6 @@ async def _get_cached_recommend_rag_context() -> str:
     return context
 
 
-def _deterministic_variant_score(session_id: str, history_len: int) -> float:
-    key = f"{session_id or 'anonymous'}:{history_len}"
-    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
-    return (int(digest[:8], 16) % 1000) / 1000.0
-
-
 ZH_NUMBERS = {
     "一": 1, "二": 2, "兩": 2, "俩": 2, "三": 3, "四": 4, "五": 5,
     "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
@@ -301,17 +295,13 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
 
 def coerce_recommendation(
     result: dict,
-    variant: str,
     menu_ids: list[str],
-    excluded_ids: set[str] | None = None,
     menu_items: list[dict] | None = None,
 ) -> dict:
     if isinstance(result, list):
-        first_dict = next((row for row in result if isinstance(row, dict)), {})
-        result = first_dict
+        result = next((row for row in result if isinstance(row, dict)), {})
     elif not isinstance(result, dict):
         result = {}
-    excluded_ids = excluded_ids or set()
     source_error = "error" in result
     raw_ids = result.get("recommendation_ids") or result.get("recommendation_id") or []
     if isinstance(raw_ids, str):
@@ -325,31 +315,22 @@ def coerce_recommendation(
         if menu_id and menu_id not in cleaned:
             cleaned.append(menu_id)
 
-    if not cleaned or (excluded_ids and set(cleaned).issubset(excluded_ids)):
-        fallback = next((mid for mid in menu_ids if mid not in excluded_ids), menu_ids[0] if menu_ids else "")
+    if not cleaned:
+        fallback = menu_ids[0] if menu_ids else ""
         cleaned = [fallback] if fallback else []
 
-    if variant == "A":
-        cleaned = cleaned[:1]
-    elif variant == "B":
-        cleaned = cleaned[:3]
-
+    cleaned = cleaned[:3]
     reason = (
         result.get("reason")
         or result.get("empathy_response")
-        or ("從另一個角度為您挑選這組餐點。" if variant == "B" else "這是根據您當下狀態為您挑選的餐點。")
+        or "這是根據您當下狀態為您挑選的餐點。"
     )
-    reason = align_recommendation_reason(reason, cleaned, variant, menu_items or [])
-    aligned_result = {
-        "recommendation_ids": cleaned,
-        "reason": reason,
-        "variant": variant,
-    }
+    reason = align_recommendation_reason(reason, cleaned, menu_items or [])
+    aligned_result = {"recommendation_ids": cleaned, "reason": reason}
     return {
         "recommendation_ids": cleaned,
         "reason": reason,
         "ollama_result": json.dumps(aligned_result, ensure_ascii=False),
-        "variant": variant,
         "error": source_error and not cleaned,
         "source_error": source_error,
     }
@@ -358,7 +339,6 @@ def coerce_recommendation(
 def align_recommendation_reason(
     reason: str,
     recommendation_ids: list[str],
-    variant: str,
     menu_items: list[dict],
 ) -> str:
     """讓顧客看到的推播文字永遠對齊最終白名單校正後的餐點。"""
@@ -376,7 +356,6 @@ def align_recommendation_reason(
         item for item in menu_items
         if str(item.get("id")) in set(recommendation_ids)
     ]
-
     selected_id_set = set(recommendation_ids)
     other_names = [
         str(item.get("name") or "").strip()
@@ -385,28 +364,21 @@ def align_recommendation_reason(
     ]
     mentions_selected = any(name and name in reason for name in selected_names)
     mentions_other = any(name and name in reason for name in other_names)
-
-    if not reason or mentions_other:
-        if variant == "B" and len(selected_names) > 1:
-            return build_recommendation_copy(selected_items, variant)
-        return build_recommendation_copy(selected_items, variant)
-
-    if not mentions_selected:
-        return build_recommendation_copy(selected_items, variant)
-    generic_reason = len(reason) < 42 or any(key in reason for key in ["比較符合現在", "當下狀態", "經典", "推薦您試試"])
-    if generic_reason:
-        return build_recommendation_copy(selected_items, variant)
+    if not reason or mentions_other or not mentions_selected:
+        return _build_recommendation_copy(selected_items)
+    if len(reason) < 42 or any(key in reason for key in ["比較符合現在", "當下狀態", "推薦您試試"]):
+        return _build_recommendation_copy(selected_items)
     return reason
 
 
-def build_recommendation_copy(selected_items: list[dict], variant: str) -> str:
+def _build_recommendation_copy(selected_items: list[dict]) -> str:
     items = [item for item in selected_items if item.get("name")]
     if not items:
         return "這份餐點會比較符合現在的需求。"
-    if variant == "B" and len(items) > 1:
+    if len(items) > 1:
         names = "、".join(str(item.get("name")) for item in items[:3])
         total = sum(int(float(item.get("price") or 0)) for item in items[:3])
-        return f"如果想一次點得完整，{names} 很適合放在一起；有主餐也有搭配品，合計約 ${total}。"
+        return f"如果想一次點得完整，{names} 很適合放在一起；合計約 ${total}。"
     item = items[0]
     name = str(item.get("name") or "")
     price = int(float(item.get("price") or 0))
@@ -417,16 +389,39 @@ def build_recommendation_copy(selected_items: list[dict], variant: str) -> str:
     return f"如果想快速決定，可以先選{name}；點餐簡單、接受度高，價格 ${price}。"
 
 
-def history_signature(history: list, ab_mode: str) -> str:
-    compact = []
-    for record in history[-6:]:
-        compact.append({
+def get_default_recommendation(menu_items: list[dict]) -> dict:
+    """不使用 LLM 的預設熱門推播，從超值全餐/極選系列取前 2 項。"""
+    priority_cats = ["超值全餐", "極選系列", "點心"]
+    selected = []
+    for cat in priority_cats:
+        for item in menu_items:
+            if item.get("category") == cat and item.get("id") and len(selected) < 2:
+                if item["id"] not in [s["id"] for s in selected]:
+                    selected.append(item)
+        if len(selected) >= 2:
+            break
+    if not selected:
+        selected = menu_items[:2]
+    ids = [item["id"] for item in selected]
+    reason = _build_recommendation_copy(selected)
+    return {
+        "status": "success",
+        "mode": "default",
+        "recommendation_ids": ids,
+        "reason": reason,
+        "ollama_result": "",
+    }
+
+
+def history_signature(history: list) -> str:
+    compact = [
+        {
             "emotion": record.get("emotion", ""),
             "user_speech": record.get("user_speech") or record.get("speech", ""),
-            "ai_response": record.get("ai_response", ""),
-            "language": record.get("language", ""),
-        })
-    raw = json.dumps({"mode": ab_mode, "history": compact}, ensure_ascii=False, sort_keys=True)
+        }
+        for record in history[-6:]
+    ]
+    raw = json.dumps({"history": compact}, ensure_ascii=False, sort_keys=True)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
@@ -451,24 +446,6 @@ def build_emotion_prompt_context(cached_emotion: dict | None, history: list | No
     return "【當前 Emotion-LLaMA 情緒分析】\n未取得可用情緒分析；請只根據語音、歷史紀錄與菜單推薦。"
 
 
-def build_combined_ab_prompt(prompt_a: str, prompt_b: str) -> str:
-    return (
-        "你是一個 A/B 推播實驗控制器，必須一次產生兩個不同推薦版本。\n\n"
-        "【A 版策略】\n"
-        f"{prompt_a}\n\n"
-        "【B 版策略】\n"
-        f"{prompt_b}\n\n"
-        "請同時輸出 A 版與 B 版。A 版只能推薦 1 個餐點；B 版必須根據歷史點餐紀錄推薦 2~3 個適合搭配的餐點。\n"
-        "所有 recommendation_ids 都必須來自【完整菜單白名單】，禁止創造餐點。\n"
-        "reason 必須是給顧客直接看的自然口語短句，不要出現「推薦理由」、「A版」、「B版」或系統分析語氣。\n"
-        "輸出只能是合法 JSON，格式如下：\n"
-        "{\n"
-        "  \"variant_a\": {\"recommendation_ids\": [\"餐點ID\"], \"reason\": \"自然口語推薦短句\"},\n"
-        "  \"variant_b\": {\"recommendation_ids\": [\"餐點ID1\", \"餐點ID2\"], \"reason\": \"自然口語搭配短句\"}\n"
-        "}"
-    )
-
-
 def store_recommend_cache(cache: dict, cache_key: str, data: dict, ts: float):
     cache[cache_key] = {"ts": ts, "data": data}
     while len(cache) > 64:
@@ -478,19 +455,10 @@ def store_recommend_cache(cache: dict, cache_key: str, data: dict, ts: float):
 
 async def generate_recommendation(
     session_id: str,
-    ab_mode: str,
     emotion_cache: dict,
     ollama_semaphore,
-    emotion_influence: bool = True,
 ) -> dict:
-    """
-    核心推薦邏輯，包含：
-    1. 取得 session history
-    2. 建構 user_prompt（emotion_context、history_str、experiences、pairing_context、menu_context、rag_context）
-    3. A/B 或 single 分支的 Ollama 呼叫
-    4. coerce_recommendation 白名單校正
-    回傳完整的 response_data dict（不含 cache 操作）。
-    """
+    """Ollama 推播：根據菜單、RAG 與對話歷史推薦餐點（無 A/B 測試）。"""
     history = session_repository.get_session_history(session_id)
     history_str = "\n".join([
         f"[{r.get('timestamp','')}] "
@@ -500,90 +468,35 @@ async def generate_recommendation(
         for r in history[-8:]
     ]).strip() or "顧客剛開始點餐，尚無紀錄。"
 
-    experiences = await asyncio.to_thread(database.get_successful_experiences)
-    pairing_context = await asyncio.to_thread(database.get_order_pairing_context)
-    full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
-    rag_context = await _get_cached_recommend_rag_context()
-    current_emotion = emotion_cache.get(session_id)
-    emotion_context = (
-        build_emotion_prompt_context(current_emotion, history)
-        if emotion_influence and config.get("EMOTION_INFLUENCE_RECOMMEND", True)
-        else "【Emotion-LLaMA 情緒分析】本次推薦不使用情緒分析作為依據。"
+    experiences, pairing_context, full_menu_context, rag_context = await asyncio.gather(
+        asyncio.to_thread(database.get_successful_experiences),
+        asyncio.to_thread(database.get_order_pairing_context),
+        asyncio.to_thread(database.build_full_menu_context),
+        _get_cached_recommend_rag_context(),
     )
+
     user_prompt = (
-        f"{emotion_context}\n\n"
-        f"【顧客近期狀態與對話】\n{history_str}\n\n"
+        f"【顧客近期對話與情緒】\n{history_str}\n\n"
         f"{experiences}\n\n"
         f"{pairing_context}\n\n"
         f"{full_menu_context}\n\n"
-        f"【RAG 補充內容】\n{rag_context}\n\n"
-        "重要限制：只能輸出完整菜單白名單存在的餐點 ID；reason 也只能提到真實菜單品項。\n"
-        "若【RAG 全域規則】要求 reason 使用固定開頭、語氣或禁用文字，必須直接套用在 reason。\n"
-        "若 Emotion-LLaMA 情緒分析可用，推薦必須優先根據該情緒、判斷依據與量化分佈調整；焦躁、急迫或顧客表示趕時間時，優先推薦製作時間較短的餐點。"
+        f"【RAG 補充規則與知識】\n{rag_context or '（無補充）'}\n\n"
+        "推薦規則：\n"
+        "1. recommendation_ids 只能使用【完整菜單白名單】中存在的 ID。\n"
+        "2. 若顧客歷史有點過某類餐點，優先推薦搭配品（主餐+飲料、主餐+點心）。\n"
+        "3. 若 RAG 全域規則有固定開頭語氣，必須套用。\n"
+        "4. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
+        "推薦 1~3 個餐點。"
     )
 
-    base_prompt = config.get("RECOMMEND_SYSTEM_PROMPT")
-    prompt_b_base = config.get("RECOMMEND_SYSTEM_PROMPT_B")
+    system_prompt = config.get("RECOMMEND_SYSTEM_PROMPT")
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     menu_ids = [item.get("id") for item in menu_items if item.get("id")]
     loop = asyncio.get_running_loop()
 
-    if ab_mode == "ab":
-        prompt_a = base_prompt
-        prompt_b = prompt_b_base
-
-        if config.get("AB_SINGLE_CALL", True):
-            combined_prompt = build_combined_ab_prompt(prompt_a, prompt_b)
-            async with ollama_semaphore:
-                combined = await loop.run_in_executor(
-                    None, ai_services.ask_ollama, combined_prompt, user_prompt, "AB"
-                )
-            if isinstance(combined, list):
-                combined = next((row for row in combined if isinstance(row, dict)), {})
-            elif not isinstance(combined, dict):
-                combined = {}
-            result_a = combined.get("variant_a", {}) if "error" not in combined else combined
-            result_b = combined.get("variant_b", {}) if "error" not in combined else combined
-            if not isinstance(result_a, dict):
-                result_a = {}
-            if not isinstance(result_b, dict):
-                result_b = {}
-            if "error" not in combined:
-                raw_content = combined.get("_raw_content", json.dumps(combined, ensure_ascii=False))
-                result_a["_raw_content"] = raw_content
-                result_b["_raw_content"] = raw_content
-        else:
-            async with ollama_semaphore:
-                result_a = await loop.run_in_executor(
-                    None, ai_services.ask_ollama, prompt_a, user_prompt, "A"
-                )
-                result_b = await loop.run_in_executor(
-                    None, ai_services.ask_ollama, prompt_b, user_prompt, "B"
-                )
-
-        rec_a = coerce_recommendation(result_a, "A", menu_ids, menu_items=menu_items)
-        rec_b = coerce_recommendation(
-            result_b,
-            "B",
-            menu_ids,
-            excluded_ids=set(rec_a["recommendation_ids"]),
-            menu_items=menu_items,
-        )
-
-        return {
-            "status": "success",
-            "mode": "ab",
-            "variant_a": rec_a,
-            "variant_b": rec_b,
-        }
-
-    diversity_ratio = float(config.get("RECOMMEND_DIVERSITY_RATIO", 0.4))
-    use_diversity = _deterministic_variant_score(session_id, len(history)) < diversity_ratio
-    prompt = prompt_b_base if use_diversity else base_prompt
-    variant = "B" if use_diversity else "A"
     async with ollama_semaphore:
         recommendation = await loop.run_in_executor(
-            None, ai_services.ask_ollama, prompt, user_prompt, variant
+            None, ai_services.ask_ollama, system_prompt, user_prompt
         )
 
     if isinstance(recommendation, list):
@@ -598,13 +511,12 @@ async def generate_recommendation(
             "raw_content": recommendation.get("raw_content", ""),
         }
 
-    rec = coerce_recommendation(recommendation, variant, menu_ids, menu_items=menu_items)
+    rec = coerce_recommendation(recommendation, menu_ids, menu_items=menu_items)
     return {
         "status": "success",
-        "mode": "single",
+        "mode": "ai",
         "recommendation_ids": rec["recommendation_ids"],
         "reason": rec["reason"],
-        "variant": variant,
         "ollama_result": rec["ollama_result"],
     }
 
@@ -642,25 +554,14 @@ def build_checkout_log_entry(
     pushed_ids: list,
     cart_ids: list,
     session_history: list,
-    pushed_variants: dict | None = None
 ) -> dict:
     """
     評估一次結帳中的推播成效。
     Repository 只負責保存此函式產出的最終 dict。
     """
     unique_pushed = list(set(pushed_ids))
-    pushed_variants = pushed_variants or {}
     cart_id_set = set(cart_ids)
     is_success = bool(set(unique_pushed) & cart_id_set)
-
-    variant_success = {}
-    for variant, ids in pushed_variants.items():
-        if isinstance(ids, list):
-            unique_variant_ids = list(set(ids))
-            variant_success[variant] = {
-                "pushed_ids": unique_variant_ids,
-                "is_success": bool(set(unique_variant_ids) & cart_id_set)
-            }
 
     emotions = list(set(h["emotion"] for h in session_history if h.get("emotion")))
     emotions_summary = ", ".join(emotions) if emotions else "未知"
@@ -674,8 +575,6 @@ def build_checkout_log_entry(
         "speech_summary": " / ".join(speeches) if speeches else "",
         "languages": languages,
         "pushed_ids": unique_pushed,
-        "pushed_variants": pushed_variants,
-        "variant_success": variant_success,
         "final_cart_ids": cart_ids,
         "is_success": is_success
     }

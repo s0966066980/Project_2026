@@ -413,24 +413,14 @@ async def handle_voice_ask(
         rec_reason = ""
         ai_response = rag_answer.get("ai_response", "") if rag_answer.get("ok") else ""
         if not ai_response:
-            emotion_cache = {}
-            ab_mode = config.get("AB_MODE", "single") if hasattr(config, "get") else "single"
             rec = await recommendation_service.generate_recommendation(
                 session_id=session_id,
-                ab_mode=str(ab_mode or "single"),
-                emotion_cache=emotion_cache,
+                emotion_cache={},
                 ollama_semaphore=ollama_semaphore,
-                emotion_influence=False,
             )
             if rec.get("status") == "success":
-                if rec.get("mode") == "ab":
-                    a = rec.get("variant_a") or {}
-                    b = rec.get("variant_b") or {}
-                    rec_ids = list((a.get("recommendation_ids") or []) + (b.get("recommendation_ids") or []))
-                    rec_reason = a.get("reason") or b.get("reason") or ""
-                else:
-                    rec_ids = rec.get("recommendation_ids") or []
-                    rec_reason = rec.get("reason") or ""
+                rec_ids = rec.get("recommendation_ids") or []
+                rec_reason = rec.get("reason") or ""
             name_by_id = {item.get("id"): item.get("name") for item in menu_items if item.get("id")}
             rec_names = [name_by_id.get(rid) for rid in rec_ids if name_by_id.get(rid)]
             if rec_names:

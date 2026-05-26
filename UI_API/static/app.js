@@ -1,5 +1,5 @@
-import * as api from './api.js?v=uifix-20260521';
-import { API_BASE } from './api.js?v=uifix-20260521';
+import * as api from './api.js?v=20260526';
+import { API_BASE } from './api.js?v=20260526';
 import {
   ui,
   escapeHTML,
@@ -7,22 +7,22 @@ import {
   switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=uifix-20260521';
+} from './ui.js?v=20260526';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=uifix-20260521';
-import { createCartManager } from './cart.js?v=uifix-20260521';
-import { createRecommendationManager } from './recommendation.js?v=uifix-20260521';
-import { connectRealtime } from './realtime_client.js?v=uifix-20260521';
+} from './media.js?v=20260526';
+import { createCartManager } from './cart.js?v=20260526';
+import { createRecommendationManager } from './recommendation.js?v=20260526';
+import { connectRealtime } from './realtime_client.js?v=20260526';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js?v=uifix-20260521';
+} from './media_buffer.js?v=20260526';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -48,16 +48,10 @@ function buildSessionId() {
 
 const sessionId = buildSessionId();
 let stream, askRecorder;
-let serviceRecorder = null;
-let serviceChunks = [];
-let adminServiceRecorder = null;
-let adminServiceChunks = [];
-let adminServiceOllamaDirect = true;
 let isSystemRunning = false;
 let orderCompleted = false;
 let menuData = [];
 let sessionPushedIds = new Set();
-let sessionPushedVariants = { A: new Set(), B: new Set(), single: new Set() };
 let recommendPending = false;
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
@@ -77,13 +71,14 @@ let interactionModalTimer = null;
 let pageDwellTimer = null;
 let adminRefreshTimer = null;
 let interventionStatsLoading = false;
-let customerServiceLoading = false;
 let posRealtime = null;
 let adminRealtime = null;
 let voiceOrderingAvailable = false;
 let autoVoiceTimer = null;
 let autoVoiceInFlight = false;
 let askRecordingStartedAt = 0;
+let voiceAssistRecommendFallbackUntil = 0;
+let lastValidOrderActionAt = 0;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
@@ -143,30 +138,21 @@ const KIOSK_TEXT = {
     cartCount: '共 {count} 項',
     cartEmptyTitle: '購物車是空的',
     cartEmptySub: '快去選擇喜愛的餐點吧！',
-    holdVoiceOrder: '長按語音點餐',
-    voiceAskHint: '語音發問開啟後可詢問 AI 助理',
-    listeningAsk: '聆聽發問中...',
-    listeningOrder: '聆聽點餐中...',
+    holdVoiceOrder: '語音模式',
+    voiceAskHint: '語音協助開啟後可點餐與詢問 AI 助理',
+    listeningAsk: '收音中...',
+    listeningOrder: '聆聽語音協助中...',
     aiThinking: 'AI 思考中...',
     recognizingOrder: '辨識餐點中...',
-    serviceTitle: '通知客服人員',
-    serviceSub: '確認後開始收音並分析語系與情緒',
-    serviceRecordStart: '開始收音',
-    serviceRecordStop: '停止並送出',
-    serviceWaiting: '等待客服請求。',
-    serviceRecording: '正在收音，停止後會通知客服並分析語系與情緒。',
-    serviceTooShort: '收音時間過短，請重新操作。',
     languageZh: '繁體中文',
     languageEn: 'English',
     emotion: '情緒',
     priority: '優先級',
     customer: '顧客',
-    serviceReply: '客服回覆',
-    serviceAccepted: '已立即通知客服；語音文字與情緒證據會在背景完成後更新到客服紀錄。',
     addedToCart: '已加入購物車：{items}',
     noVoiceOrderItem: '沒有在菜單中找到可加入購物車的餐點。',
     networkFailed: '網路連線失敗，請稍後再試。',
-    voiceOrderFailed: '語音點餐失敗，請稍後再試。',
+    voiceOrderFailed: '語音協助失敗，請稍後再試。',
     zhOutput: '繁體中文輸出',
     enOutput: 'English output',
     checkoutProcessing: '結帳中...',
@@ -209,30 +195,21 @@ const KIOSK_TEXT = {
     cartCount: '{count} items',
     cartEmptyTitle: 'Your cart is empty',
     cartEmptySub: 'Choose your favorite meal to begin.',
-    holdVoiceOrder: 'Hold to Order',
-    voiceAskHint: 'Enable voice Q&A to ask the AI assistant',
+    holdVoiceOrder: 'Voice Mode',
+    voiceAskHint: 'Enable voice assistance for ordering and AI questions',
     listeningAsk: 'Listening...',
-    listeningOrder: 'Listening for order...',
+    listeningOrder: 'Listening for voice assist...',
     aiThinking: 'AI is thinking...',
     recognizingOrder: 'Recognizing order...',
-    serviceTitle: 'Call Staff',
-    serviceSub: 'Record voice for language and emotion analysis',
-    serviceRecordStart: 'Start Recording',
-    serviceRecordStop: 'Stop and Send',
-    serviceWaiting: 'Waiting for service request.',
-    serviceRecording: 'Recording. Stop to notify staff and analyze.',
-    serviceTooShort: 'Recording is too short. Please try again.',
     languageZh: 'Traditional Chinese',
     languageEn: 'English',
     emotion: 'Emotion',
     priority: 'Priority',
     customer: 'Customer',
-    serviceReply: 'Service Reply',
-    serviceAccepted: 'Staff has been notified. Voice text and emotion evidence will update in the background.',
     addedToCart: 'Added to cart: {items}',
     noVoiceOrderItem: 'No matching menu item was found.',
     networkFailed: 'Network failed. Please try again later.',
-    voiceOrderFailed: 'Voice ordering failed. Please try again later.',
+    voiceOrderFailed: 'Voice assistance failed. Please try again later.',
     zhOutput: 'Traditional Chinese output',
     enOutput: 'English output',
     checkoutProcessing: 'Checking out...',
@@ -271,12 +248,10 @@ let runtimeSettings = {
   AUTO_RECOMMEND_MIN_GAP_SEC: 20,
   OLLAMA_NUM_PREDICT: 220,
   RAG_TOP_K: 3,
-  AB_SINGLE_CALL: true,
   ENABLE_TTS_CACHE: true,
   ENABLE_RECOMMEND_CACHE: true,
   EVENT_TRIGGERED_MULTIMODAL_ENABLED: true,
-  EMOTION_PERIODIC_ENABLED: false,
-  CUSTOMER_SERVICE_MODE: 'ollama'
+  EMOTION_PERIODIC_ENABLED: false
 };
 
 function perfValue(key) {
@@ -324,14 +299,13 @@ function restartLoops() {
 // =========================================================
 const FEAT_DEFAULTS = {
   emotion: true,
-  voiceAsk: false,
+  voiceAssist: true,
   recommend: true,
   emotionBackend: false,
   emotionChat: false,
   emotionCamera: false,
   emotionRecommend: true,
   eventTriggeredMultimodal: true,
-  abTest: false,
   multiLang: true
 };
 const FEATURE_SCHEMA_VERSION = 'event-triggered-20260519';
@@ -380,12 +354,9 @@ const INTERACTION_LABELS = {
     payment_failed: '付款失敗',
     checkout_error: '結帳錯誤',
     coupon_error: '優惠券錯誤',
-    customer_service_clicked: '點擊客服',
-    customer_service_started: '客服收音開始',
-    customer_service_failed: '客服失敗',
-    voice_order_started: '語音點餐開始',
-    voice_order_failed: '語音點餐失敗',
-    voice_ask_started: '語音發問開始',
+    voice_assist_started: '語音協助開始',
+    voice_assist_failed: '語音協助失敗',
+    voice_ask_started: '語音協助開始',
     unknown: '未知事件',
   },
   source: {
@@ -395,8 +366,7 @@ const INTERACTION_LABELS = {
     confirmBackBtn: '返回修改按鈕',
     orderModalBackdrop: '訂單視窗背景',
     escapeKey: '鍵盤返回',
-    posServiceFab: '客服按鈕',
-    posServiceRecord: '客服收音按鈕',
+    voiceAssistBtn: '語音協助按鈕',
     startSystemBtn: '開始點餐按鈕',
     linepay_button: 'LINE Pay 按鈕',
     coupon_input: '優惠券輸入欄',
@@ -427,7 +397,7 @@ function getFeatures() {
     if (!versionMatches || shouldApplyDemoDefaults) {
       features.emotionBackend = false;
       if (shouldApplyDemoDefaults) {
-        features.voiceAsk = true;
+        features.voiceAssist = true;
         features.recommend = true;
         features.emotionBackend = false;
         features.emotionCamera = false;
@@ -441,7 +411,7 @@ function getFeatures() {
   catch {
     const features = { ...FEAT_DEFAULTS };
     if (isDemoPublicMode()) {
-      features.voiceAsk = true;
+      features.voiceAssist = true;
       features.recommend = true;
       features.emotionBackend = false;
       features.emotionCamera = false;
@@ -466,10 +436,10 @@ function toggleFeature(key, el) {
   f[key] = !f[key];
   saveFeatures(f);
   el.classList.toggle('on', f[key]);
-  if (key === 'voiceAsk' && !f.voiceAsk && askRecorder?.state === 'recording') askRecorder.stop();
+  if (key === 'voiceAssist' && !f.voiceAssist && askRecorder?.state === 'recording') askRecorder.stop();
   if ((key === 'emotion' || key === 'emotionBackend') && (!f.emotion || !f.emotionBackend)) stopEmotionLoop();
   applyFeaturesToPOS();
-  if (isSystemRunning && (key === 'voiceAsk' || key === 'emotion' || key === 'emotionBackend')) {
+  if (isSystemRunning && (key === 'voiceAssist' || key === 'emotion' || key === 'emotionBackend')) {
     ensureMediaTracks({
       video: f.emotionBackend || isEventTriggeredMultimodalEnabled(),
       audio: true
@@ -482,7 +452,6 @@ function toggleFeature(key, el) {
       }
     });
   }
-  if (key === 'abTest') clearAllPushCards();
   if (key === 'emotion') updateEmotionAdminVisibility();
   if (key === 'emotionRecommend') loadEmotionStatus();
 }
@@ -493,18 +462,12 @@ function applyFeaturesToPOS() {
   // 攝影機作為背景感測來源保留，不在 POS 版面中顯示欄位
   const cam = document.getElementById('mod-camera');
   if (cam) cam.style.display = 'none';
-  // 語音按鈕
-  const voice = document.getElementById('mod-voice');
-  if (voice) voice.style.display = 'none';
-  if (ui.serviceFab) ui.serviceFab.style.display = 'none';
-  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.style.display = 'inline-flex';
-  if (ui.askText && isDemoPublicMode()) {
-    ui.askText.textContent = '您可以直接說：我想吃雞肉，有什麼推薦？';
-  }
+  // 語音協助按鈕只出現在底部導覽列，不出現在購物車、付款、完成頁。
+  updateVoiceAssistVisibility();
   // 感測區永遠不佔版面，避免功能關閉後留下空白 UI 欄位
   if (center) center.style.display = 'none';
-  // 語音回覆氣泡（關閉語音模組時隱藏）
-  if (!f.voiceAsk) closeVoiceBubble();
+  // 語音回覆氣泡（關閉語音協助時隱藏）
+  if (!f.voiceAssist) closeVoiceBubble();
   // 推播（關閉時清除現有浮動卡）
   if (!f.recommend) clearAllPushCards();
   if (!f.emotionChat) clearEmotionCards();
@@ -519,6 +482,18 @@ function applyFeaturesToPOS() {
   updateEmotionCameraPanel();
 }
 
+function isCartScreenOpen() {
+  return Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
+}
+
+function updateVoiceAssistVisibility() {
+  const voiceAssistMod = document.getElementById('mod-voice-assist');
+  if (!voiceAssistMod) return;
+  const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
+  const visible = getFeatures().voiceAssist && isPosMode() && !isCartScreenOpen() && !paymentOpen && !orderCompleted;
+  voiceAssistMod.classList.toggle('hidden', !visible);
+}
+
 function isPosActive() {
   return isSystemRunning && !orderCompleted && ui.posView && !ui.posView.classList.contains('hidden');
 }
@@ -527,8 +502,8 @@ function clearPOSFloatingUI() {
   clearAllPushCards();
   clearEmotionCards();
   closeVoiceBubble();
+  hideVoiceAssistOverlay();
   if (ui.emotionCameraPanel) ui.emotionCameraPanel.classList.add('hidden');
-  if (ui.serviceWindow) ui.serviceWindow.classList.remove('open');
 }
 
 function initAdminToggles() {
@@ -629,6 +604,7 @@ function findMenuItems(ids = []) {
 const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt });
 
 function trackedAddToCart(item, metadata = {}) {
+  lastValidOrderActionAt = Date.now();
   cartManager.addToCart(item);
   if (isPosMode() && isSystemRunning && metadata.source === 'menu_card') showCartScreen();
   trackInteractionEvent({
@@ -640,6 +616,7 @@ function trackedAddToCart(item, metadata = {}) {
 }
 
 function trackedUpdateCartQty(id, delta) {
+  lastValidOrderActionAt = Date.now();
   cartManager.updateCartQty(id, delta);
   trackInteractionEvent({
     event_type: 'cart_edit',
@@ -650,6 +627,7 @@ function trackedUpdateCartQty(id, delta) {
 }
 
 function trackedDeleteCartItem(id) {
+  lastValidOrderActionAt = Date.now();
   cartManager.deleteCartItem(id);
   trackInteractionEvent({
     event_type: 'cart_edit',
@@ -667,7 +645,6 @@ const recommendationManager = createRecommendationManager({
   findMenuItems,
   addToCart: item => trackedAddToCart(item, { source: 'recommendation' }),
   sessionPushedIds,
-  sessionPushedVariants
 });
 
 const {
@@ -711,7 +688,6 @@ function renderKioskCategories() {
   if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('chooseCategorySub');
   document.getElementById('kioskLogo')?.classList.remove('hidden');
   document.getElementById('kioskLangBtn')?.classList.remove('hidden');
-  ui.serviceFab?.classList.remove('hidden');
   ui.kioskBackBtn?.classList.add('hidden');
   ui.kioskSearchBtn?.classList.add('hidden');
   ui.kioskSectionHead?.classList.add('hidden');
@@ -780,7 +756,6 @@ function renderKioskMenuItems() {
   if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('addHint');
   document.getElementById('kioskLogo')?.classList.add('hidden');
   document.getElementById('kioskLangBtn')?.classList.add('hidden');
-  ui.serviceFab?.classList.add('hidden');
   ui.kioskBackBtn?.classList.remove('hidden');
   ui.kioskSearchBtn?.classList.remove('hidden');
   ui.kioskSectionHead?.classList.add('hidden');
@@ -886,19 +861,11 @@ function applyKioskLanguage() {
   if (checkoutDoneTitle) checkoutDoneTitle.textContent = kt('checkoutDone');
   const checkoutDoneSub = document.querySelector('#checkoutOverlay p');
   if (checkoutDoneSub) checkoutDoneSub.textContent = kt('thankYou');
-  if (ui.askText) ui.askText.textContent = kt('holdVoiceOrder');
-  const askHint = document.querySelector('#askBtnText + span');
-  if (askHint) askHint.textContent = kt('voiceAskHint');
-  const serviceTitle = document.querySelector('#posServiceWindow .font-bold.text-sm');
-  if (serviceTitle) serviceTitle.textContent = kt('serviceTitle');
-  const serviceSub = document.querySelector('#posServiceWindow .text-xs');
-  if (serviceSub) serviceSub.textContent = kt('serviceSub');
-  if (ui.serviceRecordText && !ui.serviceRecord?.classList.contains('recording')) {
-    ui.serviceRecordText.textContent = kt('serviceRecordStart');
-  }
-  if (ui.serviceResult && !ui.serviceResult.dataset.hasResponse) {
-    ui.serviceResult.textContent = kt('serviceWaiting');
-  }
+  const _vaLangText = document.getElementById('voiceAssistBtnText');
+  if (_vaLangText) _vaLangText.textContent = kt('holdVoiceOrder');
+  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
+  if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
+  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音';
   if (ui.cartCountBadge) {
     const qty = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
     ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(qty));
@@ -918,6 +885,7 @@ function showCartScreen() {
   document.querySelector('.cart-shell')?.classList.add('kiosk-cart-open');
   ui.kioskBottomBar?.classList.remove('hidden');
   setInteractionPage('checkout_page', { source: 'cart_open' });
+  updateVoiceAssistVisibility();
   updateKioskCartSummary();
 }
 
@@ -926,6 +894,7 @@ function hideCartScreen() {
   if (!orderCompleted && ui.kioskPaymentScreen?.classList.contains('hidden')) {
     setInteractionPage(kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
   }
+  updateVoiceAssistVisibility();
 }
 
 function showPaymentScreen() {
@@ -937,11 +906,13 @@ function showPaymentScreen() {
   recommendPending = false;
   stopAutoVoiceOrdering();
   clearPOSFloatingUI();
+  updateVoiceAssistVisibility();
 }
 
 function hidePaymentScreen() {
   ui.kioskPaymentScreen?.classList.add('hidden');
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'true');
+  updateVoiceAssistVisibility();
 }
 
 // =========================================================
@@ -970,10 +941,9 @@ function buildUIContext(extra = {}) {
     page_id: currentPageId(),
     cart_count: cartManager.getCartIds().length,
     cart_total: cartManager.getCartTotal(),
-    voice_ask_enabled: Boolean(getFeatures().voiceAsk),
+    voice_assist_enabled: Boolean(getFeatures().voiceAssist),
     recommend_enabled: Boolean(getFeatures().recommend),
     promotion_paused: Date.now() < promotionPausedUntil,
-    service_open: Boolean(ui.serviceWindow?.classList.contains('open')),
     ...extra,
   };
 }
@@ -1022,12 +992,6 @@ function showAdminNotice(message, type = 'info') {
   ui.adminNotificationBox.classList.remove('hidden');
 }
 
-function customerServiceMode() {
-  return String(runtimeSettings.CUSTOMER_SERVICE_MODE || fullSettings.CUSTOMER_SERVICE_MODE || 'ollama') === 'human'
-    ? 'human'
-    : 'ollama';
-}
-
 function setVisible(el, visible) {
   if (!el) return;
   el.style.display = visible ? '' : 'none';
@@ -1048,128 +1012,19 @@ function updateGeminiOptionsVisibility(settings = fullSettings) {
   setVisible(document.getElementById('inp-gemini-cooldown')?.closest('div'), enabled);
 }
 
-function updateCustomerServiceModeUI(mode = customerServiceMode()) {
-  adminServiceOllamaDirect = mode !== 'human';
-  ui.adminServiceToggle?.classList.toggle('on', adminServiceOllamaDirect);
-  if (ui.adminServiceModeLabel) {
-    ui.adminServiceModeLabel.textContent = adminServiceOllamaDirect
-      ? '目前模式：Ollama 直接回覆'
-      : '目前模式：真人客服模式';
-  }
-  if (ui.adminServiceResult && adminServiceRecorder?.state !== 'recording') {
-    ui.adminServiceResult.textContent = adminServiceOllamaDirect
-      ? '目前模式：Ollama 直接回覆。'
-      : '目前模式：真人客服模式。POS 客服會立即通知真人客服，不等待 AI 回覆。';
-  }
-}
-
 function handleRealtimeSettingsChanged(event = {}) {
   const settings = event.payload?.settings;
   if (!settings || typeof settings !== 'object') return;
   fullSettings = { ...fullSettings, ...settings };
   runtimeSettings = { ...runtimeSettings, ...settings };
-  updateCustomerServiceModeUI(settings.CUSTOMER_SERVICE_MODE || customerServiceMode());
 }
 
 function handleRealtimeHumanReply(event = {}) {
   const payload = event.payload || {};
   if (!payload.reply) return;
-  ui.serviceWindow?.classList.add('open');
-  setServiceResult(`
-    <div class="flex flex-wrap gap-2 mb-3">
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">真人客服回覆</span>
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">優先級 ${escapeHTML(payload.priority || '-')}</span>
-    </div>
-    <p class="text-xs mb-1" style="color:var(--text2)">客服回覆</p>
-    <p class="font-semibold" style="color:var(--text)">${escapeHTML(payload.reply || '')}</p>
-  `);
   if (payload.audio_base64) playVoice(payload.audio_base64);
+  showPushNotice(payload.reply.slice(0, 80));
 }
-
-function handleRealtimeCustomerServiceRequest(event = {}) {
-  const payload = event.payload || {};
-  showAdminNotice(`收到客服請求：${payload.user_text || payload.customer_service_state || '等待真人處理'}`);
-  // urgent=true 或 needs_human_staff=true 時跳出回應 modal，admin 可即時回覆
-  if (payload.urgent || payload.needs_human_staff) {
-    showCsUrgentModal(payload);
-  }
-  loadCustomerServiceData({ silent: true });
-}
-
-let csUrgentActiveSourceId = '';
-
-function showCsUrgentModal(payload = {}) {
-  const modal = document.getElementById('csUrgentModal');
-  if (!modal) return;
-  csUrgentActiveSourceId = String(payload.source_id || '');
-  const setText = (id, value) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value || '—';
-  };
-  setText('csUrgentUserText', payload.user_text || '（等待語音文字）');
-  setText('csUrgentEmotion', payload.emotion || '—');
-  setText('csUrgentState', payload.customer_service_state || '—');
-  setText('csUrgentDraft', payload.customer_reply || payload.staff_summary || '—');
-  setText('csUrgentPriority', String(payload.priority || 'high').toUpperCase());
-  const replyArea = document.getElementById('csUrgentReply');
-  if (replyArea && !replyArea.value) replyArea.value = payload.customer_reply || '';
-  const sendBtn = document.getElementById('csUrgentSend');
-  if (sendBtn) sendBtn.disabled = !csUrgentActiveSourceId;
-  const status = document.getElementById('csUrgentStatus');
-  if (status) status.style.display = 'none';
-  modal.classList.remove('hidden');
-  // 提示音 + 視覺：暫時不加重以避免干擾，依需要可加 audio
-}
-
-function hideCsUrgentModal() {
-  const modal = document.getElementById('csUrgentModal');
-  if (modal) modal.classList.add('hidden');
-  csUrgentActiveSourceId = '';
-  const replyArea = document.getElementById('csUrgentReply');
-  if (replyArea) replyArea.value = '';
-}
-
-async function submitCsUrgentReply() {
-  const status = document.getElementById('csUrgentStatus');
-  const reply = (document.getElementById('csUrgentReply')?.value || '').trim();
-  if (!csUrgentActiveSourceId) {
-    if (status) { status.textContent = '尚未收到完整客服紀錄，請稍候片刻再回覆。'; status.style.display = 'block'; }
-    return;
-  }
-  if (!reply) {
-    if (status) { status.textContent = '請先輸入回覆內容。'; status.style.display = 'block'; }
-    return;
-  }
-  const sendBtn = document.getElementById('csUrgentSend');
-  if (sendBtn) sendBtn.disabled = true;
-  if (status) { status.textContent = '送出中...'; status.style.display = 'block'; }
-  try {
-    const result = await api.sendHumanReply(csUrgentActiveSourceId, { reply, language: 'zh' });
-    if (result?.status === 'success') {
-      if (status) status.textContent = '已送出，POS 端會立即播放語音。';
-      setTimeout(hideCsUrgentModal, 800);
-      loadCustomerServiceData({ silent: true });
-    } else {
-      if (status) status.textContent = `送出失敗：${result?.message || '未知錯誤'}`;
-      if (sendBtn) sendBtn.disabled = false;
-    }
-  } catch (e) {
-    if (status) status.textContent = `送出失敗：${e.message || e}`;
-    if (sendBtn) sendBtn.disabled = false;
-  }
-}
-
-(function bindCsUrgentModalControls() {
-  if (typeof document === 'undefined') return;
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('csUrgentClose')?.addEventListener('click', hideCsUrgentModal);
-    document.getElementById('csUrgentLater')?.addEventListener('click', hideCsUrgentModal);
-    document.getElementById('csUrgentSend')?.addEventListener('click', submitCsUrgentReply);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') hideCsUrgentModal();
-    });
-  });
-})();
 
 function handleRealtimeInteractionIntervention(event = {}) {
   lastInterventionEventAt = Date.now();
@@ -1207,7 +1062,6 @@ function startPosRealtime() {
 function startAdminRealtime() {
   if (!adminRealtime) {
     adminRealtime = connectRealtime('admin', 'global', {
-      customer_service_request: handleRealtimeCustomerServiceRequest,
       emotion_analysis_started: handleRealtimeEmotionAnalysisStarted,
       emotion_analysis_completed: handleRealtimeEmotionAnalysisCompleted,
       staff_notify: handleRealtimeStaffNotify,
@@ -1226,7 +1080,6 @@ function startAdminLiveRefresh() {
   adminRefreshTimer = setInterval(() => {
     if (ui.adminView?.classList.contains('hidden')) return;
     loadInterventionStats();
-    loadCustomerServiceData({ silent: true });
   }, 4000);
 }
 
@@ -1236,17 +1089,11 @@ function stopAdminLiveRefresh() {
   adminRefreshTimer = null;
 }
 
-function isCustomerServiceEditing() {
-  const active = document.activeElement;
-  return Boolean(
-    active?.closest?.('#customerServiceLogsList')
-    || adminServiceRecorder?.state === 'recording'
-  );
-}
-
 function applyIntervention(intervention = {}, barrierResult = {}) {
   if (!intervention || intervention.action === 'none') return;
   console.log('[interaction intervention]', { intervention, barrierResult });
+
+  document.getElementById('interactionInterventionBox')?.remove();
 
   if (intervention.ui_patch?.disable_promotion) {
     promotionPausedUntil = Date.now() + 45000;
@@ -1259,6 +1106,10 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
 
   const modalName = intervention.ui_patch?.show_modal || '';
   if (!modalName) return;
+  if (modalName === 'operation_hint') {
+    showTutorialPopup();
+    return;
+  }
   let box = document.getElementById('interactionInterventionBox');
   if (!box) {
     box = document.createElement('div');
@@ -1497,12 +1348,11 @@ ui.startBtn.onclick = async () => {
     await loadRuntimeSettings();
     const f = getFeatures();
     const needVideo = f.emotionBackend || isEventTriggeredMultimodalEnabled();
-    const needAudio = true;
+    const needAudio = Boolean(f.voiceAssist);
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
     applyFeaturesToPOS();
-    if (ui.serviceFab) ui.serviceFab.style.display = 'none';
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
@@ -1514,9 +1364,18 @@ ui.startBtn.onclick = async () => {
     maybeStartRollingMediaBuffer();
     if (f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
     startRecommendLoop();
-    setupAskRecorder();
+    if (f.voiceAssist) setupAskRecorder();
   } catch { alert("無法存取攝影機與麥克風。"); }
 };
+
+ui.startBtn?.addEventListener('pointerdown', () => {
+  ui.overlay?.classList.add('startup-pressing');
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(eventName => {
+  ui.startBtn?.addEventListener(eventName, () => {
+    ui.overlay?.classList.remove('startup-pressing');
+  });
+});
 
 document.getElementById('kioskLangBtn')?.addEventListener('click', () => {
   setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
@@ -1664,8 +1523,9 @@ async function fetchAndDisplayRecommend() {
   if (Date.now() < promotionPausedUntil) return;
   const fd = new FormData();
   fd.append('session_id', sessionId);
-  fd.append('ab_mode', f.abTest ? 'ab' : 'single');
-  fd.append('emotion_influence', String(Boolean(f.emotion && f.emotionRecommend)));
+  if (Date.now() < voiceAssistRecommendFallbackUntil && fullSettings.USE_AI_RECOMMEND !== false) {
+    fd.append('force_default', 'true');
+  }
   try {
     const data = await api.autoRecommend(fd);
     if (data.status === 'success') displayRecommendation(data);
@@ -1729,14 +1589,38 @@ function showVoiceBubble(data) {
   voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
 
+function showVoiceAssistOverlay(state = 'listening') {
+  if (!ui.voiceAssistOverlay) return;
+  const listening = state !== 'thinking';
+  ui.voiceAssistOverlay.classList.remove('hidden');
+  ui.voiceAssistOverlay.classList.toggle('thinking', !listening);
+  ui.voiceAssistOverlay.setAttribute('aria-hidden', 'false');
+  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
+  if (ui.voiceAssistOverlaySubtitle) {
+    ui.voiceAssistOverlaySubtitle.textContent = listening
+      ? (kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求')
+      : (kioskLang === 'en' ? 'Processing your voice...' : '正在處理您的語音...');
+  }
+  if (ui.voiceAssistStopText) {
+    ui.voiceAssistStopText.textContent = listening
+      ? (kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音')
+      : (kioskLang === 'en' ? 'Processing...' : '處理中...');
+  }
+}
+
+function hideVoiceAssistOverlay() {
+  ui.voiceAssistOverlay?.classList.add('hidden');
+  ui.voiceAssistOverlay?.setAttribute('aria-hidden', 'true');
+}
+
 function setVoiceOrderingAvailable(available) {
   voiceOrderingAvailable = Boolean(available);
   const disabled = isPosMode() && isSystemRunning && getFeatures().emotion && !voiceOrderingAvailable;
-  ui.askBtn?.classList.toggle('opacity-50', disabled);
-  ui.kioskVoiceBtn?.classList.toggle('opacity-50', disabled);
-  if (ui.askText && disabled) ui.askText.textContent = kioskLang === 'en' ? 'Voice ordering is not ready yet' : '語音點餐尚未準備完成';
-  if (ui.askBtn) ui.askBtn.disabled = disabled;
-  if (ui.kioskVoiceBtn) ui.kioskVoiceBtn.disabled = disabled;
+  const _vaBtn = document.getElementById('voiceAssistBtn');
+  const _vaBtnText = document.getElementById('voiceAssistBtnText');
+  if (_vaBtn) _vaBtn.classList.toggle('opacity-50', disabled);
+  if (_vaBtnText && disabled) _vaBtnText.textContent = kioskLang === 'en' ? 'Voice assist is not ready yet' : '語音協助尚未準備完成';
+  if (_vaBtn) _vaBtn.disabled = disabled;
   if (!voiceOrderingAvailable) stopAutoVoiceOrdering();
 }
 
@@ -1763,26 +1647,29 @@ function setupAskRecorder() {
     askRecordingStartedAt = 0;
     chunks = [];
     if (blob.size < 1500 || durationMs < 650) {
+      hideVoiceAssistOverlay();
       trackInteractionEvent({
-        event_type: 'voice_order_failed',
-        button_id: 'askBtn',
+        event_type: 'voice_assist_failed',
+        button_id: 'voiceAssistBtn',
         metadata: { reason: 'audio_too_short', duration_ms: durationMs, bytes: blob.size }
       });
-      ui.askText.textContent = kt('holdVoiceOrder');
+      const _tooShort = document.getElementById('voiceAssistBtnText');
+      if (_tooShort) _tooShort.textContent = kt('holdVoiceOrder');
       autoVoiceInFlight = false;
       return;
     }
 
-    const voiceAskEnabled = true;
-    ui.askText.textContent = voiceAskEnabled ? kt('aiThinking') : kt('recognizingOrder');
+    const _btnText = document.getElementById('voiceAssistBtnText');
+    if (_btnText) _btnText.textContent = kt('aiThinking');
+    showVoiceAssistOverlay('thinking');
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('audio', blob);
     fd.append('multi_lang', String(getFeatures().multiLang));
-    fd.append('use_ollama', String(voiceAskEnabled));
     try {
       const data = await api.ask(fd);
       if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
+        hideVoiceAssistOverlay();
         autoVoiceInFlight = false;
         return;
       }
@@ -1796,12 +1683,12 @@ function setupAskRecorder() {
             event_type: 'cart_edit',
             button_id: 'askBtn',
             cart_edit_count: appliedOrders.length,
-            metadata: { source: 'voice_order', items: appliedOrders }
+            metadata: { source: 'voice_assist', items: appliedOrders }
           });
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         }
 
-        if (voiceAskEnabled && data.trigger_recommend && getFeatures().recommend) {
+        if (data.trigger_recommend && getFeatures().recommend) {
           recommendPending = true;
           setTimeout(async () => {
             await fetchAndDisplayRecommend();
@@ -1814,73 +1701,78 @@ function setupAskRecorder() {
       }
     } catch {
       trackInteractionEvent({
-        event_type: 'voice_order_failed',
-        button_id: 'askBtn',
-        metadata: { reason: 'api_error', voice_ask_enabled: getFeatures().voiceAsk }
+        event_type: 'voice_assist_failed',
+        button_id: 'voiceAssistBtn',
+        metadata: { reason: 'api_error' }
       });
-      if (getFeatures().voiceAsk) {
-        showVoiceBubble({
-          detected_lang: 'zh',
-          dialogue: { zh: { user_text: '', ai_response: kt('networkFailed') } }
-        });
-      } else {
-        showPushNotice(kt('voiceOrderFailed'));
-      }
+      showVoiceBubble({
+        detected_lang: 'zh',
+        dialogue: { zh: { user_text: '', ai_response: kt('networkFailed') } }
+      });
     }
-    ui.askText.textContent = kt('holdVoiceOrder');
+    const _doneText = document.getElementById('voiceAssistBtnText');
+    if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
+    hideVoiceAssistOverlay();
+    voiceAssistRecommendFallbackUntil = Date.now() + 15000;
     autoVoiceInFlight = false;
   };
 }
 
 function startAskRecording(sourceBtn) {
   if (!voiceOrderingAvailable) {
-    showPushNotice(kioskLang === 'en' ? 'Voice ordering is not ready yet.' : '語音點餐尚未準備完成。');
+    showPushNotice(kioskLang === 'en' ? 'Voice assist is not ready yet.' : '語音協助尚未準備完成。');
     return;
   }
   if (askRecorder && askRecorder.state === 'inactive') {
+    voiceAssistRecommendFallbackUntil = Date.now() + 45000;
     trackInteractionEvent({
-      event_type: getFeatures().voiceAsk ? 'voice_ask_started' : 'voice_order_started',
-      button_id: sourceBtn?.id || 'askBtn',
-      metadata: { voice_ask_enabled: getFeatures().voiceAsk }
+      event_type: 'voice_assist_started',
+      button_id: sourceBtn?.id || 'voiceAssistBtn',
+      metadata: {}
     });
     askRecordingStartedAt = Date.now();
     askRecorder.start();
-    ui.askBtn.classList.add('recording');
-    ui.kioskVoiceBtn?.classList.add('recording');
-    ui.askText.textContent = getFeatures().voiceAsk ? kt('listeningAsk') : kt('listeningOrder');
+    document.getElementById('voiceAssistBtn')?.classList.add('recording');
+    showVoiceAssistOverlay('listening');
+    const _startText = document.getElementById('voiceAssistBtnText');
+    if (_startText) _startText.textContent = kt('listeningAsk');
   }
 }
 function stopAskRecording() {
   if (askRecorder && askRecorder.state === 'recording') {
     askRecorder.stop();
-    ui.askBtn.classList.remove('recording');
-    ui.kioskVoiceBtn?.classList.remove('recording');
+    document.getElementById('voiceAssistBtn')?.classList.remove('recording');
+    showVoiceAssistOverlay('thinking');
   }
 }
-ui.askBtn.onmousedown = ui.askBtn.ontouchstart = (e) => {
-  e.preventDefault();
-  startAskRecording(ui.askBtn);
-};
-ui.askBtn.onmouseup = ui.askBtn.ontouchend = (e) => {
-  e.preventDefault();
-  stopAskRecording();
-};
-if (ui.kioskVoiceBtn) {
-  ui.kioskVoiceBtn.onmousedown = ui.kioskVoiceBtn.ontouchstart = (e) => {
+const _vaFabBtn = document.getElementById('voiceAssistBtn');
+if (_vaFabBtn) {
+  _vaFabBtn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    startAskRecording(ui.kioskVoiceBtn);
-  };
-  ui.kioskVoiceBtn.onmouseup = ui.kioskVoiceBtn.ontouchend = (e) => {
-    e.preventDefault();
-    stopAskRecording();
-  };
+    startAskRecording(_vaFabBtn);
+  });
 }
+let _voiceStopHoldTimer = null;
+ui.voiceAssistStopBtn?.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  _voiceStopHoldTimer = setTimeout(() => {
+    _voiceStopHoldTimer = null;
+    if (askRecorder?.state === 'recording') {
+      stopAskRecording();
+    } else {
+      hideVoiceAssistOverlay();
+    }
+  }, 400);
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => {
+  ui.voiceAssistStopBtn?.addEventListener(ev, () => {
+    if (_voiceStopHoldTimer) { clearTimeout(_voiceStopHoldTimer); _voiceStopHoldTimer = null; }
+  });
+});
 
 window.addEventListener('beforeunload', () => {
   try {
     if (askRecorder?.state === 'recording') askRecorder.stop();
-    if (serviceRecorder?.state === 'recording') serviceRecorder.stop();
-    if (adminServiceRecorder?.state === 'recording') adminServiceRecorder.stop();
   } catch { }
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
@@ -1896,222 +1788,51 @@ function playVoice(b64) {
 }
 
 // =========================================================
-// POS 內建客服
+// 無效點擊偵測（需連續 N 次才觸發教學提示）
 // =========================================================
-function setServiceResult(html) {
-  ui.serviceResult.innerHTML = html;
-  ui.serviceResult.dataset.hasResponse = html && html !== kt('serviceWaiting') ? '1' : '';
-}
+const INVALID_CLICK_THRESHOLD = 3;
+const INVALID_CLICK_WINDOW_MS = 4000;
+const INVALID_CLICK_MIN_DWELL_MS = 7000;
+const INVALID_CLICK_RECENT_ACTION_GRACE_MS = 3000;
+let invalidClickTimestamps = [];
 
-function renderServiceResponse(targetEl, data) {
-  const langLabel = data.detected_lang === 'en' ? kt('languageEn') : kt('languageZh');
-  const acceptedNote = data.accepted
-    ? `<p class="text-xs mb-2 font-semibold" style="color:var(--accent2)">${escapeHTML(kt('serviceAccepted'))}</p>`
-    : '';
-  targetEl.innerHTML = `
-    <div class="flex flex-wrap gap-2 mb-3">
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(langLabel)}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(kt('emotion'))} ${escapeHTML(formatEmotion(data.emotion || '-'))}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">${escapeHTML(kt('priority'))} ${escapeHTML(data.priority || '-')}</span>
-    </div>
-    ${acceptedNote}
-    <p class="text-xs mb-1" style="color:var(--text2)">${escapeHTML(kt('customer'))}</p>
-    <p class="mb-2 font-medium" style="color:var(--text)">${escapeHTML(data.user_text || data.staff_summary || '')}</p>
-    <p class="text-xs mb-1" style="color:var(--text2)">${escapeHTML(kt('serviceReply'))}</p>
-    <p class="font-semibold" style="color:var(--text)">${escapeHTML(data.customer_reply || '')}</p>
-  `;
-  targetEl.dataset.hasResponse = '1';
-}
-
-function resetServiceButton() {
-  ui.serviceRecord.classList.remove('recording');
-  ui.serviceRecordText.textContent = kt('serviceRecordStart');
-}
-
-async function startServiceRecording() {
-  const ok = await ensureMediaTracks({ video: true, audio: true });
-  if (!ok || !stream || !stream.getAudioTracks().length) return;
-  serviceChunks = [];
-  serviceRecorder = createVideoRecorder(stream);
-  serviceRecorder.ondataavailable = e => { if (e.data.size) serviceChunks.push(e.data); };
-  serviceRecorder.onstop = submitServiceRecording;
-  serviceRecorder.start();
-  ui.serviceRecord.classList.add('recording');
-  ui.serviceRecordText.textContent = kt('serviceRecordStop');
-  setServiceResult(kt('serviceRecording'));
-}
-
-function stopServiceRecording() {
-  if (serviceRecorder && serviceRecorder.state === 'recording') serviceRecorder.stop();
-}
-
-async function submitServiceRecording() {
-  const blob = new Blob(serviceChunks, { type: 'video/webm' });
-  serviceChunks = [];
-  resetServiceButton();
-  if (blob.size < 1500) {
-    trackInteractionEvent({
-      event_type: 'customer_service_failed',
-      button_id: 'posServiceRecord',
-      metadata: { reason: 'media_too_short' }
-    });
-    setServiceResult(kt('serviceTooShort'));
-    return;
+function shouldTrackInvalidClick(target) {
+  if (!isSystemRunning || !isPosActive() || orderCompleted) return false;
+  if (!target?.closest) return false;
+  const interactive = target.closest(
+    'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#voiceReplyBubble'
+  );
+  if (interactive) return false;
+  if (target.closest('#startupOverlay,#tutorialPopup,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack,#emotionFeed,#emotionCameraPanel')) {
+    return false;
   }
+  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return false;
+  if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return false;
+  if (!['menu_page', 'checkout_page'].includes(interactionState.pageId)) return false;
 
-  const serviceMode = runtimeSettings.CUSTOMER_SERVICE_MODE || 'ollama';
-  const useOllama = serviceMode !== 'human';
-  setServiceResult(useOllama ? '正在分析客服語音，請稍候。' : '已通知真人客服，請稍候。');
-  const fd = new FormData();
-  fd.append('session_id', sessionId);
-  fd.append('media', blob, 'pos_customer_service.webm');
-  fd.append('use_ollama', String(useOllama));
-  fd.append('multi_lang', String(getFeatures().multiLang));
-  try {
-    const data = await api.customerService(fd);
-    if (data.status !== 'success') throw new Error(data.message || '客服流程失敗');
-    renderServiceResponse(ui.serviceResult, data);
-    if (useOllama && data.audio_base64) playVoice(data.audio_base64);
-  } catch (err) {
-    trackInteractionEvent({
-      event_type: 'customer_service_failed',
-      button_id: 'posServiceRecord',
-      metadata: { reason: err.message || 'customer_service_error' }
-    });
-    setServiceResult(escapeHTML(err.message || '客服流程失敗。'));
-  }
+  const now = Date.now();
+  if (now - interactionState.pageEnteredAt < INVALID_CLICK_MIN_DWELL_MS) return false;
+  if (now - lastValidOrderActionAt < INVALID_CLICK_RECENT_ACTION_GRACE_MS) return false;
+  return true;
 }
 
-function resetAdminServiceButton() {
-  ui.adminServiceRecord?.classList.remove('recording');
-  if (ui.adminServiceRecordText) ui.adminServiceRecordText.textContent = '開始收音';
-}
-
-async function startAdminServiceRecording() {
-  const ok = await ensureMediaTracks({ video: true, audio: true });
-  if (!ok || !stream || !stream.getAudioTracks().length) return;
-  adminServiceChunks = [];
-  adminServiceRecorder = createVideoRecorder(stream);
-  adminServiceRecorder.ondataavailable = e => { if (e.data.size) adminServiceChunks.push(e.data); };
-  adminServiceRecorder.onstop = submitAdminServiceRecording;
-  adminServiceRecorder.start();
-  ui.adminServiceRecord.classList.add('recording');
-  ui.adminServiceRecordText.textContent = '停止並送出';
-  ui.adminServiceResult.textContent = adminServiceOllamaDirect
-    ? '正在收音，停止後會分析語系、情緒並產生 AI 客服回覆。'
-    : '正在收音，真人模式只會保存顧客錄音、文字與情緒判斷，不會讓 Ollama 直接回覆。';
-  showAdminNotice('客服情緒模型將在收音完成後啟動分析。');
-}
-
-function stopAdminServiceRecording() {
-  if (adminServiceRecorder && adminServiceRecorder.state === 'recording') adminServiceRecorder.stop();
-}
-
-async function submitAdminServiceRecording() {
-  const blob = new Blob(adminServiceChunks, { type: 'video/webm' });
-  adminServiceChunks = [];
-  resetAdminServiceButton();
-  if (blob.size < 1500) {
-    ui.adminServiceResult.textContent = '收音時間過短，請重新操作。';
-    return;
-  }
-
-  const useOllama = customerServiceMode() !== 'human';
-  ui.adminServiceResult.textContent = useOllama
-    ? '正在分析客服語音並產生 AI 回覆，請稍候。'
-    : '已收到客服錄音，正在保存文字與情緒證據；Ollama 直接回覆已關閉。';
-  showAdminNotice('客服情緒模型開始分析顧客錄音。');
-  const fd = new FormData();
-  fd.append('session_id', `${sessionId}_admin_service`);
-  fd.append('media', blob, 'admin_customer_service.webm');
-  fd.append('use_ollama', String(useOllama));
-  fd.append('multi_lang', String(getFeatures().multiLang));
-  try {
-    const data = await api.customerService(fd);
-    if (data.status !== 'success') throw new Error(data.message || '客服流程失敗');
-    renderServiceResponse(ui.adminServiceResult, data);
-    await loadCustomerServiceData();
-    showAdminNotice(
-      useOllama ? '客服分析與 AI 回覆已完成。' : '真人客服模式已保存顧客錄音與文字，未產生 Ollama 直接回覆。',
-      'success'
-    );
-    if (useOllama && data.audio_base64) playVoice(data.audio_base64);
-  } catch (err) {
-    ui.adminServiceResult.textContent = err.message || '客服流程失敗。';
-    showAdminNotice('客服流程失敗，請檢查後端或情緒模型服務。', 'error');
-  }
-}
-
-ui.serviceFab.onclick = () => {
-  trackInteractionEvent({
-    event_type: 'customer_service_clicked',
-    button_id: 'posServiceFab',
-    metadata: { opening: !ui.serviceWindow.classList.contains('open') }
-  });
-  ui.serviceWindow.classList.toggle('open');
-};
-ui.serviceClose.onclick = () => {
-  ui.serviceWindow.classList.remove('open');
-  stopServiceRecording();
-};
-ui.serviceRecord.onclick = async () => {
-  if (serviceRecorder && serviceRecorder.state === 'recording') {
-    stopServiceRecording();
-  } else {
-    trackInteractionEvent({
-      event_type: 'customer_service_record_started',
-      button_id: 'posServiceRecord'
-    });
-    await startServiceRecording();
-  }
-};
 document.addEventListener('pointerdown', (event) => {
   const target = event.target;
-  const interactive = target?.closest?.(
-    'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#posServiceWindow,#posServiceFab,#voiceReplyBubble'
-  );
-  if (isSystemRunning && isPosActive() && !interactive) {
+  if (shouldTrackInvalidClick(target)) {
     trackInteractionEvent({
       event_type: 'invalid_touch',
       button_id: 'document',
       metadata: { tag: target?.tagName || '' }
     });
+    const _now = Date.now();
+    invalidClickTimestamps = invalidClickTimestamps.filter(t => _now - t < INVALID_CLICK_WINDOW_MS);
+    invalidClickTimestamps.push(_now);
+    if (invalidClickTimestamps.length >= INVALID_CLICK_THRESHOLD) {
+      invalidClickTimestamps = [];
+      showTutorialPopup();
+    }
   }
-  if (!ui.serviceWindow.classList.contains('open')) return;
-  if (ui.serviceWindow.contains(target) || ui.serviceFab.contains(target)) return;
-  ui.serviceWindow.classList.remove('open');
-  stopServiceRecording();
 });
-if (ui.adminServiceToggle) {
-  ui.adminServiceToggle.onclick = async () => {
-    const nextMode = customerServiceMode() === 'human' ? 'ollama' : 'human';
-    fullSettings = { ...fullSettings, CUSTOMER_SERVICE_MODE: nextMode };
-    runtimeSettings = { ...runtimeSettings, CUSTOMER_SERVICE_MODE: nextMode };
-    updateCustomerServiceModeUI(nextMode);
-    try {
-      await api.saveSettings(fullSettings);
-      showAdminNotice(
-        nextMode === 'human' ? '已切換為真人客服模式。' : '已切換為 Ollama 直接回覆模式。',
-        'success'
-      );
-    } catch {
-      const rollbackMode = nextMode === 'human' ? 'ollama' : 'human';
-      fullSettings = { ...fullSettings, CUSTOMER_SERVICE_MODE: rollbackMode };
-      runtimeSettings = { ...runtimeSettings, CUSTOMER_SERVICE_MODE: rollbackMode };
-      updateCustomerServiceModeUI(rollbackMode);
-      showAdminNotice('客服模式儲存失敗，已還原。', 'error');
-    }
-  };
-}
-if (ui.adminServiceRecord) {
-  ui.adminServiceRecord.onclick = async () => {
-    if (adminServiceRecorder && adminServiceRecorder.state === 'recording') {
-      stopAdminServiceRecording();
-    } else {
-      await startAdminServiceRecording();
-    }
-  };
-}
 
 function applyPerformancePreset(mode) {
   const presets = {
@@ -2204,11 +1925,6 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('session_id', sessionId);
   fd.append('pushed_ids', JSON.stringify(Array.from(sessionPushedIds)));
   fd.append('cart_ids', JSON.stringify(cartIds));
-  fd.append('pushed_variants', JSON.stringify({
-    A: Array.from(sessionPushedVariants.A),
-    B: Array.from(sessionPushedVariants.B),
-    single: Array.from(sessionPushedVariants.single)
-  }));
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 4000);
   try { await api.checkout(fd, ctrl.signal); }
@@ -2255,6 +1971,7 @@ function showCompletionOverlay(title, subtitle) {
 
 async function finishOrder(cartIds, button, loadingText, doneTitle) {
   orderCompleted = true;
+  updateVoiceAssistVisibility();
   clearPOSFloatingUI();
   stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
@@ -2324,6 +2041,11 @@ ui.kioskPaymentBackBtn?.addEventListener('click', () => {
   showCartScreen();
 });
 ui.kioskCancelOrderBtn?.addEventListener('click', () => {
+  cancelClickCount += 1;
+  if (cancelClickCount >= CANCEL_POPUP_THRESHOLD) {
+    showCancelGuide();
+    return;
+  }
   cartManager.clearCart();
   hidePaymentScreen();
   renderKioskCategories();
@@ -2404,7 +2126,6 @@ function loadAdminData() {
   loadSettings();
   loadAdminMenu();
   loadRagData();
-  loadCustomerServiceData();
   loadEmotionClips();
   loadRagStatus();
   loadOllamaModelOptions();
@@ -2504,6 +2225,7 @@ async function loadInterventionStats() {
     const tbody = document.getElementById('interventionLogsBody');
     if (!tbody) return;
     const logs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
+    lastInterventionLogs = logs;
     tbody.innerHTML = '';
     logs.forEach(log => {
       const barrier = log.barrier_result || {};
@@ -2566,13 +2288,6 @@ async function loadLogs() {
     document.getElementById('stat-total').textContent = data.total;
     document.getElementById('stat-rate').textContent = data.success_rate + '%';
     document.getElementById('stat-success').textContent = data.success_count ?? data.logs.filter(l => l.is_success).length;
-    const ab = data.ab_stats || {};
-    const a = ab.A || { impressions: 0, successes: 0, success_rate: 0 };
-    const b = ab.B || { impressions: 0, successes: 0, success_rate: 0 };
-    document.getElementById('stat-ab-a').textContent = a.success_rate + '%';
-    document.getElementById('stat-ab-a-detail').textContent = `${a.successes} / ${a.impressions}`;
-    document.getElementById('stat-ab-b').textContent = b.success_rate + '%';
-    document.getElementById('stat-ab-b-detail').textContent = `${b.successes} / ${b.impressions}`;
     const tbody = document.getElementById('logsTableBody');
     tbody.innerHTML = '';
     [...data.logs].reverse().forEach(log => {
@@ -2735,15 +2450,18 @@ async function loadSettings() {
     document.getElementById('inp-emotion-record-ms').value = fullSettings.EMOTION_RECORD_MS || 900;
     document.getElementById('inp-recommend-interval').value = fullSettings.RECOMMEND_INTERVAL_SEC || 30;
     document.getElementById('inp-recommend-gap').value = fullSettings.AUTO_RECOMMEND_MIN_GAP_SEC || 20;
-    document.getElementById('inp-ab-single-call').checked = fullSettings.AB_SINGLE_CALL !== false;
     document.getElementById('inp-tts-cache').checked = fullSettings.ENABLE_TTS_CACHE !== false;
     document.getElementById('inp-recommend-cache').checked = fullSettings.ENABLE_RECOMMEND_CACHE !== false;
     document.getElementById('inp-emotion-prompt').value = fullSettings.EMOTION_LLAMA_PROMPT || '';
     document.getElementById('inp-recommend-prompt').value = fullSettings.RECOMMEND_SYSTEM_PROMPT || '';
-    document.getElementById('inp-recommend-prompt-b').value = fullSettings.RECOMMEND_SYSTEM_PROMPT_B || '';
     document.getElementById('inp-ask-prompt').value = fullSettings.ASK_SYSTEM_PROMPT || '';
     document.getElementById('inp-ask-prompt-en').value = fullSettings.ASK_SYSTEM_PROMPT_EN || '';
-    updateCustomerServiceModeUI(fullSettings.CUSTOMER_SERVICE_MODE || 'ollama');
+    const _togAiRec = document.getElementById('tog-aiRecommend');
+    if (_togAiRec) _togAiRec.classList.toggle('on', fullSettings.USE_AI_RECOMMEND !== false);
+    const _vaModelEl = document.getElementById('inp-voice-assist-model');
+    if (_vaModelEl) _vaModelEl.value = fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:9b';
+    const _vaPromptEl = document.getElementById('inp-voice-assist-prompt');
+    if (_vaPromptEl) _vaPromptEl.value = fullSettings.VOICE_ASSIST_SYSTEM_PROMPT || '';
   } catch { }
 }
 
@@ -2758,7 +2476,6 @@ async function saveSettings() {
   fullSettings.MODEL_NAME = selectedModel;
   fullSettings.ASK_MODEL_NAME = selectedModel;
   fullSettings.GEMINI_MODEL_NAME = document.getElementById('inp-gemini-model-name').value.trim() || 'gemini-3-flash-preview';
-  fullSettings.CUSTOMER_SERVICE_MODE = customerServiceMode();
   fullSettings.GEMINI_FALLBACK_TO_OLLAMA = document.getElementById('inp-gemini-fallback').checked;
   fullSettings.GEMINI_COOLDOWN_SEC = parseInt(document.getElementById('inp-gemini-cooldown').value || '60', 10);
   fullSettings.OLLAMA_TEMPERATURE = parseFloat(document.getElementById('inp-temp').value);
@@ -2789,14 +2506,16 @@ async function saveSettings() {
   fullSettings.EMOTION_RECORD_MS = parseInt(document.getElementById('inp-emotion-record-ms').value || '900', 10);
   fullSettings.RECOMMEND_INTERVAL_SEC = parseFloat(document.getElementById('inp-recommend-interval').value || '30');
   fullSettings.AUTO_RECOMMEND_MIN_GAP_SEC = parseFloat(document.getElementById('inp-recommend-gap').value || '20');
-  fullSettings.AB_SINGLE_CALL = document.getElementById('inp-ab-single-call').checked;
   fullSettings.ENABLE_TTS_CACHE = document.getElementById('inp-tts-cache').checked;
   fullSettings.ENABLE_RECOMMEND_CACHE = document.getElementById('inp-recommend-cache').checked;
   fullSettings.EMOTION_LLAMA_PROMPT = document.getElementById('inp-emotion-prompt').value;
   fullSettings.RECOMMEND_SYSTEM_PROMPT = document.getElementById('inp-recommend-prompt').value;
-  fullSettings.RECOMMEND_SYSTEM_PROMPT_B = document.getElementById('inp-recommend-prompt-b').value;
   fullSettings.ASK_SYSTEM_PROMPT = document.getElementById('inp-ask-prompt').value;
   fullSettings.ASK_SYSTEM_PROMPT_EN = document.getElementById('inp-ask-prompt-en').value;
+  const _vaSave = document.getElementById('inp-voice-assist-model');
+  fullSettings.VOICE_ASSIST_MODEL = _vaSave ? (_vaSave.value.trim() || 'qwen3.5:9b') : 'qwen3.5:9b';
+  const _vaPSave = document.getElementById('inp-voice-assist-prompt');
+  fullSettings.VOICE_ASSIST_SYSTEM_PROMPT = _vaPSave ? _vaPSave.value : '';
   try {
     await api.saveSettings(fullSettings);
     runtimeSettings = { ...runtimeSettings, ...fullSettings };
@@ -2911,97 +2630,6 @@ async function addRagDoc() {
   }
 }
 
-async function loadCustomerServiceData(options = {}) {
-  if (customerServiceLoading) return;
-  if (options.silent && isCustomerServiceEditing()) return;
-  customerServiceLoading = true;
-  try {
-    const data = await api.getCustomerServiceLogs();
-    const box = document.getElementById('customerServiceLogsList');
-    if (!box) return;
-    const logs = data.logs || [];
-    box.innerHTML = '';
-    logs.slice().reverse().forEach(log => {
-      const row = document.createElement('div');
-      row.className = 'p-3 rounded-xl';
-      row.style.border = '1.5px solid var(--border)';
-      row.style.background = 'var(--surface)';
-      const timeText = log.timestamp
-        ? new Date(Number(log.timestamp) * 1000).toLocaleString()
-        : '-';
-      const suffix = log.media_url && log.media_url.includes('?') ? api.adminQuerySuffix('&') : api.adminQuerySuffix();
-      const mediaSrc = log.media_url ? `${API_BASE}${log.media_url}${suffix}` : '';
-      const serviceState = log.customer_service_state || '-';
-      const needsHumanStaff = log.needs_human_staff === true ? '是' : '否';
-      const servicePriority = log.customer_service_priority || log.priority || 'normal';
-      const serviceEvidence = Array.isArray(log.service_state_evidence)
-        ? log.service_state_evidence
-        : (log.service_state_evidence ? [String(log.service_state_evidence)] : []);
-      const serviceEvidenceText = serviceEvidence.length
-        ? serviceEvidence.map(item => `- ${item}`).join('\n')
-        : '-';
-      row.innerHTML = `
-        <div class="flex justify-between gap-3 mb-2">
-          <div class="min-w-0">
-            <p class="font-bold text-sm truncate" style="color:var(--text)">${escapeHTML(log.session_id || '-')}</p>
-            <p class="text-xs" style="color:var(--text2)">${escapeHTML(timeText)} · ${escapeHTML(log.mode || '-')} · ${escapeHTML(log.language || '-')}</p>
-          </div>
-          <span class="text-xs px-2 py-1 rounded-xl h-fit" style="background:var(--surface2);color:var(--text2)">${escapeHTML(log.priority || 'normal')}</span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">顧客語音</p>
-            <p class="text-sm" style="color:var(--text)">${escapeHTML(log.user_text || '-')}</p>
-            ${mediaSrc ? `<audio class="mt-2 w-full" controls src="${escapeHTML(mediaSrc)}"></audio>` : `<p class="text-xs mt-2" style="color:var(--text2)">沒有保存錄音檔。</p>`}
-          </div>
-          <div>
-            <p class="text-xs font-semibold mb-1" style="color:var(--text2)">客服回覆</p>
-            <p class="text-sm" style="color:var(--text)">${escapeHTML(log.customer_reply || '-')}</p>
-            <textarea class="human-reply-input w-full h-20 mt-2 p-2 rounded-xl text-xs outline-none resize-none" style="border:1px solid var(--border);background:var(--surface2)" placeholder="輸入真人客服回覆文字，按下按鈕後會產生語音播放。">${escapeHTML(log.human_reply || '')}</textarea>
-            <button class="human-reply-btn btn-primary px-3 py-2 text-xs mt-2" data-source-id="${escapeHTML(log.source_id || '')}" data-language="${escapeHTML(log.language || 'zh')}">
-              <i class="fas fa-volume-up mr-1"></i>客服回覆語音
-            </button>
-          </div>
-        </div>
-        <div class="flex flex-wrap gap-2 text-xs mb-2">
-          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">情緒：${escapeHTML(log.emotion || '-')}</span>
-          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">RAG：${escapeHTML(log.rag_doc_id || '-')}</span>
-          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">客服狀態：${escapeHTML(serviceState)}</span>
-          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">真人協助：${escapeHTML(needsHumanStaff)}</span>
-          <span class="px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">狀態優先級：${escapeHTML(servicePriority)}</span>
-        </div>
-        <details class="text-xs">
-          <summary class="cursor-pointer" style="color:var(--accent2)">客服摘要 / 狀態證據 / Ollama 原始結果</summary>
-          <pre class="mt-2 p-2 whitespace-pre-wrap break-words rounded-xl max-h-44 overflow-y-auto" style="background:var(--surface2);color:var(--text2)">${escapeHTML(log.staff_summary || '')}\n\n客服狀態證據：\n${escapeHTML(serviceEvidenceText)}\n\n${escapeHTML(log.ollama_result || '')}</pre>
-        </details>`;
-      row.querySelector('.human-reply-btn')?.addEventListener('click', async () => {
-        const btn = row.querySelector('.human-reply-btn');
-        const reply = row.querySelector('.human-reply-input')?.value.trim();
-        if (!reply) return alert('請先輸入真人客服回覆文字。');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>產生中';
-        try {
-          const data = await api.sendHumanReply(log.source_id, { reply, language: log.language || 'zh' });
-          if (data.status !== 'success') throw new Error(data.message || '產生失敗');
-          playVoice(data.audio_base64);
-          await loadCustomerServiceData();
-        } catch (err) {
-          alert(err.message || '客服回覆語音產生失敗。');
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-volume-up mr-1"></i>客服回覆語音';
-        }
-      });
-      box.appendChild(row);
-    });
-    if (!box.innerHTML) box.innerHTML = `<p class="text-sm" style="color:var(--text2)">目前沒有客服紀錄。</p>`;
-  } catch {
-    if (!options.silent) showAdminNotice('客服紀錄更新失敗。', 'error');
-  } finally {
-    customerServiceLoading = false;
-  }
-}
-
 document.getElementById('inp-performance-mode')?.addEventListener('change', (e) => {
   applyPerformancePreset(e.target.value);
 });
@@ -3010,6 +2638,205 @@ document.getElementById('inp-model-name')?.addEventListener('change', (e) => {
   if (askModelInput) askModelInput.value = e.target.value || 'llama3.2';
 });
 
+// =========================================================
+// 2-1: Ripple effect on .btn-primary buttons
+// =========================================================
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target?.closest?.('.btn-primary');
+  if (!btn) return;
+  const ripple = document.createElement('span');
+  ripple.className = 'btn-ripple';
+  const rect = btn.getBoundingClientRect();
+  ripple.style.left = (e.clientX - rect.left - 30) + 'px';
+  ripple.style.top  = (e.clientY - rect.top  - 30) + 'px';
+  btn.appendChild(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove());
+}, true);
+
+// =========================================================
+// 2-2: Tutorial popup for invalid clicks
+// =========================================================
+let tutorialPopupTimer = null;
+let lastTutorialShowAt = 0;
+const TUTORIAL_COOLDOWN_MS = 8000;
+const tutorialPopupEl = document.getElementById('tutorialPopup');
+const tutorialTimerBar = document.getElementById('tutorialPopupTimerBar');
+
+function showTutorialPopup() {
+  const now = Date.now();
+  if (now - lastTutorialShowAt < TUTORIAL_COOLDOWN_MS) return;
+  if (!tutorialPopupEl) return;
+  lastTutorialShowAt = now;
+  if (tutorialPopupTimer) clearTimeout(tutorialPopupTimer);
+  tutorialPopupEl.classList.remove('hidden');
+  if (tutorialTimerBar) {
+    tutorialTimerBar.style.transition = 'none';
+    tutorialTimerBar.style.width = '100%';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      tutorialTimerBar.style.transition = 'width 5s linear';
+      tutorialTimerBar.style.width = '0%';
+    }));
+  }
+  tutorialPopupTimer = setTimeout(hideTutorialPopup, 5000);
+}
+function hideTutorialPopup() {
+  if (tutorialPopupTimer) { clearTimeout(tutorialPopupTimer); tutorialPopupTimer = null; }
+  tutorialPopupEl?.classList.add('hidden');
+}
+document.getElementById('tutorialPopupClose')?.addEventListener('click', hideTutorialPopup);
+
+// =========================================================
+// 2-3: Cancel order popup after CANCEL_POPUP_THRESHOLD clicks
+// =========================================================
+let cancelClickCount = 0;
+const CANCEL_POPUP_THRESHOLD = 2;
+const cancelGuideEl = document.getElementById('cancelGuidePopup');
+
+function showCancelGuide() { cancelGuideEl?.classList.remove('hidden'); }
+function hideCancelGuide() { cancelGuideEl?.classList.add('hidden'); }
+
+document.getElementById('cancelGuideClose')?.addEventListener('click', hideCancelGuide);
+
+document.getElementById('cancelGuideFastPay')?.addEventListener('click', () => {
+  hideCancelGuide();
+  cancelClickCount = 0;
+});
+
+document.getElementById('cancelGuideCounter')?.addEventListener('click', () => {
+  hideCancelGuide();
+  cancelClickCount = 0;
+  const cartIds = cartManager.getCartIds();
+  if (!cartIds.length) return;
+  finishOrder(cartIds, null, kt('counterPayCreating'), kt('counterPayDone'));
+});
+
+document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', () => {
+  hideCancelGuide();
+  cancelClickCount = 0;
+  cartManager.clearCart();
+  hidePaymentScreen();
+  renderKioskCategories();
+});
+
+// =========================================================
+// 2-4: Admin intervention tab + history with delete
+// =========================================================
+let lastInterventionLogs = [];
+
+function _makeInterventionCell(text, styleStr) {
+  const td = document.createElement('td');
+  td.className = 'p-3 text-xs';
+  if (styleStr) td.setAttribute('style', styleStr);
+  td.textContent = text;
+  return td;
+}
+function _makeInterventionResultBadge(success) {
+  const badge = document.createElement('span');
+  badge.className = 'text-xs font-bold px-2 py-0.5 rounded-full';
+  if (success) {
+    badge.setAttribute('style', 'background:#dcf5e7;color:var(--success)');
+    badge.textContent = '完成';
+  } else {
+    badge.setAttribute('style', 'background:var(--surface2);color:var(--text2)');
+    badge.textContent = '待觀察';
+  }
+  return badge;
+}
+function _makeInterventionHistoryRow(log) {
+  const barrier = log.barrier_result || {};
+  const intervention = log.intervention || {};
+  const uiContext = log.ui_context || {};
+  const result = log.result || {};
+  const success = Boolean(result.checkout_success || result.payment_success);
+  const tr = document.createElement('tr');
+  tr.appendChild(_makeInterventionCell(log.timestamp ? new Date(log.timestamp).toLocaleString() : '-', 'color:var(--text2)'));
+  tr.appendChild(_makeInterventionCell(zhInteractionLabel('page', uiContext.page_id || '-'), 'color:var(--text)'));
+  tr.appendChild(_makeInterventionCell(zhInteractionLabel('barrier', barrier.barrier_state || '-'), 'color:var(--accent2)'));
+  tr.appendChild(_makeInterventionCell(zhInteractionLabel('action', intervention.action || '-'), 'color:var(--info)'));
+  const resultTd = document.createElement('td');
+  resultTd.className = 'p-3 text-center';
+  resultTd.appendChild(_makeInterventionResultBadge(success));
+  tr.appendChild(resultTd);
+  const delTd = document.createElement('td');
+  delTd.className = 'p-3 text-center';
+  const delBtn = document.createElement('button');
+  delBtn.className = 'text-xs px-2 py-1 rounded-xl';
+  delBtn.setAttribute('style', 'color:var(--danger);border:1px solid var(--border)');
+  const icon = document.createElement('i');
+  icon.className = 'fas fa-trash';
+  delBtn.appendChild(icon);
+  delBtn.onclick = () => tr.remove();
+  delTd.appendChild(delBtn);
+  tr.appendChild(delTd);
+  return tr;
+}
+function renderInterventionHistory() {
+  const tbody = document.getElementById('interventionHistoryBody');
+  if (!tbody) return;
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if (!lastInterventionLogs.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'p-4 text-center text-sm';
+    td.setAttribute('style', 'color:var(--text2)');
+    td.textContent = '尚無歷史介入紀錄。';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  lastInterventionLogs.forEach(log => tbody.appendChild(_makeInterventionHistoryRow(log)));
+}
+window.switchInterventionTab = function(tab) {
+  const panelCurrent = document.getElementById('int-panel-current');
+  const panelHistory = document.getElementById('int-panel-history');
+  const btnCurrent = document.getElementById('int-tab-current');
+  const btnHistory = document.getElementById('int-tab-history');
+  if (!panelCurrent || !panelHistory) return;
+  if (tab === 'history') {
+    panelCurrent.classList.add('hidden');
+    panelHistory.classList.remove('hidden');
+    btnCurrent?.classList.remove('active');
+    btnHistory?.classList.add('active');
+    renderInterventionHistory();
+  } else {
+    panelHistory.classList.add('hidden');
+    panelCurrent.classList.remove('hidden');
+    btnHistory?.classList.remove('active');
+    btnCurrent?.classList.add('active');
+  }
+};
+window.clearInterventionHistory = async function() {
+  if (!confirm('確定清空所有介入歷史紀錄？此操作無法還原。')) return;
+  try {
+    await api.clearInterventionLogs();
+    lastInterventionLogs = [];
+    renderInterventionHistory();
+    showAdminNotice('歷史介入紀錄已清空。', 'success');
+    loadInterventionStats();
+  } catch {
+    showAdminNotice('清空失敗，請重試。', 'error');
+  }
+};
+
+// =========================================================
+// AI 推播切換
+// =========================================================
+async function toggleAiRecommend(el) {
+  const newVal = !el.classList.contains('on');
+  el.classList.toggle('on', newVal);
+  try {
+    const updated = { ...fullSettings, USE_AI_RECOMMEND: newVal };
+    await api.saveSettings(updated);
+    fullSettings = updated;
+    runtimeSettings = { ...runtimeSettings, USE_AI_RECOMMEND: newVal };
+    showAdminNotice(newVal ? 'AI 推播已啟用（Ollama 推薦）。' : '已切換為預設推播。', 'success');
+  } catch {
+    el.classList.toggle('on', !newVal);
+    showAdminNotice('推播模式儲存失敗。', 'error');
+  }
+}
+
 Object.assign(window, {
   closeVoiceBubble,
   switchMainView,
@@ -3017,7 +2844,6 @@ Object.assign(window, {
   loadInterventionStats,
   loadEmotionClips,
   loadEmotionStatus,
-  loadCustomerServiceData,
   clearPushLogs,
   toggleFeature,
   saveSettings,
@@ -3032,7 +2858,10 @@ Object.assign(window, {
   deleteCartItem: trackedDeleteCartItem,
   trackInteractionEvent,
   reportInteractionEvent,
-  maybeCheckBarrierState
+  maybeCheckBarrierState,
+  loadRagStatus,
+  switchInterventionTab: window.switchInterventionTab,
+  clearInterventionHistory: window.clearInterventionHistory,
 });
 
 if (isAdminMode()) {

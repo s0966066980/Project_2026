@@ -7,7 +7,7 @@
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=uifix-20260521">
+<link rel="stylesheet" href="/static/styles.css?v=20260526">
 
 </head>
 <body class="w-full min-h-screen font-sans antialiased bg-[#e2d7cf] text-[#242424] flex flex-col md:flex-row">
@@ -40,46 +40,6 @@
       <span id="emotionDetectLabel">未偵測</span>
     </div>
   </div>
-</div>
-
-<!-- ============ 客服真人警報 Modal（needs_human_staff=true 時跳出） ============ -->
-<div id="csUrgentModal" class="cs-urgent-modal hidden" role="dialog" aria-modal="true" aria-labelledby="csUrgentTitle">
-  <div class="cs-urgent-card">
-    <div class="cs-urgent-head">
-      <i class="fas fa-bell"></i>
-      <strong id="csUrgentTitle">客服真人介入請求</strong>
-      <span id="csUrgentPriority" class="cs-urgent-priority">high</span>
-      <button id="csUrgentClose" type="button" class="cs-urgent-close" aria-label="關閉">×</button>
-    </div>
-    <div class="cs-urgent-body">
-      <div class="cs-urgent-row"><span>顧客語音</span><p id="csUrgentUserText">—</p></div>
-      <div class="cs-urgent-row"><span>情緒</span><p id="csUrgentEmotion">—</p></div>
-      <div class="cs-urgent-row"><span>狀態</span><p id="csUrgentState">—</p></div>
-      <div class="cs-urgent-row"><span>建議回覆草稿</span><p id="csUrgentDraft">—</p></div>
-      <textarea id="csUrgentReply" class="cs-urgent-textarea" placeholder="輸入真人客服回覆，按下立即回覆會即時送回 POS 端播放語音"></textarea>
-      <div class="cs-urgent-actions">
-        <button id="csUrgentSend" type="button" class="cs-urgent-send"><i class="fas fa-paper-plane"></i> 立即回覆</button>
-        <button id="csUrgentLater" type="button" class="cs-urgent-later">稍後處理</button>
-      </div>
-      <p id="csUrgentStatus" class="cs-urgent-status" style="display:none"></p>
-    </div>
-  </div>
-</div>
-
-<div id="posServiceWindow">
-  <div class="flex items-center gap-2 mb-3">
-    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background:var(--accent2)"><i class="fas fa-headset"></i></div>
-    <div>
-      <p class="font-bold text-sm" style="color:var(--text)">通知客服人員</p>
-      <p class="text-xs" style="color:var(--text2)">確認後開始收音並分析語系與情緒</p>
-    </div>
-    <button id="posServiceClose" class="ml-auto text-xs opacity-60 hover:opacity-100" style="color:var(--text2)"><i class="fas fa-times"></i></button>
-  </div>
-  <button id="posServiceRecord" class="w-full btn-ghost py-3 rounded-2xl flex items-center justify-center gap-2 mb-3">
-    <i class="fas fa-microphone" style="color:var(--accent)"></i>
-    <span id="posServiceRecordText" class="font-semibold text-sm">開始收音</span>
-  </button>
-  <div id="posServiceResult" class="text-sm leading-relaxed" style="color:var(--text2)">等待客服請求。</div>
 </div>
 
 <!-- ============ POS 視圖 ============ -->
@@ -238,9 +198,6 @@
         <button id="kioskLangBtn" class="kiosk-lang-btn" type="button">
           <i class="fas fa-globe"></i><span>中文</span><i class="fas fa-chevron-down"></i>
         </button>
-        <button id="posServiceFab" class="round-tool flex items-center justify-center" title="客服" type="button">
-          <i class="fas fa-headset text-xl"></i>
-        </button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
@@ -275,17 +232,6 @@
       </div>
       <div class="flex-1 min-h-0 flex flex-col p-5">
         <div id="cartList" class="flex-1 overflow-y-auto flex flex-col gap-3 min-h-0"></div>
-        <div id="mod-voice" class="voice-card shrink-0 mt-5">
-          <button id="askBtn" class="w-full py-5 px-5 rounded-2xl flex items-center gap-5 select-none text-left">
-            <span class="w-16 h-16 rounded-full flex items-center justify-center text-white shrink-0" style="background:linear-gradient(135deg,#f58b63,var(--accent));box-shadow:0 12px 22px rgba(217,83,53,0.24)">
-              <i class="fas fa-microphone text-3xl"></i>
-            </span>
-            <span>
-              <span id="askBtnText" class="block font-extrabold text-lg" style="color:var(--text)">長按語音點餐</span>
-              <span class="block text-sm mt-1" style="color:var(--text2)">語音發問開啟後可詢問 AI 助理</span>
-            </span>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -307,9 +253,12 @@
   <div id="kioskBottomBar" class="kiosk-bottom-bar">
     <button id="kioskHomeBtn" class="kiosk-bottom-home" type="button"><i class="fas fa-home"></i><span>回首頁</span></button>
     <div class="kiosk-bottom-right">
-      <button id="kioskVoiceBtn" class="kiosk-bottom-voice" type="button" title="語音發問">
-        <i class="fas fa-microphone"></i>
-      </button>
+      <div id="mod-voice-assist" class="kiosk-bottom-voice-wrap">
+        <button id="voiceAssistBtn" class="kiosk-bottom-voice" type="button" title="語音模式">
+          <i class="fas fa-microphone"></i>
+          <span id="voiceAssistBtnText">語音模式</span>
+        </button>
+      </div>
       <button id="kioskCartBtn" class="kiosk-bottom-cart" type="button">
         <span class="kiosk-cart-icon"><i class="fas fa-shopping-cart"></i><b id="kioskBottomCount">0</b></span>
         <strong id="kioskBottomTotal">$0</strong>
@@ -317,6 +266,30 @@
     </div>
   </div>
 
+
+</div>
+
+<!-- 語音模式全螢幕 overlay（放在 view-pos 外層，避免被 overflow:hidden 裁切） -->
+<div id="voiceAssistOverlay" class="voice-assist-overlay hidden" aria-hidden="true">
+  <div class="voice-assist-panel" role="dialog" aria-label="語音模式">
+    <h2 id="voiceAssistOverlayTitle">語音模式</h2>
+    <p id="voiceAssistOverlaySubtitle">我正在聽，請說出您的需求</p>
+    <div class="voice-wave-stage" aria-hidden="true">
+      <div class="voice-wave voice-wave-left">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="voice-core"><i class="fas fa-microphone"></i></div>
+      <div class="voice-wave voice-wave-right">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <button id="voiceAssistStopBtn" class="voice-assist-stop" type="button" aria-label="關閉收音">
+      <i class="fas fa-times"></i>
+    </button>
+    <p id="voiceAssistStopText" class="voice-assist-stop-text">按住關閉收音</p>
+  </div>
 </div>
 
 <!-- ============ 後台視圖 ============ -->
@@ -331,7 +304,7 @@
       <button onclick="switchAdminTab('clips');loadEmotionClips()" id="tab-btn-clips" class="admin-tab">影像片段</button>
       <button onclick="switchAdminTab('menu')"       id="tab-btn-menu"      class="admin-tab">菜單管理</button>
       <button onclick="switchAdminTab('rag')"        id="tab-btn-rag"       class="admin-tab">RAG 文本</button>
-      <button onclick="switchAdminTab('service');loadCustomerServiceData()" id="tab-btn-service" class="admin-tab">客服系統</button>
+      <button onclick="switchAdminTab('voice-assist')" id="tab-btn-voice-assist" class="admin-tab">語音協助</button>
       <button onclick="window.location.href='/admin'" class="btn-primary px-4 py-1.5 text-sm ml-2"><i class="fas fa-arrow-left mr-2"></i>返回首頁</button>
     </div>
   </nav>
@@ -404,10 +377,16 @@
               參數說明：互動障礙狀態代表顧客可能卡關類型；服務介入動作代表系統建議的 UI 提示或店員處理；常見卡關頁面代表事件最常發生的位置。
             </p>
           </div>
-          <button onclick="loadInterventionStats()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--accent2);border:1px solid var(--border)">
-            <i class="fas fa-sync-alt mr-1"></i>重新整理
-          </button>
+          <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button id="int-tab-current" class="int-tab-btn active" onclick="switchInterventionTab('current')">當下情況</button>
+            <button id="int-tab-history" class="int-tab-btn" onclick="switchInterventionTab('history')">歷史紀錄</button>
+            <button onclick="loadInterventionStats()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--accent2);border:1px solid var(--border)">
+              <i class="fas fa-sync-alt mr-1"></i>重新整理
+            </button>
+          </div>
         </div>
+        <!-- 當下情況 (hidden in history tab) -->
+        <div id="int-panel-current">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
             <p class="text-xs font-semibold mb-1" style="color:var(--text2)">總介入次數</p>
@@ -470,6 +449,32 @@
             <tbody id="interactionEventsBody" class="divide-y" style="border-color:var(--border)"></tbody>
           </table>
         </div>
+        </div><!-- /int-panel-current -->
+
+        <!-- 歷史紀錄面板 -->
+        <div id="int-panel-history" class="hidden">
+          <div class="flex items-center justify-between mb-3 mt-2">
+            <p class="text-sm font-bold" style="color:var(--text)">介入歷史紀錄</p>
+            <button onclick="clearInterventionHistory()" class="text-xs px-3 py-1.5 rounded-xl" style="color:var(--danger);border:1px solid var(--border)">
+              <i class="fas fa-trash mr-1"></i>清空歷史紀錄
+            </button>
+          </div>
+          <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
+            <table class="w-full text-sm">
+              <thead style="background:var(--surface2)">
+                <tr>
+                  <th class="p-3 text-left font-semibold" style="color:var(--text2)">時間</th>
+                  <th class="p-3 text-left font-semibold" style="color:var(--text2)">頁面</th>
+                  <th class="p-3 text-left font-semibold" style="color:var(--text2)">障礙狀態</th>
+                  <th class="p-3 text-left font-semibold" style="color:var(--text2)">介入動作</th>
+                  <th class="p-3 text-center font-semibold" style="color:var(--text2)">結果</th>
+                  <th class="p-3 text-center font-semibold" style="color:var(--text2)">刪除</th>
+                </tr>
+              </thead>
+              <tbody id="interventionHistoryBody" class="divide-y" style="border-color:var(--border)"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -483,16 +488,16 @@
           <div id="tog-emotion" class="toggle-track on shrink-0" onclick="toggleFeature('emotion',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音發問</p><p class="text-xs" style="color:var(--text2)">POS 購物車旁保留語音按鈕；開啟後可用 Ollama 問答，關閉時仍可語音點餐。</p></div>
-          <div id="tog-voiceAsk" class="toggle-track shrink-0" onclick="toggleFeature('voiceAsk',this)"><div class="toggle-knob"></div></div>
+          <div><p class="font-bold mb-1"><i class="fas fa-microphone mr-2" style="color:var(--accent)"></i>語音協助</p><p class="text-xs" style="color:var(--text2)">開啟後可用語音加入餐點與詢問菜單；使用 qwen3.5:9b，支援中英文。</p></div>
+          <div id="tog-voiceAssist" class="toggle-track on shrink-0" onclick="toggleFeature('voiceAssist',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-bolt mr-2" style="color:var(--warning)"></i>AI 浮動推播</p><p class="text-xs" style="color:var(--text2)">依效能設定節流更新浮動推薦卡片。</p></div>
           <div id="tog-recommend" class="toggle-track on shrink-0" onclick="toggleFeature('recommend',this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
-          <div><p class="font-bold mb-1"><i class="fas fa-columns mr-2" style="color:var(--accent2)"></i>A/B 推播測試</p><p class="text-xs" style="color:var(--text2)">同時顯示兩個不同 Prompt 的推薦結果。</p></div>
-          <div id="tog-abTest" class="toggle-track shrink-0" onclick="toggleFeature('abTest',this)"><div class="toggle-knob"></div></div>
+          <div><p class="font-bold mb-1"><i class="fas fa-brain mr-2" style="color:var(--success)"></i>AI 推播 (Ollama)</p><p class="text-xs" style="color:var(--text2)">開啟時使用 qwen3.5:4b 根據菜單與 RAG 推薦；關閉時顯示預設熱門餐點。</p></div>
+          <div id="tog-aiRecommend" class="toggle-track on shrink-0" onclick="toggleAiRecommend(this)"><div class="toggle-knob"></div></div>
         </div>
         <div class="feature-card flex justify-between items-start gap-4">
           <div><p class="font-bold mb-1"><i class="fas fa-language mr-2" style="color:var(--info)"></i>多語言偵測</p><p class="text-xs" style="color:var(--text2)">根據語音自動切換中英文回覆與 TTS。</p></div>
@@ -527,7 +532,7 @@
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="font-bold mb-1" style="color:var(--text)">偵測鏡頭（YOLO）</h3>
-                <p class="text-xs leading-relaxed" style="color:var(--text2)">開啟後 POS 左上角顯示偵測鏡頭；開始點餐後會先偵測顧客，再啟用語音點餐。</p>
+                <p class="text-xs leading-relaxed" style="color:var(--text2)">開啟後 POS 左上角顯示偵測鏡頭；開始點餐後會先偵測顧客，再啟用語音協助。</p>
               </div>
               <div id="tog-emotionCamera" class="toggle-track shrink-0" onclick="toggleFeature('emotionCamera',this)"><div class="toggle-knob"></div></div>
             </div>
@@ -564,8 +569,9 @@
           <div>
             <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">本地 Ollama 模型</label>
             <select id="inp-model-name" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+              <option value="qwen3.5:4b" selected>qwen3.5:4b</option>
               <option value="llama3.2">llama3.2</option>
-              <option value="gemma4">gemma4</option>
+              <option value="gemma3:4b">gemma3:4b</option>
             </select>
             <p class="text-xs mt-1" style="color:var(--text2)">AI 來源選 Ollama 時使用。</p>
           </div>
@@ -575,7 +581,7 @@
             <p class="text-xs mt-1" style="color:var(--text2)">需在 .env 設定 GEMINI_API_KEY。</p>
           </div>
         </div>
-        <input type="hidden" id="inp-ask-model-name" value="llama3.2">
+        <input type="hidden" id="inp-ask-model-name" value="qwen3.5:4b">
         <div>
           <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推論溫度 (Temperature)</label>
           <input type="number" id="inp-temp" step="0.1" min="0" max="2" class="w-full p-2.5 rounded-xl text-sm outline-none focus:ring-2" style="border:1.5px solid var(--border);background:var(--surface2);focus-ring-color:var(--accent)">
@@ -626,7 +632,7 @@
           <div>
             <h3 class="font-bold text-sm" style="color:var(--text)">本地 RAG 模組</h3>
             <p class="text-xs mt-1" style="color:var(--text2)">LangChain + Ollama embedding + Hybrid Retrieval。關閉模組後會使用較保守的原始向量檢索流程。</p>
-            <span class="text-orange-400 mt-2 block text-xs"><i class="fas fa-exclamation-triangle"></i> llama3.2 屬於小模型，新增 RAG 文件不代表模型一定不犯錯；建議開啟嚴格來源限制與答案驗證。若文件不足，系統會拒答。</span>
+            <span class="text-orange-400 mt-2 block text-xs"><i class="fas fa-exclamation-triangle"></i> qwen3.5:4b 等小模型不保證 RAG 答案完全正確；建議開啟嚴格來源限制與答案驗證。若文件不足，系統會拒答。</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm" style="color:var(--text)">
             <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-multi-query"> Multi-Query</label>
@@ -704,7 +710,6 @@
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm" style="color:var(--text)">
-          <label class="flex items-center gap-2"><input type="checkbox" id="inp-ab-single-call"> A/B 合併成一次 Ollama 呼叫</label>
           <label class="flex items-center gap-2"><input type="checkbox" id="inp-tts-cache"> TTS 快取</label>
           <label class="flex items-center gap-2"><input type="checkbox" id="inp-recommend-cache"> 推薦快取</label>
         </div>
@@ -713,12 +718,8 @@
           <textarea id="inp-emotion-prompt" class="w-full h-24 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
         </div>
         <div>
-          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--info)">推播 Prompt（A 版）</label>
+          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--info)">推播 Prompt（Ollama 推薦）</label>
           <textarea id="inp-recommend-prompt" class="w-full h-44 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
-        </div>
-        <div>
-          <label class="block font-semibold mb-1.5 text-sm" style="color:var(--warning)">推播 Prompt（B 版）</label>
-          <textarea id="inp-recommend-prompt-b" class="w-full h-44 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
         </div>
         <div>
           <label class="block font-semibold mb-1.5 text-sm" style="color:var(--success)">語音問答 Prompt（中文）</label>
@@ -760,7 +761,7 @@
       <div class="flex justify-between items-center mb-6 gap-3">
         <div>
           <h2 class="text-2xl font-bold" style="color:var(--text)">RAG 文本管理</h2>
-          <p class="text-sm mt-1" style="color:var(--text2)">RAG 僅保存手動新增、PDF 匯入或成功加入購物車的語音點餐事件；可一鍵使用 Ollama 重新審查並修正格式。</p>
+          <p class="text-sm mt-1" style="color:var(--text2)">RAG 僅保存手動新增、PDF 匯入或設定允許保存的語音協助紀錄；可一鍵使用 Ollama 重新審查並修正格式。</p>
         </div>
         <div class="flex gap-2">
           <button onclick="loadRagData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
@@ -792,7 +793,7 @@
             <p id="ragReviewSummary" class="text-sm leading-relaxed" style="color:var(--text2)">載入中...</p>
             <div>
               <label class="block font-semibold mb-2 text-sm" style="color:var(--text)">審查使用模型</label>
-              <input id="ragReviewModel" list="ollamaModelList" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" placeholder="例如 llama3.2">
+              <input id="ragReviewModel" list="ollamaModelList" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" placeholder="例如 qwen3.5:4b">
               <datalist id="ollamaModelList"></datalist>
               <p class="text-xs mt-1" style="color:var(--text2)">可輸入本機 Ollama 已安裝的任意模型名稱。</p>
             </div>
@@ -802,43 +803,36 @@
         </div>
       </div>
     </div>
-
-    <!-- 客服系統 -->
-    <div id="tab-service" class="admin-tab-content hidden">
+    <!-- 語音協助 -->
+    <div id="tab-voice-assist" class="admin-tab-content hidden">
       <div class="flex justify-between items-center mb-6 gap-3">
         <div>
-          <h2 class="text-2xl font-bold" style="color:var(--text)">客服系統</h2>
-          <p class="text-sm mt-1" style="color:var(--text2)">客服工作台與客服問答紀錄。開啟直接回覆時才會使用 AI 生成客服回答；關閉後只保存錄音與文字供真人處理。</p>
+          <h2 class="text-2xl font-bold" style="color:var(--text)">語音協助設定</h2>
+          <p class="text-sm mt-1" style="color:var(--text2)">語音協助使用 qwen3.5:9b；開啟語音協助時，該次推薦會自動改用預設推播以節省效能。</p>
         </div>
-        <button onclick="loadCustomerServiceData()" class="btn-ghost px-4 py-2 text-sm"><i class="fas fa-sync-alt mr-2"></i>重新整理</button>
       </div>
-      <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
-        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
-          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">
-            客服語音工作台
-          </div>
-          <div class="p-4">
-            <p class="text-xs leading-relaxed mb-3" style="color:var(--text2)">
-              Debug：後台本機錄音測試，不代表 POS 顧客端。正式真人客服請從 POS 端客服請求進入。
-            </p>
-            <div class="flex items-center justify-between gap-3 p-3 rounded-xl mb-3" style="background:var(--surface2)">
-              <div>
-                <p class="font-semibold text-sm" style="color:var(--text)">Ollama 直接回覆</p>
-                <p class="text-xs" style="color:var(--text2)">關閉後保留顧客錄音與文字，供真人客服回覆</p>
-                <p id="adminServiceModeLabel" class="text-xs font-bold mt-1" style="color:var(--accent2)">目前模式：Ollama 直接回覆</p>
-              </div>
-              <div id="adminServiceOllamaToggle" class="toggle-track on shrink-0"><div class="toggle-knob"></div></div>
-            </div>
-            <button id="adminServiceRecord" class="w-full btn-ghost py-3 rounded-2xl flex items-center justify-center gap-2 mb-3">
-              <i class="fas fa-microphone" style="color:var(--accent)"></i>
-              <span id="adminServiceRecordText" class="font-semibold text-sm">開始收音</span>
-            </button>
-            <div id="adminServiceResult" class="text-sm leading-relaxed min-h-[280px]" style="color:var(--text2)">等待客服請求。</div>
-          </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <h3 class="font-bold mb-3" style="color:var(--text)">語音協助狀態</h3>
+          <div id="voiceAssistStatus" class="text-sm" style="color:var(--text2)">未開始錄音。</div>
+          <div id="voiceAssistTranscript" class="mt-3 p-3 rounded-xl text-sm min-h-[80px]" style="background:var(--surface2);color:var(--text)"></div>
         </div>
-        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1.5px solid var(--border)">
-          <div class="p-3 font-bold text-sm" style="background:var(--surface2);color:var(--text)">客服問答紀錄</div>
-          <div id="customerServiceLogsList" class="p-3 space-y-3 max-h-[640px] overflow-y-auto"></div>
+        <div class="rounded-2xl p-5" style="background:var(--surface);border:1.5px solid var(--border)">
+          <h3 class="font-bold mb-3" style="color:var(--text)">設定</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">語音協助模型</label>
+              <select id="inp-voice-assist-model" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+                <option value="qwen3.5:9b">qwen3.5:9b（推薦）</option>
+                <option value="qwen3.5:4b">qwen3.5:4b（輕量）</option>
+                <option value="llama3.2">llama3.2</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">語音協助 Prompt（中文）</label>
+              <textarea id="inp-voice-assist-prompt" class="w-full h-28 p-3 rounded-xl text-sm outline-none resize-none" style="border:1.5px solid var(--border);background:var(--surface2)"></textarea>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -846,9 +840,46 @@
   </div>
 </div>
 
+<!-- ============ Tutorial popup (2-2) ============ -->
+<div id="tutorialPopup" class="tutorial-popup hidden" role="dialog" aria-label="點餐說明">
+  <div class="tutorial-popup-inner">
+    <button id="tutorialPopupClose" class="tutorial-popup-close" type="button" aria-label="關閉"><i class="fas fa-times"></i></button>
+    <h3><i class="fas fa-info-circle mr-2" style="color:#ffc72c"></i>如何點餐</h3>
+    <ol>
+      <li><i class="fas fa-th-large"></i> 選擇想吃的餐點分類</li>
+      <li><i class="fas fa-plus-circle"></i> 點擊「<b>+</b>」加入購物車</li>
+      <li><i class="fas fa-shopping-cart"></i> 點「結帳去」完成付款</li>
+    </ol>
+    <div class="tutorial-popup-timer"><div id="tutorialPopupTimerBar" class="tutorial-popup-timer-bar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<!-- ============ Cancel guide popup (2-3) ============ -->
+<div id="cancelGuidePopup" class="cancel-guide-popup hidden" role="dialog" aria-label="取消訂單說明">
+  <div class="cancel-guide-inner">
+    <button id="cancelGuideClose" class="cancel-guide-close" type="button" aria-label="關閉"><i class="fas fa-times"></i></button>
+    <h3>需要幫助嗎？</h3>
+    <p id="cancelGuideMsg">看起來您遇到問題，請選擇適合的方式繼續：</p>
+    <div class="cancel-guide-options">
+      <button class="cancel-guide-option" id="cancelGuideFastPay" type="button">
+        <i class="fas fa-credit-card"></i>
+        <div><strong>快速結帳</strong><small style="display:block;font-weight:400;color:var(--text2)">信用卡、感應支付、掃碼</small></div>
+      </button>
+      <button class="cancel-guide-option" id="cancelGuideCounter" type="button">
+        <i class="fas fa-cash-register"></i>
+        <div><strong>至櫃檯排隊付款</strong><small style="display:block;font-weight:400;color:var(--text2)">現金或其他方式</small></div>
+      </button>
+      <button class="cancel-guide-option cancel-guide-cancel" id="cancelGuideConfirmCancel" type="button">
+        <i class="fas fa-times-circle"></i>
+        <strong>確認取消整單</strong>
+      </button>
+    </div>
+  </div>
+</div>
+
 <audio id="ttsAudio" class="hidden"></audio>
 
-<script type="module" src="/static/app.js?v=uifix-20260521"></script>
+<script type="module" src="/static/app.js?v=20260526"></script>
 
 </body>
 </html>

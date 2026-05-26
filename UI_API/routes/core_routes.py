@@ -89,10 +89,6 @@ def create_router(deps: dict) -> APIRouter:
     async def serve_admin():
         return FileResponse("index.html")
 
-    @router.get("/customer")
-    async def serve_customer_service():
-        return FileResponse("index.html")
-
     @router.get("/demo-tool")
     async def serve_demo_tool():
         return HTMLResponse(_load_demo_tool_html())
@@ -134,32 +130,11 @@ def create_router(deps: dict) -> APIRouter:
         total = len(logs)
         success_count = sum(1 for log in logs if log.get("is_success", False))
         success_rate = round((success_count / total * 100) if total > 0 else 0, 1)
-        ab_stats = {
-            "A": {"impressions": 0, "successes": 0, "success_rate": 0},
-            "B": {"impressions": 0, "successes": 0, "success_rate": 0},
-        }
-        for log in logs:
-            variant_success = log.get("variant_success") or {}
-            for variant in ("A", "B"):
-                result = variant_success.get(variant) or {}
-                if result.get("pushed_ids"):
-                    ab_stats[variant]["impressions"] += 1
-                    if result.get("is_success"):
-                        ab_stats[variant]["successes"] += 1
-
-        for variant in ("A", "B"):
-            impressions = ab_stats[variant]["impressions"]
-            successes = ab_stats[variant]["successes"]
-            ab_stats[variant]["success_rate"] = round(
-                (successes / impressions * 100) if impressions else 0, 1
-            )
-
         return {
             "total": total,
             "success_count": success_count,
             "success_rate": success_rate,
             "logs": indexed_logs[-200:],
-            "ab_stats": ab_stats,
         }
 
     @router.delete("/api/logs")
@@ -181,7 +156,6 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
-        pushed_variants: str = Form(default="{}"),
     ):
         try:
             pushed_list = json.loads(pushed_ids) if pushed_ids else []
@@ -191,11 +165,6 @@ def create_router(deps: dict) -> APIRouter:
             cart_list = json.loads(cart_ids) if cart_ids else []
         except (json.JSONDecodeError, ValueError):
             cart_list = [x.strip() for x in cart_ids.split(",") if x.strip()]
-        try:
-            pushed_variant_map = json.loads(pushed_variants) if pushed_variants else {}
-        except (json.JSONDecodeError, ValueError):
-            pushed_variant_map = {}
-
         session_history = session_repository.get_session_history(session_id)
         try:
             loop = asyncio.get_running_loop()
@@ -207,7 +176,6 @@ def create_router(deps: dict) -> APIRouter:
                     pushed_list,
                     cart_list,
                     session_history,
-                    pushed_variant_map,
                 ),
                 timeout=5.0,
             )
@@ -223,7 +191,6 @@ def create_router(deps: dict) -> APIRouter:
                 "session_id": session_id,
                 "pushed_ids": pushed_list,
                 "final_cart_ids": cart_list,
-                "variant_success": log_entry.get("variant_success", {}),
                 "is_success": bool(log_entry.get("is_success", False)),
             }
             log_entry["intervention_result"] = intervention_result

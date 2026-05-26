@@ -5,6 +5,9 @@ import threading
 import time
 from datetime import datetime
 
+_write_lock: dict[str, threading.Lock] = {}
+_write_lock_guard = threading.Lock()
+
 import config
 
 
@@ -60,15 +63,31 @@ def _read_list(path: str) -> list:
     return list(result)
 
 
+def _get_file_lock(path: str) -> threading.Lock:
+    with _write_lock_guard:
+        if path not in _write_lock:
+            _write_lock[path] = threading.Lock()
+        return _write_lock[path]
+
+
 def _write_list(path: str, rows: list) -> list:
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
     trimmed = list(rows[-MAX_RECORDS:])
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(trimmed, f, ensure_ascii=False, indent=4)
-    os.replace(tmp_path, path)
+    tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    file_lock = _get_file_lock(path)
+    with file_lock:
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(trimmed, f, ensure_ascii=False, indent=4)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
     try:
         mtime = os.path.getmtime(path)
     except OSError:
@@ -248,3 +267,17 @@ def get_intervention_logs(session_id: str = "", limit: int = 200) -> list:
     if session_id:
         rows = [row for row in rows if str(row.get("session_id", "")) == str(session_id)]
     return _recent(rows, limit)
+
+
+def clear_intervention_logs() -> int:
+    rows = _read_list(INTERVENTION_LOGS_PATH)
+    count = len(rows)
+    _write_list(INTERVENTION_LOGS_PATH, [])
+    return count
+
+
+def clear_interaction_events() -> int:
+    rows = _read_list(INTERACTION_EVENTS_PATH)
+    count = len(rows)
+    _write_list(INTERACTION_EVENTS_PATH, [])
+    return count

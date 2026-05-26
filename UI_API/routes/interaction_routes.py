@@ -160,4 +160,16 @@ def create_router(deps: dict | None = None) -> APIRouter:
         )
         return {"status": "success", **_build_intervention_stats(logs, events)}
 
+    @router.delete("/intervention_logs")
+    async def clear_intervention_logs(request: Request):
+        require_admin_token(request)
+        count = await asyncio.to_thread(interaction_event_repository.clear_intervention_logs)
+        return {"status": "success", "cleared": count}
+
+    @router.delete("/interaction_events")
+    async def clear_interaction_events(request: Request):
+        require_admin_token(request)
+        count = await asyncio.to_thread(interaction_event_repository.clear_interaction_events)
+        return {"status": "success", "cleared": count}
+
     return router
