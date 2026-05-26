@@ -1116,71 +1116,105 @@ function stopAdminLiveRefresh() {
 
 async function showScenarioRecommendationCard(intervention = {}, barrierResult = {}) {
   if (!isPosActive() || !ui.floatPush) return;
+  if (_isVoiceActive()) return;   // 語音進行中不顯示
+  // 清除所有現有推播卡及殘留的 app-level 計時器
+  if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
   clearAllPushCards();
 
-  async function resolveItems(forceDefault = false) {
+  // 使用 closure 計時器（不污染全域 interactionModalTimer）
+  let _scenarioCardTimer = null;
+  const _clearScenarioTimer = () => {
+    if (_scenarioCardTimer) { clearTimeout(_scenarioCardTimer); _scenarioCardTimer = null; }
+  };
+
+  async function resolveItems() {
     const directIds = Array.isArray(intervention.recommendation_ids)
-      ? intervention.recommendation_ids
-      : [];
+      ? intervention.recommendation_ids : [];
     let items = findMenuItems(directIds);
     if (items.length) return items.slice(0, 3);
-
     const fd = new FormData();
     fd.append('session_id', sessionId);
-    if (forceDefault) {
-      fd.append('force_default', 'true');
-    }
     try {
       const data = await api.autoRecommend(fd);
-      if (data.status === 'success') {
-        items = findMenuItems(data.recommendation_ids || []);
-      }
-    } catch { /* fallback below */ }
+      if (data.status === 'success') items = findMenuItems(data.recommendation_ids || []);
+    } catch { /* ignore */ }
     if (!items.length) {
-      items = menuData
-        .filter(item => item && item.id && Number(item.price || 0) > 0)
-        .slice(0, 3);
+      items = menuData.filter(item => item && item.id && Number(item.price || 0) > 0).slice(0, 3);
     }
     return items.slice(0, 3);
   }
 
+  function _makeBtn(label, cls, icon) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = cls;
+    if (icon) { const i = document.createElement('i'); i.className = icon; btn.appendChild(i); btn.appendChild(document.createTextNode(' ')); }
+    btn.appendChild(document.createTextNode(label));
+    return btn;
+  }
+
   function render(items = []) {
     const itemList = items.filter(Boolean).slice(0, 3);
-    const names = itemList.map(item => item.name || '').filter(Boolean).join('、') || '熱門餐點';
-    const total = itemList.reduce((sum, item) => sum + Number(item.price || 0), 0);
+    const names = itemList.map(i => i.name || '').filter(Boolean).join('、') || '熱門餐點';
+    const total = itemList.reduce((s, i) => s + Number(i.price || 0), 0);
+
     const card = document.createElement('div');
     card.className = 'push-card';
-    card.innerHTML = `
-      <div class="push-card-header">
-        <span class="push-card-title">還在猶豫嗎？</span>
-        <button type="button" class="push-close-btn" aria-label="關閉"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="push-item-names">${escapeHTML(names)}</div>
-      ${total ? `<div class="push-item-price">${itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`}</div>` : ''}
-      <p class="push-reason">${escapeHTML(intervention.tts_text || '我可以推薦幾個熱門選擇給您。')}</p>
-      <div class="grid gap-2">
-        <button type="button" class="push-add-btn btn-primary" data-add-recommend><i class="fas fa-cart-plus"></i> 加入推薦餐點</button>
-        <button type="button" class="push-add-btn" data-refresh-recommend>換一個推薦</button>
-        <button type="button" class="push-add-btn" data-voice-mode><i class="fas fa-microphone"></i> 語音模式</button>
-      </div>`;
-    ui.floatPush.replaceChildren(card);
-    card.querySelector('.push-close-btn')?.addEventListener('click', clearAllPushCards);
-    card.querySelector('[data-add-recommend]')?.addEventListener('click', () => {
+
+    const header = document.createElement('div');
+    header.className = 'push-card-header';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'push-card-title';
+    titleEl.textContent = '還在猶豫嗎？';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button'; closeBtn.className = 'push-close-btn'; closeBtn.setAttribute('aria-label', '關閉');
+    const closeIcon = document.createElement('i'); closeIcon.className = 'fas fa-times';
+    closeBtn.appendChild(closeIcon);
+    closeBtn.addEventListener('click', () => { _clearScenarioTimer(); clearAllPushCards(); });
+    header.append(titleEl, closeBtn);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'push-item-names'; nameEl.textContent = names;
+
+    const reasonEl = document.createElement('p');
+    reasonEl.className = 'push-reason';
+    reasonEl.textContent = String(intervention.tts_text || '我可以推薦幾個熱門選擇給您。');
+
+    const btnGrid = document.createElement('div');
+    btnGrid.className = 'grid gap-2';
+
+    if (total) {
+      const priceEl = document.createElement('div');
+      priceEl.className = 'push-item-price';
+      priceEl.textContent = itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`;
+      card.append(header, nameEl, priceEl, reasonEl, btnGrid);
+    } else {
+      card.append(header, nameEl, reasonEl, btnGrid);
+    }
+
+    const addBtn = _makeBtn('加入推薦餐點', 'push-add-btn btn-primary', 'fas fa-cart-plus');
+    addBtn.addEventListener('click', () => {
+      _clearScenarioTimer();
       itemList.forEach(item => trackedAddToCart(item, { source: 'scenario_recommendation' }));
       showPushNotice('已加入推薦餐點');
     });
-    card.querySelector('[data-refresh-recommend]')?.addEventListener('click', async () => {
-      render(await resolveItems(false));
-    });
-    card.querySelector('[data-voice-mode]')?.addEventListener('click', () => {
-      clearAllPushCards();
+    const refreshBtn = _makeBtn('換一個推薦', 'push-add-btn', null);
+    refreshBtn.addEventListener('click', async () => { _clearScenarioTimer(); render(await resolveItems()); });
+    const voiceBtn = _makeBtn('語音模式', 'push-add-btn', 'fas fa-microphone');
+    voiceBtn.addEventListener('click', () => {
+      _clearScenarioTimer(); clearAllPushCards();
       startAskRecording(document.getElementById('voiceAssistBtn'));
     });
-    if (interactionModalTimer) clearTimeout(interactionModalTimer);
-    interactionModalTimer = setTimeout(clearAllPushCards, 10000);
+    btnGrid.append(addBtn, refreshBtn, voiceBtn);
+
+    ui.floatPush.replaceChildren(card);
+
+    // 10 秒後自動消失
+    _clearScenarioTimer();
+    _scenarioCardTimer = setTimeout(() => { _scenarioCardTimer = null; clearAllPushCards(); }, 10000);
   }
 
-  render(await resolveItems(false));
+  render(await resolveItems());
 }
 
 function applyIntervention(intervention = {}, barrierResult = {}) {
@@ -1613,13 +1647,21 @@ function showEmotionCard(emotionData) {
   }, 12000);
 }
 
+function _isVoiceActive() {
+  // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
+  return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
+}
+
 async function fetchAndDisplayRecommend() {
   const f = getFeatures();
   if (!f.recommend) return;
   if (recommendRequestInFlight) return;
+  if (_isVoiceActive()) return;                     // 語音模式進行中，不蓋推播
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
   if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
   if (Date.now() < promotionPausedUntil) return;
+  // 有 scenario 計時器殘留時先清除，避免它干擾新推播卡
+  if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
   const fd = new FormData();
   fd.append('session_id', sessionId);
   const ctrl = new AbortController();
@@ -1890,6 +1932,9 @@ function startAskRecording(sourceBtn) {
     return;
   }
   if (askRecorder && askRecorder.state === 'inactive') {
+    // 開始錄音前先清除推播卡與殘留計時器，避免語音模式與推播卡重疊
+    if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
+    clearAllPushCards();
     captureEmotionSnapshotForVoice();
     trackInteractionEvent({
       event_type: 'voice_assist_started',

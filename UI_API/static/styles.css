@@ -1942,7 +1942,7 @@
 /* ============ Recommendation popup — bottom-center (Task 3) ============ */
 #floatPush {
   position: fixed;
-  bottom: 80px;
+  bottom: 110px;   /* 高於底部列（約 80px）+ 間距，避免與語音按鈕重疊 */
   left: 50%;
   transform: translateX(-50%);
   z-index: 980;

@@ -875,15 +875,26 @@ def detect_person_in_video(video_path: str, max_frames: int = 8, min_face_hits: 
         cap.release()
 
 
+def _strip_think_blocks(content: str) -> str:
+    """剝除 qwen3 / 思維模型輸出的 <think>...</think> block，避免干擾 JSON 擷取。"""
+    return re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
+
+
 def _repair_and_extract_json(content: str) -> dict | None:
     """
     強健 JSON 擷取器：
+    0. 剝除 <think>...</think> block（qwen3 / thinking models）
     1. 直接 parse
     2. 剝 markdown fence
     3. 括號深度追蹤
     4. 若仍截斷，用 state machine 安全補上引號/括號
     """
     if not content or not isinstance(content, str):
+        return None
+
+    # step 0: strip thinking blocks emitted by qwen3-family models
+    content = _strip_think_blocks(content)
+    if not content:
         return None
 
     try:
@@ -1080,6 +1091,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         "prompt": f"【系統指令】\n{enforced_system}\n\n{user_prompt}",
         "stream": False,
         "format": "json",
+        "think": False,          # disable thinking mode for qwen3/thinking models (Ollama ≥0.5.1)
         "options": {
             "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)) if temperature is None else float(temperature),
             "num_predict": int(config.get("OLLAMA_NUM_PREDICT", 220))
