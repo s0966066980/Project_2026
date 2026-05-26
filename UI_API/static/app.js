@@ -59,7 +59,7 @@ let emotionCardTimer = null;
 let emotionLoopId = null;
 let detectionLoopId = null;
 let detectionInFlight = false;
-let recommendLoopId = null;
+let recommendLoopActive = false;
 let recommendRequestInFlight = false;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
@@ -69,6 +69,7 @@ let barrierCheckInFlight = false;
 let lastBarrierCheckAt = 0;
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
+let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let adminRefreshTimer = null;
 let interventionStatsLoading = false;
@@ -285,10 +286,9 @@ async function loadRuntimeSettings() {
 function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
-  if (recommendLoopId) clearInterval(recommendLoopId);
+  recommendLoopActive = false;
   emotionLoopId = null;
   detectionLoopId = null;
-  recommendLoopId = null;
   if (isSystemRunning && isPosMode()) {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
@@ -1112,6 +1112,7 @@ function stopAdminLiveRefresh() {
 async function showScenarioRecommendationCard(intervention = {}, barrierResult = {}) {
   if (!isPosActive() || !ui.floatPush) return;
   if (_isVoiceActive()) return;   // 語音進行中不顯示
+  if (Date.now() - lastInteractionAt < 15000) return;   // 閒置未滿 15 秒，不打擾
   // 清除所有現有推播卡及殘留的 app-level 計時器
   if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
   clearAllPushCards();
@@ -1148,7 +1149,8 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
     return btn;
   }
 
-  function render(items = []) {
+  // 純 DOM 建構，不修改 floatPush，回傳 card element
+  function buildCard(items = []) {
     const itemList = items.filter(Boolean).slice(0, 3);
     const names = itemList.map(i => i.name || '').filter(Boolean).join('、') || '熱門餐點';
     const total = itemList.reduce((s, i) => s + Number(i.price || 0), 0);
@@ -1165,7 +1167,6 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
     closeBtn.type = 'button'; closeBtn.className = 'push-close-btn'; closeBtn.setAttribute('aria-label', '關閉');
     const closeIcon = document.createElement('i'); closeIcon.className = 'fas fa-times';
     closeBtn.appendChild(closeIcon);
-    closeBtn.addEventListener('click', () => { _clearScenarioTimer(); clearAllPushCards(); });
     header.append(titleEl, closeBtn);
 
     const nameEl = document.createElement('div');
@@ -1194,7 +1195,7 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
       showPushNotice('已加入推薦餐點');
     });
     const refreshBtn = _makeBtn('換一個推薦', 'push-add-btn', null);
-    refreshBtn.addEventListener('click', async () => { _clearScenarioTimer(); render(await resolveItems()); });
+    refreshBtn.addEventListener('click', () => renderWithFlip());
     const voiceBtn = _makeBtn('語音模式', 'push-add-btn', 'fas fa-microphone');
     voiceBtn.addEventListener('click', () => {
       _clearScenarioTimer(); clearAllPushCards();
@@ -1202,14 +1203,31 @@ async function showScenarioRecommendationCard(intervention = {}, barrierResult =
     });
     btnGrid.append(addBtn, refreshBtn, voiceBtn);
 
-    ui.floatPush.replaceChildren(card);
+    closeBtn.addEventListener('click', () => { _clearScenarioTimer(); clearAllPushCards(); });
 
-    // 10 秒後自動消失
+    return card;
+  }
+
+  // 翻書特效換入新卡（換一個 & 初次顯示皆呼叫此函式）
+  async function renderWithFlip(items) {
+    if (!items) items = await resolveItems();
+    const newCard = buildCard(items);
+
+    const oldCard = ui.floatPush.firstElementChild;
+    if (oldCard && oldCard.classList.contains('push-card')) {
+      oldCard.classList.add('push-card-flip-out');
+      await new Promise(r => setTimeout(r, 220));
+    }
+
+    ui.floatPush.replaceChildren(newCard);
+    newCard.style.animation = 'none';
+    newCard.classList.add('push-card-flip-in');
+
     _clearScenarioTimer();
     _scenarioCardTimer = setTimeout(() => { _scenarioCardTimer = null; clearAllPushCards(); }, 10000);
   }
 
-  render(await resolveItems());
+  await renderWithFlip(await resolveItems());
 }
 
 function applyIntervention(intervention = {}, barrierResult = {}) {
@@ -1476,6 +1494,9 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
 // 啟動
 // =========================================================
 ui.startBtn.onclick = async () => {
+  // 閒置偵測：任何觸控 / 點擊都重設計時
+  document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); }, { passive: true });
+  document.addEventListener('touchstart',  () => { lastInteractionAt = Date.now(); }, { passive: true });
   if (isAdminMode()) return;
   try {
     await loadRuntimeSettings();
@@ -1671,7 +1692,7 @@ async function fetchAndDisplayRecommend() {
   recommendPending = true;
   try {
     const data = await api.autoRecommend(fd, ctrl.signal);
-    if (data.status === 'success') displayRecommendation(data);
+    if (data.status === 'success') return displayRecommendation(data);
   } catch (err) {
     console.warn('[auto_recommend failed]', err);
   } finally {
@@ -1681,13 +1702,17 @@ async function fetchAndDisplayRecommend() {
   }
 }
 
-function startRecommendLoop() {
-  if (isAdminMode() || recommendLoopId) return;
-  recommendLoopId = setInterval(async () => {
-    if (!isPosActive() || recommendPending) return;
-    if (document.hidden) return;
-    await fetchAndDisplayRecommend();
-  }, Math.max(10, Number(perfValue('RECOMMEND_INTERVAL_SEC')) || 30) * 1000);
+async function startRecommendLoop() {
+  if (isAdminMode() || recommendLoopActive) return;
+  recommendLoopActive = true;
+  const intervalMs = Math.max(10, Number(perfValue('RECOMMEND_INTERVAL_SEC')) || 10) * 1000;
+  while (recommendLoopActive) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    if (!recommendLoopActive) break;
+    if (!isPosActive() || document.hidden || recommendPending) continue;
+    const tickerDone = await fetchAndDisplayRecommend();
+    if (tickerDone && recommendLoopActive) await tickerDone;
+  }
 }
 
 // =========================================================
@@ -1971,7 +1996,7 @@ window.addEventListener('beforeunload', () => {
   } catch { }
   if (emotionLoopId) clearInterval(emotionLoopId);
   if (detectionLoopId) clearInterval(detectionLoopId);
-  if (recommendLoopId) clearInterval(recommendLoopId);
+  recommendLoopActive = false;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
 });
 
