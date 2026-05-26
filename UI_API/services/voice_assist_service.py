@@ -40,7 +40,8 @@ async def handle_voice_assist(
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     route = query_router_service.route_query(user_text, menu_items)
     intent = route.get("intent", "")
-    model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:9b")
+    model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
+    fallback_model = config.get("MODEL_NAME", "qwen3.5:4b")
 
     # ---- 直接點餐 ----
     if intent == "direct_order":
@@ -127,6 +128,11 @@ async def handle_voice_assist(
         result = await loop.run_in_executor(
             None, ai_services.ask_ollama, system_prompt, user_prompt, "", model
         )
+        # 若指定模型不存在，以 fallback_model 重試一次
+        if isinstance(result, dict) and "error" in result and model != fallback_model:
+            result = await loop.run_in_executor(
+                None, ai_services.ask_ollama, system_prompt, user_prompt, "", fallback_model
+            )
 
     if isinstance(result, list):
         result = next((r for r in result if isinstance(r, dict)), {})

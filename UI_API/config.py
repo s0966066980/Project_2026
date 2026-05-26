@@ -87,7 +87,7 @@ DEFAULT_SETTINGS = {
     "SAVE_CUSTOMER_SERVICE_TO_RAG": False,
     "EMOTION_INFLUENCE_RECOMMEND": False,
     "USE_AI_RECOMMEND": True,          # True=Ollama推播, False=預設熱門推播
-    "VOICE_ASSIST_MODEL": "qwen3.5:9b",  # 語音協助專用模型
+    "VOICE_ASSIST_MODEL": "qwen3.5:4b",  # 語音協助專用模型
     "VOICE_ASSIST_EMOTION_ENABLED": True,
     "VOICE_ASSIST_EMOTION_AUTO_START": False,
     "VOICE_ASSIST_EMOTION_IDLE_TIMEOUT_SEC": 300,
