@@ -38,8 +38,6 @@
 - `UI_API/learning_data/rag_vector_meta.json`
 - `UI_API/learning_data/session_logs.json`
 - `UI_API/learning_data/settings.json`
-- `UI_API/models/yolo/yolo11n.pt`
-- `UI_API/models/yolo/yolov4-tiny.weights`
 
 ## safe_to_delete_static_assets
 

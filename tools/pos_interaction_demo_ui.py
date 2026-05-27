@@ -265,8 +265,8 @@ S3 後端計算 risk_score 與 trigger_reasons
    ├─ 否 → 儲存低風險事件 (interaction_events.json)
    └─ 是 → 觸發多模態 → POST /api/triggered_multimodal_analysis
 S4 達門檻時擷取事件前後短片段
-S5 人物偵測 & 媒體有效性 (YOLO11n + ffprobe)
-   ├─ 無效/無人 → fallback POS events
+S5 媒體有效性 (ffprobe)
+   ├─ 無效 → fallback POS events
    └─ 有效繼續
 S6 Whisper STT + Emotion-LLaMA（多模態證據來源）
 S7 multimodal_evidence_service.build_multimodal_evidence()

@@ -70,7 +70,6 @@ Emotion-LLaMA/audio.wav
 
 # Known local model/checkpoint folders
 Emotion-LLaMA/checkpoints/
-UI_API/models/yolo/*.pt
 
 # Nested repository metadata from downloaded upstream/model repos
 Emotion-LLaMA/.git/
