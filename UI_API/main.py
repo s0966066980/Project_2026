@@ -77,7 +77,6 @@ class LoopBoundSemaphore:
 
 
 _emotion_semaphore = LoopBoundSemaphore(1)
-_yolo_semaphore = LoopBoundSemaphore(1)
 _ollama_semaphore = LoopBoundSemaphore(1)
 _background_init_done = False
 _emotion_cache = {}
@@ -145,14 +144,6 @@ async def _background_init_once():
         except Exception as e:
             print(f"❌ Whisper 背景預載失敗: {e}")
 
-    async def _preload_yolo():
-        try:
-            ok = await loop.run_in_executor(None, ai_services.init_yolo_detector)
-            if ok:
-                print("✅ YOLO11 nano 模型背景預載完成")
-        except Exception as e:
-            print(f"❌ YOLO 背景預載失敗: {e}")
-
     async def _preload_gemini_client():
         if config.get("ENABLE_GEMINI_OPTIONS", False) is not True:
             return
@@ -163,7 +154,7 @@ async def _background_init_once():
         except Exception as e:
             print(f"❌ Gemini client 背景初始化失敗: {e}")
 
-    await asyncio.gather(_init_rag(), _preload_whisper(), _preload_yolo(), _preload_gemini_client())
+    await asyncio.gather(_init_rag(), _preload_whisper(), _preload_gemini_client())
 
 
 async def _safe_rebuild_rag(reason: str = ""):
@@ -191,7 +182,6 @@ def _route_dependencies() -> dict:
         "recommend_cache": _recommend_cache,
         "safe_rebuild_rag": _safe_rebuild_rag,
         "schedule_rag_rebuild": _schedule_rag_rebuild,
-        "yolo_semaphore": _yolo_semaphore,
     }
 
 

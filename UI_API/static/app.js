@@ -56,8 +56,6 @@ let recommendPending = false;
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
 let emotionLoopId = null;
-let detectionLoopId = null;
-let detectionInFlight = false;
 let recommendLoopActive = false;
 let recommendRequestInFlight = false;
 let lastVoiceText = '';
@@ -250,7 +248,6 @@ let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
   EMOTION_RECORD_MS: 900,
-  YOLO_FRAME_INTERVAL_MS: 650,
   RECOMMEND_INTERVAL_SEC: 10,
   RECOMMEND_AFTER_ASK_DELAY_MS: 1200,
   OLLAMA_NUM_PREDICT: 220,
@@ -285,10 +282,8 @@ async function loadRuntimeSettings() {
 
 function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
-  if (detectionLoopId) clearInterval(detectionLoopId);
   recommendLoopActive = false;
   emotionLoopId = null;
-  detectionLoopId = null;
   if (isSystemRunning && isPosMode()) {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
@@ -473,12 +468,6 @@ function applyFeaturesToPOS() {
   if (!f.recommend) clearAllPushCards();
   if (!f.emotionChat) clearEmotionCards();
   if (!f.emotionBackend) stopEmotionLoop();
-  if (!f.emotion && detectionLoopId) {
-    clearInterval(detectionLoopId);
-    detectionLoopId = null;
-  } else if (f.emotion && !detectionLoopId && isSystemRunning && isPosMode()) {
-    startDetectionLoop();
-  }
   if (!f.emotion) setVoiceOrderingAvailable(true);
   updateEmotionCameraPanel();
 }
@@ -514,15 +503,6 @@ function updateEmotionCameraPanel() {
 
 function updateEmotionDetectionOverlay(personCheck = {}) {
   updateEmotionDetectionOverlayUI(personCheck, { features: getFeatures(), isPosActive: isPosActive(), stream });
-  if (personCheck && personCheck.person_detected === true) {
-    setVoiceOrderingAvailable(true);
-    if (detectionLoopId) {
-      clearInterval(detectionLoopId);
-      detectionLoopId = null;
-    }
-  } else if (getFeatures().emotion) {
-    setVoiceOrderingAvailable(false);
-  }
 }
 
 function maybeStartRollingMediaBuffer() {
@@ -1494,37 +1474,6 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
   setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
 });
 
-function startDetectionLoop() {
-  if (detectionLoopId) return;
-  detectionLoopId = setInterval(captureDetectionFrame, Math.max(250, Number(perfValue('YOLO_FRAME_INTERVAL_MS')) || 650));
-}
-
-function captureDetectionFrame() {
-  const f = getFeatures();
-  if (!f.emotion) return;
-  const panelVisible = ui.emotionCameraPanel && !ui.emotionCameraPanel.classList.contains('hidden');
-  if (!isPosActive() && !panelVisible) return;
-  if (document.hidden || detectionInFlight) return;
-  const video = ui.emotionCameraVideo || ui.webcam;
-  detectionInFlight = true;
-  captureVideoFrameBlob(video).then(async blob => {
-    if (!blob) {
-      detectionInFlight = false;
-      return;
-    }
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    fd.append('frame', blob, 'frame.jpg');
-    try {
-      const data = await api.detectPersonFrame(fd);
-      if (data.status === 'success' && data.person_check) updateEmotionDetectionOverlay(data.person_check);
-    } catch { }
-    finally {
-      detectionInFlight = false;
-    }
-  });
-}
-
 // =========================================================
 // 情緒 Loop
 // =========================================================
@@ -1960,7 +1909,6 @@ window.addEventListener('beforeunload', () => {
     if (askRecorder?.state === 'recording') askRecorder.stop();
   } catch { }
   if (emotionLoopId) clearInterval(emotionLoopId);
-  if (detectionLoopId) clearInterval(detectionLoopId);
   recommendLoopActive = false;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
 });

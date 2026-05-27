@@ -52,10 +52,6 @@ export async function saveMenu(menu) {
   }));
 }
 
-export async function detectPersonFrame(formData) {
-  return asJson(await fetch(`${API_BASE}/api/person_detect_frame`, { method: 'POST', body: formData }));
-}
-
 export async function pingState(formData) {
   return asJson(await fetch(`${API_BASE}/api/ping_state`, { method: 'POST', body: formData }));
 }

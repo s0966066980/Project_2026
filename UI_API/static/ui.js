@@ -93,44 +93,16 @@ export function updateEmotionCameraPanel({ features, isPosActive, stream }) {
   }
 }
 
-export function updateEmotionDetectionOverlay(personCheck = {}, context = {}) {
+export function updateEmotionDetectionOverlay(_personCheck = {}, context = {}) {
   updateEmotionCameraPanel(context);
   if (!ui.emotionDetectBox || !ui.emotionCameraStatus) return;
-  const available = personCheck && personCheck.available !== false;
-  const detected = Boolean(personCheck && personCheck.person_detected);
-  const box = (personCheck.boxes || [])[0] || null;
-  ui.emotionDetectBox.classList.toggle('detected', detected);
-  ui.emotionDetectBox.classList.toggle('undetected', available && !detected);
-  if (detected && box) {
-    const w = Math.max(4, Math.min(100, Number(box.w || 0) * 100));
-    const h = Math.max(4, Math.min(100, Number(box.h || 0) * 100));
-    const x = Math.max(0, Math.min(100 - w, 100 - (Number(box.x || 0) * 100) - w));
-    const y = Math.max(0, Math.min(100 - h, Number(box.y || 0) * 100));
-    ui.emotionDetectBox.style.left = `${x}%`;
-    ui.emotionDetectBox.style.top = `${y}%`;
-    ui.emotionDetectBox.style.width = `${w}%`;
-    ui.emotionDetectBox.style.height = `${h}%`;
-    ui.emotionDetectBox.style.right = 'auto';
-    ui.emotionDetectBox.style.bottom = 'auto';
-  } else {
-    ui.emotionDetectBox.style.left = '18%';
-    ui.emotionDetectBox.style.right = '18%';
-    ui.emotionDetectBox.style.top = '12%';
-    ui.emotionDetectBox.style.bottom = '16%';
-    ui.emotionDetectBox.style.width = 'auto';
-    ui.emotionDetectBox.style.height = 'auto';
-  }
-  const hits = Number(personCheck.person_hits ?? personCheck.face_hits ?? 0);
-  const frames = Number(personCheck.frames_checked || 0);
-  if (detected) {
-    const conf = box?.confidence ? ` ${Math.round(Number(box.confidence) * 100)}%` : '';
-    ui.emotionCameraStatus.textContent = `YOLO11 人物 ${hits}/${frames || '-'}`;
-    if (ui.emotionDetectLabel) ui.emotionDetectLabel.textContent = `person${conf}`;
-  } else if (available) {
-    ui.emotionCameraStatus.textContent = `YOLO11 未偵測 ${hits}/${frames || '-'}`;
-    if (ui.emotionDetectLabel) ui.emotionDetectLabel.textContent = 'no person';
-  } else {
-    ui.emotionCameraStatus.textContent = '偵測不可用';
-    if (ui.emotionDetectLabel) ui.emotionDetectLabel.textContent = '等待偵測';
-  }
+  ui.emotionDetectBox.classList.remove('detected', 'undetected');
+  ui.emotionDetectBox.style.left = '18%';
+  ui.emotionDetectBox.style.right = '18%';
+  ui.emotionDetectBox.style.top = '12%';
+  ui.emotionDetectBox.style.bottom = '16%';
+  ui.emotionDetectBox.style.width = 'auto';
+  ui.emotionDetectBox.style.height = 'auto';
+  ui.emotionCameraStatus.textContent = '影像分析中';
+  if (ui.emotionDetectLabel) ui.emotionDetectLabel.textContent = '';
 }

@@ -223,7 +223,7 @@ def emotion_evidence_from_text(
     media_signals: dict | None = None,
 ) -> str:
     if label == "未偵測到顧客":
-        return "YOLO11 未偵測到人物框，暫停情緒判斷。"
+        return "音訊與影像訊號均未偵測到顧客活動。"
     speech = remove_latin_noise(to_traditional_lite(speech_text or ""))
     if speech:
         if any(key in speech for key in ["太慢", "等很久", "快一點", "趕時間"]):
@@ -233,20 +233,14 @@ def emotion_evidence_from_text(
         if any(key in speech for key in ["不知道", "選不出", "想一下"]):
             return "語音內容顯示正在猶豫選擇。"
     signals = media_signals or {}
-    if person_check and person_check.get("person_detected") and signals.get("audio_silent"):
+    if signals.get("audio_silent"):
         motion_level = signals.get("motion_level")
         if motion_level in ("very_low", "subtle"):
-            return "聲音較少且動作幅度小，依可見人物狀態保守判斷。"
+            return "聲音較少且動作幅度小，依影像狀態保守判斷。"
         return "聲音較少，改以表情、姿態與動作線索判斷。"
     raw = remove_latin_noise(to_traditional_lite(text or ""))
     if raw and raw not in EMOTION_LABELS and len(raw) <= 48:
         return raw
-    if person_check and person_check.get("person_detected"):
-        boxes = person_check.get("boxes") or []
-        confidence = boxes[0].get("confidence") if boxes else None
-        if confidence is not None:
-            return f"YOLO11 偵測到人物，信心值 {int(float(confidence) * 100)}%，再依影片語音與表情判斷。"
-        return "YOLO11 偵測到人物，再依影片語音與表情判斷。"
     return "依 Emotion-LLaMA 原始描述中的情緒詞與狀態線索判斷。"
 
 
@@ -284,48 +278,31 @@ def build_emotion_structured(
     source = to_traditional_lite(str(emotion_text or ""))
     speech = to_traditional_lite(str(speech_text or ""))
     combined_source = " ".join([source, f"顧客語音：{speech}" if speech else ""])
-    yolo_person_detected = bool((person_check or {}).get("person_detected"))
     label = label_hint if label_hint in EMOTION_LABELS else emotion_label_from_text(" ".join([label_hint, display_text, combined_source]))
     label_overridden_by_speech = False
-    label_overridden_by_yolo = False
-    if yolo_person_detected and label == "未偵測到顧客":
-        speech_label = emotion_label_from_text(speech)
-        label = speech_label if speech_label not in ("未偵測到顧客", "無法判斷") else "無法判斷"
-        label_overridden_by_yolo = True
-    if not yolo_person_detected and label == "未偵測到顧客" and speech:
+    if label == "未偵測到顧客" and speech:
         speech_label = emotion_label_from_text(speech)
         label = speech_label if speech_label not in ("未偵測到顧客", "無法判斷") else "無法判斷"
         label_overridden_by_speech = True
-    if yolo_person_detected and label == "無法判斷" and not speech:
-        signals = media_signals or {}
-        if signals.get("audio_silent") and signals.get("motion_level") in ("very_low", "subtle", "unknown"):
-            label = "平靜"
-            label_overridden_by_yolo = True
     if label_hint == "平靜" and speech:
         speech_label = emotion_label_from_text(speech)
         if speech_label not in ("無法判斷", "平靜", "未偵測到顧客"):
             label = speech_label
             label_overridden_by_speech = True
-    display = EMOTION_DISPLAY_BY_LABEL[label] if (label_overridden_by_speech or label_overridden_by_yolo) else limited_emotion_display(display_text or source, combined_source, label)
+    display = EMOTION_DISPLAY_BY_LABEL[label] if label_overridden_by_speech else limited_emotion_display(display_text or source, combined_source, label)
     distribution = distribution_hint if isinstance(distribution_hint, dict) else {}
     clean_distribution = {}
     for key, value in distribution.items():
         clean_key = emotion_label_from_text(str(key))
-        if yolo_person_detected and clean_key == "未偵測到顧客":
-            clean_key = "無法判斷"
         try:
             clean_distribution[clean_key] = max(0, min(100, int(round(float(value)))))
         except Exception:
             continue
-    if yolo_person_detected and "未偵測到顧客" in clean_distribution:
-        clean_distribution["無法判斷"] = clean_distribution.get("無法判斷", 0) + clean_distribution.pop("未偵測到顧客")
     if not clean_distribution:
         clean_distribution = emotion_distribution_from_text(combined_source, label)
     evidence = remove_latin_noise(to_traditional_lite(evidence_hint or ""))
-    if label_overridden_by_yolo:
-        evidence = emotion_evidence_from_text(source, label, person_check, speech, media_signals)
     if not evidence or len(evidence) > 64:
-        evidence = emotion_evidence_from_text(source, label, person_check, speech, media_signals)
+        evidence = emotion_evidence_from_text(source, label, None, speech, media_signals)
     result = {
         "emotion_label": label,
         "emotion_display": display,
@@ -338,29 +315,9 @@ def build_emotion_structured(
         result,
         media_signals=media_signals,
         speech_text=speech,
-        person_check=person_check,
+        person_check=None,
     ))
     return result
-
-
-async def detect_person_for_emotion(media_path: str, yolo_semaphore=None) -> dict:
-    if not config.get("EMOTION_PERSON_CHECK_ENABLED", True):
-        return {"available": False, "person_detected": None, "reason": "disabled"}
-
-    async def _detect():
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            ai_services.detect_person_in_video,
-            media_path,
-            8,
-            int(config.get("EMOTION_PERSON_MIN_FACE_HITS", 1)),
-        )
-
-    if yolo_semaphore:
-        async with yolo_semaphore:
-            return await _detect()
-    return await _detect()
 
 
 async def emotion_to_structured_display(
@@ -375,7 +332,7 @@ async def emotion_to_structured_display(
     if not source:
         return build_emotion_structured(
             "無法判斷", "尚未取得明確情緒分析。", "無法判斷",
-            person_check=person_check, speech_text=speech, media_signals=media_signals,
+            speech_text=speech, media_signals=media_signals,
         )
     system_prompt = (
         "你是智慧 POS 的情緒文字轉換器。\n"
@@ -384,15 +341,13 @@ async def emotion_to_structured_display(
         "emotion_display 必須是繁體中文，禁止英文、禁止簡體字，最多 35 個中文字。\n"
         "emotion_evidence 必須是繁體中文，最多 40 個中文字，說明判斷依據；不可只說模型判斷。\n"
         "emotion_distribution 是各情緒可能性百分比，總和必須接近 100；不要全部給平靜。\n"
-        "若 YOLO11 人物偵測結果顯示 person_detected=true，禁止輸出「未偵測到顧客」；此時若 Emotion-LLaMA 說未偵測到，請改判「無法判斷」或依語音文字判斷。\n"
-        "低音量或沒有辨識到語音，不代表無法判斷；若看得到人物，請改用臉部表情、姿態、手勢、動作幅度與停頓作保守判斷。\n"
+        "低音量或沒有辨識到語音，不代表無法判斷；請改用臉部表情、姿態、手勢、動作幅度與停頓作保守判斷。\n"
         "動作幅度小時，不要當作沒有情緒；若無明顯負面或正向線索，可判斷為低強度平靜，並在 evidence 說明是保守判斷。\n"
         "Whisper 語音文字是重要依據：顧客抱怨速度慢、等很久或催促時，應提高焦躁/生氣；顧客說不會、不懂、怎麼點餐時，應提高困惑；顧客說不知道、選不出時，應提高猶豫。\n"
         "不要描述衣服、背景等無關細節；只保留表情、語氣、動作、語音內容與服務狀態線索。\n"
         "只輸出合法 JSON：{\"emotion_label\":\"平靜\",\"emotion_display\":\"平靜：顧客狀態穩定。\",\"emotion_evidence\":\"語氣穩定且無明顯急躁動作。\",\"emotion_distribution\":{\"平靜\":55,\"猶豫\":20,\"困惑\":10,\"疲憊\":10,\"焦躁\":5}}"
     )
     user_prompt = (
-        f"【YOLO11 人物偵測】\n{json.dumps(person_check or {}, ensure_ascii=False)}\n\n"
         f"【音量與動作訊號】\n{json.dumps(media_signals or {}, ensure_ascii=False)}\n\n"
         f"【Emotion-LLaMA 原始分析】\n{source}\n\n"
         f"【Whisper 語音文字】\n{speech or '未辨識到明確語音'}"
@@ -413,19 +368,19 @@ async def emotion_to_structured_display(
         else:
             result = await _ask()
         if "error" in result:
-            return build_emotion_structured(source, source, person_check=person_check, speech_text=speech, media_signals=media_signals)
+            return build_emotion_structured(source, source, speech_text=speech, media_signals=media_signals)
         return build_emotion_structured(
             source,
             result.get("emotion_display", ""),
             result.get("emotion_label", ""),
             result.get("emotion_evidence", ""),
             result.get("emotion_distribution", {}),
-            person_check,
+            None,
             speech,
             media_signals,
         )
     except Exception:
-        return build_emotion_structured(source, source, person_check=person_check, speech_text=speech, media_signals=media_signals)
+        return build_emotion_structured(source, source, speech_text=speech, media_signals=media_signals)
 
 async def analyze_customer_emotion(
     session_id: str,
@@ -433,7 +388,6 @@ async def analyze_customer_emotion(
     speech_text: str = "",
     emotion_cache: dict | None = None,
     emotion_semaphore=None,
-    yolo_semaphore=None,
     ollama_semaphore=None,
     structure_with_llm: bool = True,
 ) -> str:
@@ -444,28 +398,6 @@ async def analyze_customer_emotion(
     try:
         loop = asyncio.get_running_loop()
         media_signals = await ai_services.async_analyze_emotion_media_signals(media_path)
-        person_check = await detect_person_for_emotion(media_path, yolo_semaphore)
-        if (
-            person_check.get("available")
-            and person_check.get("person_detected") is False
-            and not speech_text.strip()
-            and media_signals.get("audio_silent", True)
-        ):
-            emotion_text = "未偵測到顧客，先依語音內容處理。"
-            emotion_structured = build_emotion_structured(
-                emotion_text, emotion_text, "未偵測到顧客",
-                person_check=person_check, speech_text=speech_text, media_signals=media_signals,
-            )
-            cache[session_id] = {
-                "emotion": emotion_text,
-                "emotion_display": emotion_structured["emotion_display"],
-                "emotion_structured": emotion_structured,
-                "no_person": True,
-                "person_check": person_check,
-                "media_signals": media_signals,
-                "ts": time.time(),
-            }
-            return emotion_text
 
         if emotion_semaphore:
             await asyncio.wait_for(emotion_semaphore.acquire(), timeout=wait_sec)
@@ -478,7 +410,6 @@ async def analyze_customer_emotion(
                 "Emotion-LLaMA 未執行：服務未連線或尚未啟動。",
                 "無法判斷",
                 evidence_hint="Emotion-LLaMA 服務未連線。",
-                person_check=person_check,
                 speech_text=speech_text,
                 media_signals=media_signals,
             )
@@ -487,20 +418,19 @@ async def analyze_customer_emotion(
                 "emotion_display": emotion_structured["emotion_display"],
                 "emotion_structured": emotion_structured,
                 "no_person": False,
-                "person_check": person_check,
+                "person_check": None,
                 "media_signals": media_signals,
                 "ts": time.time(),
             }
             return emotion_structured["emotion_display"]
         if structure_with_llm:
             emotion_structured = await emotion_to_structured_display(
-                emotion_text, person_check, speech_text, media_signals, ollama_semaphore
+                emotion_text, None, speech_text, media_signals, ollama_semaphore
             )
         else:
             emotion_structured = build_emotion_structured(
                 emotion_text,
                 emotion_text,
-                person_check=person_check,
                 speech_text=speech_text,
                 media_signals=media_signals,
             )
@@ -509,7 +439,7 @@ async def analyze_customer_emotion(
             "emotion_display": emotion_structured["emotion_display"],
             "emotion_structured": emotion_structured,
             "no_person": False,
-            "person_check": person_check,
+            "person_check": None,
             "media_signals": media_signals,
             "ts": time.time(),
         }

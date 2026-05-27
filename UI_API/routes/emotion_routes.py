@@ -116,23 +116,6 @@ def create_router(deps: dict) -> APIRouter:
         await asyncio.to_thread(emotion_clip_repository.delete_all_clips, safe_session)
         return {"status": "success", "session_id": safe_session}
 
-    @router.post("/person_detect_frame")
-    async def person_detect_frame(session_id: str = Form(...), frame: UploadFile = File(...)):
-        if not config.get("EMOTION_PERSON_CHECK_ENABLED", True):
-            return {
-                "status": "disabled",
-                "person_check": {"available": False, "person_detected": None, "reason": "disabled"},
-            }
-        if deps["yolo_semaphore"].locked():
-            return {"status": "skipped", "message": "YOLO busy"}
-        image_bytes = await frame.read()
-        loop = asyncio.get_running_loop()
-        async with deps["yolo_semaphore"]:
-            person_check = await loop.run_in_executor(
-                None, ai_services.detect_person_in_image_bytes, image_bytes
-            )
-        return {"status": "success", "session_id": emotion_clip_repository.safe_session_id(session_id), "person_check": person_check}
-
     def _build_emotion_response(
         session_id: str,
         raw_emotion: str,
@@ -217,40 +200,14 @@ def create_router(deps: dict) -> APIRouter:
             await asyncio.to_thread(write_binary_file, temp_video_path, video_bytes)
 
             media_signals = await ai_services.async_analyze_emotion_media_signals(temp_video_path)
-            person_check = await customer_emotion_service.detect_person_for_emotion(
-                temp_video_path, deps["yolo_semaphore"]
-            )
-            if (
-                person_check.get("available")
-                and person_check.get("person_detected") is False
-                and media_signals.get("audio_silent", True)
-            ):
-                raw_emotion = "未偵測到顧客"
-                emotion_structured = customer_emotion_service.build_emotion_structured(
-                    raw_emotion, raw_emotion, "未偵測到顧客",
-                    person_check=person_check, media_signals=media_signals,
-                )
-                display_emotion = emotion_structured["emotion_display"]
-                clip = await asyncio.to_thread(
-                    emotion_clip_repository.save_clip, session_id, temp_video_path, raw_emotion,
-                    display_emotion, person_check, True, emotion_structured, media_signals,
-                )
-                session_repository.record_session_state(
-                    session_id=session_id, emotion=display_emotion,
-                    user_speech="", ai_response="",
-                )
-                return _build_emotion_response(
-                    session_id, raw_emotion, display_emotion,
-                    emotion_structured, True, person_check, clip,
-                )
+            person_check = None
 
             if detect_only.lower() == "true":
-                raw_emotion = "人物已偵測"
+                raw_emotion = "偵測完成"
                 emotion_structured = customer_emotion_service.build_emotion_structured(
                     raw_emotion,
-                    "人物已偵測：鏡頭中有明確人物。",
+                    "媒體訊號分析完成。",
                     "無法判斷",
-                    person_check=person_check,
                     media_signals=media_signals,
                 )
                 display_emotion = emotion_structured["emotion_display"]
