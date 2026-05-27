@@ -14,32 +14,33 @@ def create_router(deps: dict) -> APIRouter:
     @router.post("/ask")
     async def process_voice_assist(
         session_id: str = Form(...),
-        audio: UploadFile = File(...),
+        media: UploadFile = File(...),          # 原為 audio，現接受 video/webm（含音訊+影像軌）
         multi_lang: str = Form(default="true"),
     ):
-        temp_audio_path = None
+        temp_media_path = None
         try:
-            suffix = os.path.splitext(audio.filename or ".webm")[1] or ".webm"
+            suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                temp_audio_path = tmp.name
-            audio_bytes = await audio.read()
-            await asyncio.to_thread(write_binary_file, temp_audio_path, audio_bytes)
+                temp_media_path = tmp.name
+            media_bytes = await media.read()
+            await asyncio.to_thread(write_binary_file, temp_media_path, media_bytes)
 
             # Emotion context injected if available from current session
             emotion_structured = (deps.get("emotion_cache") or {}).get(session_id, {}).get("emotion_structured")
 
             return await voice_assist_service.handle_voice_assist(
                 session_id=session_id,
-                audio_path=temp_audio_path,
+                media_path=temp_media_path,
                 multi_lang=multi_lang.lower() == "true",
                 ollama_semaphore=deps["ollama_semaphore"],
+                emotion_semaphore=deps["emotion_semaphore"],
                 emotion_structured=emotion_structured,
             )
         except Exception as e:
             print(f"❌ voice_assist 錯誤: {e}")
             return {"status": "error", "message": str(e)}
         finally:
-            if temp_audio_path and os.path.exists(temp_audio_path):
-                os.remove(temp_audio_path)
+            if temp_media_path and os.path.exists(temp_media_path):
+                os.remove(temp_media_path)
 
     return router
