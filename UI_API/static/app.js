@@ -245,6 +245,7 @@ function kFilterLabel(filter) {
 function groupLabel(group) {
   return kioskLang === 'en' ? (group.labelEn || group.label) : group.label;
 }
+let fullSettings = {};
 let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
