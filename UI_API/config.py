@@ -158,6 +158,21 @@ DEFAULT_SETTINGS = {
     "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT": VOICE_ASSIST_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT_EN": VOICE_ASSIST_SYSTEM_PROMPT_EN,
+    # A/B 推播實驗
+    "AB_SINGLE_CALL": True,
+    "RECOMMEND_SYSTEM_PROMPT_B": (
+        "你是一位自然、克制、擅長搭配建議的 AI 點餐顧問。\n"
+        "只能根據【完整菜單白名單】中的餐點推薦，禁止創造菜單不存在的餐點、名稱或 ID。\n\n"
+        "B 版策略：根據【歷史點餐紀錄】與顧客目前狀態，推薦 2~3 個適合搭配的真實菜單品項；"
+        "若歷史紀錄不足，請用菜單中互補的主餐、飲品或輕食搭配。\n"
+        "reason 必須是給顧客直接看的自然短句，不要寫「推薦理由」、「搭配建議」、「B版」這類系統語氣；"
+        "像店員順口建議，最多 45 個中文字。\n\n"
+        "【輸出格式要求】：只輸出合法 JSON，不要包含任何 Markdown 或說明文字：\n"
+        "{\n"
+        "  \"recommendation_ids\": [\"餐點ID1\", \"餐點ID2\"],\n"
+        "  \"reason\": \"自然口語搭配短句，必須提到真實菜單品項名稱\"\n"
+        "}"
+    ),
 }
 
 PUBLIC_SETTINGS_KEYS = {
@@ -180,6 +195,17 @@ PUBLIC_SETTINGS_KEYS = {
     "VOICE_ASSIST_MODEL",
     "VOICE_ASSIST_EMOTION_ENABLED",
 }
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """將 override 合併進 base；dict 型別的值遞迴合併，其餘直接覆蓋。"""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
 
 
 def is_demo_public_mode() -> bool:
@@ -232,8 +258,12 @@ def load_settings():
                     raw_settings = f.read().strip()
                     loaded_data = json.loads(raw_settings) if raw_settings else {}
                     if isinstance(loaded_data, dict):
-                        settings.update(loaded_data)
-                        should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS)
+                        settings = _deep_merge(settings, loaded_data)
+                        should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS) or any(
+                            isinstance(DEFAULT_SETTINGS.get(k), dict) and
+                            any(sk not in loaded_data.get(k, {}) for sk in DEFAULT_SETTINGS[k])
+                            for k in DEFAULT_SETTINGS if isinstance(DEFAULT_SETTINGS.get(k), dict)
+                        )
             except Exception as e:
                 print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
                 should_write = True
