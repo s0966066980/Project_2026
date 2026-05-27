@@ -2412,6 +2412,88 @@ async function loadDashboard() {
   } catch { /* 靜默失敗 */ }
 }
 
+async function loadEmotionSettings() {
+  try {
+    fullSettings = await api.getSettings();
+    runtimeSettings = { ...runtimeSettings, ...fullSettings };
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const chk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = Boolean(v); };
+    set('inp-emotion-interval',   fullSettings.EMOTION_PING_INTERVAL_SEC ?? 15);
+    set('inp-emotion-record-ms',  fullSettings.EMOTION_RECORD_MS ?? 900);
+    set('inp-whisper-low-db',     fullSettings.WHISPER_LOW_AUDIO_DB ?? -58);
+    set('inp-recommend-interval', fullSettings.RECOMMEND_INTERVAL_SEC ?? 30);
+    set('inp-temp',               fullSettings.OLLAMA_TEMPERATURE ?? 0.8);
+    set('inp-num-predict',        fullSettings.OLLAMA_NUM_PREDICT ?? 220);
+    const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
+    set('inp-ai-provider', allowGemini ? (fullSettings.QA_AI_PROVIDER || 'ollama') : 'ollama');
+    set('inp-model-name',         fullSettings.MODEL_NAME || 'llama3.2');
+    set('inp-ask-model-name',     fullSettings.MODEL_NAME || 'llama3.2');
+    set('inp-gemini-model-name',  fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview');
+    set('inp-performance-mode',   fullSettings.PERFORMANCE_MODE || 'balanced');
+    set('inp-rag-top-k',          fullSettings.RAG_TOP_K ?? 3);
+    set('inp-voice-assist-model', fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:9b');
+    set('inp-ask-prompt',         fullSettings.ASK_SYSTEM_PROMPT || '');
+    set('inp-recommend-prompt',   fullSettings.RECOMMEND_SYSTEM_PROMPT || '');
+    set('inp-ask-prompt-en',      fullSettings.ASK_SYSTEM_PROMPT_EN || '');
+    set('inp-emotion-prompt',     fullSettings.EMOTION_LLAMA_PROMPT || '');
+    set('inp-voice-assist-prompt',fullSettings.VOICE_ASSIST_SYSTEM_PROMPT || '');
+    const gemFbEl = document.getElementById('inp-gemini-fallback');
+    if (gemFbEl) gemFbEl.value = fullSettings.GEMINI_FALLBACK_TO_OLLAMA !== false ? 'true' : 'false';
+    const ttsEl = document.getElementById('inp-tts-cache');
+    if (ttsEl) ttsEl.value = fullSettings.ENABLE_TTS_CACHE !== false ? 'true' : 'false';
+    const rag = fullSettings.rag || {};
+    chk('inp-rag-strict-grounding',    rag.strict_grounding === true);
+    chk('inp-rag-answer-verification', rag.answer_verification === true);
+    chk('inp-rag-fail-closed',         rag.fail_closed_on_eval_error === true);
+  } catch { /* 靜默失敗 */ }
+}
+
+async function saveEmotionSettings() {
+  const g    = id => document.getElementById(id);
+  const flt  = (id, d) => parseFloat(g(id)?.value || d);
+  const int  = (id, d) => parseInt(g(id)?.value || d, 10);
+  const str  = (id, d) => g(id)?.value?.trim() || d;
+  const bool = (id, d) => g(id) ? (g(id).type === 'checkbox' ? g(id).checked : g(id).value === 'true') : d;
+  const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
+  fullSettings.AI_PROVIDER            = 'ollama';
+  fullSettings.QA_AI_PROVIDER         = allowGemini ? str('inp-ai-provider', 'ollama') : 'ollama';
+  fullSettings.EMOTION_AI_PROVIDER    = 'ollama';
+  fullSettings.MODEL_NAME             = str('inp-model-name', 'llama3.2');
+  fullSettings.ASK_MODEL_NAME         = str('inp-ask-model-name', 'llama3.2');
+  fullSettings.GEMINI_MODEL_NAME      = str('inp-gemini-model-name', 'gemini-3-flash-preview');
+  fullSettings.GEMINI_FALLBACK_TO_OLLAMA = bool('inp-gemini-fallback', true);
+  fullSettings.OLLAMA_TEMPERATURE     = flt('inp-temp', '0.8');
+  fullSettings.PERFORMANCE_MODE       = str('inp-performance-mode', 'balanced');
+  fullSettings.OLLAMA_NUM_PREDICT     = int('inp-num-predict', '220');
+  fullSettings.RAG_TOP_K              = int('inp-rag-top-k', '3');
+  fullSettings.ENABLE_TTS_CACHE       = bool('inp-tts-cache', true);
+  fullSettings.EMOTION_PING_INTERVAL_SEC = flt('inp-emotion-interval', '15');
+  fullSettings.EMOTION_RECORD_MS         = int('inp-emotion-record-ms', '900');
+  fullSettings.RECOMMEND_INTERVAL_SEC    = flt('inp-recommend-interval', '30');
+  fullSettings.WHISPER_LOW_AUDIO_DB      = flt('inp-whisper-low-db', '-58');
+  fullSettings.ASK_SYSTEM_PROMPT         = str('inp-ask-prompt', '');
+  fullSettings.RECOMMEND_SYSTEM_PROMPT   = str('inp-recommend-prompt', '');
+  fullSettings.ASK_SYSTEM_PROMPT_EN      = g('inp-ask-prompt-en')?.value || '';
+  fullSettings.EMOTION_LLAMA_PROMPT      = g('inp-emotion-prompt')?.value || '';
+  fullSettings.VOICE_ASSIST_MODEL        = str('inp-voice-assist-model', 'qwen3.5:9b');
+  fullSettings.VOICE_ASSIST_SYSTEM_PROMPT = g('inp-voice-assist-prompt')?.value || '';
+  const _existingRag = fullSettings.rag || {};
+  fullSettings.rag = {
+    ..._existingRag,
+    strict_grounding:          bool('inp-rag-strict-grounding', false),
+    answer_verification:       bool('inp-rag-answer-verification', false),
+    fail_closed_on_eval_error: bool('inp-rag-fail-closed', false),
+  };
+  try {
+    await api.saveSettings(fullSettings);
+    runtimeSettings = { ...runtimeSettings, ...fullSettings };
+    restartLoops();
+    showAdminNotice('設定已儲存。', 'success');
+  } catch {
+    showAdminNotice('儲存失敗，請重試。', 'error');
+  }
+}
+
 function loadAdminData() {
   loadLogs();
   loadInterventionStats();
