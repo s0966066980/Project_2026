@@ -1443,7 +1443,6 @@ ui.startBtn.onclick = async () => {
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
     setVoiceOrderingAvailable(true);
-    if (f.emotion) startDetectionLoop();
     updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
