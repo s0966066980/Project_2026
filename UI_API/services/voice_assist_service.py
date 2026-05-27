@@ -20,22 +20,52 @@ def _cart_action_names(cart_actions: list[dict], menu_items: list[dict]) -> list
 
 async def handle_voice_assist(
     session_id: str,
-    audio_path: str,
+    media_path: str,                     # 原 audio_path，接受 video/webm
     multi_lang: bool,
     ollama_semaphore,
+    emotion_semaphore=None,              # 新增：用於並行 Emotion-LLaMA
     emotion_structured: dict | None = None,
 ) -> dict:
     """
-    主入口：STT → 意圖路由 → qwen3.5:9b 問答 or 直接點餐。
-    emotion_structured: 由語音協助觸發時可選傳入 Emotion-LLaMA 分析結果。
+    主入口：STT → Emotion-LLaMA（並行）→ 意圖路由 → LLM 問答 or 直接點餐。
+    media_path: 可為 audio/webm 或 video/webm（含影像軌時同步執行 Emotion-LLaMA）。
     """
     loop = asyncio.get_running_loop()
-    stt_result = await ai_services.async_safe_transcribe_with_language(audio_path)
+
+    # 探測媒體類型：有影像軌才執行 Emotion-LLaMA
+    probe = await ai_services.async_probe_media(media_path)
+    has_video = probe.get("has_video", False)
+    emotion_enabled = bool(config.get("EMOTION_LLAMA_ENABLED_FOR_VOICE", True))
+
+    # 並行執行 Whisper STT 與 Emotion-LLaMA（若有影像軌且功能開啟）
+    async def _run_emotion():
+        if not has_video or not emotion_enabled or emotion_semaphore is None:
+            return {}
+        async with emotion_semaphore:
+            return await ai_services.async_get_emotion_from_llama(media_path)
+
+    stt_task = asyncio.create_task(
+        ai_services.async_safe_transcribe_with_language(media_path)
+    )
+    emotion_task = asyncio.create_task(_run_emotion())
+
+    stt_result, fresh_emotion = await asyncio.gather(stt_task, emotion_task)
+
+    # 優先使用本次語音的新鮮情緒推論，否則退回到 session 快取
+    live_emotion = fresh_emotion if fresh_emotion.get("emotion_raw") else {}
+    effective_emotion = live_emotion or emotion_structured or {}
+
     user_text = (stt_result.get("text") or "").strip()
     detected_lang = stt_result.get("language", "zh") if multi_lang else "zh"
 
     if not user_text:
-        return {"status": "error", "message": "無法辨識語音內容"}
+        return {
+            "status": "error",
+            "message": "無法辨識語音內容",
+            "emotion_structured": effective_emotion or {},
+            "person_check": live_emotion.get("person_check") or {},
+            "media_signals": live_emotion.get("media_signals") or {},
+        }
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     route = query_router_service.route_query(user_text, menu_items)
@@ -68,6 +98,9 @@ async def handle_voice_assist(
                 "mentioned_ids": [],
                 "detected_lang": detected_lang,
                 "trigger_recommend": False,
+                "emotion_structured": effective_emotion or {},
+                "person_check": live_emotion.get("person_check") or {},
+                "media_signals": live_emotion.get("media_signals") or {},
             }
 
     # ---- 菜單直接查詢（不需 LLM，僅限明確品項查詢，推薦類一律走 LLM）----
@@ -95,6 +128,9 @@ async def handle_voice_assist(
                 "mentioned_ids": mentioned_ids,
                 "detected_lang": detected_lang,
                 "trigger_recommend": True,
+                "emotion_structured": effective_emotion or {},
+                "person_check": live_emotion.get("person_check") or {},
+                "media_signals": live_emotion.get("media_signals") or {},
             }
         # 推薦意圖或靜態無結果 → 落入 Ollama LLM
 
@@ -103,12 +139,17 @@ async def handle_voice_assist(
     global_context = await asyncio.to_thread(database.get_global_rag_context)
     rag_context = str(global_context or "").strip()
 
-    # 加入 Emotion-LLaMA 證據（如有）
+    # 加入 Emotion-LLaMA 證據（優先使用本次新鮮推論，退回到快取）
     emotion_hint = ""
-    if emotion_structured and not emotion_structured.get("no_person"):
-        label = emotion_structured.get("emotion_label") or emotion_structured.get("emotion_display") or ""
-        evidence = emotion_structured.get("emotion_evidence") or ""
-        if label:
+    if effective_emotion and not effective_emotion.get("no_person"):
+        label = (
+            effective_emotion.get("emotion_label")
+            or effective_emotion.get("emotion_display")
+            or effective_emotion.get("emotion_raw")
+            or ""
+        )
+        evidence = effective_emotion.get("emotion_evidence") or ""
+        if label and "未執行" not in label and "未偵測" not in label:
             emotion_hint = f"【情緒分析】顧客情緒：{label}。{evidence}\n\n"
 
     if detected_lang == "en":
@@ -177,15 +218,17 @@ async def handle_voice_assist(
             language=detected_lang,
         )
         return {
-            "status": "success",
-            "mode": "voice_assist_fallback",
-            "message": result.get("error", "llm_error"),
+            "status": "error",
+            "user_text": user_text,
             "ai_response": fallback,
             "audio_base64": await ai_services.generate_tts_audio_base64(fallback, lang=detected_lang),
             "cart_actions": [],
             "mentioned_ids": mentioned_ids,
             "detected_lang": detected_lang,
-            "trigger_recommend": bool(mentioned_ids) or intent == "ask_recommendation",
+            "trigger_recommend": False,
+            "emotion_structured": effective_emotion or {},
+            "person_check": live_emotion.get("person_check") or {},
+            "media_signals": live_emotion.get("media_signals") or {},
         }
 
     ai_response = str(result.get("ai_response") or "").strip()
@@ -228,4 +271,7 @@ async def handle_voice_assist(
         "mentioned_ids": mentioned_ids,
         "detected_lang": detected_lang,
         "trigger_recommend": bool(mentioned_ids) or intent == "ask_recommendation",
+        "emotion_structured": effective_emotion or {},
+        "person_check": live_emotion.get("person_check") or {},
+        "media_signals": live_emotion.get("media_signals") or {},
     }
