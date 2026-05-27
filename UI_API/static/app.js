@@ -1584,7 +1584,7 @@ async function fetchAndDisplayRecommend() {
   const tid = setTimeout(() => ctrl.abort(), 12000);
   try {
     const data = await api.autoRecommend(fd, ctrl.signal);
-    if (data.status === 'success') return displayRecommendation(data);
+    if (data.status === 'success') return displayRecommendation(data); // intentionally not awaited — caller (startRecommendLoop) awaits the returned ticker Promise
   } catch (err) {
     console.warn('[auto_recommend failed]', err);
   } finally {
@@ -1600,6 +1600,7 @@ async function startRecommendLoop() {
       await new Promise(r => setTimeout(r, 1000));
       continue;
     }
+    // tickerDone is the ticker Promise returned (not awaited) by fetchAndDisplayRecommend
     const tickerDone = await fetchAndDisplayRecommend();
     if (tickerDone && recommendLoopActive) await tickerDone;
     if (recommendLoopActive) await new Promise(r => setTimeout(r, 10_000));
