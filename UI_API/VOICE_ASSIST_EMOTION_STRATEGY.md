@@ -16,7 +16,7 @@ Emotion-LLaMA is not a continuous monitor. It is used only when the patent flow 
 
 1. POS interaction events calculate `risk_score`.
 2. High risk triggers the short media clip path.
-3. The multimodal route runs YOLO, Whisper, and Emotion-LLaMA when available.
+3. The multimodal route runs Whisper and Emotion-LLaMA when available.
 4. Structured emotion is cached per `session_id`.
 5. Voice assist reads the latest cached emotion as optional context and does not start periodic emotion analysis.
 

@@ -135,9 +135,7 @@ S3：後端根據最近事件窗口計算 `risk_score` 與觸發原因。
 
 S4：若 `risk_score` 達到門檻，POS 端錄製觸發後 5 秒，並與觸發前 5 秒合併為約 10 秒短片段。
 
-S5：後端先執行 YOLO 人物偵測，用於判斷短片段是否具有可分析的顧客訊號。
-
-S6：若偵測到人物或媒體訊號有效，後端執行 Whisper 語音辨識、media_signals 分析與 Emotion-LLaMA 情緒/行為證據擷取。
+S5：後端執行 Whisper 語音辨識、media_signals 分析與 Emotion-LLaMA 情緒/行為證據擷取。
 
 S7：系統建立 `multimodal_evidence`，包含視覺證據、語音證據、情緒證據與 POS 事件證據。
 

@@ -14,7 +14,6 @@
 | 是否達門檻 | `services/interaction_event_service.py`, `static/app.js` | `POST /api/interaction_event` | `risk_result.triggered` | 已完成 | `EVENT_TRIGGERED_MULTIMODAL_ENABLED=true` 為主流程 |
 | 否：低風險事件保存 | `repositories/interaction_event_repository.py` | `POST /api/interaction_event` | `interaction_events.json` | 已完成 | 不觸發多模態與介入 |
 | 是：觸發短片段 | `static/media_buffer.js`, `static/app.js`, `routes/multimodal_routes.py` | `POST /api/triggered_multimodal_analysis` | video chunk, `ui_context`, `risk_result` | 已完成 | 預設不是持續監控 |
-| 攝影機 → YOLO 人物偵測 | `services/customer_service.py`, `ai_services.py` | `POST /api/triggered_multimodal_analysis` | `person_check` | 已完成 | 可在無人物時降低影像可信度 |
 | Whisper 語音辨識 | `ai_services.py`, `routes/multimodal_routes.py` | `POST /api/triggered_multimodal_analysis` | `speech_text` | 已完成 | 需以真實 kiosk 收音持續驗證 |
 | 情緒大語言模型 | `Emotion-LLaMA/app_EmotionLlamaClient.py`, `ai_services.py` | `POST /api/triggered_multimodal_analysis`, `POST /api/customer_service` | `emotion_structured`, `emotion_risk_score` | 已完成 | Emotion-LLaMA 只作證據來源，不直接決策 |
 | 多模態證據 | `services/multimodal_evidence_service.py` | `POST /api/triggered_multimodal_analysis` | `multimodal_evidence.visual/audio/emotion/pos_evidence` | 已完成 | runtime evidence 不提交 repo |

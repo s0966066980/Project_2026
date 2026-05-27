@@ -94,7 +94,6 @@ pip install -r requirements-lock.txt
 - Ollama：預設問答、RAG 審查、推播生成。
 - Gemini API：可選，只用於語音問答與客服回覆，不作為推播預設。
 - Edge TTS：AI 或真人客服語音回覆。
-- YOLO：人物偵測。
 - Emotion-LLaMA：情緒與行為證據。
 - ChromaDB：RAG 向量庫。
 - LangChain + Ollama Embedding：本地 RAG。
@@ -453,9 +452,9 @@ POST /api/triggered_multimodal_analysis
 POST /api/barrier_state
 ```
 
-### S5. 人物偵測與媒體檢查
+### S5. 媒體檢查
 
-後端先用 `ffprobe` 檢查影片是否有效，再做 YOLO 人物偵測。
+後端先用 `ffprobe` 檢查影片是否有效。
 
 若影片太小、不可讀或沒有 video stream：
 
@@ -616,8 +615,7 @@ checkout 時自動更新最近 open intervention：
 
 ## 語音點餐與語音問答
 
-POS 語音點餐已改回按鍵觸發。顧客需長按購物車旁的麥克風按鈕開始錄音，放開後送出辨識；系統不再因
-YOLO 偵測到人物而自動開始錄音。
+POS 語音點餐已改回按鍵觸發。顧客需長按購物車旁的麥克風按鈕開始錄音，放開後送出辨識。
 
 `POST /api/ask` 流程：
 
@@ -824,9 +822,8 @@ Context + Citation
 2. UI context。
 3. 輕量 risk score。
 4. 事件觸發式短片段多模態分析。
-5. YOLO 人物偵測。
-6. Whisper 語音文字。
-7. Emotion-LLaMA 情緒與行為證據。
+5. Whisper 語音文字。
+6. Emotion-LLaMA 情緒與行為證據。
 8. `multimodal_evidence` 證據結構。
 9. `barrier_state` 互動障礙狀態。
 10. `intervention_action` 服務介入動作。
