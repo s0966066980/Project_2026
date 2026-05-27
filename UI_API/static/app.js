@@ -2499,9 +2499,8 @@ function loadAdminData() {
   loadInterventionStats();
   loadSettings();
   loadMenuPage();
-  loadRagData();
+  loadRagPage();
   loadClipsPage();
-  loadOllamaModelOptions();
 }
 
 
@@ -2683,8 +2682,8 @@ async function clearAllRagDocs() {
     alert(data.message || '清空 RAG 失敗。');
     return;
   }
-  await loadRagData();
-  alert('RAG 已清空並重建菜單基礎資料。');
+  await loadRagPage();
+  showAdminNotice('RAG 已清空並重建菜單基礎資料。', 'success');
 }
 
 async function uploadRagPdf() {
@@ -2700,8 +2699,8 @@ async function uploadRagPdf() {
     return;
   }
   input.value = '';
-  await loadRagData();
-  alert(`PDF 已匯入 ${data.chunks || 0} 個 chunk。`);
+  await loadRagPage();
+  showAdminNotice('PDF 已匯入 ' + (data.chunks || 0) + ' 個 chunk。', 'success');
 }
 
 async function loadClipsPage() {
@@ -2937,63 +2936,58 @@ async function saveMenuJson() {
   }
 }
 
-async function loadRagData() {
+async function loadRagPage() {
   try {
-    const data = await api.getRagDocs();
-    const docs = data.docs || [];
-    const docsBox = document.getElementById('ragDocsList');
-    const reviewSummary = document.getElementById('ragReviewSummary');
-    if (docsBox) {
-      docsBox.innerHTML = '';
-      docs.filter(doc => !doc.deleted).reverse().forEach(doc => {
-        const row = document.createElement('div');
-        row.className = 'p-3 rounded-xl';
-        row.style.border = '1.5px solid var(--border)';
-        row.style.background = 'var(--surface)';
-        row.innerHTML = `
-          <div class="flex justify-between gap-3 mb-2">
-            <div class="min-w-0">
-              <p class="font-bold text-sm truncate" style="color:var(--text)">${escapeHTML(doc.source_type)} / ${escapeHTML(doc.source_id || doc.id)}</p>
-              <p class="text-xs" style="color:var(--text2)">${escapeHTML(doc.review_status || '-')} · ${escapeHTML(doc.updated_at || '')}</p>
-            </div>
-            <button class="text-xs px-2 py-1 rounded-xl" style="color:var(--danger);border:1px solid var(--border)" data-delete-rag="${escapeHTML(doc.id)}"><i class="fas fa-trash mr-1"></i>刪除</button>
-          </div>
-          <p class="text-xs font-semibold mb-1" style="color:var(--accent2)">審查後文本</p>
-          <pre class="text-xs whitespace-pre-wrap break-words max-h-36 overflow-y-auto" style="color:var(--text)">${escapeHTML(doc.reviewed_text || '')}</pre>
-          ${doc.review_notes ? `<p class="text-xs mt-2" style="color:var(--text2)">審查備註：${escapeHTML(doc.review_notes)}</p>` : ''}`;
-        row.innerHTML += `
-          <details class="text-xs mt-2">
-            <summary class="cursor-pointer" style="color:var(--accent2)">查看原始文本</summary>
-            <pre class="mt-2 p-2 whitespace-pre-wrap break-words rounded-xl max-h-32 overflow-y-auto" style="background:var(--surface2);color:var(--text2)">${escapeHTML(doc.source_text || '')}</pre>
-          </details>`;
-        row.querySelector('[data-delete-rag]').onclick = async () => {
-          if (!confirm('確定刪除這段 RAG 文本並重建向量庫？')) return;
-          await api.deleteRagDoc(doc.id);
-          await loadRagData();
-        };
-        docsBox.appendChild(row);
-      });
-      if (!docsBox.innerHTML) docsBox.innerHTML = `<p class="text-sm" style="color:var(--text2)">目前沒有 RAG 文本。</p>`;
+    const data  = await api.getRagDocs();
+    const docs  = (data.docs || []).filter(d => !d.deleted);
+    const countEl = document.getElementById('rag-doc-count');
+    if (countEl) countEl.textContent = '（' + docs.length + ' 筆）';
+    const listBox = document.getElementById('ragDocsList');
+    if (!listBox) return;
+    listBox.textContent = '';
+    if (!docs.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12px;color:#94a3b8';
+      empty.textContent = '目前沒有 RAG 文本。';
+      listBox.appendChild(empty);
+      return;
     }
-    if (reviewSummary) {
-      const activeCount = docs.filter(doc => !doc.deleted).length;
-      reviewSummary.textContent = `目前 RAG 文本 ${activeCount} 筆。按下一鍵審查後，系統會使用選定 Ollama 模型重新審查並修正格式。`;
-    }
+    [...docs].reverse().forEach(doc => {
+      const row = document.createElement('div');
+      row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px';
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px';
+      const info = document.createElement('div');
+      const title = document.createElement('span');
+      title.style.cssText = 'font-weight:700;font-size:12px;color:#1e293b';
+      title.textContent = String(doc.source_type || '') + ' / ' + String(doc.source_id || doc.id || '');
+      const meta = document.createElement('div');
+      meta.style.cssText = 'font-size:10px;color:#94a3b8;margin-top:1px';
+      meta.textContent = String(doc.updated_at || '') + ' · ' + String(doc.review_status || '-');
+      info.appendChild(title);
+      info.appendChild(meta);
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.style.cssText = 'background:#fef2f2;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#dc2626;cursor:pointer;flex-shrink:0';
+      delBtn.textContent = '刪除';
+      delBtn.onclick = async () => {
+        if (!confirm('確定刪除這段 RAG 文本？')) return;
+        await api.deleteRagDoc(doc.id);
+        await loadRagPage();
+      };
+      header.appendChild(info);
+      header.appendChild(delBtn);
+      const preview = document.createElement('div');
+      preview.style.cssText = 'font-size:11px;color:#374151;max-height:60px;overflow:hidden;line-height:1.4';
+      const txt = String(doc.reviewed_text || '');
+      preview.textContent = txt.length > 200 ? txt.slice(0, 200) + '…' : txt;
+      row.appendChild(header);
+      row.appendChild(preview);
+      listBox.appendChild(row);
+    });
   } catch {
     showAdminNotice('RAG 資料載入失敗。', 'error');
   }
-}
-
-async function loadOllamaModelOptions() {
-  const input = document.getElementById('ragReviewModel');
-  const list = document.getElementById('ollamaModelList');
-  if (!input || !list) return;
-  try {
-    const data = await api.getOllamaModels();
-    const models = Array.isArray(data.models) ? data.models : [];
-    list.innerHTML = models.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
-    if (!input.value && models.length) input.value = models[0];
-  } catch { }
 }
 
 async function reviewAllRagDocs() {
@@ -3007,7 +3001,7 @@ async function reviewAllRagDocs() {
     if (resultBox) {
       resultBox.textContent = `完成：已修正 ${data.reviewed_count || 0} 筆，刪除不相關 ${data.deleted_count || 0} 筆，模型 ${data.model_name || modelName}`;
     }
-    await loadRagData();
+    await loadRagPage();
   } catch (e) {
     if (resultBox) resultBox.textContent = `審查失敗：${e.message || e}`;
   }
@@ -3021,8 +3015,8 @@ async function addRagDoc() {
     const data = await api.addRagDoc({ source_text: sourceText });
     if (data.status !== 'success') return alert(data.message || '保存失敗');
     box.value = '';
-    await loadRagData();
-    alert('已完成 Ollama 審查並保存。');
+    await loadRagPage();
+    showAdminNotice('已完成審查並保存。', 'success');
   } catch {
     alert('保存失敗。');
   }
@@ -3230,7 +3224,7 @@ Object.assign(window, {
   saveSettings,
   clearClipsPage,
   saveMenuJson,
-  loadRagData,
+  loadRagPage,
   clearAllRagDocs,
   addRagDoc,
   reviewAllRagDocs,
