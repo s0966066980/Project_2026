@@ -41,8 +41,12 @@ async def handle_voice_assist(
     async def _run_emotion():
         if not has_video or not emotion_enabled or emotion_semaphore is None:
             return {}
-        async with emotion_semaphore:
-            return await ai_services.async_get_emotion_from_llama(media_path)
+        try:
+            async with emotion_semaphore:
+                return await ai_services.async_get_emotion_from_llama(media_path)
+        except Exception as e:
+            print(f"⚠️ _run_emotion 失敗: {e}")
+            return {}
 
     stt_task = asyncio.create_task(
         ai_services.async_safe_transcribe_with_language(media_path)
@@ -63,8 +67,8 @@ async def handle_voice_assist(
             "status": "error",
             "message": "無法辨識語音內容",
             "emotion_structured": effective_emotion or {},
-            "person_check": live_emotion.get("person_check") or {},
-            "media_signals": live_emotion.get("media_signals") or {},
+            "person_check": effective_emotion.get("person_check") or {},
+            "media_signals": effective_emotion.get("media_signals") or {},
         }
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
@@ -99,8 +103,8 @@ async def handle_voice_assist(
                 "detected_lang": detected_lang,
                 "trigger_recommend": False,
                 "emotion_structured": effective_emotion or {},
-                "person_check": live_emotion.get("person_check") or {},
-                "media_signals": live_emotion.get("media_signals") or {},
+                "person_check": effective_emotion.get("person_check") or {},
+                "media_signals": effective_emotion.get("media_signals") or {},
             }
 
     # ---- 菜單直接查詢（不需 LLM，僅限明確品項查詢，推薦類一律走 LLM）----
@@ -129,8 +133,8 @@ async def handle_voice_assist(
                 "detected_lang": detected_lang,
                 "trigger_recommend": True,
                 "emotion_structured": effective_emotion or {},
-                "person_check": live_emotion.get("person_check") or {},
-                "media_signals": live_emotion.get("media_signals") or {},
+                "person_check": effective_emotion.get("person_check") or {},
+                "media_signals": effective_emotion.get("media_signals") or {},
             }
         # 推薦意圖或靜態無結果 → 落入 Ollama LLM
 
@@ -219,6 +223,7 @@ async def handle_voice_assist(
         )
         return {
             "status": "error",
+            "mode": "voice_assist_fallback",
             "user_text": user_text,
             "ai_response": fallback,
             "audio_base64": await ai_services.generate_tts_audio_base64(fallback, lang=detected_lang),
@@ -227,8 +232,8 @@ async def handle_voice_assist(
             "detected_lang": detected_lang,
             "trigger_recommend": False,
             "emotion_structured": effective_emotion or {},
-            "person_check": live_emotion.get("person_check") or {},
-            "media_signals": live_emotion.get("media_signals") or {},
+            "person_check": effective_emotion.get("person_check") or {},
+            "media_signals": effective_emotion.get("media_signals") or {},
         }
 
     ai_response = str(result.get("ai_response") or "").strip()
@@ -272,6 +277,6 @@ async def handle_voice_assist(
         "detected_lang": detected_lang,
         "trigger_recommend": bool(mentioned_ids) or intent == "ask_recommendation",
         "emotion_structured": effective_emotion or {},
-        "person_check": live_emotion.get("person_check") or {},
-        "media_signals": live_emotion.get("media_signals") or {},
+        "person_check": effective_emotion.get("person_check") or {},
+        "media_signals": effective_emotion.get("media_signals") or {},
     }
