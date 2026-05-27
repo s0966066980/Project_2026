@@ -1821,11 +1821,12 @@ function setupAskRecorder() {
   if (askRecorder) return; // 避免重複設定
   if (!stream || !stream.getAudioTracks().length) return;
 
-  askRecorder = createAudioRecorder(stream);
+  // 改用 video recorder：同步捕捉音訊+影像，供後端 Whisper + Emotion-LLaMA 並行使用
+  askRecorder = createVideoRecorder(stream);
   let chunks = [];
-  askRecorder.ondataavailable = e => chunks.push(e.data);
+  askRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   askRecorder.onstop = async () => {
-    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const blob = new Blob(chunks, { type: 'video/webm' });
     const durationMs = askRecordingStartedAt ? Date.now() - askRecordingStartedAt : 0;
     askRecordingStartedAt = 0;
     chunks = [];
@@ -1848,7 +1849,7 @@ function setupAskRecorder() {
     showVoiceAssistOverlay('thinking');
     const fd = new FormData();
     fd.append('session_id', sessionId);
-    fd.append('audio', blob);
+    fd.append('media', blob, 'voice_ask.webm');   // 改為 media，對應後端新參數名
     fd.append('multi_lang', String(getFeatures().multiLang));
     try {
       const data = await api.ask(fd);
@@ -1861,6 +1862,15 @@ function setupAskRecorder() {
         lastVoiceText = data.user_text || lastVoiceText;
         if (data.audio_base64) playVoice(data.audio_base64);
         showVoiceBubble(data);
+
+        // 更新本次語音的情緒分析結果
+        if (data.emotion_structured && Object.keys(data.emotion_structured).length) {
+          lastEmotionStructured = data.emotion_structured;
+          lastMediaSignals = data.media_signals || data.emotion_structured?.media_signals || lastMediaSignals || {};
+          showEmotionCard(data.emotion_structured);
+        }
+        if (data.person_check) updateEmotionDetectionOverlay(data.person_check);
+
         // 累積 session 情緒記錄，結帳時批次寫 RAG
         if (lastEmotionStructured) {
           sessionEmotionLog.push({
@@ -1957,7 +1967,6 @@ function startAskRecording(sourceBtn) {
     // 開始錄音前先清除推播卡與殘留計時器，避免語音模式與推播卡重疊
     if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
     clearAllPushCards();
-    captureEmotionSnapshotForVoice();
     trackInteractionEvent({
       event_type: 'voice_assist_started',
       button_id: sourceBtn?.id || 'voiceAssistBtn',
