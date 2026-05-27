@@ -2878,18 +2878,63 @@ async function saveSettings() {
   } catch { alert('儲存失敗！'); }
 }
 
-async function loadAdminMenu() {
+async function loadMenuPage() {
   try {
-    document.getElementById('menuEditor').value = JSON.stringify(await api.getMenu(), null, 4);
-  } catch { document.getElementById('menuEditor').value = '[]'; }
+    const menu   = await api.getMenu();
+    const editor = document.getElementById('menuEditor');
+    if (editor) editor.value = JSON.stringify(menu, null, 2);
+    const listBox = document.getElementById('admin-menu-list');
+    if (!listBox) return;
+    listBox.textContent = '';
+    const items = Array.isArray(menu) ? menu : [];
+    items.slice(0, 10).forEach(item => {
+      const row = document.createElement('div');
+      row.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px';
+      const left = document.createElement('div');
+      const nameSpan = document.createElement('span');
+      nameSpan.style.cssText = 'font-weight:700;color:#1e293b';
+      nameSpan.textContent = String(item.name || '-');
+      const idSpan = document.createElement('span');
+      idSpan.style.cssText = 'color:#94a3b8;margin-left:8px';
+      idSpan.textContent = String(item.id || '');
+      left.appendChild(nameSpan);
+      left.appendChild(idSpan);
+      const right = document.createElement('div');
+      right.style.cssText = 'display:flex;gap:16px;align-items:center';
+      const priceSpan = document.createElement('span');
+      priceSpan.style.color = '#7c3aed';
+      priceSpan.textContent = '$' + (item.price ?? '-');
+      const catSpan = document.createElement('span');
+      catSpan.style.color = '#94a3b8';
+      catSpan.textContent = String(item.category || '-');
+      right.appendChild(priceSpan);
+      right.appendChild(catSpan);
+      row.appendChild(left);
+      row.appendChild(right);
+      listBox.appendChild(row);
+    });
+    if (items.length > 10) {
+      const more = document.createElement('div');
+      more.style.cssText = 'text-align:center;font-size:11px;color:#94a3b8;padding:6px';
+      more.textContent = '…還有 ' + (items.length - 10) + ' 筆，請用下方 JSON 編輯器';
+      listBox.appendChild(more);
+    }
+  } catch {
+    showAdminNotice('菜單載入失敗。', 'error');
+  }
 }
 
-async function saveMenu() {
+async function saveMenuJson() {
+  const editor = document.getElementById('menuEditor');
+  if (!editor) return;
   try {
-    const data = JSON.parse(document.getElementById('menuEditor').value);
+    const data = JSON.parse(editor.value);
     await api.saveMenu(data);
-    alert('菜單 JSON 已儲存。');
-  } catch { alert('JSON 格式錯誤！'); }
+    showAdminNotice('菜單已儲存。', 'success');
+    await loadMenuPage();
+  } catch (e) {
+    showAdminNotice(e instanceof SyntaxError ? 'JSON 格式錯誤！' : '儲存失敗。', 'error');
+  }
 }
 
 async function loadRagData() {
