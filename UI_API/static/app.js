@@ -2679,7 +2679,7 @@ async function clearAllRagDocs() {
   if (!confirm('確定清空全部 RAG 文本、審查紀錄與向量庫？菜單資料會重新建立為基礎 RAG。')) return;
   const data = await api.clearRagDocs().catch(() => ({}));
   if (data.status !== 'success') {
-    alert(data.message || '清空 RAG 失敗。');
+    showAdminNotice(data.message || '清空 RAG 失敗。', 'error');
     return;
   }
   await loadRagPage();
@@ -2689,13 +2689,13 @@ async function clearAllRagDocs() {
 async function uploadRagPdf() {
   const input = document.getElementById('ragPdfFile');
   const file = input?.files?.[0];
-  if (!file) return alert('請先選擇 PDF。');
+  if (!file) { showAdminNotice('請先選擇 PDF。', 'error'); return; }
   const fd = new FormData();
   fd.append('pdf', file);
   fd.append('review', document.getElementById('ragPdfReview')?.checked ? 'true' : 'false');
   const data = await api.uploadRagPdf(fd).catch(() => ({}));
   if (data.status !== 'success') {
-    alert(data.message || 'PDF 匯入失敗。');
+    showAdminNotice(data.message || 'PDF 匯入失敗。', 'error');
     return;
   }
   input.value = '';
@@ -3010,15 +3010,15 @@ async function reviewAllRagDocs() {
 async function addRagDoc() {
   const box = document.getElementById('ragNewText');
   const sourceText = box.value.trim();
-  if (!sourceText) return alert('請先輸入 RAG 文本。');
+  if (!sourceText) { showAdminNotice('請先輸入 RAG 文本。', 'error'); return; }
   try {
     const data = await api.addRagDoc({ source_text: sourceText });
-    if (data.status !== 'success') return alert(data.message || '保存失敗');
+    if (data.status !== 'success') { showAdminNotice(data.message || '保存失敗', 'error'); return; }
     box.value = '';
     await loadRagPage();
     showAdminNotice('已完成審查並保存。', 'success');
   } catch {
-    alert('保存失敗。');
+    showAdminNotice('保存失敗。', 'error');
   }
 }
 
