@@ -2365,7 +2365,6 @@ function loadAdminData() {
   loadAdminMenu();
   loadRagData();
   loadEmotionClips();
-  loadRagStatus();
   loadOllamaModelOptions();
 }
 
@@ -2681,32 +2680,18 @@ async function loadSettings() {
     document.getElementById('inp-ask-model-name').value = modelName;
     document.getElementById('inp-gemini-model-name').value = fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview';
     document.getElementById('inp-gemini-fallback').checked = fullSettings.GEMINI_FALLBACK_TO_OLLAMA !== false;
-    document.getElementById('inp-gemini-cooldown').value = fullSettings.GEMINI_COOLDOWN_SEC || 60;
     document.getElementById('inp-temp').value = fullSettings.OLLAMA_TEMPERATURE || 0.8;
     document.getElementById('inp-performance-mode').value = fullSettings.PERFORMANCE_MODE || 'balanced';
     document.getElementById('inp-num-predict').value = fullSettings.OLLAMA_NUM_PREDICT || 220;
     document.getElementById('inp-rag-top-k').value = fullSettings.RAG_TOP_K || 3;
     const rag = fullSettings.rag || {};
-    document.getElementById('inp-rag-multi-query').checked = rag.use_multi_query !== false;
-    document.getElementById('inp-rag-hybrid-search').checked = rag.use_hybrid_search !== false;
-    document.getElementById('inp-rag-reranker').checked = rag.use_reranker !== false;
-    document.getElementById('inp-rag-compression').checked = rag.use_context_compression !== false;
-    document.getElementById('inp-rag-evaluation').checked = rag.use_answer_evaluation !== false;
     document.getElementById('inp-rag-strict-grounding').checked = rag.strict_grounding === true;
     document.getElementById('inp-rag-answer-verification').checked = rag.answer_verification === true;
     document.getElementById('inp-rag-fail-closed').checked = rag.fail_closed_on_eval_error === true;
-    document.getElementById('inp-rag-min-overlap').value = rag.min_keyword_overlap || 1;
-    document.getElementById('inp-rag-max-chars').value = rag.max_answer_chars || 420;
-    document.getElementById('inp-rag-top-k-vector').value = rag.top_k_vector || 10;
-    document.getElementById('inp-rag-top-k-keyword').value = rag.top_k_keyword || 10;
-    document.getElementById('inp-rag-top-k-final').value = rag.top_k_final || 5;
-    document.getElementById('inp-rag-context-max').value = rag.context_max_chars || 2600;
-    document.getElementById('inp-rag-embedding-provider').value = rag.embedding_provider || 'ollama';
-    document.getElementById('inp-rag-embedding-model').value = rag.embedding_model || 'nomic-embed-text';
-    document.getElementById('inp-rag-reranker-model').value = rag.reranker_model || 'cross-encoder/ms-marco-MiniLM-L-6-v2';
     document.getElementById('inp-emotion-interval').value = fullSettings.EMOTION_PING_INTERVAL_SEC || 15;
     document.getElementById('inp-emotion-record-ms').value = fullSettings.EMOTION_RECORD_MS || 900;
     document.getElementById('inp-recommend-interval').value = fullSettings.RECOMMEND_INTERVAL_SEC || 30;
+    document.getElementById('inp-whisper-low-db').value = fullSettings.WHISPER_LOW_AUDIO_DB ?? -58;
     document.getElementById('inp-tts-cache').checked = fullSettings.ENABLE_TTS_CACHE !== false;
     document.getElementById('inp-emotion-prompt').value = fullSettings.EMOTION_LLAMA_PROMPT || '';
     document.getElementById('inp-recommend-prompt').value = fullSettings.RECOMMEND_SYSTEM_PROMPT || '';
@@ -2731,34 +2716,21 @@ async function saveSettings() {
   fullSettings.ASK_MODEL_NAME = selectedModel;
   fullSettings.GEMINI_MODEL_NAME = document.getElementById('inp-gemini-model-name').value.trim() || 'gemini-3-flash-preview';
   fullSettings.GEMINI_FALLBACK_TO_OLLAMA = document.getElementById('inp-gemini-fallback').checked;
-  fullSettings.GEMINI_COOLDOWN_SEC = parseInt(document.getElementById('inp-gemini-cooldown').value || '60', 10);
   fullSettings.OLLAMA_TEMPERATURE = parseFloat(document.getElementById('inp-temp').value);
   fullSettings.PERFORMANCE_MODE = document.getElementById('inp-performance-mode').value;
   fullSettings.OLLAMA_NUM_PREDICT = parseInt(document.getElementById('inp-num-predict').value || '220', 10);
   fullSettings.RAG_TOP_K = parseInt(document.getElementById('inp-rag-top-k').value || '3', 10);
+  const _existingRag = fullSettings.rag || {};
   fullSettings.rag = {
-    ...(fullSettings.rag || {}),
-    use_multi_query: document.getElementById('inp-rag-multi-query').checked,
-    use_hybrid_search: document.getElementById('inp-rag-hybrid-search').checked,
-    use_reranker: document.getElementById('inp-rag-reranker').checked,
-    use_context_compression: document.getElementById('inp-rag-compression').checked,
-    use_answer_evaluation: document.getElementById('inp-rag-evaluation').checked,
-    strict_grounding: document.getElementById('inp-rag-strict-grounding').checked,
-    answer_verification: document.getElementById('inp-rag-answer-verification').checked,
-    fail_closed_on_eval_error: document.getElementById('inp-rag-fail-closed').checked,
-    min_keyword_overlap: parseInt(document.getElementById('inp-rag-min-overlap').value || '1', 10),
-    max_answer_chars: parseInt(document.getElementById('inp-rag-max-chars').value || '420', 10),
-    top_k_vector: parseInt(document.getElementById('inp-rag-top-k-vector').value || '10', 10),
-    top_k_keyword: parseInt(document.getElementById('inp-rag-top-k-keyword').value || '10', 10),
-    top_k_final: parseInt(document.getElementById('inp-rag-top-k-final').value || '5', 10),
-    context_max_chars: parseInt(document.getElementById('inp-rag-context-max').value || '2600', 10),
-    embedding_provider: document.getElementById('inp-rag-embedding-provider').value || 'ollama',
-    embedding_model: document.getElementById('inp-rag-embedding-model').value.trim() || 'nomic-embed-text',
-    reranker_model: document.getElementById('inp-rag-reranker-model').value.trim() || 'cross-encoder/ms-marco-MiniLM-L-6-v2'
+    ..._existingRag,                     // 保留後端目前值（已移除 UI 的調參不被清空）
+    strict_grounding: document.getElementById('inp-rag-strict-grounding')?.checked ?? _existingRag.strict_grounding ?? false,
+    answer_verification: document.getElementById('inp-rag-answer-verification')?.checked ?? _existingRag.answer_verification ?? false,
+    fail_closed_on_eval_error: document.getElementById('inp-rag-fail-closed')?.checked ?? _existingRag.fail_closed_on_eval_error ?? false,
   };
   fullSettings.EMOTION_PING_INTERVAL_SEC = parseFloat(document.getElementById('inp-emotion-interval').value || '15');
   fullSettings.EMOTION_RECORD_MS = parseInt(document.getElementById('inp-emotion-record-ms').value || '900', 10);
   fullSettings.RECOMMEND_INTERVAL_SEC = parseFloat(document.getElementById('inp-recommend-interval').value || '30');
+  fullSettings.WHISPER_LOW_AUDIO_DB = parseFloat(document.getElementById('inp-whisper-low-db')?.value || '-58');
   fullSettings.ENABLE_TTS_CACHE = document.getElementById('inp-tts-cache').checked;
   fullSettings.EMOTION_LLAMA_PROMPT = document.getElementById('inp-emotion-prompt').value;
   fullSettings.RECOMMEND_SYSTEM_PROMPT = document.getElementById('inp-recommend-prompt').value;
@@ -2861,7 +2833,6 @@ async function reviewAllRagDocs() {
       resultBox.textContent = `完成：已修正 ${data.reviewed_count || 0} 筆，刪除不相關 ${data.deleted_count || 0} 筆，模型 ${data.model_name || modelName}`;
     }
     await loadRagData();
-    await loadRagStatus();
   } catch (e) {
     if (resultBox) resultBox.textContent = `審查失敗：${e.message || e}`;
   }
