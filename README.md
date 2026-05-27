@@ -40,7 +40,6 @@ Project_2026 是一套智慧自助點餐原型系統，以「事件觸發式多�
 | 語音協助 AI | Ollama qwen3.5:9b（獨立模型，不影響推播） |
 | AI 推播 AI | Ollama qwen3.5:4b |
 | Embedding / RAG | nomic-embed-text、ChromaDB、LangChain |
-| 視覺偵測 | YOLO11（人物偵測） |
 | 情緒分析 | Emotion-LLaMA（port 7889，只在高風險事件或語音協助時介入） |
 | 選用 | Gemini API（可替換語音問答 AI 來源） |
 | 設定 | `.env` + `learning_data/settings.json`（後台即時讀寫） |
@@ -98,7 +97,7 @@ Project_2026/
 └── UI_API/
     ├── main.py                      ← 唯一入口，同時啟動 8000/8001
     ├── config.py                    ← 靜態設定 + 動態設定管理器
-    ├── ai_services.py               ← Whisper、Ollama、Gemini、TTS、YOLO
+    ├── ai_services.py               ← Whisper、Ollama、Gemini、TTS、Emotion-LLaMA
     ├── rag_service.py               ← ChromaDB、LangChain RAG
     ├── database.py
     ├── index.html                   ← POS + Admin 單頁應用
@@ -127,7 +126,6 @@ Interaction Event Engine（計算 risk_score）
   ├─ risk_score 未達門檻 → 只記錄，不呼叫大型模型
   └─ risk_score 達門檻 → 觸發短片段多模態分析
         ↓
-        YOLO11 人物偵測
         Whisper 語音轉文字
         Emotion-LLaMA 情緒與行為證據
         POS event sequence + UI context
