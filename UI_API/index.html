@@ -348,7 +348,7 @@
   <!-- Emotion / AI 設定 -->
   <div id="admin-sec-emotion" class="admin-section" style="padding:16px 20px;display:none;flex-direction:column;gap:10px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
-      <button onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
+      <button type="button" onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
       <span style="font-size:14px;font-weight:700;color:#1e1b4b">😊 Emotion / AI 設定</span>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
@@ -430,19 +430,19 @@
         </label>
       </div>
     </div>
-    <button onclick="saveEmotionSettings()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;width:100%">儲存設定</button>
+    <button type="button" onclick="saveEmotionSettings()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;width:100%">儲存設定</button>
   </div>
 
   <!-- 影像片段 -->
   <div id="admin-sec-clips" class="admin-section" style="padding:16px 20px;display:none;flex-direction:column;gap:12px">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
+        <button type="button" onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
         <span style="font-size:14px;font-weight:700;color:#1e1b4b">🎬 影像片段</span>
       </div>
       <div style="display:flex;gap:8px">
-        <button onclick="loadClipsPage()" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#64748b;cursor:pointer">↻ 重新整理</button>
-        <button onclick="clearClipsPage()" style="background:#fef2f2;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#dc2626;cursor:pointer">🗑 清除</button>
+        <button type="button" onclick="loadClipsPage()" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#64748b;cursor:pointer">↻ 重新整理</button>
+        <button type="button" onclick="clearClipsPage()" style="background:#fef2f2;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#dc2626;cursor:pointer">🗑 清除</button>
       </div>
     </div>
     <div id="admin-clips-count" style="font-size:11px;color:#94a3b8"></div>
@@ -453,10 +453,10 @@
   <div id="admin-sec-menu" class="admin-section" style="padding:16px 20px;display:none;flex-direction:column;gap:12px">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
+        <button type="button" onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
         <span style="font-size:14px;font-weight:700;color:#1e1b4b">🍔 菜單管理</span>
       </div>
-      <button onclick="saveMenuJson()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer">💾 儲存</button>
+      <button type="button" onclick="saveMenuJson()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer">💾 儲存</button>
     </div>
     <div id="admin-menu-list" style="display:flex;flex-direction:column;gap:8px"></div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
@@ -469,15 +469,15 @@
   <div id="admin-sec-rag" class="admin-section" style="padding:16px 20px;display:none;flex-direction:column;gap:10px">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
+        <button type="button" onclick="switchAdminSection('dashboard')" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#64748b;cursor:pointer">← 返回監控</button>
         <span style="font-size:14px;font-weight:700;color:#1e1b4b">📄 RAG 知識庫</span>
       </div>
-      <button onclick="clearAllRagDocs()" style="background:#fef2f2;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#dc2626;cursor:pointer">🗑 清空</button>
+      <button type="button" onclick="clearAllRagDocs()" style="background:#fef2f2;border:none;border-radius:6px;padding:5px 12px;font-size:12px;color:#dc2626;cursor:pointer">🗑 清空</button>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
       <div style="font-size:11px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">新增 RAG 文本</div>
       <textarea id="ragNewText" style="width:100%;height:72px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;padding:8px;background:#f8fafc;resize:vertical;box-sizing:border-box" placeholder="輸入補充知識，送出後由 Ollama 審查。"></textarea>
-      <button onclick="addRagDoc()" style="margin-top:8px;background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">＋ 審查並保存</button>
+      <button type="button" onclick="addRagDoc()" style="margin-top:8px;background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">＋ 審查並保存</button>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
       <div style="font-size:11px;color:#0891b2;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">匯入 PDF</div>
@@ -486,7 +486,7 @@
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#64748b;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="ragPdfReview" /> 逐 chunk 審查
         </label>
-        <button onclick="uploadRagPdf()" style="background:#0891b2;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap">匯入</button>
+        <button type="button" onclick="uploadRagPdf()" style="background:#0891b2;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap">匯入</button>
       </div>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
@@ -497,19 +497,19 @@
 
   <!-- 底部導航列 -->
   <div style="background:#fff;border-top:1px solid #e2e8f0;padding:6px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;position:sticky;bottom:0;z-index:10">
-    <button id="admin-nav-emotion" onclick="switchAdminSection('emotion')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
+    <button type="button" id="admin-nav-emotion" onclick="switchAdminSection('emotion')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
       <span style="font-size:20px">😊</span>
       <span style="font-size:10px;color:#64748b;margin-top:2px">Emotion / AI</span>
     </button>
-    <button id="admin-nav-clips" onclick="switchAdminSection('clips')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
+    <button type="button" id="admin-nav-clips" onclick="switchAdminSection('clips')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
       <span style="font-size:20px">🎬</span>
       <span style="font-size:10px;color:#64748b;margin-top:2px">影像片段</span>
     </button>
-    <button id="admin-nav-menu" onclick="switchAdminSection('menu')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
+    <button type="button" id="admin-nav-menu" onclick="switchAdminSection('menu')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
       <span style="font-size:20px">🍔</span>
       <span style="font-size:10px;color:#64748b;margin-top:2px">菜單管理</span>
     </button>
-    <button id="admin-nav-rag" onclick="switchAdminSection('rag')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
+    <button type="button" id="admin-nav-rag" onclick="switchAdminSection('rag')" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:8px;cursor:pointer;background:none;border:none">
       <span style="font-size:20px">📄</span>
       <span style="font-size:10px;color:#64748b;margin-top:2px">RAG 知識庫</span>
     </button>
