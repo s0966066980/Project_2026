@@ -599,11 +599,6 @@
             </span>
             <input type="checkbox" id="inp-gemini-fallback" class="w-5 h-5 shrink-0">
           </label>
-          <div>
-            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Gemini 冷卻秒數</label>
-            <input type="number" id="inp-gemini-cooldown" min="10" max="600" step="5" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)" value="60">
-            <p class="text-xs mt-1" style="color:var(--text2)">若 Gemini 錯誤回傳 retryDelay，會優先使用官方建議秒數。</p>
-          </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -624,75 +619,15 @@
             <p class="text-xs mt-1" style="color:var(--text2)">舊版相容值；新版主要使用下方 top_k_final 控制最後送給 Ollama 的 chunk 數。</p>
           </div>
         </div>
-        <!-- RAG Status Display -->
-        <div class="mb-4 p-4 rounded-xl border border-gray-700 bg-[#18201d]">
-          <h3 class="text-lg font-bold mb-2" style="color:var(--text)">RAG 檢索狀態</h3>
-          <div id="ragStatusContainer" class="text-sm font-mono whitespace-pre-wrap text-gray-300">
-            載入中...
-          </div>
-          <button type="button" onclick="loadRagStatus()" class="mt-3 px-4 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm text-white transition-colors">重新整理狀態</button>
-        </div>
-
-        <div class="rounded-2xl p-4 space-y-4" style="background:var(--surface2);border:1.5px solid var(--border)">
+        <div class="rounded-2xl p-4 space-y-3" style="background:var(--surface2);border:1.5px solid var(--border)">
           <div>
-            <h3 class="font-bold text-sm" style="color:var(--text)">本地 RAG 模組</h3>
-            <p class="text-xs mt-1" style="color:var(--text2)">LangChain + Ollama embedding + Hybrid Retrieval。關閉模組後會使用較保守的原始向量檢索流程。</p>
-            <span class="text-orange-400 mt-2 block text-xs"><i class="fas fa-exclamation-triangle"></i> qwen3.5:4b 等小模型不保證 RAG 答案完全正確；建議開啟嚴格來源限制與答案驗證。若文件不足，系統會拒答。</span>
+            <h3 class="font-bold text-sm" style="color:var(--text)">RAG 答案品質控制</h3>
+            <span class="text-orange-400 mt-1 block text-xs"><i class="fas fa-exclamation-triangle"></i> 建議開啟嚴格來源限制，防止 LLM 自行發揮；文件不足時系統會拒答。</span>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm" style="color:var(--text)">
-            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-multi-query"> Multi-Query</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-hybrid-search"> Hybrid Search</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-reranker"> Reranker</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-compression"> Context Compress</label>
-            <label class="flex items-center gap-2"><input type="checkbox" id="inp-rag-evaluation"> Answer Eval</label>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm" style="color:var(--text)">
             <label class="flex items-center gap-2 text-orange-300"><input type="checkbox" id="inp-rag-strict-grounding"> 嚴格來源限制</label>
             <label class="flex items-center gap-2 text-orange-300"><input type="checkbox" id="inp-rag-answer-verification"> LLM 答案驗證</label>
             <label class="flex items-center gap-2 text-orange-300"><input type="checkbox" id="inp-rag-fail-closed"> 評估失敗時拒答</label>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-            <div>
-              <label class="block font-semibold mb-1.5 text-xs" style="color:var(--text)">最低關鍵字重疊</label>
-              <input type="number" id="inp-rag-min-overlap" min="0" max="10" step="1" class="w-full p-2 rounded-lg text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-xs" style="color:var(--text)">回答最大字數限制</label>
-              <input type="number" id="inp-rag-max-chars" min="50" max="2000" step="10" class="w-full p-2 rounded-lg text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_vector</label>
-              <input type="number" id="inp-rag-top-k-vector" min="1" max="30" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_keyword</label>
-              <input type="number" id="inp-rag-top-k-keyword" min="1" max="30" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">top_k_final</label>
-              <input type="number" id="inp-rag-top-k-final" min="1" max="15" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Context 字數上限</label>
-              <input type="number" id="inp-rag-context-max" min="600" max="8000" step="100" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Embedding Provider</label>
-              <select id="inp-rag-embedding-provider" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)">
-                <option value="ollama">ollama</option>
-                <option value="huggingface">huggingface fallback</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Ollama Embedding Model</label>
-              <input type="text" id="inp-rag-embedding-model" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)" placeholder="nomic-embed-text">
-            </div>
-            <div>
-              <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">Reranker Model</label>
-              <input type="text" id="inp-rag-reranker-model" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface)" placeholder="cross-encoder/ms-marco-MiniLM-L-6-v2">
-            </div>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -708,6 +643,11 @@
           <div>
             <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">推播間隔秒</label>
             <input type="number" id="inp-recommend-interval" min="10" max="180" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1.5 text-sm" style="color:var(--text)">語音音量門檻 (dB)</label>
+            <input type="number" id="inp-whisper-low-db" min="-80" max="-20" step="1" class="w-full p-2.5 rounded-xl text-sm outline-none" style="border:1.5px solid var(--border);background:var(--surface2)">
+            <p class="text-xs mt-1" style="color:var(--text2)">低於此音量略過 Whisper 辨識。預設 -58 dB。</p>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm" style="color:var(--text)">
