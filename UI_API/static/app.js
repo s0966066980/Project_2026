@@ -2498,9 +2498,9 @@ function loadAdminData() {
   loadLogs();
   loadInterventionStats();
   loadSettings();
-  loadAdminMenu();
+  loadMenuPage();
   loadRagData();
-  loadEmotionClips();
+  loadClipsPage();
   loadOllamaModelOptions();
 }
 
@@ -3223,13 +3223,13 @@ Object.assign(window, {
   switchMainView,
   switchAdminTab,
   loadInterventionStats,
-  loadEmotionClips,
+  loadClipsPage,
   loadEmotionStatus,
   clearPushLogs,
   toggleFeature,
   saveSettings,
-  clearEmotionClips,
-  saveMenu,
+  clearClipsPage,
+  saveMenuJson,
   loadRagData,
   clearAllRagDocs,
   addRagDoc,
