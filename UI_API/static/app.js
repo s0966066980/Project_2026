@@ -52,12 +52,10 @@ let isSystemRunning = false;
 let orderCompleted = false;
 let menuData = [];
 let sessionPushedIds = new Set();
-let recommendPending = false;
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
 let emotionLoopId = null;
 let recommendLoopActive = false;
-let recommendRequestInFlight = false;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
 let lastMediaSignals = {};
@@ -248,8 +246,6 @@ let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
   EMOTION_PING_INTERVAL_SEC: 15,
   EMOTION_RECORD_MS: 900,
-  RECOMMEND_INTERVAL_SEC: 10,
-  RECOMMEND_AFTER_ASK_DELAY_MS: 1200,
   OLLAMA_NUM_PREDICT: 220,
   RAG_TOP_K: 3,
   ENABLE_TTS_CACHE: true,
@@ -282,7 +278,6 @@ async function loadRuntimeSettings() {
 
 function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
-  recommendLoopActive = false;
   emotionLoopId = null;
   if (isSystemRunning && isPosMode()) {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
@@ -572,7 +567,6 @@ function trackedDeleteCartItem(id) {
 
 const recommendationManager = createRecommendationManager({
   ui,
-  escapeHTML,
   isPosActive,
   getFeatures,
   findMenuItems,
@@ -848,7 +842,6 @@ function showPaymentScreen() {
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
   promotionPausedUntil = Date.now() + 10 * 60 * 1000;
-  recommendPending = false;
   stopAutoVoiceOrdering();
   clearPOSFloatingUI();
   updateVoiceAssistVisibility();
@@ -1581,19 +1574,14 @@ function _isVoiceActive() {
 async function fetchAndDisplayRecommend() {
   const f = getFeatures();
   if (!f.recommend) return;
-  if (recommendRequestInFlight) return;
-  if (_isVoiceActive()) return;                     // 語音模式進行中，不蓋推播
+  if (_isVoiceActive()) return;
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
   if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
-  if (Date.now() < promotionPausedUntil) return;
-  // 有 scenario 計時器殘留時先清除，避免它干擾新推播卡
   if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
   const fd = new FormData();
   fd.append('session_id', sessionId);
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 12000);
-  recommendRequestInFlight = true;
-  recommendPending = true;
   try {
     const data = await api.autoRecommend(fd, ctrl.signal);
     if (data.status === 'success') return displayRecommendation(data);
@@ -1601,21 +1589,20 @@ async function fetchAndDisplayRecommend() {
     console.warn('[auto_recommend failed]', err);
   } finally {
     clearTimeout(tid);
-    recommendRequestInFlight = false;
-    recommendPending = false;
   }
 }
 
 async function startRecommendLoop() {
   if (isAdminMode() || recommendLoopActive) return;
   recommendLoopActive = true;
-  const intervalMs = Math.max(10, Number(perfValue('RECOMMEND_INTERVAL_SEC')) || 10) * 1000;
   while (recommendLoopActive) {
-    await new Promise(r => setTimeout(r, intervalMs));
-    if (!recommendLoopActive) break;
-    if (!isPosActive() || document.hidden || recommendPending) continue;
+    if (!isPosActive() || document.hidden) {
+      await new Promise(r => setTimeout(r, 1000));
+      continue;
+    }
     const tickerDone = await fetchAndDisplayRecommend();
     if (tickerDone && recommendLoopActive) await tickerDone;
+    if (recommendLoopActive) await new Promise(r => setTimeout(r, 10_000));
   }
 }
 
@@ -1788,11 +1775,6 @@ function setupAskRecorder() {
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         }
 
-        if (data.trigger_recommend && getFeatures().recommend) {
-          setTimeout(async () => {
-            await fetchAndDisplayRecommend();
-          }, Number(perfValue('RECOMMEND_AFTER_ASK_DELAY_MS')) || 1200);
-        }
         if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
       } else {
         console.debug('[voice assistant skipped]', data.message || data.status);
@@ -1967,14 +1949,13 @@ document.addEventListener('pointerdown', (event) => {
 
 function applyPerformancePreset(mode) {
   const presets = {
-    eco: { emotion: 30, record: 700, recommend: 60, tokens: 160, rag: 2 },
-    balanced: { emotion: 15, record: 900, recommend: 30, tokens: 220, rag: 3 },
-    quality: { emotion: 8, record: 1500, recommend: 18, tokens: 360, rag: 4 }
+    eco: { emotion: 30, record: 700, tokens: 160, rag: 2 },
+    balanced: { emotion: 15, record: 900, tokens: 220, rag: 3 },
+    quality: { emotion: 8, record: 1500, tokens: 360, rag: 4 }
   };
   const p = presets[mode] || presets.balanced;
   document.getElementById('inp-emotion-interval').value = p.emotion;
   document.getElementById('inp-emotion-record-ms').value = p.record;
-  document.getElementById('inp-recommend-interval').value = p.recommend;
   document.getElementById('inp-num-predict').value = p.tokens;
   document.getElementById('inp-rag-top-k').value = p.rag;
 }
@@ -2108,7 +2089,6 @@ async function finishOrder(cartIds, button, loadingText, doneTitle) {
   clearPOSFloatingUI();
   stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
-  recommendPending = false;
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
   if (button) button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${loadingText}`;
@@ -2333,7 +2313,6 @@ async function loadEmotionSettings() {
     set('inp-emotion-interval',   fullSettings.EMOTION_PING_INTERVAL_SEC ?? 15);
     set('inp-emotion-record-ms',  fullSettings.EMOTION_RECORD_MS ?? 900);
     set('inp-whisper-low-db',     fullSettings.WHISPER_LOW_AUDIO_DB ?? -58);
-    set('inp-recommend-interval', fullSettings.RECOMMEND_INTERVAL_SEC ?? 30);
     set('inp-temp',               fullSettings.OLLAMA_TEMPERATURE ?? 0.8);
     set('inp-num-predict',        fullSettings.OLLAMA_NUM_PREDICT ?? 220);
     const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
@@ -2381,7 +2360,6 @@ async function saveEmotionSettings() {
   fullSettings.ENABLE_TTS_CACHE       = bool('inp-tts-cache', true);
   fullSettings.EMOTION_PING_INTERVAL_SEC = flt('inp-emotion-interval', '15');
   fullSettings.EMOTION_RECORD_MS         = int('inp-emotion-record-ms', '900');
-  fullSettings.RECOMMEND_INTERVAL_SEC    = flt('inp-recommend-interval', '30');
   fullSettings.WHISPER_LOW_AUDIO_DB      = flt('inp-whisper-low-db', '-58');
   fullSettings.ASK_SYSTEM_PROMPT         = str('inp-ask-prompt', '');
   fullSettings.RECOMMEND_SYSTEM_PROMPT   = str('inp-recommend-prompt', '');

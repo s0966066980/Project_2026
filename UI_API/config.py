@@ -85,7 +85,6 @@ DEFAULT_SETTINGS = {
     "SAVE_VOICE_ORDER_TO_RAG": False,
     "DEMO_SAVE_VOICE_ORDER_TO_RAG": False,
     "SAVE_CUSTOMER_SERVICE_TO_RAG": False,
-    "EMOTION_INFLUENCE_RECOMMEND": False,
     "USE_AI_RECOMMEND": True,          # True=Ollama推播, False=預設熱門推播
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",  # 語音協助專用模型
     "VOICE_ASSIST_EMOTION_ENABLED": True,
@@ -125,13 +124,9 @@ DEFAULT_SETTINGS = {
     "PERFORMANCE_MODE": "balanced",
     "EMOTION_PING_INTERVAL_SEC": 15,
     "EMOTION_RECORD_MS": 900,
-    "RECOMMEND_INTERVAL_SEC": 10,
-    "RECOMMEND_AFTER_ASK_DELAY_MS": 1200,
-    "AUTO_RECOMMEND_MIN_GAP_SEC": 8,
     "EMOTION_MIN_GAP_SEC": 12,
     "CUSTOMER_EMOTION_WAIT_SEC": 8,
     "ENABLE_TTS_CACHE": True,
-    "ENABLE_RECOMMEND_CACHE": True,
     "WHISPER_MIN_AUDIO_SEC": 0.45,
     "WHISPER_LOW_AUDIO_DB": -58,
     "WHISPER_MAX_NO_SPEECH_PROB": 0.68,
@@ -158,30 +153,12 @@ DEFAULT_SETTINGS = {
     "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT": VOICE_ASSIST_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT_EN": VOICE_ASSIST_SYSTEM_PROMPT_EN,
-    # A/B 推播實驗
-    "AB_SINGLE_CALL": True,
-    "RECOMMEND_SYSTEM_PROMPT_B": (
-        "你是一位自然、克制、擅長搭配建議的 AI 點餐顧問。\n"
-        "只能根據【完整菜單白名單】中的餐點推薦，禁止創造菜單不存在的餐點、名稱或 ID。\n\n"
-        "B 版策略：根據【歷史點餐紀錄】與顧客目前狀態，推薦 2~3 個適合搭配的真實菜單品項；"
-        "若歷史紀錄不足，請用菜單中互補的主餐、飲品或輕食搭配。\n"
-        "reason 必須是給顧客直接看的自然短句，不要寫「推薦理由」、「搭配建議」、「B版」這類系統語氣；"
-        "像店員順口建議，最多 45 個中文字。\n\n"
-        "【輸出格式要求】：只輸出合法 JSON，不要包含任何 Markdown 或說明文字：\n"
-        "{\n"
-        "  \"recommendation_ids\": [\"餐點ID1\", \"餐點ID2\"],\n"
-        "  \"reason\": \"自然口語搭配短句，必須提到真實菜單品項名稱\"\n"
-        "}"
-    ),
 }
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EVENT_TRIGGERED_MULTIMODAL_ENABLED",
     "EMOTION_PERIODIC_ENABLED",
-    "RECOMMEND_INTERVAL_SEC",
-    "RECOMMEND_AFTER_ASK_DELAY_MS",
-    "AUTO_RECOMMEND_MIN_GAP_SEC",
     "INTERACTION_TRIGGER_THRESHOLD",
     "INTERACTION_PRE_EVENT_BUFFER_SEC",
     "INTERACTION_POST_EVENT_BUFFER_SEC",

@@ -1,6 +1,4 @@
 import asyncio
-import itertools
-import json
 import re
 from datetime import datetime
 
@@ -10,29 +8,6 @@ import database
 from repositories import menu_repository
 from utils.text_utils import to_traditional_lite
 
-
-_RECOMMENDATION_STYLES = itertools.cycle([
-    {
-        "key": "popular",
-        "label": "⭐ 人氣組合",
-        "prompt_suffix": "推薦點擊率最高、最多顧客喜愛的搭配，口味大眾化，主餐＋飲料各一。",
-    },
-    {
-        "key": "diet",
-        "label": "🥗 減脂選擇",
-        "prompt_suffix": "推薦低卡、低脂或含蔬菜的選項，適合注重健康的顧客；飲料優先選零卡或無糖。",
-    },
-    {
-        "key": "evil_combo",
-        "label": "😈 邪惡組合",
-        "prompt_suffix": "推薦高熱量、超滿足的邪惡組合，強調美味與份量，讓顧客盡情享受，可含雙層牛肉或大薯。",
-    },
-    {
-        "key": "value",
-        "label": "💰 超值套餐",
-        "prompt_suffix": "推薦性價比最高的搭配，讓顧客用最少的錢吃到最多份量，優先推超值全餐系列。",
-    },
-])
 
 
 ZH_NUMBERS = {
@@ -301,110 +276,6 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
     return fallback_cart_actions_from_text(user_text, menu_items)
 
 
-def coerce_recommendation(
-    result: dict,
-    menu_ids: list[str],
-    menu_items: list[dict] | None = None,
-) -> dict:
-    raw_result = dict(result or {}) if isinstance(result, dict) else {}
-    if isinstance(result, list):
-        result = next((row for row in result if isinstance(row, dict)), {})
-    elif not isinstance(result, dict):
-        result = {}
-    source_error = "error" in result
-    raw_ids = result.get("recommendation_ids") or result.get("recommendation_id") or []
-    if isinstance(raw_ids, str):
-        raw_ids = [raw_ids]
-    if not isinstance(raw_ids, list):
-        raw_ids = []
-
-    cleaned = []
-    for raw_id in raw_ids:
-        menu_id = clean_menu_id(raw_id, menu_ids)
-        if menu_id and menu_id not in cleaned:
-            cleaned.append(menu_id)
-
-    if not cleaned:
-        fallback = menu_ids[0] if menu_ids else ""
-        cleaned = [fallback] if fallback else []
-
-    cleaned = cleaned[:3]
-    raw_reason = (
-        result.get("reason")
-        or result.get("empathy_response")
-        or "這是根據您當下狀態為您挑選的餐點。"
-    )
-    reason = align_recommendation_reason(raw_reason, cleaned, menu_items or [])
-    aligned_result = {
-        "recommendation_ids": cleaned,
-        "reason": reason,
-        "ai_raw_reason": raw_reason,
-        "ai_raw_response": raw_result,
-        "ai_used": not source_error,
-    }
-    return {
-        "recommendation_ids": cleaned,
-        "reason": reason,
-        "ollama_result": json.dumps(aligned_result, ensure_ascii=False),
-        "error": source_error and not cleaned,
-        "source_error": source_error,
-    }
-
-
-def align_recommendation_reason(
-    reason: str,
-    recommendation_ids: list[str],
-    menu_items: list[dict],
-) -> str:
-    """讓顧客看到的推播文字永遠對齊最終白名單校正後的餐點。"""
-    reason = to_traditional_lite(str(reason or "")).strip()
-    name_by_id = {
-        str(item.get("id")): str(item.get("name") or "").strip()
-        for item in menu_items
-        if item.get("id") and item.get("name")
-    }
-    selected_names = [name_by_id.get(str(menu_id), "") for menu_id in recommendation_ids]
-    selected_names = [name for name in selected_names if name]
-    if not selected_names:
-        return reason or "這是根據您當下狀態為您挑選的餐點。"
-    selected_items = [
-        item for item in menu_items
-        if str(item.get("id")) in set(recommendation_ids)
-    ]
-    selected_id_set = set(recommendation_ids)
-    other_names = [
-        str(item.get("name") or "").strip()
-        for item in menu_items
-        if item.get("id") not in selected_id_set and item.get("name")
-    ]
-    mentions_selected = any(name and name in reason for name in selected_names)
-    mentions_other = any(name and name in reason for name in other_names)
-    if not reason or mentions_other or not mentions_selected:
-        clean_reason = reason[:46].strip("，。、,. ")
-        if clean_reason and not mentions_other:
-            return f"{'、'.join(selected_names[:3])}：{clean_reason}"
-        return _build_recommendation_copy(selected_items)
-    return reason
-
-
-def _build_recommendation_copy(selected_items: list[dict]) -> str:
-    items = [item for item in selected_items if item.get("name")]
-    if not items:
-        return "這份餐點會比較符合現在的需求。"
-    if len(items) > 1:
-        names = "、".join(str(item.get("name")) for item in items[:3])
-        total = sum(int(float(item.get("price") or 0)) for item in items[:3])
-        return f"如果想一次點得完整，{names} 很適合放在一起；合計約 ${total}。"
-    item = items[0]
-    name = str(item.get("name") or "")
-    price = int(float(item.get("price") or 0))
-    desc = str(item.get("description") or "").strip()
-    if desc:
-        desc = re.sub(r"\s+", "，", desc).strip("，。、,. ")[:34]
-        return f"如果想快速決定，可以先選{name}；{desc}，價格 ${price}。"
-    return f"如果想快速決定，可以先選{name}；點餐簡單、接受度高，價格 ${price}。"
-
-
 def get_default_recommendation(menu_items: list[dict]) -> dict:
     """不使用 LLM 的預設熱門推播，從超值全餐/極選系列取前 2 項。"""
     priority_cats = ["超值全餐", "極選系列", "點心"]
@@ -419,21 +290,33 @@ def get_default_recommendation(menu_items: list[dict]) -> dict:
     if not selected:
         selected = menu_items[:2]
     ids = [item["id"] for item in selected]
-    reason = _build_recommendation_copy(selected)
+    if len(selected) > 1:
+        names = "、".join(str(item.get("name")) for item in selected[:3])
+        total = sum(int(float(item.get("price") or 0)) for item in selected[:3])
+        reason = f"如果想一次點得完整，{names} 很適合放在一起；合計約 ${total}。"
+    elif selected:
+        item = selected[0]
+        name = str(item.get("name") or "")
+        price = int(float(item.get("price") or 0))
+        desc = str(item.get("description") or "").strip()
+        if desc:
+            desc = re.sub(r"\s+", "，", desc).strip("，。、,. ")[:34]
+            reason = f"如果想快速決定，可以先選{name}；{desc}，價格 ${price}。"
+        else:
+            reason = f"如果想快速決定，可以先選{name}；點餐簡單、接受度高，價格 ${price}。"
+    else:
+        reason = "這份餐點會比較符合現在的需求。"
     return {
         "status": "success",
         "mode": "default",
         "recommendation_ids": ids,
         "reason": reason,
         "ollama_result": "",
-        "recommendation_style": "popular",
-        "recommendation_label": "⭐ 人氣組合",
     }
 
 
-async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  # noqa: ARG001
-    """Ollama 推播：根據完整菜單與 RAG 推薦餐點，每次輪換推薦風格。"""
-    style = next(_RECOMMENDATION_STYLES)
+async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  # session_id reserved for future per-session context
+    """呼叫 Ollama 推薦餐點，回傳 {status, recommendation_ids, reason}。"""
     full_menu_context, rag_context = await asyncio.gather(
         asyncio.to_thread(database.build_full_menu_context),
         asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點"),
@@ -441,7 +324,6 @@ async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  #
     user_prompt = (
         f"{full_menu_context}\n\n"
         f"【RAG 補充規則與知識】\n{rag_context or '（無補充）'}\n\n"
-        f"【本次推薦風格】{style['prompt_suffix']}\n\n"
         "推薦規則：\n"
         "1. recommendation_ids 只能使用【完整菜單白名單】中存在的 ID。\n"
         "2. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
@@ -458,16 +340,23 @@ async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  #
     elif not isinstance(raw, dict):
         raw = {}
     if "error" in raw:
-        return {"status": "error", "message": raw["error"], "raw_content": raw.get("raw_content", "")}
-    rec = coerce_recommendation(raw, menu_ids, menu_items=menu_items)
+        return {"status": "error", "message": raw.get("error", "unknown")}
+
+    raw_ids = raw.get("recommendation_ids") or []
+    if isinstance(raw_ids, str):
+        raw_ids = [raw_ids]
+    cleaned_ids = []
+    for raw_id in raw_ids:
+        menu_id = clean_menu_id(raw_id, menu_ids)
+        if menu_id and menu_id not in cleaned_ids:
+            cleaned_ids.append(menu_id)
+    if not cleaned_ids:
+        cleaned_ids = [menu_ids[0]] if menu_ids else []
+
     return {
         "status": "success",
-        "mode": "ai",
-        "recommendation_ids": rec["recommendation_ids"],
-        "reason": rec["reason"],
-        "ollama_result": rec["ollama_result"],
-        "recommendation_style": style["key"],
-        "recommendation_label": style["label"],
+        "recommendation_ids": cleaned_ids[:3],
+        "reason": str(raw.get("reason") or "這是根據菜單為您挑選的餐點。").strip(),
     }
 
 

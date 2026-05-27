@@ -28,7 +28,6 @@ def create_router(deps: dict) -> APIRouter:
             "status": "success",
             "enabled": bool(config.get("EVENT_TRIGGERED_MULTIMODAL_ENABLED", True)),
             "periodic_enabled": bool(config.get("EMOTION_PERIODIC_ENABLED", False)),
-            "influence_recommend": bool(config.get("EMOTION_INFLUENCE_RECOMMEND", True)),
             "gradio_url": config.EMOTION_LLAMA_GRADIO_URL,
             **status,
         }
