@@ -2704,63 +2704,95 @@ async function uploadRagPdf() {
   alert(`PDF 已匯入 ${data.chunks || 0} 個 chunk。`);
 }
 
-async function loadEmotionClips() {
-  const box = document.getElementById('emotionClipList');
+async function loadClipsPage() {
+  const box      = document.getElementById('emotionClipList');
+  const countBox = document.getElementById('admin-clips-count');
   if (!box) return;
-  box.innerHTML = '<p class="text-sm" style="color:var(--text2)">載入影像片段中...</p>';
+  box.textContent = '';
+  const placeholder = document.createElement('div');
+  placeholder.style.cssText = 'font-size:12px;color:#94a3b8;grid-column:span 2';
+  placeholder.textContent = '載入影像片段中...';
+  box.appendChild(placeholder);
   try {
-    const data = await api.getEmotionClips(sessionId);
+    const data  = await api.getEmotionClips(sessionId);
     const clips = data.clips || [];
+    if (countBox) countBox.textContent = '共 ' + clips.length + ' 筆';
+    box.textContent = '';
     if (!clips.length) {
-      box.innerHTML = '<p class="text-sm" style="color:var(--text2)">目前這筆訂單尚無情緒影像片段。</p>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12px;color:#94a3b8;grid-column:span 2';
+      empty.textContent = '目前無影像片段。';
+      box.appendChild(empty);
       return;
     }
-    box.innerHTML = '';
     [...clips].reverse().forEach((clip, idx) => {
-      const item = document.createElement('div');
-      item.className = 'emotion-clip-item';
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)';
       const suffix = clip.url && clip.url.includes('?') ? api.adminQuerySuffix('&') : api.adminQuerySuffix();
-      const url = clip.url ? `${API_BASE}${clip.url}${suffix}` : '';
-      const personLabel = clip.person_detected ? '偵測到人物' : '未偵測到人物';
-      const hitCount = clip.person_hits ?? clip.face_hits ?? 0;
+      const url    = clip.url ? (API_BASE + clip.url + suffix) : '';
+      if (url) {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.muted = true;
+        video.setAttribute('playsinline', '');
+        video.preload = 'metadata';
+        video.src = url;
+        video.style.cssText = 'width:100%;display:block;max-height:120px;object-fit:cover';
+        card.appendChild(video);
+      } else {
+        const noMedia = document.createElement('div');
+        noMedia.style.cssText = 'background:#f1f5f9;height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8';
+        noMedia.textContent = '無媒體（僅分析資料）';
+        card.appendChild(noMedia);
+      }
+      const info = document.createElement('div');
+      info.style.cssText = 'padding:10px;font-size:11px';
+      const emotion = String(clip.emotion_display || clip.emotion || '-');
+      const ts      = clip.created_at ? new Date(clip.created_at).toLocaleString() : '-';
       const signals = clip.media_signals || {};
-      const signalText = signals.motion_level
-        ? `音量 ${signals.audio_mean_db ?? '-'} dB / 動作 ${signals.motion_level}`
+      const sigTxt  = signals.motion_level
+        ? '音量 ' + (signals.audio_mean_db ?? '-') + ' dB / 動作 ' + signals.motion_level
         : '';
-      const mediaHtml = url
-        ? `<video controls muted playsinline preload="metadata" src="${escapeHTML(url)}"></video>`
-        : `<div class="clip-media-placeholder">
-            <i class="fas fa-shield-alt"></i>
-            <span>已依隱私設定只保存分析資料</span>
-          </div>`;
-      item.innerHTML = `
-        ${mediaHtml}
-        <div class="clip-meta">
-          <div class="font-bold" style="color:var(--text)">片段 ${clips.length - idx}</div>
-          <div style="color:var(--text2)">${escapeHTML(new Date(clip.created_at).toLocaleString())}</div>
-          <div style="color:var(--text)">${escapeHTML(clip.emotion_display || clip.emotion || '-')}</div>
-          ${clip.speech_text ? `<div style="color:var(--text2)">語音：${escapeHTML(clip.speech_text)}</div>` : ''}
-          ${clip.emotion_evidence ? `<div style="color:var(--text2)">依據：${escapeHTML(clip.emotion_evidence)}</div>` : ''}
-          ${signalText ? `<div style="color:var(--text2)">訊號：${escapeHTML(signalText)}</div>` : ''}
-          ${renderDistributionBars(clip.emotion_distribution || {})}
-          <div class="clip-badges">
-            <span>${escapeHTML(personLabel)}</span>
-            <span>${escapeHTML(clip.detector || 'detector')}</span>
-            <span>person ${escapeHTML(hitCount)} / ${escapeHTML(clip.frames_checked ?? 0)}</span>
-            ${clip.raw_clip_saved ? '<span>raw saved</span>' : '<span>metadata only</span>'}
-          </div>
-        </div>`;
-      box.appendChild(item);
+      const title = document.createElement('div');
+      title.style.cssText = 'font-weight:700;color:#1e293b;margin-bottom:2px';
+      title.textContent = '片段 ' + (clips.length - idx);
+      const badge = document.createElement('span');
+      badge.style.cssText = 'background:#f1f5f9;color:#7c3aed;padding:1px 6px;border-radius:4px;margin-left:4px';
+      badge.textContent = emotion;
+      title.appendChild(badge);
+      const timeEl = document.createElement('div');
+      timeEl.style.color = '#94a3b8';
+      timeEl.textContent = ts;
+      info.appendChild(title);
+      info.appendChild(timeEl);
+      if (sigTxt) {
+        const sigEl = document.createElement('div');
+        sigEl.style.cssText = 'color:#94a3b8;margin-top:2px';
+        sigEl.textContent = sigTxt;
+        info.appendChild(sigEl);
+      }
+      if (clip.emotion_evidence) {
+        const evEl = document.createElement('div');
+        evEl.style.cssText = 'color:#64748b;margin-top:3px';
+        evEl.textContent = clip.emotion_evidence;
+        info.appendChild(evEl);
+      }
+      card.appendChild(info);
+      box.appendChild(card);
     });
   } catch {
-    box.innerHTML = '<p class="text-sm" style="color:var(--danger)">影像片段讀取失敗。</p>';
+    box.textContent = '';
+    const err = document.createElement('div');
+    err.style.cssText = 'font-size:12px;color:#dc2626;grid-column:span 2';
+    err.textContent = '影像片段讀取失敗。';
+    box.appendChild(err);
   }
 }
 
-async function clearEmotionClips() {
-  if (!confirm('確定清除目前這筆訂單的情緒影像片段？')) return;
+async function clearClipsPage() {
+  if (!confirm('確定清除目前這筆訂單的影像片段？')) return;
   await api.clearEmotionClips(sessionId);
-  await loadEmotionClips();
+  await loadClipsPage();
 }
 
 let fullSettings = {};
