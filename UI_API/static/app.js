@@ -1060,7 +1060,7 @@ function handleRealtimeEmotionAnalysisStarted(event = {}) {
 function handleRealtimeEmotionAnalysisCompleted(event = {}) {
   const payload = event.payload || {};
   console.debug('emotion_analysis_completed', payload);
-  loadInterventionStats();
+  loadDashboard();
 }
 
 function handleRealtimeStaffNotify(event = {}) {
@@ -1098,7 +1098,8 @@ function startAdminLiveRefresh() {
   if (adminRefreshTimer) return;
   adminRefreshTimer = setInterval(() => {
     if (ui.adminView?.classList.contains('hidden')) return;
-    loadInterventionStats();
+    const sec = document.getElementById('admin-sec-dashboard');
+    if (sec && sec.style.display !== 'none') loadDashboard();
   }, 4000);
 }
 
@@ -2357,6 +2358,60 @@ ui.confirmPayBtn?.addEventListener('click', () => {
 // =========================================================
 // 後台
 // =========================================================
+async function loadDashboard() {
+  try {
+    const data = await api.getInterventionStats();
+    if (data.status !== 'success') return;
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('dash-total', String(data.total_interventions ?? 0));
+    set('dash-rate',  Math.round((data.success_rate ?? 0) * 100) + '%');
+
+    const lastLog  = Array.isArray(data.recent_logs) ? data.recent_logs[0] : null;
+    const barrier  = lastLog?.barrier_result?.barrier_state || '—';
+    const action   = lastLog?.intervention?.action || '—';
+    set('dash-barrier', barrier);
+    set('dash-action',  action);
+
+    const bannerAction = document.getElementById('dash-last-action');
+    const bannerTime   = document.getElementById('dash-last-action-time');
+    if (bannerAction) bannerAction.textContent = lastLog ? ('⚡ ' + action) : '尚無介入紀錄';
+    if (bannerTime && lastLog?.timestamp) {
+      bannerTime.textContent = new Date(lastLog.timestamp).toLocaleTimeString();
+    }
+
+    const logBox = document.getElementById('dash-event-log');
+    if (logBox) {
+      const events = Array.isArray(data.recent_events) ? data.recent_events.slice(0, 3) : [];
+      if (!events.length) {
+        logBox.textContent = '尚無 POS 事件。';
+      } else {
+        const levelBg   = { urgent:'#fee2e2', watch:'#fef9c3', assist:'#fef9c3', stable:'#f1f5f9', critical:'#fecaca' };
+        const levelFg   = { urgent:'#dc2626', watch:'#92400e', assist:'#92400e', stable:'#64748b', critical:'#991b1b' };
+        logBox.textContent = '';
+        events.forEach(ev => {
+          const row  = document.createElement('div');
+          row.style.cssText = 'display:flex;justify-content:space-between;font-size:11px';
+          const ts   = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+          const desc = String(ev.event_type || ev.button_id || '-');
+          const page = String(ev.page_id || '');
+          const lvl  = String(ev.risk_level || 'stable');
+          const left = document.createElement('span');
+          left.style.color = '#64748b';
+          left.textContent = ts + '  ' + desc + (page ? ' ／ ' + page : '');
+          const badge = document.createElement('span');
+          badge.style.cssText = 'padding:1px 6px;border-radius:4px;font-size:10px;background:' +
+            (levelBg[lvl] || '#f1f5f9') + ';color:' + (levelFg[lvl] || '#64748b');
+          badge.textContent = lvl;
+          row.appendChild(left);
+          row.appendChild(badge);
+          logBox.appendChild(row);
+        });
+      }
+    }
+  } catch { /* 靜默失敗 */ }
+}
+
 function loadAdminData() {
   loadLogs();
   loadInterventionStats();
