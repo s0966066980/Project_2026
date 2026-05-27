@@ -2651,7 +2651,8 @@ async function loadSettings() {
     document.getElementById('inp-emotion-interval').value = fullSettings.EMOTION_PING_INTERVAL_SEC || 15;
     document.getElementById('inp-emotion-record-ms').value = fullSettings.EMOTION_RECORD_MS || 900;
     document.getElementById('inp-recommend-interval').value = fullSettings.RECOMMEND_INTERVAL_SEC || 30;
-    document.getElementById('inp-whisper-low-db').value = fullSettings.WHISPER_LOW_AUDIO_DB ?? -58;
+    const _wldb = document.getElementById('inp-whisper-low-db');
+    if (_wldb) _wldb.value = fullSettings.WHISPER_LOW_AUDIO_DB ?? -58;
     document.getElementById('inp-tts-cache').checked = fullSettings.ENABLE_TTS_CACHE !== false;
     document.getElementById('inp-emotion-prompt').value = fullSettings.EMOTION_LLAMA_PROMPT || '';
     document.getElementById('inp-recommend-prompt').value = fullSettings.RECOMMEND_SYSTEM_PROMPT || '';
