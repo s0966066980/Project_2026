@@ -75,7 +75,6 @@ export function switchMainView(view, callbacks = {}) {
     ui.posView.classList.replace('flex', 'hidden');
     ui.adminView.classList.replace('hidden', 'flex');
     callbacks.loadAdminData?.();
-    callbacks.initAdminToggles?.();
   } else {
     ui.adminView.classList.replace('flex', 'hidden');
     ui.posView.classList.replace('hidden', 'flex');
@@ -84,13 +83,6 @@ export function switchMainView(view, callbacks = {}) {
   }
 }
 
-export function switchAdminTab(id, callbacks = {}) {
-  document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
-  document.querySelectorAll('.admin-tab').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + id)?.classList.remove('hidden');
-  document.getElementById('tab-btn-' + id)?.classList.add('active');
-  if (id === 'clips') callbacks.loadEmotionClips?.();
-}
 
 export function updateEmotionCameraPanel({ features, isPosActive, stream }) {
   if (!ui.emotionCameraPanel) return;

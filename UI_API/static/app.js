@@ -4,7 +4,6 @@ import {
   ui,
   escapeHTML,
   switchMainView as switchMainViewUI,
-  switchAdminTab as switchAdminTabUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
 } from './ui.js?v=20260527';
@@ -455,8 +454,6 @@ function toggleFeature(key, el) {
       }
     });
   }
-  if (key === 'emotion') updateEmotionAdminVisibility();
-  if (key === 'emotionRecommend') loadEmotionStatus();
 }
 
 function applyFeaturesToPOS() {
@@ -509,52 +506,6 @@ function clearPOSFloatingUI() {
   if (ui.emotionCameraPanel) ui.emotionCameraPanel.classList.add('hidden');
 }
 
-function initAdminToggles() {
-  const f = getFeatures();
-  Object.keys(FEAT_DEFAULTS).forEach(key => {
-    const el = document.getElementById('tog-' + key);
-    if (el) el.classList.toggle('on', f[key]);
-  });
-  updateEmotionAdminVisibility();
-}
-
-function updateEmotionAdminVisibility() {
-  const visible = Boolean(getFeatures().emotion);
-  const tabBtn = document.getElementById('tab-btn-emotion');
-  const tabContent = document.getElementById('tab-emotion');
-  if (tabBtn) tabBtn.classList.toggle('hidden', !visible);
-  if (!visible && tabContent && !tabContent.classList.contains('hidden')) {
-    switchAdminTab('features');
-  }
-}
-
-async function loadEmotionStatus() {
-  const statusBox = document.getElementById('emotionStatusBox');
-  if (!statusBox) return;
-  statusBox.innerHTML = '<span class="text-sm" style="color:var(--text2)">檢查 Emotion-LLaMA 連線中...</span>';
-  try {
-    const data = await api.getEmotionStatus();
-    const ok = Boolean(data.available);
-    statusBox.innerHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div class="rounded-xl p-4" style="background:var(--surface2)">
-          <p class="text-xs font-semibold" style="color:var(--text2)">推論服務</p>
-          <p class="text-xl font-extrabold" style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${ok ? '已啟動' : '未連線'}</p>
-        </div>
-        <div class="rounded-xl p-4" style="background:var(--surface2)">
-          <p class="text-xs font-semibold" style="color:var(--text2)">服務位址</p>
-          <p class="text-sm font-bold break-all">${escapeHTML(data.gradio_url || data.url || '-')}</p>
-        </div>
-        <div class="rounded-xl p-4" style="background:var(--surface2)">
-          <p class="text-xs font-semibold" style="color:var(--text2)">AI 推播影響</p>
-          <p class="text-xl font-extrabold" style="color:var(--accent2)">${getFeatures().emotionRecommend ? '開啟' : '關閉'}</p>
-        </div>
-      </div>
-      <p class="text-xs mt-3" style="color:var(--text2)">${escapeHTML(data.message || '')}</p>`;
-  } catch (e) {
-    statusBox.innerHTML = '<span class="text-sm" style="color:var(--danger)">Emotion-LLaMA 狀態讀取失敗。</span>';
-  }
-}
 
 function updateEmotionCameraPanel() {
   updateEmotionCameraPanelUI({ features: getFeatures(), isPosActive: isPosActive(), stream });
@@ -581,7 +532,7 @@ function maybeStartRollingMediaBuffer() {
 
 function switchMainView(view) {
   if (view === 'admin' && !isAdminMode()) return;
-  switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, initAdminToggles, applyFeaturesToPOS, loadMenu });
+  switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, applyFeaturesToPOS, loadMenu });
   if (view === 'admin') {
     startAdminRealtime();
     startAdminLiveRefresh();
@@ -592,10 +543,6 @@ function switchMainView(view) {
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
 
-function switchAdminTab(id) {
-  switchAdminTabUI(id, { loadEmotionClips });
-  if (id === 'emotion') loadEmotionStatus();
-}
 
 function findMenuItems(ids = []) {
   return ids
@@ -2358,6 +2305,23 @@ ui.confirmPayBtn?.addEventListener('click', () => {
 // =========================================================
 // 後台
 // =========================================================
+function switchAdminSection(section) {
+  ['dashboard', 'emotion', 'clips', 'menu', 'rag'].forEach(s => {
+    const el = document.getElementById('admin-sec-' + s);
+    if (el) el.style.display = (s === section) ? 'flex' : 'none';
+  });
+  ['emotion', 'clips', 'menu', 'rag'].forEach(s => {
+    const btn   = document.getElementById('admin-nav-' + s);
+    const label = btn?.querySelector('span:last-child');
+    if (btn)   btn.style.background  = (s === section) ? '#f5f3ff' : 'none';
+    if (label) label.style.color     = (s === section) ? '#7c3aed' : '#64748b';
+  });
+  if (section === 'emotion') loadEmotionSettings();
+  if (section === 'clips')   loadClipsPage();
+  if (section === 'menu')    loadMenuPage();
+  if (section === 'rag')     loadRagPage();
+}
+
 async function loadDashboard() {
   try {
     const data = await api.getInterventionStats();
@@ -2495,185 +2459,11 @@ async function saveEmotionSettings() {
 }
 
 function loadAdminData() {
-  loadLogs();
-  loadInterventionStats();
-  loadSettings();
-  loadMenuPage();
-  loadRagPage();
-  loadClipsPage();
+  switchAdminSection('dashboard');
+  loadDashboard();
 }
 
 
-function topCountLabel(counts = {}, labelType = '') {
-  const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
-  if (!entries.length) return '-';
-  return `${zhInteractionLabel(labelType, entries[0][0])} (${entries[0][1]})`;
-}
-
-function renderCountList(containerId, counts = {}, labelType = '') {
-  const box = document.getElementById(containerId);
-  if (!box) return;
-  const entries = Object.entries(counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
-  if (!entries.length) {
-    box.innerHTML = `<p class="text-sm" style="color:var(--text2)">尚無資料。</p>`;
-    return;
-  }
-  const max = Math.max(...entries.map(([, count]) => Number(count) || 0), 1);
-  box.innerHTML = entries.slice(0, 8).map(([label, count]) => {
-    const value = Number(count) || 0;
-    const width = Math.max(6, Math.round((value / max) * 100));
-    return `
-      <div>
-        <div class="flex justify-between gap-3 mb-1">
-          <span class="truncate" style="color:var(--text)">${escapeHTML(zhInteractionLabel(labelType, label))}</span>
-          <b style="color:var(--accent2)">${value}</b>
-        </div>
-        <div class="h-2 rounded-full overflow-hidden" style="background:var(--surface2)">
-          <i class="block h-full rounded-full" style="width:${width}%;background:var(--accent)"></i>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-async function loadInterventionStats() {
-  if (interventionStatsLoading) return;
-  interventionStatsLoading = true;
-  try {
-    const data = await api.getInterventionStats();
-    if (data.status !== 'success') throw new Error(data.message || 'stats failed');
-    const total = Number(data.total_interventions || 0);
-    const successRate = Math.round(Number(data.success_rate || 0) * 100);
-    document.getElementById('intervention-total').textContent = total;
-    document.getElementById('intervention-success-rate').textContent = `${successRate}%`;
-    document.getElementById('intervention-top-state').textContent = topCountLabel(data.barrier_state_counts, 'barrier');
-    document.getElementById('intervention-top-action').textContent = topCountLabel(data.action_counts, 'action');
-    renderCountList('barrierStateCounts', data.barrier_state_counts, 'barrier');
-    renderCountList('interventionActionCounts', data.action_counts, 'action');
-    renderCountList(
-      'pageIssueCounts',
-      data.event_page_issue_counts || data.intervention_page_counts || data.page_issue_counts,
-      'page'
-    );
-
-    // 三大專利實施例統計
-    const scenarioCounts = data.scenario_counts || {};
-    const scenarioRate = data.scenario_success_rate || {};
-    [
-      ['operation_difficulty', 'operation'],
-      ['menu_hesitation',      'hesitation'],
-      ['payment_problem',      'payment'],
-    ].forEach(([sid, key]) => {
-      const countEl = document.getElementById(`scenario-${key}-count`);
-      const rateEl  = document.getElementById(`scenario-${key}-rate`);
-      if (countEl) countEl.textContent = String(scenarioCounts[sid] ?? 0);
-      if (rateEl)  rateEl.textContent  = `成功率 ${Math.round(Number(scenarioRate[sid] ?? 0) * 100)}%`;
-    });
-
-    const tbody = document.getElementById('interventionLogsBody');
-    if (!tbody) return;
-    const logs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
-    lastInterventionLogs = logs;
-    tbody.innerHTML = '';
-    logs.forEach(log => {
-      const barrier = log.barrier_result || {};
-      const intervention = log.intervention || {};
-      const uiContext = log.ui_context || {};
-      const result = log.result || {};
-      const success = Boolean(result.checkout_success || result.payment_success);
-      const resultBadge = success
-        ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">完成</span>`
-        : `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)">待觀察</span>`;
-      const tr = document.createElement('tr');
-      const barrierLabel = zhInteractionLabel('barrier', barrier.barrier_state || '-');
-      const actionLabel = zhInteractionLabel('action', intervention.action || '-');
-      const pageLabel = zhInteractionLabel('page', uiContext.page_id || '-');
-      tr.innerHTML = `
-        <td class="p-3 text-xs" style="color:var(--text2)">${log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}</td>
-        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(pageLabel)}</td>
-        <td class="p-3 text-xs" style="color:var(--accent2)">${escapeHTML(barrierLabel)}</td>
-        <td class="p-3 text-xs" style="color:var(--info)">${escapeHTML(actionLabel)}</td>
-        <td class="p-3 text-center">${resultBadge}</td>`;
-      tbody.appendChild(tr);
-    });
-    if (!logs.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-sm" style="color:var(--text2)">尚無介入紀錄。</td></tr>`;
-    }
-
-    const eventsBody = document.getElementById('interactionEventsBody');
-    if (!eventsBody) return;
-    const events = Array.isArray(data.recent_events) ? data.recent_events : [];
-    eventsBody.innerHTML = '';
-    events.forEach(event => {
-      const metadata = event.metadata || {};
-      const source = event.button_id || metadata.source || metadata.reason || '-';
-      const eventPageLabel = zhInteractionLabel('page', event.page_id || '-');
-      const eventTypeLabel = zhInteractionLabel('event', event.event_type || '-');
-      const sourceLabel = zhInteractionLabel('source', source);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="p-3 text-xs" style="color:var(--text2)">${event.timestamp ? new Date(event.timestamp).toLocaleString() : '-'}</td>
-        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(eventPageLabel)}</td>
-        <td class="p-3 text-xs" style="color:var(--accent2)">${escapeHTML(eventTypeLabel)}</td>
-        <td class="p-3 text-xs" style="color:var(--text2)">${escapeHTML(sourceLabel)}</td>`;
-      eventsBody.appendChild(tr);
-    });
-    if (!events.length) {
-      eventsBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-sm" style="color:var(--text2)">尚無 POS 操作事件。</td></tr>`;
-    }
-  } catch {
-    renderCountList('barrierStateCounts', {});
-    renderCountList('interventionActionCounts', {});
-    renderCountList('pageIssueCounts', {});
-    [['operation','0'],['hesitation','0'],['payment','0']].forEach(([key, val]) => {
-      const c = document.getElementById(`scenario-${key}-count`);
-      const r = document.getElementById(`scenario-${key}-rate`);
-      if (c) c.textContent = val;
-      if (r) r.textContent = '成功率 0%';
-    });
-  } finally {
-    interventionStatsLoading = false;
-  }
-}
-
-async function loadLogs() {
-  try {
-    const data = await api.getLogs();
-    document.getElementById('stat-total').textContent = data.total;
-    document.getElementById('stat-rate').textContent = data.success_rate + '%';
-    document.getElementById('stat-success').textContent = data.success_count ?? data.logs.filter(l => l.is_success).length;
-    const tbody = document.getElementById('logsTableBody');
-    tbody.innerHTML = '';
-    [...data.logs].reverse().forEach(log => {
-      const badge = log.is_success
-        ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#dcf5e7;color:var(--success)">✓ 成功</span>`
-        : `<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#fdecea;color:#c0392b">✗ 未命中</span>`;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="p-3 text-xs" style="color:var(--text2)">${new Date(log.timestamp).toLocaleString()}</td>
-        <td class="p-3 text-xs" style="color:var(--text)">${escapeHTML(log.emotions_summary || '-')}</td>
-        <td class="p-3 font-mono text-xs" style="color:var(--info)">[${escapeHTML((log.pushed_ids || []).join(','))}]</td>
-        <td class="p-3 font-mono text-xs" style="color:var(--text)">[${escapeHTML((log.final_cart_ids || []).join(','))}]</td>
-        <td class="p-3 text-center">${badge}</td>
-        <td class="p-3 text-center">
-          <button class="text-xs px-2 py-1 rounded-xl" style="color:var(--danger);border:1px solid var(--border)" data-delete-log="${escapeHTML(log._index)}">
-            <i class="fas fa-trash"></i>
-          </button>
-        </td>`;
-      tr.querySelector('[data-delete-log]').onclick = async () => {
-        if (!confirm('確定刪除這筆推播成效資料？')) return;
-        await api.deleteLog(log._index);
-        await loadLogs();
-      };
-      tbody.appendChild(tr);
-    });
-  } catch { }
-}
-
-async function clearPushLogs() {
-  if (!confirm('確定清空全部推播成效資料？')) return;
-  await api.clearLogs();
-  await loadLogs();
-}
 
 async function clearAllRagDocs() {
   if (!confirm('確定清空全部 RAG 文本、審查紀錄與向量庫？菜單資料會重新建立為基礎 RAG。')) return;
@@ -2794,88 +2584,6 @@ async function clearClipsPage() {
   await loadClipsPage();
 }
 
-let fullSettings = {};
-async function loadSettings() {
-  try {
-    fullSettings = await api.getSettings();
-    runtimeSettings = { ...runtimeSettings, ...fullSettings };
-    const modelName = fullSettings.MODEL_NAME || 'llama3.2';
-    updateGeminiOptionsVisibility(fullSettings);
-    const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
-    const qaProvider = allowGemini ? (fullSettings.QA_AI_PROVIDER || 'ollama') : 'ollama';
-    document.getElementById('inp-ai-provider').value = qaProvider;
-    document.getElementById('inp-model-name').value = modelName;
-    document.getElementById('inp-ask-model-name').value = modelName;
-    document.getElementById('inp-gemini-model-name').value = fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview';
-    document.getElementById('inp-gemini-fallback').checked = fullSettings.GEMINI_FALLBACK_TO_OLLAMA !== false;
-    document.getElementById('inp-temp').value = fullSettings.OLLAMA_TEMPERATURE || 0.8;
-    document.getElementById('inp-performance-mode').value = fullSettings.PERFORMANCE_MODE || 'balanced';
-    document.getElementById('inp-num-predict').value = fullSettings.OLLAMA_NUM_PREDICT || 220;
-    document.getElementById('inp-rag-top-k').value = fullSettings.RAG_TOP_K || 3;
-    const rag = fullSettings.rag || {};
-    document.getElementById('inp-rag-strict-grounding').checked = rag.strict_grounding === true;
-    document.getElementById('inp-rag-answer-verification').checked = rag.answer_verification === true;
-    document.getElementById('inp-rag-fail-closed').checked = rag.fail_closed_on_eval_error === true;
-    document.getElementById('inp-emotion-interval').value = fullSettings.EMOTION_PING_INTERVAL_SEC || 15;
-    document.getElementById('inp-emotion-record-ms').value = fullSettings.EMOTION_RECORD_MS || 900;
-    document.getElementById('inp-recommend-interval').value = fullSettings.RECOMMEND_INTERVAL_SEC || 30;
-    const _wldb = document.getElementById('inp-whisper-low-db');
-    if (_wldb) _wldb.value = fullSettings.WHISPER_LOW_AUDIO_DB ?? -58;
-    document.getElementById('inp-tts-cache').checked = fullSettings.ENABLE_TTS_CACHE !== false;
-    document.getElementById('inp-emotion-prompt').value = fullSettings.EMOTION_LLAMA_PROMPT || '';
-    document.getElementById('inp-recommend-prompt').value = fullSettings.RECOMMEND_SYSTEM_PROMPT || '';
-    document.getElementById('inp-ask-prompt').value = fullSettings.ASK_SYSTEM_PROMPT || '';
-    document.getElementById('inp-ask-prompt-en').value = fullSettings.ASK_SYSTEM_PROMPT_EN || '';
-    const _vaModelEl = document.getElementById('inp-voice-assist-model');
-    if (_vaModelEl) _vaModelEl.value = fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:9b';
-    const _vaPromptEl = document.getElementById('inp-voice-assist-prompt');
-    if (_vaPromptEl) _vaPromptEl.value = fullSettings.VOICE_ASSIST_SYSTEM_PROMPT || '';
-  } catch { }
-}
-
-async function saveSettings() {
-  const selectedModel = document.getElementById('inp-model-name').value || 'llama3.2';
-  const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
-  fullSettings.AI_PROVIDER = 'ollama';
-  fullSettings.QA_AI_PROVIDER = allowGemini
-    ? (document.getElementById('inp-ai-provider').value || 'ollama')
-    : 'ollama';
-  fullSettings.EMOTION_AI_PROVIDER = 'ollama';
-  fullSettings.MODEL_NAME = selectedModel;
-  fullSettings.ASK_MODEL_NAME = selectedModel;
-  fullSettings.GEMINI_MODEL_NAME = document.getElementById('inp-gemini-model-name').value.trim() || 'gemini-3-flash-preview';
-  fullSettings.GEMINI_FALLBACK_TO_OLLAMA = document.getElementById('inp-gemini-fallback').checked;
-  fullSettings.OLLAMA_TEMPERATURE = parseFloat(document.getElementById('inp-temp').value);
-  fullSettings.PERFORMANCE_MODE = document.getElementById('inp-performance-mode').value;
-  fullSettings.OLLAMA_NUM_PREDICT = parseInt(document.getElementById('inp-num-predict').value || '220', 10);
-  fullSettings.RAG_TOP_K = parseInt(document.getElementById('inp-rag-top-k').value || '3', 10);
-  const _existingRag = fullSettings.rag || {};
-  fullSettings.rag = {
-    ..._existingRag,                     // 保留後端目前值（已移除 UI 的調參不被清空）
-    strict_grounding: document.getElementById('inp-rag-strict-grounding')?.checked ?? _existingRag.strict_grounding ?? false,
-    answer_verification: document.getElementById('inp-rag-answer-verification')?.checked ?? _existingRag.answer_verification ?? false,
-    fail_closed_on_eval_error: document.getElementById('inp-rag-fail-closed')?.checked ?? _existingRag.fail_closed_on_eval_error ?? false,
-  };
-  fullSettings.EMOTION_PING_INTERVAL_SEC = parseFloat(document.getElementById('inp-emotion-interval').value || '15');
-  fullSettings.EMOTION_RECORD_MS = parseInt(document.getElementById('inp-emotion-record-ms').value || '900', 10);
-  fullSettings.RECOMMEND_INTERVAL_SEC = parseFloat(document.getElementById('inp-recommend-interval').value || '30');
-  fullSettings.WHISPER_LOW_AUDIO_DB = parseFloat(document.getElementById('inp-whisper-low-db')?.value || '-58');
-  fullSettings.ENABLE_TTS_CACHE = document.getElementById('inp-tts-cache').checked;
-  fullSettings.EMOTION_LLAMA_PROMPT = document.getElementById('inp-emotion-prompt').value;
-  fullSettings.RECOMMEND_SYSTEM_PROMPT = document.getElementById('inp-recommend-prompt').value;
-  fullSettings.ASK_SYSTEM_PROMPT = document.getElementById('inp-ask-prompt').value;
-  fullSettings.ASK_SYSTEM_PROMPT_EN = document.getElementById('inp-ask-prompt-en').value;
-  const _vaSave = document.getElementById('inp-voice-assist-model');
-  fullSettings.VOICE_ASSIST_MODEL = _vaSave ? (_vaSave.value.trim() || 'qwen3.5:9b') : 'qwen3.5:9b';
-  const _vaPSave = document.getElementById('inp-voice-assist-prompt');
-  fullSettings.VOICE_ASSIST_SYSTEM_PROMPT = _vaPSave ? _vaPSave.value : '';
-  try {
-    await api.saveSettings(fullSettings);
-    runtimeSettings = { ...runtimeSettings, ...fullSettings };
-    restartLoops();
-    alert('設定儲存成功！');
-  } catch { alert('儲存失敗！'); }
-}
 
 async function loadMenuPage() {
   try {
@@ -3205,7 +2913,7 @@ window.clearInterventionHistory = async function() {
     lastInterventionLogs = [];
     renderInterventionHistory();
     showAdminNotice('歷史介入紀錄已清空。', 'success');
-    loadInterventionStats();
+    loadDashboard();
   } catch {
     showAdminNotice('清空失敗，請重試。', 'error');
   }
@@ -3215,13 +2923,10 @@ window.clearInterventionHistory = async function() {
 Object.assign(window, {
   closeVoiceBubble,
   switchMainView,
-  switchAdminTab,
-  loadInterventionStats,
+  switchAdminSection,
   loadClipsPage,
-  loadEmotionStatus,
-  clearPushLogs,
-  toggleFeature,
-  saveSettings,
+  loadEmotionSettings,
+  saveEmotionSettings,
   clearClipsPage,
   saveMenuJson,
   loadRagPage,
@@ -3245,6 +2950,5 @@ if (isAdminMode()) {
   applyKioskLanguage();
   cartManager.renderCart();
   applyFeaturesToPOS();
-  initAdminToggles();
   initRealtimeClients();
 }
