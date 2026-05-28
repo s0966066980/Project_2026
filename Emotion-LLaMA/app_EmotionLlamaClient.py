@@ -67,6 +67,112 @@ def is_readable_video(path: str) -> tuple[bool, str]:
         return False, f"opencv_check_failed: {e}"
 
 
+def _quick_quality_check(path: str) -> tuple[bool, str]:
+    """
+    OpenCV 快篩：亮度 + 動態檢查。
+    通過 → (True, "")；不通過 → (False, reason)。
+    reason: "too_dark" | "no_motion" | "quality_check_error"
+    """
+    try:
+        import cv2
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            cap.release()
+            return False, "quality_check_error"
+
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        # 均勻取最多 5 幀
+        positions = list(range(0, max(frame_count, 1), max(1, frame_count // 5)))[:5]
+
+        brightnesses = []
+        grays = []
+        for pos in positions:
+            if frame_count > 0:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            brightnesses.append(float(gray.mean()))
+            grays.append(cv2.resize(gray, (80, 45)))
+        cap.release()
+
+        if not brightnesses:
+            return False, "quality_check_error"
+
+        # 亮度門檻：平均亮度 < 15/255 視為太暗
+        avg_brightness = sum(brightnesses) / len(brightnesses)
+        if avg_brightness < 15.0:
+            return False, "too_dark"
+
+        # 動態門檻：幀差分 < 0.003 視為完全靜止（無人）
+        if len(grays) >= 2:
+            diffs = [
+                float(cv2.absdiff(grays[i], grays[i + 1]).mean()) / 255.0
+                for i in range(len(grays) - 1)
+            ]
+            avg_diff = sum(diffs) / len(diffs)
+            if avg_diff < 0.003:
+                return False, "no_motion"
+
+        return True, ""
+    except Exception as e:
+        print(f"⚠️ quality_check 失敗（略過，繼續推論）: {e}")
+        return True, ""  # 快篩失敗時保守通過，不阻擋推論
+
+
+def _try_extract_structured(text: str) -> dict:
+    """
+    嘗試從 Emotion-LLaMA 的自由文字回應解析結構化資料。
+    支援兩種格式：
+      1. 標籤格式：「FACIAL: ...\nBODY: ...\nEMOTION: ...」
+      2. JSON 格式：{"facial": ..., "emotion": ...}（若模型剛好輸出）
+    永遠回傳包含 description 的 dict；欄位可能為空字串但不為 None。
+    """
+    import json as _json
+    import re as _re
+
+    result = {
+        "facial": "",
+        "body": "",
+        "vocal": "",
+        "emotion": "",
+        "intensity": "",
+        "description": text,
+    }
+
+    # 嘗試解析 JSON
+    try:
+        json_match = _re.search(r'\{[^{}]+\}', text, _re.DOTALL)
+        if json_match:
+            parsed = _json.loads(json_match.group())
+            for key in ("facial", "body", "vocal", "emotion", "intensity"):
+                if key in parsed:
+                    result[key] = str(parsed[key]).strip()
+            return result
+    except Exception:
+        pass
+
+    # 解析標籤格式（FACIAL: ... / BODY: ... 等）
+    label_map = {
+        "FACIAL": "facial",
+        "BODY": "body",
+        "VOCAL": "vocal",
+        "EMOTION": "emotion",
+        "INTENSITY": "intensity",
+    }
+    for label, key in label_map.items():
+        pattern = _re.compile(
+            rf'{label}\s*[:\-]\s*(.+?)(?=\n[A-Z]{{3,}}[:\-]|$)',
+            _re.IGNORECASE | _re.DOTALL,
+        )
+        match = pattern.search(text)
+        if match:
+            result[key] = match.group(1).strip().strip('[]').strip()
+
+    return result
+
+
 def _ffmpeg_sanitize_video(path: str, keep_audio: bool = True) -> tuple[str, str | None]:
     fd, output_path = tempfile.mkstemp(suffix=".mp4")
     os.close(fd)
@@ -186,6 +292,11 @@ def process_video_question(video_path: str, question: str) -> str:
     if not video_ok:
         return f"[EMOTION_LLAMA_ERROR] {video_error}: {video_path}"
 
+    quality_ok, quality_reason = _quick_quality_check(video_path)
+    if not quality_ok:
+        print(f"⚠️ Emotion-LLaMA 品質快篩未通過: {quality_reason}")
+        return f"[EMOTION_LLAMA_SKIP] {quality_reason}"
+
     chat = get_chat()
 
     try:
@@ -237,9 +348,14 @@ def process_video_question(video_path: str, question: str) -> str:
             response = response.replace(tag, "")
         response = response.strip()
 
+        # 解析結構化資料，回傳 JSON 字串讓下游穩定解析
+        import json as _json
+        structured = _try_extract_structured(response)
+        result_json = _json.dumps(structured, ensure_ascii=False)
+
         elapsed_ms = int((time.time() - start_ts) * 1000)
-        print(f"✅ 推論完成: elapsed_ms={elapsed_ms}, response={response[:150]}")
-        return response
+        print(f"✅ 推論完成: elapsed_ms={elapsed_ms}, emotion={structured.get('emotion')}, response={response[:80]}")
+        return result_json
 
     except Exception as e:
         print(f"❌ 推論失敗: {e}")

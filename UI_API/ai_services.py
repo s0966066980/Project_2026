@@ -586,7 +586,33 @@ async def async_get_emotion_from_llama(
             for tag in ["<s>", "</s>", "[INST]", "[/INST]"]:
                 emotion_text = emotion_text.replace(tag, "")
             emotion_text = emotion_text.strip()
-        return {"emotion_raw": emotion_text, "emotion_prompt": prompt, "prepared_video": prepared_path}
+
+        # 品質快篩未通過：Emotion-LLaMA 回傳 [EMOTION_LLAMA_SKIP] reason
+        if emotion_text.startswith("[EMOTION_LLAMA_SKIP]"):
+            skip_reason = emotion_text.removeprefix("[EMOTION_LLAMA_SKIP]").strip()
+            print(f"⚠️ Emotion-LLaMA 快篩跳過: {skip_reason}")
+            return {
+                "emotion_raw": "",
+                "emotion_available": False,
+                "emotion_error": f"quality_skip:{skip_reason}",
+            }
+
+        # 嘗試解析結構化 JSON（優化 A：app_EmotionLlamaClient 回傳 JSON 字串）
+        emotion_structured = None
+        try:
+            import json as _json
+            parsed = _json.loads(emotion_text)
+            if isinstance(parsed, dict) and "description" in parsed:
+                emotion_structured = parsed
+                # 讓 emotion_raw 仍然是可讀文字（description 欄位）
+                emotion_text = parsed.get("description") or emotion_text
+        except Exception:
+            pass  # 非 JSON 格式（舊版相容）
+
+        result = {"emotion_raw": emotion_text, "emotion_prompt": prompt, "prepared_video": prepared_path}
+        if emotion_structured:
+            result["emotion_structured"] = emotion_structured
+        return result
     except Exception as e:
         print(f"⚠️ Emotion-LLaMA 呼叫失敗: {e}")
         return {
