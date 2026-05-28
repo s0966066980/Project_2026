@@ -576,6 +576,7 @@ const recommendationManager = createRecommendationManager({
 
 const {
   clearAllPushCards,
+  clearHesitationCard,
   displayRecommendation,
   showPushNotice
 } = recommendationManager;
@@ -1030,132 +1031,72 @@ function stopAdminLiveRefresh() {
   adminRefreshTimer = null;
 }
 
-async function showScenarioRecommendationCard(intervention = {}, barrierResult = {}) {
+function showHesitationCard(intervention = {}) {
   if (!isPosActive() || !ui.floatPush) return;
-  if (_isVoiceActive()) return;   // 語音進行中不顯示
-  if (Date.now() - lastInteractionAt < 15000) return;   // 閒置未滿 15 秒，不打擾
-  // 清除所有現有推播卡及殘留的 app-level 計時器
-  if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
-  clearAllPushCards();
+  if (_isVoiceActive()) return;
+  if (Date.now() - lastInteractionAt < 15000) return;
+  if (Date.now() - lastValidOrderActionAt < 15000) return;
 
-  // 使用 closure 計時器（不污染全域 interactionModalTimer）
-  let _renderInFlight = false;
-  let _scenarioCardTimer = null;
-  const _clearScenarioTimer = () => {
-    if (_scenarioCardTimer) { clearTimeout(_scenarioCardTimer); _scenarioCardTimer = null; }
-  };
+  clearHesitationCard();
 
-  async function resolveItems() {
-    const directIds = Array.isArray(intervention.recommendation_ids)
-      ? intervention.recommendation_ids : [];
-    let items = findMenuItems(directIds);
-    if (items.length) return items.slice(0, 3);
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    try {
-      const data = await api.autoRecommend(fd);
-      if (data.status === 'success') items = findMenuItems(data.recommendation_ids || []);
-    } catch { /* ignore */ }
-    if (!items.length) {
-      items = menuData.filter(item => item && item.id && Number(item.price || 0) > 0).slice(0, 3);
-    }
-    return items.slice(0, 3);
+  const directIds = Array.isArray(intervention.recommendation_ids)
+    ? intervention.recommendation_ids : [];
+  let items = findMenuItems(directIds);
+  if (!items.length) {
+    items = menuData.filter(item => item && item.id && Number(item.price || 0) > 0).slice(0, 3);
   }
+  items = items.slice(0, 3);
+  if (!items.length) return;
 
-  function _makeBtn(label, cls, icon) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = cls;
-    if (icon) { const i = document.createElement('i'); i.className = icon; btn.appendChild(i); btn.appendChild(document.createTextNode(' ')); }
-    btn.appendChild(document.createTextNode(label));
-    return btn;
-  }
+  const names = items.map(i => i.name || '').filter(Boolean).join('、');
 
-  // 純 DOM 建構，不修改 floatPush，回傳 card element
-  function buildCard(items = []) {
-    const itemList = items.filter(Boolean).slice(0, 3);
-    const names = itemList.map(i => i.name || '').filter(Boolean).join('、') || '熱門餐點';
-    const total = itemList.reduce((s, i) => s + Number(i.price || 0), 0);
+  const card = document.createElement('div');
+  card.className = 'push-card';
 
-    const card = document.createElement('div');
-    card.className = 'push-card';
+  const header = document.createElement('div');
+  header.className = 'push-card-header';
+  const titleEl = document.createElement('span');
+  titleEl.className = 'push-card-title';
+  titleEl.textContent = '為您推薦';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'push-close-btn';
+  closeBtn.setAttribute('aria-label', '關閉');
+  const closeIcon = document.createElement('i');
+  closeIcon.className = 'fas fa-times';
+  closeBtn.appendChild(closeIcon);
+  header.append(titleEl, closeBtn);
 
-    const header = document.createElement('div');
-    header.className = 'push-card-header';
-    const titleEl = document.createElement('span');
-    titleEl.className = 'push-card-title';
-    titleEl.textContent = '還在猶豫嗎？';
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button'; closeBtn.className = 'push-close-btn'; closeBtn.setAttribute('aria-label', '關閉');
-    const closeIcon = document.createElement('i'); closeIcon.className = 'fas fa-times';
-    closeBtn.appendChild(closeIcon);
-    header.append(titleEl, closeBtn);
+  const nameEl = document.createElement('div');
+  nameEl.className = 'push-item-names';
+  nameEl.textContent = names;
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'push-item-names'; nameEl.textContent = names;
+  const reasonEl = document.createElement('p');
+  reasonEl.className = 'push-reason';
+  reasonEl.textContent = String(intervention.tts_text || '這是為您挑選的熱門餐點。');
 
-    const reasonEl = document.createElement('p');
-    reasonEl.className = 'push-reason';
-    reasonEl.textContent = String(intervention.tts_text || '我可以推薦幾個熱門選擇給您。');
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'push-add-btn btn-primary';
+  const cartIcon = document.createElement('i');
+  cartIcon.className = 'fas fa-cart-plus';
+  addBtn.appendChild(cartIcon);
+  addBtn.appendChild(document.createTextNode(' 加入推薦餐點'));
 
-    const btnGrid = document.createElement('div');
-    btnGrid.className = 'grid gap-2';
+  card.append(header, nameEl, reasonEl, addBtn);
+  ui.floatPush.replaceChildren(card);
 
-    if (total) {
-      const priceEl = document.createElement('div');
-      priceEl.className = 'push-item-price';
-      priceEl.textContent = itemList.length > 1 ? `組合 $${total}` : `$${Number(itemList[0].price || 0)}`;
-      card.append(header, nameEl, priceEl, reasonEl, btnGrid);
-    } else {
-      card.append(header, nameEl, reasonEl, btnGrid);
-    }
+  let timer = setTimeout(() => clearHesitationCard(), 10000);
 
-    const addBtn = _makeBtn('加入推薦餐點', 'push-add-btn btn-primary', 'fas fa-cart-plus');
-    addBtn.addEventListener('click', () => {
-      _clearScenarioTimer();
-      itemList.forEach(item => trackedAddToCart(item, { source: 'scenario_recommendation' }));
-      showPushNotice('已加入推薦餐點');
-    });
-    const refreshBtn = _makeBtn('換一個推薦', 'push-add-btn', null);
-    refreshBtn.addEventListener('click', () => renderWithFlip());
-    const voiceBtn = _makeBtn('語音模式', 'push-add-btn', 'fas fa-microphone');
-    voiceBtn.addEventListener('click', () => {
-      _clearScenarioTimer(); clearAllPushCards();
-      startAskRecording(document.getElementById('voiceAssistBtn'));
-    });
-    btnGrid.append(addBtn, refreshBtn, voiceBtn);
-
-    closeBtn.addEventListener('click', () => { _clearScenarioTimer(); clearAllPushCards(); });
-
-    return card;
-  }
-
-  // 翻書特效換入新卡（換一個 & 初次顯示皆呼叫此函式）
-  async function renderWithFlip(items) {
-    if (_renderInFlight) return;
-    _renderInFlight = true;
-    try {
-      if (!items) items = await resolveItems();
-      const newCard = buildCard(items);
-
-      const oldCard = ui.floatPush.firstElementChild;
-      if (oldCard && oldCard.classList.contains('push-card')) {
-        oldCard.classList.add('push-card-flip-out');
-        await new Promise(r => setTimeout(r, 220));
-      }
-
-      ui.floatPush.replaceChildren(newCard);
-      newCard.style.animation = 'none';
-      newCard.classList.add('push-card-flip-in');
-
-      _clearScenarioTimer();
-      _scenarioCardTimer = setTimeout(() => { _scenarioCardTimer = null; clearAllPushCards(); }, 10000);
-    } finally {
-      _renderInFlight = false;
-    }
-  }
-
-  await renderWithFlip(await resolveItems());
+  addBtn.addEventListener('click', () => {
+    clearTimeout(timer);
+    items.forEach(item => trackedAddToCart(item, { source: 'hesitation_recommendation' }));
+    showPushNotice('已加入推薦餐點');
+  });
+  closeBtn.addEventListener('click', () => {
+    clearTimeout(timer);
+    clearHesitationCard();
+  });
 }
 
 function applyIntervention(intervention = {}, barrierResult = {}) {
@@ -1180,13 +1121,7 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
     return;
   }
   if (modalName === 'recommendation_card') {
-    // 只有顧客超過 15 秒沒有點選任何餐點，才顯示猶豫推播，避免干擾正在選餐的顧客
-    const HESITATION_IDLE_MS = 15_000;
-    if (Date.now() - lastValidOrderActionAt < HESITATION_IDLE_MS) {
-      console.log('[intervention] skip recommendation_card: user acted within 15s');
-      return;
-    }
-    showScenarioRecommendationCard(intervention, barrierResult);
+    showHesitationCard(intervention);
     return;
   }
   let box = document.getElementById('interactionInterventionBox');
@@ -1577,7 +1512,6 @@ async function fetchAndDisplayRecommend() {
   if (_isVoiceActive()) return;
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
   if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
-  if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
   const fd = new FormData();
   fd.append('session_id', sessionId);
   const ctrl = new AbortController();
@@ -1596,7 +1530,7 @@ async function startRecommendLoop() {
   if (isAdminMode() || recommendLoopActive) return;
   recommendLoopActive = true;
   while (recommendLoopActive) {
-    if (!isPosActive() || document.hidden) {
+    if (!isPosActive() || document.hidden || Date.now() < promotionPausedUntil) {
       await new Promise(r => setTimeout(r, 1000));
       continue;
     }
