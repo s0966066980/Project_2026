@@ -8,23 +8,32 @@ export function createRecommendationManager({
 }) {
   let currentTicker = null;
   let dismissTimer = null;
+  let _currentResolve = null;   // 修復：外部 clearTicker 時立即 resolve ticker Promise
 
   function clearTicker() {
     if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
+    // 立即 resolve 任何待中的 ticker Promise，防止 startRecommendLoop 凍結
+    const res = _currentResolve;
+    _currentResolve = null;
+    res?.();
     if (!ui.recommendTicker) return;
     if (currentTicker) {
       currentTicker.classList.add('ticker-fade-out');
       const t = currentTicker;
       currentTicker = null;
-      setTimeout(() => { t.remove(); ui.recommendTicker.replaceChildren(); }, 400);
+      setTimeout(() => { t.remove(); ui.recommendTicker?.replaceChildren(); }, 400);
     } else {
-      ui.recommendTicker.replaceChildren();
+      ui.recommendTicker?.replaceChildren();
     }
+  }
+
+  function clearHesitationCard() {
+    ui.floatPush?.replaceChildren();
   }
 
   function clearAllPushCards() {
     clearTicker();
-    ui.floatPush?.replaceChildren();
+    clearHesitationCard();
   }
 
   function showPushNotice(text) {
@@ -47,7 +56,7 @@ export function createRecommendationManager({
     const itemList = (Array.isArray(items) ? items : [items]).filter(Boolean).slice(0, 3);
     if (!itemList.length) return Promise.resolve();
 
-    clearTicker();
+    clearTicker();  // 清除前一個（同時 resolve 前一個 Promise）
 
     const names = itemList.map(i => i.name || '').filter(Boolean).join('、');
     const total = itemList.reduce((s, item) => s + Number(item.price || 0), 0);
@@ -89,9 +98,11 @@ export function createRecommendationManager({
     currentTicker = bar;
 
     return new Promise((resolve) => {
+      _currentResolve = resolve;
       function finish() {
         if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
-        clearTicker();
+        _currentResolve = null;
+        clearTicker();   // 視覺清理（res?.() 因 _currentResolve=null 已是 no-op）
         resolve();
       }
       addBtn.onclick = () => { itemList.forEach(item => addToCart(item)); finish(); };
@@ -111,5 +122,5 @@ export function createRecommendationManager({
     return showPushCard(items, data.reason || '');
   }
 
-  return { showPushCard, clearAllPushCards, displayRecommendation, showPushNotice };
+  return { showPushCard, clearAllPushCards, clearHesitationCard, displayRecommendation, showPushNotice };
 }
