@@ -424,9 +424,27 @@ async def analyze_customer_emotion(
             }
             return emotion_structured["emotion_display"]
         if structure_with_llm:
-            emotion_structured = await emotion_to_structured_display(
-                emotion_text, None, speech_text, media_signals, ollama_semaphore
-            )
+            # 優化 A：若 Emotion-LLaMA 已回傳結構化資料，跳過 Ollama 二次結構化
+            llama_structured = emotion_data.get("emotion_structured")
+            if llama_structured and llama_structured.get("emotion"):
+                emotion_label = llama_structured.get("emotion", "unknown")
+                evidence = (
+                    f"FACIAL: {llama_structured.get('facial', '')}, "
+                    f"BODY: {llama_structured.get('body', '')}, "
+                    f"VOCAL: {llama_structured.get('vocal', '')}, "
+                    f"INTENSITY: {llama_structured.get('intensity', '')}"
+                ).strip(", ")
+                emotion_structured = build_emotion_structured(
+                    emotion_label,
+                    emotion_text,
+                    evidence_hint=evidence,
+                    speech_text=speech_text,
+                    media_signals=media_signals,
+                )
+            else:
+                emotion_structured = await emotion_to_structured_display(
+                    emotion_text, None, speech_text, media_signals, ollama_semaphore
+                )
         else:
             emotion_structured = build_emotion_structured(
                 emotion_text,

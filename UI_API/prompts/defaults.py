@@ -1,12 +1,12 @@
 EMOTION_LLAMA_PROMPT = (
     "The person in video says: {speech_text}\n"
-    "[reason] What are the facial expressions, body language, gestures, "
-    "and vocal tone used in the video? What is the intended meaning behind "
-    "the words? Which emotion does this reflect? If the audio is quiet or "
-    "there are few words, do not answer unable only because speech is limited; "
-    "use visible facial expressions, subtle gestures, posture, and body language. "
-    "If a person is visible but emotional cues are subtle, describe the most "
-    "likely low-intensity emotional state and the evidence."
+    "Describe the person's behavior in these labeled sections:\n"
+    "FACIAL: [describe facial expression]\n"
+    "BODY: [describe posture and gestures]\n"
+    "VOCAL: [describe tone and energy from audio]\n"
+    "EMOTION: [one word primary emotion]\n"
+    "INTENSITY: [low / medium / high]\n"
+    "Focus on observable cues. If audio is quiet, rely on visual evidence."
 )
 
 RECOMMEND_SYSTEM_PROMPT = (
