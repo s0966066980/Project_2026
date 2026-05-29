@@ -14,7 +14,6 @@ import {
   captureVideoFrameBlob
 } from './media.js?v=20260527';
 import { createCartManager } from './cart.js?v=20260527';
-import { createRecommendationManager } from './recommendation.js?v=20260527';
 import { connectRealtime } from './realtime_client.js?v=20260527';
 import {
   captureTriggeredClip,
@@ -55,11 +54,9 @@ let sessionPushedIds = new Set();
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
 let emotionLoopId = null;
-let recommendLoopActive = false;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
 let lastMediaSignals = {};
-let promotionPausedUntil = 0;
 let barrierCheckInFlight = false;
 let lastBarrierCheckAt = 0;
 let lastInterventionEventAt = 0;
@@ -75,6 +72,10 @@ let autoVoiceTimer = null;
 let autoVoiceInFlight = false;
 let askRecordingStartedAt = 0;
 let lastValidOrderActionAt = 0;
+let lastCartAddAt = Date.now();
+let choiceHesitationTimer = null;
+let currentChoiceHesitationItem = null;
+const CHOICE_HESITATION_IDLE_MS = 60_000;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
@@ -283,7 +284,6 @@ function restartLoops() {
     if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
     else stopRollingMediaBuffer();
     if (getFeatures().emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
-    startRecommendLoop();
   }
 }
 
@@ -294,6 +294,7 @@ const FEAT_DEFAULTS = {
   emotion: true,
   voiceAssist: true,
   recommend: true,
+  choiceHesitation: true,
   emotionBackend: false,
   emotionChat: false,
   emotionCamera: false,
@@ -392,6 +393,7 @@ function getFeatures() {
       if (shouldApplyDemoDefaults) {
         features.voiceAssist = true;
         features.recommend = true;
+        features.choiceHesitation = true;
         features.emotionBackend = false;
         features.emotionCamera = false;
         features.eventTriggeredMultimodal = true;
@@ -406,6 +408,7 @@ function getFeatures() {
     if (isDemoPublicMode()) {
       features.voiceAssist = true;
       features.recommend = true;
+      features.choiceHesitation = true;
       features.emotionBackend = false;
       features.emotionCamera = false;
       features.eventTriggeredMultimodal = true;
@@ -459,8 +462,7 @@ function applyFeaturesToPOS() {
   if (center) center.style.display = 'none';
   // 語音回覆氣泡（關閉語音協助時隱藏）
   if (!f.voiceAssist) closeVoiceBubble();
-  // 推播（關閉時清除現有浮動卡）
-  if (!f.recommend) clearAllPushCards();
+  if (!f.recommend) aiPush.stop();
   if (!f.emotionChat) clearEmotionCards();
   if (!f.emotionBackend) stopEmotionLoop();
   if (!f.emotion) setVoiceOrderingAvailable(true);
@@ -488,6 +490,8 @@ function clearPOSFloatingUI() {
   clearEmotionCards();
   closeVoiceBubble();
   hideVoiceAssistOverlay();
+  hideChoiceHesitationModal();
+  aiPush.hide();
   if (ui.emotionCameraPanel) ui.emotionCameraPanel.classList.add('hidden');
 }
 
@@ -531,6 +535,9 @@ const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartCha
 
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
+  lastCartAddAt = Date.now();
+  hideChoiceHesitationModal();
+  restartChoiceHesitationTimer();
   cartManager.addToCart(item);
   if (isPosMode() && isSystemRunning && metadata.source === 'menu_card') showCartScreen();
   trackInteractionEvent({
@@ -565,21 +572,284 @@ function trackedDeleteCartItem(id) {
   });
 }
 
-const recommendationManager = createRecommendationManager({
-  ui,
-  isPosActive,
-  getFeatures,
-  findMenuItems,
-  addToCart: item => trackedAddToCart(item, { source: 'recommendation' }),
-  sessionPushedIds,
-});
+function clearAllPushCards() {
+  ui.floatPush?.replaceChildren();
+}
 
-const {
-  clearAllPushCards,
-  clearHesitationCard,
-  displayRecommendation,
-  showPushNotice
-} = recommendationManager;
+function showPushNotice(text) {
+  if (!isPosActive() || !ui.floatPush) return;
+  ui.floatPush.replaceChildren();
+  const card = document.createElement('div');
+  card.className = 'push-card push-notice';
+  const p = document.createElement('p');
+  p.className = 'push-notice-text';
+  p.textContent = text;
+  card.appendChild(p);
+  ui.floatPush.appendChild(card);
+  setTimeout(() => ui.floatPush?.replaceChildren(), 4000);
+}
+
+
+// =========================================================
+// AI 推播底部欄
+// =========================================================
+
+const aiPush = (() => {
+  const REFRESH_MS = 15_000;
+  const RETRY_MS   = 1_000;
+  let _timer    = null;
+  let _inFlight = false;
+  let _item     = null;
+
+  // ── DOM shortcuts ──
+  const $ = id => document.getElementById(id);
+
+  function _eligible() {
+    if (!$('aiPushBar')) return false;
+    const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
+    const cartOpen    = Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
+    return Boolean(isPosActive() && !document.hidden && !_isVoiceActive() && !paymentOpen && !cartOpen && menuData.length);
+  }
+
+  function _render(item, pushText) {
+    if (!item || !$('aiPushBar')) return;
+    const visual = getMenuVisual(item);
+    _item = item;
+
+    const nameEl = $('aiPushItemName');
+    const textEl = $('aiPushText');
+    const imgEl  = $('aiPushImage');
+    const emEl   = $('aiPushFallback');
+
+    if (nameEl) nameEl.textContent = item.name || '';
+    if (textEl) textEl.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
+
+    if (imgEl) {
+      if (visual.image) {
+        imgEl.src = visual.image;
+        imgEl.alt = item.name || '';
+        imgEl.style.display = 'block';
+        imgEl.onerror = () => {
+          imgEl.style.display = 'none';
+          if (emEl) { emEl.textContent = visual.emoji || '🍔'; emEl.style.display = 'block'; }
+        };
+      } else {
+        imgEl.style.display = 'none';
+      }
+    }
+    if (emEl) {
+      emEl.textContent = visual.emoji || '🍔';
+      emEl.style.display = visual.image ? 'none' : 'block';
+    }
+
+    $('aiPushBar').classList.remove('hidden', 'loading');
+  }
+
+  // 從菜單選預設推播（不呼叫 Ollama）
+  function _pickDefault() {
+    const priority = ['超值全餐', '極選系列', '點心'];
+    for (const cat of priority) {
+      const hit = menuData.find(m => m.category === cat && m.id);
+      if (hit) return hit;
+    }
+    return menuData[0] || null;
+  }
+
+  // excludeCurrentItem=false 時不排除目前項目（首次呼叫用）
+  async function _fetch(excludeCurrentItem = true) {
+    if (_inFlight || !_eligible()) { if (!_eligible()) hide(); return; }
+    _inFlight = true;
+    $('aiPushBar')?.classList.add('loading');
+
+    const fd = new FormData();
+    fd.append('session_id', sessionId);
+    fd.append('exclude_ids', JSON.stringify(excludeCurrentItem && _item?.id ? [_item.id] : []));
+    try {
+      const data = await api.aiPush(fd);
+      const id   = data.recommendation_id || '';
+      const item = menuData.find(m => m.id === id) || menuData[0];
+      if (item) _render(item, data.push_text || '');
+    } catch {
+      // 若 Ollama 失敗，已有預載畫面，不覆蓋
+    } finally {
+      _inFlight = false;
+      $('aiPushBar')?.classList.remove('loading');
+      _schedule(REFRESH_MS);
+    }
+  }
+
+  function _schedule(delay) {
+    _clearTimer();
+    _timer = setTimeout(() => {
+      _timer = null;
+      if (_eligible()) _fetch();
+      else { hide(); _schedule(RETRY_MS); }
+    }, delay);
+  }
+
+  function _clearTimer() {
+    if (_timer) { clearTimeout(_timer); _timer = null; }
+  }
+
+  // ── 對外介面 ──
+
+  function start() {
+    // ① 立即預載預設推播（零延遲，無需等待 Ollama）
+    const def = _pickDefault();
+    if (def) _render(def, `${def.name}是現在的熱門選擇，快來試試！`);
+    // ② 背景呼叫 Ollama 生成真實推播文字（不排除預載項目，讓 AI 自由選擇）
+    if (_eligible()) _fetch(false);
+    else _schedule(RETRY_MS);
+  }
+
+  function stop() {
+    _clearTimer();
+    _inFlight = false;
+    _item     = null;
+    hide();
+  }
+
+  function hide() {
+    const bar = $('aiPushBar');
+    if (bar) { bar.classList.add('hidden'); bar.classList.remove('loading'); }
+  }
+
+  function scheduleAfterCartClose() { _schedule(RETRY_MS); }
+
+  // 事件監聽（module 頂層執行一次）
+  document.addEventListener('DOMContentLoaded', () => {
+    $('aiPushPickBtn')?.addEventListener('click', () => {
+      if (!_item) return;
+      trackedAddToCart(_item, { source: 'ai_push' });
+      _schedule(REFRESH_MS);
+    });
+    $('aiPushRefreshBtn')?.addEventListener('click', () => _fetch());
+    $('aiPushVoiceBtn')?.addEventListener('click', () => startAskRecording($('aiPushVoiceBtn')));
+  });
+
+  return { start, stop, hide, scheduleAfterCartClose };
+})();
+
+function getChoiceHesitationModal() {
+  return document.getElementById('choiceHesitationModal');
+}
+
+function isChoiceHesitationVisible() {
+  return !getChoiceHesitationModal()?.classList.contains('hidden');
+}
+
+function hideChoiceHesitationModal(resetIdle = false) {
+  const modal = getChoiceHesitationModal();
+  modal?.classList.add('hidden');
+  modal?.setAttribute('aria-hidden', 'true');
+  currentChoiceHesitationItem = null;
+  if (resetIdle) {
+    lastCartAddAt = Date.now();
+    restartChoiceHesitationTimer();
+  }
+}
+
+function isChoiceHesitationEligible() {
+  const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
+  return Boolean(
+    getFeatures().choiceHesitation !== false
+    && isPosActive()
+    && !document.hidden
+    && !_isVoiceActive()
+    && !paymentOpen
+    && !isCartScreenOpen()
+    && cartManager.getCartIds().length === 0
+    && menuData.length
+  );
+}
+
+function getChoiceHesitationCandidates() {
+  const pricedItems = menuData.filter(item => item && item.id && Number(item.price || 0) > 0);
+  if (!pricedItems.length) return [];
+  if (kioskScreen === 'menu') {
+    const group = KIOSK_GROUPS.find(row => row.id === kioskActiveGroup);
+    const allowed = new Set(group?.categories || []);
+    let scoped = pricedItems.filter(item => allowed.has(String(item.category || '')));
+    if (kioskActiveFilter && kioskActiveFilter !== '全部') {
+      const keywords = filterKeywords(kioskActiveFilter);
+      scoped = scoped.filter(item => itemMatchesFilter(item, keywords));
+    }
+    if (scoped.length) return scoped;
+  }
+  const preferredCategories = new Set(['超值全餐', '極選系列', '點心']);
+  const preferred = pricedItems.filter(item => preferredCategories.has(String(item.category || '')));
+  return preferred.length ? preferred : pricedItems;
+}
+
+function pickChoiceHesitationItem() {
+  const candidates = getChoiceHesitationCandidates();
+  if (!candidates.length) return null;
+  const pool = candidates.length > 1 && currentChoiceHesitationItem
+    ? candidates.filter(item => item.id !== currentChoiceHesitationItem.id)
+    : candidates;
+  return pool[Math.floor(Math.random() * pool.length)] || candidates[0];
+}
+
+function renderChoiceHesitationItem(item) {
+  const modal = getChoiceHesitationModal();
+  if (!modal || !item) return;
+  const visual = getMenuVisual(item);
+  const nameEl = document.getElementById('choiceHesitationName');
+  const priceEl = document.getElementById('choiceHesitationPrice');
+  const reasonEl = document.getElementById('choiceHesitationReason');
+  const imageEl = document.getElementById('choiceHesitationImage');
+  const fallbackEl = document.getElementById('choiceHesitationFallback');
+  if (nameEl) nameEl.textContent = item.name || '推薦餐點';
+  if (priceEl) priceEl.textContent = formatItemPrice(item);
+  if (reasonEl) reasonEl.textContent = item.description || '先試試這份熱門餐點。';
+  if (fallbackEl) {
+    fallbackEl.textContent = visual.emoji || '🍔';
+    fallbackEl.style.display = visual.image ? 'none' : 'block';
+  }
+  if (imageEl) {
+    imageEl.style.display = visual.image ? 'block' : 'none';
+    imageEl.src = visual.image || '';
+    imageEl.alt = item.name || '推薦餐點';
+    imageEl.onerror = () => {
+      imageEl.style.display = 'none';
+      if (fallbackEl) fallbackEl.style.display = 'block';
+    };
+  }
+}
+
+function showChoiceHesitationModal() {
+  if (!isChoiceHesitationEligible() || isChoiceHesitationVisible()) return;
+  const item = pickChoiceHesitationItem();
+  if (!item) return;
+  currentChoiceHesitationItem = item;
+  renderChoiceHesitationItem(item);
+  const modal = getChoiceHesitationModal();
+  modal?.classList.remove('hidden');
+  modal?.setAttribute('aria-hidden', 'false');
+}
+
+function restartChoiceHesitationTimer() {
+  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
+  choiceHesitationTimer = null;
+  if (!isPosMode() || !isSystemRunning || orderCompleted || getFeatures().choiceHesitation === false) return;
+  const elapsed = Date.now() - lastCartAddAt;
+  const delay = Math.max(1000, CHOICE_HESITATION_IDLE_MS - elapsed);
+  choiceHesitationTimer = setTimeout(() => {
+    choiceHesitationTimer = null;
+    if (Date.now() - lastCartAddAt >= CHOICE_HESITATION_IDLE_MS && isChoiceHesitationEligible()) {
+      showChoiceHesitationModal();
+      return;
+    }
+    restartChoiceHesitationTimer();
+  }, delay);
+}
+
+function stopChoiceHesitationTimer() {
+  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
+  choiceHesitationTimer = null;
+  hideChoiceHesitationModal();
+}
+
 
 // =========================================================
 // 菜單
@@ -822,6 +1092,7 @@ function setKioskLanguage(lang) {
 }
 
 function showCartScreen() {
+  aiPush.hide();
   document.querySelector('.cart-shell')?.classList.add('kiosk-cart-open');
   ui.kioskBottomBar?.classList.remove('hidden');
   setInteractionPage('checkout_page', { source: 'cart_open' });
@@ -835,6 +1106,7 @@ function hideCartScreen() {
     setInteractionPage(kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
   }
   updateVoiceAssistVisibility();
+  aiPush.scheduleAfterCartClose();
 }
 
 function showPaymentScreen() {
@@ -842,7 +1114,8 @@ function showPaymentScreen() {
   ui.kioskPaymentScreen?.classList.remove('hidden');
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
-  promotionPausedUntil = Date.now() + 10 * 60 * 1000;
+  stopChoiceHesitationTimer();
+  aiPush.stop();
   stopAutoVoiceOrdering();
   clearPOSFloatingUI();
   updateVoiceAssistVisibility();
@@ -882,7 +1155,7 @@ function buildUIContext(extra = {}) {
     cart_total: cartManager.getCartTotal(),
     voice_assist_enabled: Boolean(getFeatures().voiceAssist),
     recommend_enabled: Boolean(getFeatures().recommend),
-    promotion_paused: Date.now() < promotionPausedUntil,
+    promotion_paused: false,
     ...extra,
   };
 }
@@ -1031,74 +1304,6 @@ function stopAdminLiveRefresh() {
   adminRefreshTimer = null;
 }
 
-function showHesitationCard(intervention = {}) {
-  if (!isPosActive() || !ui.floatPush) return;
-  if (_isVoiceActive()) return;
-  if (Date.now() - lastInteractionAt < 15000) return;
-  if (Date.now() - lastValidOrderActionAt < 15000) return;
-
-  clearHesitationCard();
-
-  const directIds = Array.isArray(intervention.recommendation_ids)
-    ? intervention.recommendation_ids : [];
-  let items = findMenuItems(directIds);
-  if (!items.length) {
-    items = menuData.filter(item => item && item.id && Number(item.price || 0) > 0).slice(0, 3);
-  }
-  items = items.slice(0, 3);
-  if (!items.length) return;
-
-  const names = items.map(i => i.name || '').filter(Boolean).join('、');
-
-  const card = document.createElement('div');
-  card.className = 'push-card';
-
-  const header = document.createElement('div');
-  header.className = 'push-card-header';
-  const titleEl = document.createElement('span');
-  titleEl.className = 'push-card-title';
-  titleEl.textContent = '為您推薦';
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'push-close-btn';
-  closeBtn.setAttribute('aria-label', '關閉');
-  const closeIcon = document.createElement('i');
-  closeIcon.className = 'fas fa-times';
-  closeBtn.appendChild(closeIcon);
-  header.append(titleEl, closeBtn);
-
-  const nameEl = document.createElement('div');
-  nameEl.className = 'push-item-names';
-  nameEl.textContent = names;
-
-  const reasonEl = document.createElement('p');
-  reasonEl.className = 'push-reason';
-  reasonEl.textContent = String(intervention.tts_text || '這是為您挑選的熱門餐點。');
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'push-add-btn btn-primary';
-  const cartIcon = document.createElement('i');
-  cartIcon.className = 'fas fa-cart-plus';
-  addBtn.appendChild(cartIcon);
-  addBtn.appendChild(document.createTextNode(' 加入推薦餐點'));
-
-  card.append(header, nameEl, reasonEl, addBtn);
-  ui.floatPush.replaceChildren(card);
-
-  let timer = setTimeout(() => clearHesitationCard(), 10000);
-
-  addBtn.addEventListener('click', () => {
-    clearTimeout(timer);
-    items.forEach(item => trackedAddToCart(item, { source: 'hesitation_recommendation' }));
-    showPushNotice('已加入推薦餐點');
-  });
-  closeBtn.addEventListener('click', () => {
-    clearTimeout(timer);
-    clearHesitationCard();
-  });
-}
-
 function applyIntervention(intervention = {}, barrierResult = {}) {
   if (!intervention || intervention.action === 'none') return;
   console.log('[interaction intervention]', { intervention, barrierResult });
@@ -1106,7 +1311,6 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   document.getElementById('interactionInterventionBox')?.remove();
 
   if (intervention.ui_patch?.disable_promotion) {
-    promotionPausedUntil = Date.now() + 45000;
     clearAllPushCards();
   }
 
@@ -1121,7 +1325,6 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
     return;
   }
   if (modalName === 'recommendation_card') {
-    showHesitationCard(intervention);
     return;
   }
   let box = document.getElementById('interactionInterventionBox');
@@ -1370,13 +1573,15 @@ ui.startBtn.onclick = async () => {
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
+    lastCartAddAt = Date.now();
     setVoiceOrderingAvailable(true);
     updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     maybeStartRollingMediaBuffer();
     if (f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
-    startRecommendLoop();
+    restartChoiceHesitationTimer();
+    setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
   } catch { alert("無法存取攝影機與麥克風。"); }
 };
@@ -1506,48 +1711,19 @@ function _isVoiceActive() {
   return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
 }
 
-async function fetchAndDisplayRecommend() {
-  const f = getFeatures();
-  if (!f.recommend) return;
-  if (_isVoiceActive()) return;
-  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
-  if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return;
-  const fd = new FormData();
-  fd.append('session_id', sessionId);
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const data = await api.autoRecommend(fd, ctrl.signal);
-    if (data.status === 'success') return displayRecommendation(data); // intentionally not awaited — caller (startRecommendLoop) awaits the returned ticker Promise
-  } catch (err) {
-    console.warn('[auto_recommend failed]', err);
-  } finally {
-    clearTimeout(tid);
-  }
-}
-
-async function startRecommendLoop() {
-  if (isAdminMode() || recommendLoopActive) return;
-  recommendLoopActive = true;
-  while (recommendLoopActive) {
-    if (!isPosActive() || document.hidden || Date.now() < promotionPausedUntil) {
-      await new Promise(r => setTimeout(r, 1000));
-      continue;
-    }
-    // tickerDone is the ticker Promise returned (not awaited) by fetchAndDisplayRecommend
-    const tickerDone = await fetchAndDisplayRecommend();
-    if (tickerDone && recommendLoopActive) await tickerDone;
-    if (recommendLoopActive) await new Promise(r => setTimeout(r, 10_000));
-  }
-}
-
 // =========================================================
 // 語音問答（問題3: 回覆綁定浮動氣泡，問題5: 語言偵測）
 // =========================================================
 function closeVoiceBubble(stopAudio = true) {
   if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
   voiceBubbleTimer = null;
-  ui.voiceBubble.style.display = 'none';
+  ui.voiceBubble?.classList.add('hidden');
+  ui.voiceBubble?.setAttribute('aria-hidden', 'true');
+  const timerBar = document.getElementById('voiceReplyTimerBar');
+  if (timerBar) {
+    timerBar.style.transition = 'none';
+    timerBar.style.width = '100%';
+  }
   if (stopAudio) {
     ui.audio.pause();
     ui.audio.currentTime = 0;
@@ -1555,24 +1731,38 @@ function closeVoiceBubble(stopAudio = true) {
 }
 
 function showVoiceBubble(data) {
-  if (!isPosActive()) return;
+  if (!isPosActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
+  hideVoiceAssistOverlay();
   const lang = data.detected_lang || 'zh';
   const dialogue = data.dialogue || {
     zh: { user_text: lang === 'zh' ? data.user_text : '', ai_response: lang === 'zh' ? data.ai_response : '' },
     en: { user_text: lang === 'en' ? data.user_text : '', ai_response: lang === 'en' ? data.ai_response : '' }
   };
   const d = dialogue[lang] || { user_text: data.user_text || '', ai_response: data.ai_response || '' };
+  const userText = String(d.user_text || data.user_text || '').trim();
+  const answerText = String(d.ai_response || data.ai_response || '-').trim();
   ui.voiceDialogueGrid.innerHTML = `
-    <div class="dialogue-lane active">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-xs font-bold" style="color:var(--accent2)">${escapeHTML(lang === 'en' ? kt('languageEn') : kt('languageZh'))}</span>
-        <i class="fas fa-volume-up text-xs" style="color:var(--accent2)"></i>
-      </div>
-      <p class="text-xs mb-1 truncate" style="color:var(--text2)">${escapeHTML(d.user_text || data.user_text || '-')}</p>
-      <p class="text-sm font-medium leading-snug" style="color:var(--text)">${escapeHTML(d.ai_response || data.ai_response || '-')}</p>
+    ${userText ? `
+      <div class="voice-reply-row voice-reply-question">
+        <i class="fas fa-microphone"></i>
+        <div>${escapeHTML(userText)}</div>
+      </div>` : ''}
+    <div class="voice-reply-row voice-reply-answer">
+      <i class="fas fa-volume-up"></i>
+      <div>${escapeHTML(answerText || '-')}</div>
     </div>`;
-  ui.voiceLangBadge.textContent = lang === 'en' ? kt('enOutput') : kt('zhOutput');
-  ui.voiceBubble.style.display = 'block';
+  if (ui.voiceLangBadge) ui.voiceLangBadge.textContent = lang === 'en' ? kt('enOutput') : kt('zhOutput');
+  ui.voiceBubble.classList.remove('hidden');
+  ui.voiceBubble.setAttribute('aria-hidden', 'false');
+  const timerBar = document.getElementById('voiceReplyTimerBar');
+  if (timerBar) {
+    timerBar.style.transition = 'none';
+    timerBar.style.width = '100%';
+    requestAnimationFrame(() => {
+      timerBar.style.transition = 'width 12s linear';
+      timerBar.style.width = '0%';
+    });
+  }
   if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
   voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
@@ -1825,8 +2015,9 @@ window.addEventListener('beforeunload', () => {
     if (askRecorder?.state === 'recording') askRecorder.stop();
   } catch { }
   if (emotionLoopId) clearInterval(emotionLoopId);
-  recommendLoopActive = false;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
+  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
+  aiPush.stop();
 });
 
 function playVoice(b64) {
@@ -1851,7 +2042,7 @@ function shouldTrackInvalidClick(target) {
     'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#voiceReplyBubble'
   );
   if (interactive) return false;
-  if (target.closest('#startupOverlay,#tutorialPopup,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack,#emotionFeed,#emotionCameraPanel')) {
+  if (target.closest('#startupOverlay,#tutorialPopup,#choiceHesitationModal,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack,#emotionFeed,#emotionCameraPanel')) {
     return false;
   }
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return false;
@@ -2022,6 +2213,8 @@ async function finishOrder(cartIds, button, loadingText, doneTitle) {
   orderCompleted = true;
   updateVoiceAssistVisibility();
   clearPOSFloatingUI();
+  stopChoiceHesitationTimer();
+  aiPush.stop();
   stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
   const originalHTML = button?.innerHTML || '';
@@ -2064,6 +2257,8 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   isSystemRunning = false;
   orderCompleted = false;
   clearPOSFloatingUI();
+  stopChoiceHesitationTimer();
+  aiPush.stop();
   stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
   cartManager.clearCart();
@@ -2257,9 +2452,8 @@ async function loadEmotionSettings() {
     set('inp-gemini-model-name',  fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview');
     set('inp-performance-mode',   fullSettings.PERFORMANCE_MODE || 'balanced');
     set('inp-rag-top-k',          fullSettings.RAG_TOP_K ?? 3);
-    set('inp-voice-assist-model', fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:9b');
+    set('inp-voice-assist-model', fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:4b');
     set('inp-ask-prompt',         fullSettings.ASK_SYSTEM_PROMPT || '');
-    set('inp-recommend-prompt',   fullSettings.RECOMMEND_SYSTEM_PROMPT || '');
     set('inp-ask-prompt-en',      fullSettings.ASK_SYSTEM_PROMPT_EN || '');
     set('inp-emotion-prompt',     fullSettings.EMOTION_LLAMA_PROMPT || '');
     set('inp-voice-assist-prompt',fullSettings.VOICE_ASSIST_SYSTEM_PROMPT || '');
@@ -2297,10 +2491,9 @@ async function saveEmotionSettings() {
   fullSettings.EMOTION_RECORD_MS         = int('inp-emotion-record-ms', '900');
   fullSettings.WHISPER_LOW_AUDIO_DB      = flt('inp-whisper-low-db', '-58');
   fullSettings.ASK_SYSTEM_PROMPT         = str('inp-ask-prompt', '');
-  fullSettings.RECOMMEND_SYSTEM_PROMPT   = str('inp-recommend-prompt', '');
   fullSettings.ASK_SYSTEM_PROMPT_EN      = g('inp-ask-prompt-en')?.value || '';
   fullSettings.EMOTION_LLAMA_PROMPT      = g('inp-emotion-prompt')?.value || '';
-  fullSettings.VOICE_ASSIST_MODEL        = str('inp-voice-assist-model', 'qwen3.5:9b');
+  fullSettings.VOICE_ASSIST_MODEL        = str('inp-voice-assist-model', 'qwen3.5:4b');
   fullSettings.VOICE_ASSIST_SYSTEM_PROMPT = g('inp-voice-assist-prompt')?.value || '';
   const _existingRag = fullSettings.rag || {};
   fullSettings.rag = {
@@ -2644,6 +2837,27 @@ function hideTutorialPopup() {
   if (tutorialPopupTimer) { clearTimeout(tutorialPopupTimer); tutorialPopupTimer = null; }
   tutorialPopupEl?.classList.add('hidden');
 }
+
+document.getElementById('choiceHesitationClose')?.addEventListener('click', () => hideChoiceHesitationModal(true));
+document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => hideChoiceHesitationModal(true));
+document.getElementById('choiceHesitationPick')?.addEventListener('click', () => {
+  if (!currentChoiceHesitationItem) return;
+  const item = currentChoiceHesitationItem;
+  hideChoiceHesitationModal();
+  trackedAddToCart(item, { source: 'choice_hesitation' });
+  showPushNotice(`已加入購物車：${item.name || '推薦餐點'}`);
+});
+document.getElementById('choiceHesitationNext')?.addEventListener('click', () => {
+  const nextItem = pickChoiceHesitationItem();
+  if (!nextItem) return;
+  currentChoiceHesitationItem = nextItem;
+  renderChoiceHesitationItem(nextItem);
+});
+document.getElementById('choiceHesitationVoice')?.addEventListener('click', () => {
+  hideChoiceHesitationModal(true);
+  startAskRecording(document.getElementById('voiceAssistBtn'));
+});
+document.getElementById('voiceReplyBubbleClose')?.addEventListener('click', () => closeVoiceBubble());
 document.getElementById('tutorialPopupClose')?.addEventListener('click', hideTutorialPopup);
 
 // =========================================================

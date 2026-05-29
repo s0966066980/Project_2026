@@ -7,27 +7,82 @@
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=20260527">
+<link rel="stylesheet" href="/static/styles.css?v=20260529_v3">
 
 </head>
 <body class="w-full min-h-screen font-sans antialiased bg-[#e2d7cf] text-[#242424] flex flex-col md:flex-row">
 
-<!-- ============ AI 浮層欄（語音回答 + AI 推播堆疊，不互相遮蔽） ============ -->
+<!-- ============ POS floating notices ============ -->
 <div id="aiOverlayStack">
-  <!-- 語音回覆氣泡（綁定語音，關閉後不顯示） -->
-  <div id="voiceReplyBubble">
-    <div class="flex items-center gap-2 mb-2">
-      <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:var(--info)"><i class="fas fa-robot"></i></div>
-      <span class="font-bold text-sm" style="color:var(--text)">AI 助理</span>
-      <button onclick="closeVoiceBubble()" class="ml-auto text-gray-400 hover:text-gray-700"><i class="fas fa-times text-xs"></i></button>
-    </div>
-    <div id="voiceDialogueGrid" class="dialogue-grid"></div>
-    <div id="voiceLangBadge" class="mt-2 inline-block text-xs px-2 py-0.5 rounded-full" style="background:var(--surface2);color:var(--text2)"></div>
-  </div>
-  <!-- AI 推播 / 推薦 -->
   <div id="floatPush"></div>
-  <!-- 為您推薦跑馬燈（定時 AI 推播，獨立於 scenario 卡片） -->
-  <div id="recommendTicker"></div>
+</div>
+
+<div id="aiPushBar" class="ai-push-bar hidden" aria-live="polite">
+  <div class="ai-push-inner">
+    <div class="ai-push-photo">
+      <img id="aiPushImage" alt="" />
+      <span id="aiPushFallback">🍔</span>
+    </div>
+
+    <div class="ai-push-content">
+      <div class="ai-push-heading">
+        <span class="ai-push-badge"><i class="fas fa-robot"></i> AI 推薦</span>
+        <p id="aiPushItemName" class="ai-push-itemname"></p>
+      </div>
+      <p id="aiPushText" class="ai-push-bubble">正在為您挑選餐點…</p>
+      <div class="ai-push-btns">
+        <button id="aiPushPickBtn" class="ai-push-btn-pick" type="button">點選這個</button>
+        <button id="aiPushRefreshBtn" class="ai-push-btn-refresh" type="button">
+          <i class="fas fa-sync-alt"></i> 換一個
+        </button>
+        <button id="aiPushVoiceBtn" class="ai-push-btn-voice" type="button">
+          <i class="fas fa-microphone"></i> 語音模式
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 語音回答彈跳視窗：沿用「如何點餐」彈窗的位置與視覺樣式 -->
+<div id="voiceReplyBubble" class="voice-reply-popup hidden" role="dialog" aria-label="AI 助理回答">
+  <div class="voice-reply-popup-inner">
+    <button id="voiceReplyBubbleClose" class="tutorial-popup-close" type="button" aria-label="關閉"><i class="fas fa-times"></i></button>
+    <h3><i class="fas fa-robot mr-2" style="color:#ffc72c"></i>AI 助理</h3>
+    <div id="voiceDialogueGrid" class="voice-reply-content"></div>
+    <div class="voice-reply-footer">
+      <span id="voiceLangBadge" class="voice-reply-lang"></span>
+    </div>
+    <div class="tutorial-popup-timer"><div id="voiceReplyTimerBar" class="tutorial-popup-timer-bar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<!-- 選擇猶豫彈跳視窗 -->
+<div id="choiceHesitationModal" class="choice-hesitation-modal hidden" role="dialog" aria-modal="true" aria-label="選擇猶豫推薦">
+  <div class="choice-hesitation-backdrop" data-choice-hesitation-close></div>
+  <div class="choice-hesitation-card">
+    <button id="choiceHesitationClose" class="choice-hesitation-close" type="button" aria-label="關閉"><i class="fas fa-times"></i></button>
+    <div class="choice-hesitation-copy">
+      <p class="choice-hesitation-kicker">推薦給您</p>
+      <h3>還在困擾不知道點什麼嗎?</h3>
+      <p id="choiceHesitationReason" class="choice-hesitation-reason">先試試這份熱門餐點。</p>
+    </div>
+    <div class="choice-hesitation-item">
+      <div class="choice-hesitation-photo">
+        <img id="choiceHesitationImage" alt="推薦餐點" />
+        <span id="choiceHesitationFallback" class="choice-hesitation-fallback">🍔</span>
+      </div>
+      <div class="choice-hesitation-info">
+        <strong id="choiceHesitationName">推薦餐點</strong>
+        <span id="choiceHesitationPrice">$0</span>
+      </div>
+    </div>
+    <div class="choice-hesitation-actions">
+      <button id="choiceHesitationPick" class="choice-hesitation-primary" type="button">點選這個</button>
+      <button id="choiceHesitationNext" class="choice-hesitation-secondary" type="button">換一個</button>
+      <button id="choiceHesitationVoice" class="choice-hesitation-secondary" type="button"><i class="fas fa-microphone"></i> 語音模式</button>
+    </div>
+  </div>
 </div>
 
 <div id="emotionFeed"></div>
@@ -202,7 +257,7 @@
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
+    <div class="menu-content flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
       <div id="kioskSectionHead" class="flex items-center gap-4 mb-7">
         <span class="section-kicker"><i class="fas fa-utensils"></i></span>
         <h3 class="text-2xl font-extrabold" style="color:var(--text)">精選推薦</h3>
@@ -394,7 +449,7 @@
       <input id="inp-performance-mode" type="hidden" value="balanced" />
       <input id="inp-rag-top-k" type="hidden" value="3" />
       <input id="inp-tts-cache" type="hidden" value="true" />
-      <input id="inp-voice-assist-model" type="hidden" value="qwen3.5:9b" />
+      <input id="inp-voice-assist-model" type="hidden" value="qwen3.5:4b" />
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
       <div style="font-size:11px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Prompt 設定</div>
@@ -402,10 +457,6 @@
         <div>
           <label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">語音問答 Prompt（繁中）</label>
           <textarea id="inp-ask-prompt" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;font-size:11px;color:#1e293b;background:#f8fafc;resize:vertical;height:56px;font-family:monospace;box-sizing:border-box"></textarea>
-        </div>
-        <div>
-          <label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">推播推薦 Prompt</label>
-          <textarea id="inp-recommend-prompt" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;font-size:11px;color:#1e293b;background:#f8fafc;resize:vertical;height:56px;font-family:monospace;box-sizing:border-box"></textarea>
         </div>
         <textarea id="inp-ask-prompt-en" style="display:none"></textarea>
         <textarea id="inp-emotion-prompt" style="display:none"></textarea>
@@ -551,7 +602,7 @@
 
 <audio id="ttsAudio" class="hidden"></audio>
 
-<script type="module" src="/static/app.js?v=20260527"></script>
+<script type="module" src="/static/app.js?v=20260529_v3"></script>
 
 </body>
 </html>
