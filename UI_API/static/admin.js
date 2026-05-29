@@ -1,5 +1,23 @@
 const API = window.location.origin;
-const CIRC = 2 * Math.PI * 49; // donut circumference
+const CIRC = 2 * Math.PI * 49;
+
+// ── Menu cache (for name/image lookup) ──
+let menuCache = {};
+
+async function loadMenu() {
+  try {
+    const res = await fetch(`${API}/api/menu`);
+    const items = await res.json();
+    if (Array.isArray(items)) {
+      items.forEach(item => {
+        if (item.id) menuCache[item.id] = item;
+      });
+    }
+  } catch { /* 靜默失敗，用 ID fallback */ }
+}
+
+function menuName(id)  { return menuCache[id]?.name  || id; }
+function menuImage(id) { return menuCache[id]?.image || ''; }
 
 // ── Date in topbar ──
 const dateEl = document.getElementById('topbar-date');
@@ -50,12 +68,12 @@ async function loadStats() {
     const data = await res.json();
     if (data.status !== 'success') throw new Error('api error');
 
-    const total    = data.total_sessions ?? 0;
-    const clicks   = data.total_ai_push_cart_clicks ?? 0;
-    const success  = data.success_sessions ?? 0;
-    const fail     = data.failure_sessions ?? 0;
-    const rate     = data.success_rate ?? 0;
-    const score    = data.cumulative_score ?? 0;
+    const total   = data.total_sessions ?? 0;
+    const clicks  = data.total_ai_push_cart_clicks ?? 0;
+    const success = data.success_sessions ?? 0;
+    const fail    = data.failure_sessions ?? 0;
+    const rate    = data.success_rate ?? 0;
+    const score   = data.cumulative_score ?? 0;
     const failRate = total > 0 ? Math.round((fail / total) * 100) : 0;
 
     // Donut
@@ -68,12 +86,11 @@ async function loadStats() {
     if (fill) fill.setAttribute('stroke-dasharray', `${(pct / 100) * CIRC} ${CIRC}`);
 
     // Stat cards
-    setText('s-total', String(total));
-    setText('s-clicks', String(clicks));
-    setText('s-fail', String(fail));
+    setText('s-total',     String(total));
+    setText('s-clicks',    String(clicks));
+    setText('s-fail',      String(fail));
     setText('s-fail-rate', failRate + '%');
 
-    // Top-3 by cart item frequency
     const sessions = data.sessions || [];
     renderTop3(sessions);
     renderTable(sessions);
@@ -88,7 +105,7 @@ function renderTop3(sessions) {
   const box = document.getElementById('top3-list');
   if (!box) return;
 
-  // Count how often each item appears in successful sessions' carts
+  // 統計成功 session 購物車各品項出現頻率
   const freq = {};
   sessions.forEach(s => {
     if (s.ai_push_success && Array.isArray(s.final_cart_ids)) {
@@ -97,8 +114,9 @@ function renderTop3(sessions) {
   });
 
   const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  box.textContent = '';
+
   if (!sorted.length) {
-    box.textContent = '';
     const empty = document.createElement('div');
     empty.style.cssText = 'color:#adb5c9;font-size:12px';
     empty.textContent = '尚無成功點餐紀錄。';
@@ -108,7 +126,7 @@ function renderTop3(sessions) {
 
   const maxCount = sorted[0][1];
   const rankClass = ['r1', 'r2', 'r3'];
-  box.textContent = '';
+
   sorted.forEach(([id, count], i) => {
     const item = document.createElement('div');
     item.className = 'top3-item';
@@ -117,32 +135,39 @@ function renderTop3(sessions) {
     rank.className = `top3-rank ${rankClass[i] || 'r3'}`;
     rank.textContent = String(i + 1);
 
-    const img = document.createElement('img');
-    img.className = 'top3-img';
-    img.alt = id;
-    img.src = `https://www.mcdonalds.com.tw/uploads/product/${id}.png`;
-    img.onerror = () => { img.style.display = 'none'; };
+    const imgUrl = menuImage(id);
+    if (imgUrl) {
+      const img = document.createElement('img');
+      img.className = 'top3-img';
+      img.alt = menuName(id);
+      img.src = imgUrl;
+      img.onerror = () => { img.style.display = 'none'; };
+      item.appendChild(rank);
+      item.appendChild(img);
+    } else {
+      item.appendChild(rank);
+    }
 
     const info = document.createElement('div');
     info.className = 'top3-bar-wrap';
 
     const name = document.createElement('div');
     name.className = 'top3-name';
-    name.textContent = id;
+    name.textContent = menuName(id);
 
     const cnt = document.createElement('div');
     cnt.className = 'top3-count';
-    cnt.textContent = `加購 ${count} 次`;
+    cnt.textContent = `出現 ${count} 次`;
 
     const track = document.createElement('div');
     track.className = 'top3-bar-track';
-    const fill = document.createElement('div');
-    fill.className = 'top3-bar-fill';
-    fill.style.width = Math.round((count / maxCount) * 100) + '%';
-    track.appendChild(fill);
+    const barFill = document.createElement('div');
+    barFill.className = 'top3-bar-fill';
+    barFill.style.width = Math.round((count / maxCount) * 100) + '%';
+    track.appendChild(barFill);
 
     info.append(name, cnt, track);
-    item.append(rank, img, info);
+    item.appendChild(info);
     box.appendChild(item);
   });
 }
@@ -158,7 +183,10 @@ function renderTable(sessions) {
 
     const tdTs = document.createElement('td');
     tdTs.textContent = s.timestamp
-      ? new Date(s.timestamp).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      ? new Date(s.timestamp).toLocaleString('zh-TW', {
+          month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit',
+        })
       : '—';
 
     const tdSid = document.createElement('td');
@@ -177,7 +205,8 @@ function renderTable(sessions) {
 
     const tdCart = document.createElement('td');
     tdCart.style.cssText = 'color:#6b7a99;font-size:11px';
-    tdCart.textContent = (s.final_cart_ids || []).join(', ') || '—';
+    const names = (s.final_cart_ids || []).map(id => menuName(id));
+    tdCart.textContent = names.join('、') || '—';
 
     tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart);
     tbody.appendChild(tr);
@@ -192,9 +221,7 @@ async function clearStats() {
   try {
     const res = await fetch(`${API}/api/session_stats`, { method: 'DELETE' });
     const data = await res.json();
-    if (data.status === 'success') {
-      await loadStats();
-    }
+    if (data.status === 'success') await loadStats();
   } catch {
     alert('清除失敗，請重試。');
   } finally {
@@ -205,5 +232,7 @@ async function clearStats() {
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
 document.getElementById('clearBtn')?.addEventListener('click', clearStats);
-loadStats();
+
+// 先載入菜單對照表，再載入統計
+loadMenu().then(loadStats);
 setInterval(loadStats, 15000);
