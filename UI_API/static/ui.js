@@ -56,7 +56,7 @@ export const ui = {
   emotionBadge: document.getElementById('emotionBadge'),
   emotionText: document.getElementById('emotionText'),
   floatPush: document.getElementById('floatPush'),
-  recommendTicker: document.getElementById('recommendTicker'),
+  aiPushBar: document.getElementById('aiPushBar'),
   emotionFeed: document.getElementById('emotionFeed'),
   voiceBubble: document.getElementById('voiceReplyBubble'),
   voiceDialogueGrid: document.getElementById('voiceDialogueGrid'),
@@ -72,12 +72,12 @@ export function escapeHTML(value) {
 export function switchMainView(view, callbacks = {}) {
   if (view === 'admin') {
     callbacks.clearPOSFloatingUI?.();
-    ui.posView.classList.replace('flex', 'hidden');
-    ui.adminView.classList.replace('hidden', 'flex');
+    ui.posView?.classList.replace('flex', 'hidden');
+    ui.adminView?.classList.replace('hidden', 'flex');
     callbacks.loadAdminData?.();
   } else {
-    ui.adminView.classList.replace('flex', 'hidden');
-    ui.posView.classList.replace('hidden', 'flex');
+    ui.adminView?.classList.replace('flex', 'hidden');
+    ui.posView?.classList.replace('hidden', 'flex');
     callbacks.applyFeaturesToPOS?.();
     callbacks.loadMenu?.();
   }

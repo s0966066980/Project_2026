@@ -1,11 +1,10 @@
 import asyncio
-import importlib.util
 import json
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 
 import config
 import database
@@ -70,15 +69,6 @@ def _mark_latest_intervention_checkout(
     return interaction_event_repository.update_intervention_result(intervention_id, result)
 
 
-def _load_demo_tool_html() -> str:
-    tool_path = Path(__file__).resolve().parents[2] / "tools" / "pos_interaction_demo_ui.py"
-    spec = importlib.util.spec_from_file_location("project_2026_pos_demo_tool", tool_path)
-    if not spec or not spec.loader:
-        raise RuntimeError("demo tool module not found")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return str(getattr(module, "HTML_CONTENT", ""))
-
 
 def create_router(deps: dict) -> APIRouter:
     router = APIRouter(tags=["core"])
@@ -93,11 +83,37 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/admin")
     async def serve_admin():
-        return FileResponse("index.html")
+        return FileResponse("admin.html")
 
-    @router.get("/demo-tool")
-    async def serve_demo_tool():
-        return HTMLResponse(_load_demo_tool_html())
+    @router.get("/api/session_stats")
+    async def get_session_stats():
+        logs = await asyncio.to_thread(log_repository.get_session_logs)
+        total = len(logs)
+        total_clicks = sum(int(l.get("ai_push_cart_count", 0)) for l in logs)
+        success_count = sum(1 for l in logs if l.get("ai_push_success", False))
+        failure_count = total - success_count
+        rate = round(success_count / total, 4) if total > 0 else 0.0
+        sessions = [
+            {
+                "timestamp": l.get("timestamp", ""),
+                "session_id": l.get("session_id", ""),
+                "ai_push_cart_count": int(l.get("ai_push_cart_count", 0)),
+                "ai_push_success": bool(l.get("ai_push_success", False)),
+                "final_cart_ids": l.get("final_cart_ids", []),
+            }
+            for l in reversed(logs)
+        ]
+        return {
+            "status": "success",
+            "total_sessions": total,
+            "total_ai_push_cart_clicks": total_clicks,
+            "success_sessions": success_count,
+            "failure_sessions": failure_count,
+            "success_rate": rate,
+            "cumulative_score": success_count - failure_count,
+            "sessions": sessions,
+        }
+
 
     @router.get("/api/public_settings")
     async def get_public_settings():
@@ -163,6 +179,7 @@ def create_router(deps: dict) -> APIRouter:
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
         emotion_session_log: str = Form(default=""),
+        ai_push_cart_count: str = Form(default="0"),
     ):
         try:
             pushed_list = json.loads(pushed_ids) if pushed_ids else []
@@ -215,11 +232,27 @@ def create_router(deps: dict) -> APIRouter:
             except Exception as _e:
                 print(f"⚠️ emotion session log RAG 寫入失敗: {_e}")
 
+        try:
+            ai_count = max(0, int(ai_push_cart_count or 0))
+            logs = log_repository.get_session_logs()
+            if logs:
+                logs[-1]["ai_push_cart_count"] = ai_count
+                logs[-1]["ai_push_success"] = ai_count >= 1
+                log_repository.save_session_logs(logs)
+            log_entry = dict(log_entry or {})
+            log_entry["ai_push_cart_count"] = ai_count
+            log_entry["ai_push_success"] = ai_count >= 1
+        except Exception:
+            log_entry = dict(log_entry or {})
+
+        order_number = len(log_repository.get_session_logs())
+
         session_repository.archive_session(session_id)
         deps["emotion_cache"].pop(session_id, None)
-        for key in list(deps["recommend_cache"].keys()):
+        recommend_cache = deps.get("recommend_cache") or {}
+        for key in list(recommend_cache.keys()):
             if key.startswith(f"{session_id}:"):
-                deps["recommend_cache"].pop(key, None)
-        return {"status": "success", "log": log_entry}
+                recommend_cache.pop(key, None)
+        return {"status": "success", "log": log_entry, "order_number": order_number, "session_id": session_id}
 
     return router

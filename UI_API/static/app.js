@@ -51,6 +51,7 @@ let isSystemRunning = false;
 let orderCompleted = false;
 let menuData = [];
 let sessionPushedIds = new Set();
+let sessionAiPushCartCount = 0;
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
 let emotionLoopId = null;
@@ -536,10 +537,10 @@ const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartCha
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
   lastCartAddAt = Date.now();
+  if (metadata.source === 'ai_push') sessionAiPushCartCount++;
   hideChoiceHesitationModal();
   restartChoiceHesitationTimer();
   cartManager.addToCart(item);
-  if (isPosMode() && isSystemRunning && metadata.source === 'menu_card') showCartScreen();
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: item?.id ? `menu_${item.id}` : 'add_to_cart',
@@ -714,7 +715,7 @@ const aiPush = (() => {
     if (bar) { bar.classList.add('hidden'); bar.classList.remove('loading'); }
   }
 
-  function scheduleAfterCartClose() { _schedule(RETRY_MS); }
+  function scheduleAfterCartClose() { start(); }
 
   // 事件監聽（module 頂層執行一次）
   document.addEventListener('DOMContentLoaded', () => {
@@ -729,6 +730,84 @@ const aiPush = (() => {
 
   return { start, stop, hide, scheduleAfterCartClose };
 })();
+
+// =========================================================
+// 餐點確認彈窗
+// =========================================================
+let _icItem = null;
+let _icQty  = 1;
+
+function showItemConfirmModal(item) {
+  if (!item) return;
+  _icItem = item;
+  _icQty  = 1;
+
+  const visual = getMenuVisual(item);
+  const modal  = document.getElementById('itemConfirmModal');
+  if (!modal) return;
+
+  const imgEl  = document.getElementById('itemConfirmImg');
+  const emEl   = document.getElementById('itemConfirmEmoji');
+  if (imgEl) {
+    imgEl.src = visual.image || '';
+    imgEl.alt = item.name || '';
+    imgEl.style.display = visual.image ? 'block' : 'none';
+    imgEl.onerror = () => {
+      imgEl.style.display = 'none';
+      if (emEl) { emEl.textContent = visual.emoji || '🍔'; emEl.style.display = 'block'; }
+    };
+  }
+  if (emEl) {
+    emEl.textContent = visual.emoji || '🍔';
+    emEl.style.display = visual.image ? 'none' : 'block';
+  }
+
+  const nameEl  = document.getElementById('itemConfirmName');
+  const priceEl = document.getElementById('itemConfirmPrice');
+  const descEl  = document.getElementById('itemConfirmDesc');
+  const qtyEl   = document.getElementById('itemConfirmQtyDisplay');
+  if (nameEl)  nameEl.textContent  = item.name || '';
+  if (priceEl) priceEl.textContent = formatItemPrice(item);
+  if (descEl)  descEl.textContent  = item.description || '';
+  if (qtyEl)   qtyEl.textContent   = '1';
+
+  modal.classList.remove('hidden');
+}
+
+function hideItemConfirmModal() {
+  _icItem = null;
+  _icQty  = 1;
+  document.getElementById('itemConfirmModal')?.classList.add('hidden');
+}
+
+// wire up once after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('itemConfirmClose')?.addEventListener('click', hideItemConfirmModal);
+  document.getElementById('itemConfirmBackdrop')?.addEventListener('click', hideItemConfirmModal);
+  document.getElementById('itemConfirmCancel')?.addEventListener('click', hideItemConfirmModal);
+
+  document.getElementById('itemConfirmMinus')?.addEventListener('click', () => {
+    if (_icQty <= 1) return;
+    _icQty--;
+    const el = document.getElementById('itemConfirmQtyDisplay');
+    if (el) el.textContent = String(_icQty);
+  });
+
+  document.getElementById('itemConfirmPlus')?.addEventListener('click', () => {
+    if (_icQty >= 20) return;
+    _icQty++;
+    const el = document.getElementById('itemConfirmQtyDisplay');
+    if (el) el.textContent = String(_icQty);
+  });
+
+  document.getElementById('itemConfirmAdd')?.addEventListener('click', () => {
+    if (!_icItem) return;
+    for (let i = 0; i < _icQty; i++) {
+      trackedAddToCart(_icItem, { source: 'menu_card' });
+    }
+    hideItemConfirmModal();
+  });
+});
 
 function getChoiceHesitationModal() {
   return document.getElementById('choiceHesitationModal');
@@ -1006,9 +1085,9 @@ function renderKioskMenuItems() {
       <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(kt('addToCart'))}"><i class="fas fa-plus"></i></button>`;
     row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
       event.stopPropagation();
-      trackedAddToCart(item, { source: 'menu_card' });
+      showItemConfirmModal(item);
     });
-    row.addEventListener('click', () => trackedAddToCart(item, { source: 'menu_card' }));
+    row.addEventListener('click', () => showItemConfirmModal(item));
     ui.menuGrid.appendChild(row);
   });
 }
@@ -2162,21 +2241,29 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('session_id', sessionId);
   fd.append('pushed_ids', JSON.stringify(Array.from(sessionPushedIds)));
   fd.append('cart_ids', JSON.stringify(cartIds));
+  fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
   if (sessionEmotionLog.length > 0) {
     fd.append('emotion_session_log', JSON.stringify(sessionEmotionLog));
   }
   const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 4000);
-  try { await api.checkout(fd, ctrl.signal); }
-  catch (err) {
+  const tid = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const res = await api.checkout(fd, ctrl.signal);
+    if (res && res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { orderNumber: data.order_number ?? 0, sessionId: data.session_id || sessionId };
+    }
+  } catch (err) {
     trackInteractionEvent({
       event_type: 'payment_failed',
       button_id: 'confirmPayBtn',
       payment_fail_count: 1,
       metadata: { reason: err?.message || 'checkout_log_failed' }
     });
+  } finally {
+    clearTimeout(tid);
   }
-  finally { clearTimeout(tid); }
+  return { orderNumber: 0, sessionId };
 }
 
 function setConfirmButtonsDisabled(disabled) {
@@ -2195,21 +2282,63 @@ function setConfirmButtonsDisabled(disabled) {
     .forEach(button => { button.disabled = disabled; });
 }
 
-function showCompletionOverlay(title, subtitle) {
-  switchMainView('pos');
-  closeOrderConfirmModal();
-  hidePaymentScreen();
-  const titleEl = ui.checkoutOverlay?.querySelector('h1');
-  const subtitleEl = ui.checkoutOverlay?.querySelector('p');
-  if (titleEl) titleEl.textContent = title;
-  if (subtitleEl) subtitleEl.textContent = subtitle;
-  ui.checkoutOverlay.classList.remove('hidden');
-  requestAnimationFrame(() => ui.checkoutOverlay.classList.remove('opacity-0'));
-  updateEmotionCameraPanel();
-  setTimeout(() => location.reload(), 3500);
+function showCompletionOverlay(orderData = {}) {
+  try {
+    switchMainView('pos');
+    closeOrderConfirmModal();
+    hidePaymentScreen();
+
+    const overlay = document.getElementById('checkoutOverlay');
+    if (!overlay) { setTimeout(() => location.reload(), 500); return; }
+
+    const { orderNumber = 0, sessionId: sid = '', cartItems = [] } = orderData;
+
+    // 取餐號碼：3 位數補零
+    const pickNum = String(orderNumber).padStart(3, '0');
+    // 訂單編號：直接用 session_id
+    const orderId = sid || sessionId;
+
+    const numEl = overlay.querySelector('[data-pick-number]');
+    if (numEl) numEl.textContent = pickNum;
+
+    const orderIdEl = overlay.querySelector('[data-order-id]');
+    if (orderIdEl) orderIdEl.textContent = orderId;
+
+    const listEl = overlay.querySelector('[data-item-list]');
+    if (listEl) {
+      listEl.textContent = '';
+      cartItems.forEach(({ name, qty, price }) => {
+        const row = document.createElement('div');
+        row.className = 'co-item-row';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = name;
+        const qtySpan = document.createElement('span');
+        qtySpan.className = 'co-item-qty';
+        qtySpan.textContent = `×${qty}`;
+        const priceSpan = document.createElement('span');
+        priceSpan.className = 'co-item-price';
+        priceSpan.textContent = `$${price}`;
+        row.append(nameSpan, qtySpan, priceSpan);
+        listEl.appendChild(row);
+      });
+    }
+
+    const total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const totalEl = overlay.querySelector('[data-total]');
+    if (totalEl) totalEl.textContent = `$${total}`;
+
+    overlay.classList.remove('hidden', 'opacity-0');
+    updateEmotionCameraPanel();
+
+    overlay.querySelector('[data-home-btn]')
+      ?.addEventListener('click', () => location.reload());
+  } catch (e) {
+    console.error('[showCompletionOverlay]', e);
+    setTimeout(() => location.reload(), 1000);
+  }
 }
 
-async function finishOrder(cartIds, button, loadingText, doneTitle) {
+async function finishOrder(cartIds, button, loadingText) {
   orderCompleted = true;
   updateVoiceAssistVisibility();
   clearPOSFloatingUI();
@@ -2220,9 +2349,23 @@ async function finishOrder(cartIds, button, loadingText, doneTitle) {
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
   if (button) button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${loadingText}`;
-  await writeCheckoutLog(cartIds);
+
+  let orderData = {};
+  try {
+    orderData = (await writeCheckoutLog(cartIds)) || {};
+  } catch { /* silent */ }
+
   if (button) button.innerHTML = originalHTML;
-  showCompletionOverlay(doneTitle, kt('thankYou'));
+
+  // Collect cart items snapshot for the completion screen
+  const rawItems = cartManager.getCartItems ? cartManager.getCartItems() : [];
+  orderData.cartItems = rawItems.map(item => ({
+    name: item.name || item.id || '',
+    qty:  Number(item.qty || item.quantity || 1),
+    price: Number(item.price || 0),
+  }));
+
+  showCompletionOverlay(orderData);
 }
 
 function openOrderConfirmModal() {
@@ -2303,7 +2446,7 @@ ui.kioskFastPayBtn?.addEventListener('click', () => {
     button_id: 'kioskFastPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskFastPayBtn, kt('checkoutProcessing'), kt('checkoutDone'));
+  finishOrder(cartIds, ui.kioskFastPayBtn, kt('checkoutProcessing'));
 });
 ui.kioskCounterPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -2315,7 +2458,7 @@ ui.kioskCounterPayBtn?.addEventListener('click', () => {
     button_id: 'kioskCounterPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskCounterPayBtn, kt('counterPayCreating'), kt('counterPayDone'));
+  finishOrder(cartIds, ui.kioskCounterPayBtn, kt('counterPayCreating'));
 });
 
 function leaveOrderConfirm(buttonId) {
@@ -2357,7 +2500,7 @@ ui.confirmPayBtn?.addEventListener('click', () => {
     button_id: 'confirmPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.confirmPayBtn, kt('checkoutProcessing'), kt('checkoutDone'));
+  finishOrder(cartIds, ui.confirmPayBtn, kt('checkoutProcessing'));
 });
 
 // =========================================================
@@ -2882,7 +3025,7 @@ document.getElementById('cancelGuideCounter')?.addEventListener('click', () => {
   cancelClickCount = 0;
   const cartIds = cartManager.getCartIds();
   if (!cartIds.length) return;
-  finishOrder(cartIds, null, kt('counterPayCreating'), kt('counterPayDone'));
+  finishOrder(cartIds, null, kt('counterPayCreating'));
 });
 
 document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', () => {

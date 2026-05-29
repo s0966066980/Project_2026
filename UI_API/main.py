@@ -14,11 +14,10 @@ from seeds.rag_knowledge import RAG_SEEDS
 from routes import (
     core_routes,
     emotion_routes,
-    demo_routes,
     debug_routes,
     menu_routes,
     rag_routes,
-    recommendation_routes,
+    ai_push_routes,
     voice_routes,
     multimodal_routes,
     interaction_routes,
@@ -80,7 +79,6 @@ _emotion_semaphore = LoopBoundSemaphore(1)
 _ollama_semaphore = LoopBoundSemaphore(1)
 _background_init_done = False
 _emotion_cache = {}
-_recommend_cache = {}
 _rag_rebuild_task = None
 
 
@@ -137,13 +135,6 @@ async def _background_init_once():
         except Exception as e:
             print(f"⚠️ RAG 種子注入失敗（不影響系統運作）: {e}")
 
-    async def _preload_whisper():
-        try:
-            await loop.run_in_executor(None, ai_services.init_whisper)
-            print("✅ Whisper 模型背景預載完成")
-        except Exception as e:
-            print(f"❌ Whisper 背景預載失敗: {e}")
-
     async def _preload_gemini_client():
         if config.get("ENABLE_GEMINI_OPTIONS", False) is not True:
             return
@@ -154,7 +145,7 @@ async def _background_init_once():
         except Exception as e:
             print(f"❌ Gemini client 背景初始化失敗: {e}")
 
-    await asyncio.gather(_init_rag(), _preload_whisper(), _preload_gemini_client())
+    await asyncio.gather(_init_rag(), _preload_gemini_client())
 
 
 async def _safe_rebuild_rag(reason: str = ""):
@@ -179,7 +170,6 @@ def _route_dependencies() -> dict:
         "emotion_cache": _emotion_cache,
         "emotion_semaphore": _emotion_semaphore,
         "ollama_semaphore": _ollama_semaphore,
-        "recommend_cache": _recommend_cache,
         "safe_rebuild_rag": _safe_rebuild_rag,
         "schedule_rag_rebuild": _schedule_rag_rebuild,
     }
@@ -190,9 +180,8 @@ app.include_router(core_routes.create_router(_deps))
 app.include_router(menu_routes.create_router(_deps))
 app.include_router(rag_routes.create_router(_deps))
 app.include_router(voice_routes.create_router(_deps))
-app.include_router(recommendation_routes.create_router(_deps))
+app.include_router(ai_push_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
-app.include_router(demo_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
 app.include_router(multimodal_routes.create_router(_deps))
 app.include_router(realtime_routes.create_router(_deps))
@@ -200,8 +189,13 @@ if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
 
 
-def _ensure_ollama(model: str = "qwen3.5:4b", embed_model: str = "nomic-embed-text", extra_models: list = None):
-    """Start ollama serve if not running, then pull required models in background."""
+def _ensure_ollama(
+    model: str = "qwen3.5:4b",
+    embed_model: str = "nomic-embed-text",
+    voice_model: str = "qwen3.5:4b",
+    extra_models: list | None = None,
+):
+    """Start ollama serve and pull each required model once, with purpose logging."""
     import socket as _sock
     import subprocess as _sp
     import time as _t
@@ -212,6 +206,24 @@ def _ensure_ollama(model: str = "qwen3.5:4b", embed_model: str = "nomic-embed-te
                 return True
         except OSError:
             return False
+
+    def _add_model(specs: dict[str, list[str]], name: str, purpose: str):
+        clean_name = str(name or "").strip()
+        if not clean_name:
+            return
+        specs.setdefault(clean_name, [])
+        if purpose and purpose not in specs[clean_name]:
+            specs[clean_name].append(purpose)
+
+    specs: dict[str, list[str]] = {}
+    _add_model(specs, model, "local LLM for menu Q&A, RAG review, and fallback reasoning")
+    _add_model(specs, voice_model, "voice assist LLM")
+    _add_model(specs, embed_model, "RAG embedding model")
+    for item in extra_models or []:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            _add_model(specs, item[0], str(item[1]))
+        else:
+            _add_model(specs, item, "additional local model")
 
     if not _ollama_running():
         print("⏳ Ollama 未偵測到，正在啟動 ollama serve ...")
@@ -228,16 +240,22 @@ def _ensure_ollama(model: str = "qwen3.5:4b", embed_model: str = "nomic-embed-te
         print("✅ ollama serve 已在執行中")
 
     def _pull():
-        pull_list = [model, embed_model] + (extra_models or [])
-        for m in pull_list:
+        if not specs:
+            print("ℹ️ 沒有需要預載的 Ollama 模型。")
+            return
+        print("📦 Ollama 預載模型清單（已去重）：")
+        for name, purposes in specs.items():
+            print(f"  - {name}: {'; '.join(purposes)}")
+        for name, purposes in specs.items():
             try:
-                result = _sp.run(["ollama", "pull", m], capture_output=True, text=True, timeout=300)
+                result = _sp.run(["ollama", "pull", name], capture_output=True, text=True, timeout=300)
+                purpose_text = "; ".join(purposes)
                 if result.returncode == 0:
-                    print(f"✅ ollama pull {m} 完成")
+                    print(f"✅ ollama pull {name} 完成（{purpose_text}）")
                 else:
-                    print(f"⚠️ ollama pull {m} 失敗：{result.stderr.strip()}")
+                    print(f"⚠️ ollama pull {name} 失敗：{result.stderr.strip()}")
             except _sp.TimeoutExpired:
-                print(f"⚠️ ollama pull {m} 超時，請手動執行。")
+                print(f"⚠️ ollama pull {name} 超時，請手動執行。")
             except FileNotFoundError:
                 print("⚠️ ollama 指令不存在，請確認 ollama 已安裝。")
                 break
@@ -252,8 +270,8 @@ if __name__ == "__main__":
 
     _ensure_ollama(
         model=config.get("MODEL_NAME", "qwen3.5:4b"),
-        embed_model="nomic-embed-text",
-        extra_models=[config.get("VOICE_ASSIST_MODEL", "qwen3.5:9b")],
+        embed_model=(config.get("rag", {}) or {}).get("embedding_model", "nomic-embed-text"),
+        voice_model=config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b"),
     )
 
     def _port_is_in_use(host: str, port: int) -> bool:
@@ -290,16 +308,14 @@ if __name__ == "__main__":
             print(f"   (Admin 也可由 POS port 直接造訪：http://{local_host}:{pos_port}/admin)")
 
     def _print_tunnel_paths(public_url: str):
-        """Single ngrok tunnel covers /pos, /admin, /demo-tool — same FastAPI app."""
         if not public_url:
             return
         public_url = public_url.rstrip("/")
         print(f"🌍 ngrok public URL: {public_url}")
-        print(f"   🖥️  POS:        {public_url}/pos"
+        print(f"   🖥️  POS:    {public_url}/pos"
               + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
-        print(f"   🛠️  Admin:      {public_url}/admin"
+        print(f"   🛠️  Admin:  {public_url}/admin"
               + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
-        print(f"   🧪 Demo tool:  {public_url}/demo-tool")
         print("   ℹ️  若 ngrok free tier 出現警告頁，按 Visit Site 即可進入。")
 
     _print_access_urls()
