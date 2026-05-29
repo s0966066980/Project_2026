@@ -184,7 +184,26 @@ function renderTable(sessions) {
   });
 }
 
+// ── Clear stats ──
+async function clearStats() {
+  const btn = document.getElementById('clearBtn');
+  if (!confirm('確定清除所有點餐統計紀錄？此操作無法還原。')) return;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/api/session_stats`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      await loadStats();
+    }
+  } catch {
+    alert('清除失敗，請重試。');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
+document.getElementById('clearBtn')?.addEventListener('click', clearStats);
 loadStats();
 setInterval(loadStats, 15000);

@@ -85,6 +85,11 @@ def create_router(deps: dict) -> APIRouter:
     async def serve_admin():
         return FileResponse("admin.html")
 
+    @router.delete("/api/session_stats")
+    async def clear_session_stats():
+        await asyncio.to_thread(log_repository.clear_session_logs)
+        return {"status": "success"}
+
     @router.get("/api/session_stats")
     async def get_session_stats():
         logs = await asyncio.to_thread(log_repository.get_session_logs)

@@ -110,6 +110,15 @@ body {
   color: #3b4a6b; cursor: pointer; transition: background 0.15s;
 }
 .refresh-btn:hover { background: #e8ecf4; }
+.clear-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px;
+  background: #fff0f0; border: 1.5px solid #fcc;
+  border-radius: 8px; font-size: 12px; font-weight: 700;
+  color: #c0392b; cursor: pointer; transition: background 0.15s;
+}
+.clear-btn:hover { background: #ffe0e0; border-color: #e84040; }
+.clear-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .content {
   flex: 1;
@@ -284,6 +293,9 @@ tbody tr:hover td { background: #f8fafd; }
       <span class="topbar-date" id="topbar-date"></span>
       <button class="refresh-btn" id="refreshBtn" type="button">
         <i class="fas fa-sync-alt"></i> 重新整理
+      </button>
+      <button class="clear-btn" id="clearBtn" type="button">
+        <i class="fas fa-trash-alt"></i> 清除統計
       </button>
     </div>
   </div>
