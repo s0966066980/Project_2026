@@ -2111,6 +2111,13 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
   color: #a0620a;
   white-space: nowrap;
 }
+.ai-push-itemprice {
+  color: #c8102e;
+  font-size: clamp(14px, 1.2vw, 17px);
+  font-weight: 900;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .ai-push-itemname {
   margin: 0;
   min-width: 0;

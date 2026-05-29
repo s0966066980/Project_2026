@@ -623,6 +623,8 @@ const aiPush = (() => {
     const emEl   = $('aiPushFallback');
 
     if (nameEl) nameEl.textContent = item.name || '';
+    const prEl = $('aiPushItemPrice');
+    if (prEl) prEl.textContent = formatItemPrice(item);
     if (textEl) textEl.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
 
     if (imgEl) {
@@ -721,7 +723,7 @@ const aiPush = (() => {
   document.addEventListener('DOMContentLoaded', () => {
     $('aiPushPickBtn')?.addEventListener('click', () => {
       if (!_item) return;
-      trackedAddToCart(_item, { source: 'ai_push' });
+      showItemConfirmModal(_item, 'ai_push');
       _schedule(REFRESH_MS);
     });
     $('aiPushRefreshBtn')?.addEventListener('click', () => _fetch());
@@ -734,10 +736,12 @@ const aiPush = (() => {
 // =========================================================
 // 餐點確認彈窗
 // =========================================================
-let _icItem = null;
-let _icQty  = 1;
+let _icItem   = null;
+let _icQty    = 1;
+let _icSource = 'menu_card';
 
-function showItemConfirmModal(item) {
+function showItemConfirmModal(item, source = 'menu_card') {
+  _icSource = source;
   if (!item) return;
   _icItem = item;
   _icQty  = 1;
@@ -775,8 +779,9 @@ function showItemConfirmModal(item) {
 }
 
 function hideItemConfirmModal() {
-  _icItem = null;
-  _icQty  = 1;
+  _icItem   = null;
+  _icQty    = 1;
+  _icSource = 'menu_card';
   document.getElementById('itemConfirmModal')?.classList.add('hidden');
 }
 
@@ -803,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('itemConfirmAdd')?.addEventListener('click', () => {
     if (!_icItem) return;
     for (let i = 0; i < _icQty; i++) {
-      trackedAddToCart(_icItem, { source: 'menu_card' });
+      trackedAddToCart(_icItem, { source: _icSource });
     }
     hideItemConfirmModal();
   });
@@ -2987,8 +2992,7 @@ document.getElementById('choiceHesitationPick')?.addEventListener('click', () =>
   if (!currentChoiceHesitationItem) return;
   const item = currentChoiceHesitationItem;
   hideChoiceHesitationModal();
-  trackedAddToCart(item, { source: 'choice_hesitation' });
-  showPushNotice(`已加入購物車：${item.name || '推薦餐點'}`);
+  showItemConfirmModal(item, 'choice_hesitation');
 });
 document.getElementById('choiceHesitationNext')?.addEventListener('click', () => {
   const nextItem = pickChoiceHesitationItem();

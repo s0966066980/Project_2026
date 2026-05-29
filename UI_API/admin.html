@@ -100,7 +100,7 @@ body {
   flex-shrink: 0;
 }
 .topbar-title { font-size: 18px; font-weight: 800; color: #1a2233; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
 .topbar-date { font-size: 12px; color: #8494b0; }
 .refresh-btn {
   display: inline-flex; align-items: center; gap: 7px;
@@ -110,6 +110,7 @@ body {
   color: #3b4a6b; cursor: pointer; transition: background 0.15s;
 }
 .refresh-btn:hover { background: #e8ecf4; }
+.refresh-btn, .clear-btn { flex-shrink: 0; white-space: nowrap; }
 .clear-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 7px 14px;

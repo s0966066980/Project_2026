@@ -283,12 +283,11 @@ if __name__ == "__main__":
     host = config.APP_HOST
     pos_port = int(config.APP_PORT)
     admin_port = int(config.ADMIN_PORT)
+    local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
     ports = [pos_port]
     if admin_port not in ports:
         ports.append(admin_port)
-    print("\n" + "=" * 65)
-    print(f"🚀 POS client starting on http://{host}:{pos_port}")
-    print(f"🚀 Admin console starting on http://{host}:{admin_port}")
+
     available_ports = []
     for port in ports:
         if _port_is_in_use(host, port):
@@ -297,28 +296,35 @@ if __name__ == "__main__":
             available_ports.append(port)
     if not available_ports:
         print("ℹ️ 所有入口都已由既有程序佔用，略過重複啟動。")
-        print("=" * 65 + "\n")
         sys.exit(0)
 
-    def _print_access_urls():
-        local_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
-        print(f"🖥️ POS local URL:   http://{local_host}:{pos_port}/pos")
-        print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
-        if pos_port != admin_port:
-            print(f"   (Admin 也可由 POS port 直接造訪：http://{local_host}:{pos_port}/admin)")
+    # ── 功能模組狀態 ──────────────────────────────────────
+    def _check_emotion_llama() -> str:
+        import urllib.request
+        try:
+            urllib.request.urlopen(config.EMOTION_LLAMA_GRADIO_URL, timeout=1)
+            return "✅ 開啟"
+        except Exception:
+            return "❌ 未開啟"
 
-    def _print_tunnel_paths(public_url: str):
-        if not public_url:
-            return
-        public_url = public_url.rstrip("/")
-        print(f"🌍 ngrok public URL: {public_url}")
-        print(f"   🖥️  POS:    {public_url}/pos"
-              + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
-        print(f"   🛠️  Admin:  {public_url}/admin"
-              + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
-        print("   ℹ️  若 ngrok free tier 出現警告頁，按 Visit Site 即可進入。")
+    model_name   = config.get("MODEL_NAME", "qwen3.5:4b")
+    voice_model  = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
+    embed_model  = (config.get("rag", {}) or {}).get("embedding_model", "nomic-embed-text")
+    ai_provider  = config.get("QA_AI_PROVIDER", "ollama")
+    emotion_stat = _check_emotion_llama()
 
-    _print_access_urls()
+    print("\n" + "=" * 65)
+    print("📋 功能模組狀態")
+    print(f"   🤖 主要 LLM    : {model_name}  ({ai_provider})")
+    print(f"   🎙️  語音助理    : {voice_model}")
+    print(f"   📚 RAG 嵌入    : {embed_model}")
+    print(f"   👁️  Emotion-LLaMA: {emotion_stat}  ({config.EMOTION_LLAMA_GRADIO_URL})")
+    print()
+
+    # ── 存取網址 ──────────────────────────────────────────
+    print(f"🖥️ POS local URL:   http://{local_host}:{pos_port}/pos")
+    print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
+
     if config.ENABLE_NGROK and config.NGROK_AUTHTOKEN:
         try:
             from pyngrok import ngrok
@@ -339,25 +345,17 @@ if __name__ == "__main__":
             if not tunnel_url:
                 tunnel = ngrok.connect(pos_port)
                 tunnel_url = str(getattr(tunnel, "public_url", "") or "")
-            _print_tunnel_paths(tunnel_url)
+            if tunnel_url:
+                public_url = tunnel_url.rstrip("/")
+                print(f"🖥️  POS:    {public_url}/pos"
+                      + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
+                print(f"🛠️  Admin:  {public_url}/admin"
+                      + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
         except ImportError:
             print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
         except Exception as e:
-            print(f"⚠️ ngrok tunnel 啟動失敗，本機 API 照常啟動: {e}")
-            try:
-                from pyngrok import ngrok
+            print(f"⚠️ ngrok 啟動失敗（本機照常）: {e}")
 
-                for existing_tunnel in ngrok.get_tunnels() or []:
-                    public_url = str(getattr(existing_tunnel, "public_url", "") or "")
-                    if public_url:
-                        print(f"🌍 既有 ngrok tunnel: {public_url}")
-            except Exception:
-                pass
-    else:
-        if config.NGROK_AUTHTOKEN:
-            print("ℹ️ ngrok token 已設定，但 ENABLE_NGROK=false；若要顯示外網網址，請設定 ENABLE_NGROK=true 後重啟。")
-        else:
-            print("ℹ️ ngrok 未啟用，只啟動本機 API。")
     print("=" * 65 + "\n")
 
     servers = [
