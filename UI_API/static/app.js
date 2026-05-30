@@ -658,6 +658,17 @@ const aiPush = (() => {
     return menuData[0] || null;
   }
 
+  // 本地隨機備選（Ollama 失敗時使用），excludeCurrent=true 排除目前品項
+  function _pickRandom(excludeCurrent = true) {
+    const priced = menuData.filter(m => m && m.id && Number(m.price || 0) > 0);
+    if (!priced.length) return _pickDefault();
+    const pool = excludeCurrent && _item?.id
+      ? priced.filter(m => m.id !== _item.id)
+      : priced;
+    const src = pool.length ? pool : priced;
+    return src[Math.floor(Math.random() * src.length)];
+  }
+
   // excludeCurrentItem=false 時不排除目前項目（首次呼叫用）
   async function _fetch(excludeCurrentItem = true) {
     if (_inFlight || !_eligible()) { if (!_eligible()) hide(); return; }
@@ -669,11 +680,17 @@ const aiPush = (() => {
     fd.append('exclude_ids', JSON.stringify(excludeCurrentItem && _item?.id ? [_item.id] : []));
     try {
       const data = await api.aiPush(fd);
-      const id   = data.recommendation_id || '';
-      const item = menuData.find(m => m.id === id) || menuData[0];
-      if (item) _render(item, data.push_text || '');
+      const id     = data?.recommendation_id || '';
+      const aiItem = id ? menuData.find(m => m.id === id) : null;
+      // AI 推薦有效且與目前不同 → 採用；否則本地隨機備選
+      const item = (aiItem && aiItem.id !== _item?.id)
+        ? aiItem
+        : _pickRandom(excludeCurrentItem);
+      if (item) _render(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`);
     } catch {
-      // 若 Ollama 失敗，已有預載畫面，不覆蓋
+      // Ollama 無法連線，使用本地隨機備選確保畫面更新
+      const fallback = _pickRandom(excludeCurrentItem);
+      if (fallback) _render(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`);
     } finally {
       _inFlight = false;
       $('aiPushBar')?.classList.remove('loading');
