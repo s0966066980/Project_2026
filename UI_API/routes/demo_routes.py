@@ -183,9 +183,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
             ui_context=ui_context,
             risk_result=risk_result,
             recent_events=recent_events,
-            emotion_structured={"emotion_label": "猶豫"} if scenario == "menu_hesitation" else {},
             speech_text=speech_text,
-            media_signals={},
             scenario_id=scenario if scenario != "low_risk" else None,
             source="demo_trigger_scenario",
         )

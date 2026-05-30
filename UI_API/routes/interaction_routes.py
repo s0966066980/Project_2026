@@ -161,16 +161,6 @@ def create_router(deps: dict | None = None) -> APIRouter:
     async def post_barrier_state(payload: dict = Body(...)):
         session_id = str(payload.get("session_id") or "")
         ui_context = payload.get("ui_context") if isinstance(payload.get("ui_context"), dict) else {}
-        emotion_structured = (
-            payload.get("emotion_structured")
-            if isinstance(payload.get("emotion_structured"), dict)
-            else {}
-        )
-        media_signals = (
-            payload.get("media_signals")
-            if isinstance(payload.get("media_signals"), dict)
-            else {}
-        )
         speech_text = str(payload.get("speech_text") or "")
         events = await asyncio.to_thread(
             interaction_event_repository.get_recent_session_events, session_id
@@ -180,8 +170,6 @@ def create_router(deps: dict | None = None) -> APIRouter:
             ui_context=ui_context,
             recent_events=events,
             speech_text=speech_text,
-            emotion_structured=emotion_structured,
-            media_signals=media_signals,
             source="barrier_state",
         )
         return {
