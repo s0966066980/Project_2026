@@ -236,7 +236,6 @@ def create_router(deps: dict) -> APIRouter:
         order_number = len(log_repository.get_session_logs())
 
         session_repository.archive_session(session_id)
-        deps["emotion_cache"].pop(session_id, None)
         return {"status": "success", "log": log_entry, "order_number": order_number, "session_id": session_id}
 
     return router
