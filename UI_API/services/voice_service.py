@@ -22,8 +22,6 @@ async def handle_voice(
     ollama_semaphore,
     multi_lang: bool = True,
 ) -> dict:
-    loop = asyncio.get_running_loop()
-
     # 1. Whisper STT
     stt = await ai_services.async_safe_transcribe_with_language(audio_path)
     user_text = (stt.get("text") or "").strip()
@@ -42,7 +40,10 @@ async def handle_voice(
 
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
-    system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT") or _DEFAULT_SYSTEM_PROMPT
+    if detected_lang == "en":
+        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN") or _DEFAULT_SYSTEM_PROMPT
+    else:
+        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT") or _DEFAULT_SYSTEM_PROMPT
 
     # TODO: inject RAG context here
     # rag_context = rag_provider.query(user_text)
@@ -51,12 +52,10 @@ async def handle_voice(
     # 2. Ollama
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
     async with ollama_semaphore:
-        result = await loop.run_in_executor(
-            None, ai_services.ask_ollama, system_prompt, user_prompt, "", model
+        result = await asyncio.to_thread(
+            ai_services.ask_ollama, system_prompt, user_prompt, "", model
         )
 
-    if isinstance(result, list):
-        result = next((r for r in result if isinstance(r, dict)), {})
     if not isinstance(result, dict) or "error" in result:
         ai_response = (
             "I can help with menu questions or add items to your cart."
