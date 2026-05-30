@@ -62,7 +62,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         f"{_menu_context(items)}\n\n"
         f"【本次排除 ID】{', '.join(exclude) or '無'}\n"
         "請挑 1 個適合現在推播的餐點。"
-        "push_text：繁體中文、18–34 字、自然促購語氣，不要出現 JSON 以外的文字。"
+        "push_text：繁體中文、18–34 字、自然熱情促購語氣，不要出現 JSON 以外的文字。"
     )
 
     try:

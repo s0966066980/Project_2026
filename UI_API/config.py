@@ -42,16 +42,9 @@ CORS_ORIGINS = [
 for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
     if _public_origin and _public_origin not in CORS_ORIGINS:
         CORS_ORIGINS.append(_public_origin)
-VECTOR_DB_DIR = "./chroma_db"
 MENU_JSON_PATH = "./menu_data/menu.json"
 LEARNING_DATA_DIR = "./learning_data"
 SETTINGS_JSON_PATH = "./learning_data/settings.json"
-RAG_DOCS_JSON_PATH = "./learning_data/rag_docs.json"
-RAG_REVIEW_LOG_PATH = "./learning_data/rag_review_logs.json"
-RAG_VECTOR_META_PATH = "./learning_data/rag_vector_meta.json"
-CUSTOMER_SERVICE_LOG_PATH = "./learning_data/customer_service_logs.json"
-CUSTOMER_SERVICE_MEDIA_DIR = "./learning_data/customer_service_media"
-EMOTION_ORDER_MEDIA_DIR = "./learning_data/emotion_order_media"
 
 OLLAMA_TIMEOUT = 120
 GEMINI_TIMEOUT = 120

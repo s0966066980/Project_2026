@@ -67,6 +67,10 @@ export async function autoRecommend(formData, signal) {
   return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData, signal }));
 }
 
+export async function aiPush(formData) {
+  return asJson(await fetch(`${API_BASE}/api/ai_push`, { method: 'POST', body: formData }));
+}
+
 export async function ask(formData) {
   return asJson(await fetch(`${API_BASE}/api/ask`, { method: 'POST', body: formData }));
 }
