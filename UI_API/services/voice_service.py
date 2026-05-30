@@ -72,7 +72,10 @@ async def handle_voice(
             menu_items,
         )
         if not ai_response:
-            ai_response = "已為您加入購物車。" if cart_actions else "我可以協助您了解菜單或加入餐點。"
+            if detected_lang == "en":
+                ai_response = "Added to your cart." if cart_actions else "I can help with menu questions or add items to your cart."
+            else:
+                ai_response = "已為您加入購物車。" if cart_actions else "我可以協助您了解菜單或加入餐點。"
 
     session_repository.record_session_state(
         session_id=session_id,
