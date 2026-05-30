@@ -134,7 +134,6 @@ def create_router(deps: dict) -> APIRouter:
     @router.post("/api/settings")
     async def update_settings(request: Request, new_settings: dict = Body(...)):
         require_admin_token(request)
-        old_rag_settings = config.get("rag", {})
         config.save_settings(new_settings)
         saved_settings = config.load_settings()
         await event_bus.publish_event({
@@ -142,8 +141,6 @@ def create_router(deps: dict) -> APIRouter:
             "session_id": "",
             "payload": {"settings": saved_settings},
         })
-        if new_settings.get("rag") != old_rag_settings:
-            deps["schedule_rag_rebuild"]("RAG settings changed")
         return {"status": "success"}
 
     @router.get("/api/logs")
@@ -170,14 +167,12 @@ def create_router(deps: dict) -> APIRouter:
     async def clear_logs(request: Request):
         require_admin_token(request)
         await asyncio.to_thread(log_repository.clear_session_logs)
-        deps["recommend_cache"].clear()
         return {"status": "success"}
 
     @router.delete("/api/logs/{log_index}")
     async def delete_log(request: Request, log_index: int):
         require_admin_token(request)
         deleted = await asyncio.to_thread(log_repository.delete_session_log, log_index)
-        deps["recommend_cache"].clear()
         return {"status": "success" if deleted else "not_found"}
 
     @router.post("/api/checkout")
@@ -185,7 +180,6 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
-        emotion_session_log: str = Form(default=""),
         ai_push_cart_count: str = Form(default="0"),
     ):
         try:
@@ -226,19 +220,6 @@ def create_router(deps: dict) -> APIRouter:
             }
             log_entry["intervention_result"] = intervention_result
 
-        # 批次寫入 session 情緒記錄到 RAG
-        if emotion_session_log:
-            try:
-                emotion_log_list = json.loads(emotion_session_log)
-                if isinstance(emotion_log_list, list) and emotion_log_list:
-                    saved = await asyncio.to_thread(
-                        database.save_voice_emotion_to_rag, session_id, emotion_log_list
-                    )
-                    if saved:
-                        deps["schedule_rag_rebuild"]("voice emotion session log")
-            except Exception as _e:
-                print(f"⚠️ emotion session log RAG 寫入失敗: {_e}")
-
         try:
             ai_count = max(0, int(ai_push_cart_count or 0))
             logs = log_repository.get_session_logs()
@@ -256,10 +237,6 @@ def create_router(deps: dict) -> APIRouter:
 
         session_repository.archive_session(session_id)
         deps["emotion_cache"].pop(session_id, None)
-        recommend_cache = deps.get("recommend_cache") or {}
-        for key in list(recommend_cache.keys()):
-            if key.startswith(f"{session_id}:"):
-                recommend_cache.pop(key, None)
         return {"status": "success", "log": log_entry, "order_number": order_number, "session_id": session_id}
 
     return router

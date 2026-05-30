@@ -19,14 +19,7 @@ def create_router(deps: dict) -> APIRouter:
         require_admin_token(request)
         if not isinstance(new_menu, list):
             return {"status": "error", "message": "menu payload must be a list"}
-
-        # 菜單管理只負責保存菜單 JSON。RAG 內容改由手動新增或成功點餐事件建立，
-        # 避免每次修改菜單都被 Ollama/RAG 審查阻塞，造成後台無法儲存。
-        await asyncio.to_thread(database.update_menu, new_menu, False)
-        deps["recommend_cache"].clear()
-        schedule_rebuild = deps.get("schedule_rag_rebuild")
-        if schedule_rebuild:
-            schedule_rebuild("menu update")
+        await asyncio.to_thread(database.update_menu, new_menu)
         return {"status": "success", "count": len(new_menu)}
 
     return router
