@@ -97,7 +97,7 @@ def infer_scenario_from_barrier_state(barrier_state: str) -> str:
     return _BARRIER_TO_SCENARIO.get(str(barrier_state or ""), "")
 
 
-def infer_scenario_from_event(event: dict, risk_result: dict | None = None) -> str:
+def infer_scenario_from_event(event: dict) -> str:
     if not isinstance(event, dict):
         return ""
 
@@ -116,11 +116,7 @@ def infer_scenario_from_event(event: dict, risk_result: dict | None = None) -> s
 
     if (
         _contains_any(reason, ["hesitation", "recommend", "猶豫", "推薦"])
-        or _contains_any(event_type, [
-            "menu_page_dwell_timeout",
-            "category_switch_repeat",
-            "recommendation_ignored",
-        ])
+        or _contains_any(event_type, ["menu_page_dwell_timeout", "category_switch_repeat"])
     ):
         return "menu_hesitation"
 
@@ -134,22 +130,11 @@ def infer_scenario_from_event(event: dict, risk_result: dict | None = None) -> s
     if page_id == "menu_page" and (
         _as_int(_event_value(event, "category_switch_count")) >= 4
         or _as_int(_event_value(event, "cart_remove_count")) >= 2
-        or _as_int(_event_value(event, "recommend_ignore_count")) >= 1
         or _contains_any(speech_text, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"])
     ):
         return "menu_hesitation"
 
-    risk = risk_result if isinstance(risk_result, dict) else {}
-    for reason_text in risk.get("trigger_reasons") or []:
-        reason_lower = str(reason_text or "").lower()
-        if any(term in reason_lower for term in ["category_switch", "cart_remove", "menu_page"]):
-            return "menu_hesitation"
-        if any(term in reason_lower for term in ["payment", "付款"]):
-            return "payment_problem"
-        if any(term in reason_lower for term in ["invalid_touch", "back_count"]):
-            return "operation_difficulty"
-
-    return infer_scenario_from_barrier_state(str(risk.get("barrier_state") or ""))
+    return ""
 
 
 def get_scenario_definition(scenario_id: str) -> dict:

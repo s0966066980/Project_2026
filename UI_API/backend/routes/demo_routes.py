@@ -158,45 +158,28 @@ def create_router(deps: dict | None = None) -> APIRouter:
             interaction_event_repository.get_recent_session_events, session_id
         )
         ui_context = saved_event.get("ui_context") if isinstance(saved_event.get("ui_context"), dict) else {}
-        risk_result = interaction_event_service.calculate_interaction_risk(recent_events, ui_context)
-        response = {
-            "status": "success",
-            "scenario": scenario,
-            "scenario_id": scenario if scenario != "low_risk" else "low_risk",
-            "scenario_label": (
-                scenario_service.get_scenario_definition(scenario).get("label")
-                or ("低風險正常操作" if scenario == "low_risk" else "")
-            ),
-            "requested_scenario": requested,
-            "event": saved_event,
-            "risk_result": risk_result,
-            "barrier_result": None,
-            "intervention": None,
-            "intervention_log": None,
-        }
-
-        if not risk_result.get("triggered"):
-            return response
 
         pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
             session_id=session_id,
             ui_context=ui_context,
-            risk_result=risk_result,
             recent_events=recent_events,
             speech_text=speech_text,
             scenario_id=scenario if scenario != "low_risk" else None,
             source="demo_trigger_scenario",
         )
 
-        response.update({
-            "scenario_id": pipeline_result.get("scenario_id", response["scenario_id"]),
-            "scenario_label": pipeline_result.get("scenario_label", response["scenario_label"]),
+        return {
+            "status": "success",
+            "scenario": scenario,
+            "scenario_id": pipeline_result.get("scenario_id", scenario),
+            "scenario_label": pipeline_result.get("scenario_label",
+                scenario_service.get_scenario_definition(scenario).get("label") or ""),
+            "requested_scenario": requested,
+            "event": saved_event,
             "barrier_result": pipeline_result.get("barrier_result"),
             "intervention": pipeline_result.get("intervention"),
             "intervention_log": pipeline_result.get("intervention_log"),
-            "multimodal_evidence": pipeline_result.get("multimodal_evidence"),
             "source": pipeline_result.get("source"),
-        })
-        return response
+        }
 
     return router

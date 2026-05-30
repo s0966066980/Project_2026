@@ -3,7 +3,6 @@ import asyncio
 from repositories import interaction_event_repository
 from realtime import event_bus
 from services import barrier_state_service
-from services import interaction_event_service
 from services import intervention_service
 from services import scenario_service
 
@@ -11,7 +10,6 @@ from services import scenario_service
 async def run_intervention_pipeline(
     session_id: str,
     ui_context: dict,
-    risk_result: dict | None = None,
     recent_events: list | None = None,
     speech_text: str = "",
     scenario_id: str | None = None,
@@ -24,19 +22,13 @@ async def run_intervention_pipeline(
         interaction_event_repository.get_recent_session_events,
         safe_session_id,
     )
-    risk = risk_result if isinstance(risk_result, dict) and risk_result else (
-        interaction_event_service.calculate_interaction_risk(events, safe_ui_context)
-    )
     speech = str(speech_text or "")
     normalized_scenario = scenario_service.normalize_scenario_id(scenario_id or "")
-    if normalized_scenario not in scenario_service.MAIN_SCENARIO_IDS and events:
-        normalized_scenario = scenario_service.infer_scenario_from_event(events[-1], risk)
 
     barrier_result = barrier_state_service.infer_barrier_state(
         speech_text=speech,
         pos_events=events,
         ui_context=safe_ui_context,
-        risk_result=risk,
     )
     barrier_scenario = scenario_service.infer_scenario_from_barrier_state(
         barrier_result.get("barrier_state", "")
@@ -45,6 +37,7 @@ async def run_intervention_pipeline(
         normalized_scenario = barrier_scenario
     if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
         scenario_service.attach_scenario_metadata(barrier_result, normalized_scenario)
+
     intervention = intervention_service.decide_intervention(barrier_result, safe_ui_context)
     if normalized_scenario in scenario_service.MAIN_SCENARIO_IDS:
         scenario_service.attach_scenario_metadata(intervention, normalized_scenario)
@@ -68,7 +61,6 @@ async def run_intervention_pipeline(
         )
 
     result = {
-        "risk_result": risk,
         "barrier_result": barrier_result,
         "intervention": intervention,
         "intervention_log": intervention_log,

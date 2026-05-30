@@ -1,4 +1,3 @@
-from services import interaction_event_service
 from services import scenario_service
 
 
@@ -82,15 +81,15 @@ def _latest_event_type(pos_events: list | None) -> str:
     return ""
 
 
-def _confidence_from(score: int, evidence_count: int) -> float:
-    return round(min(0.95, 0.45 + score * 0.04 + evidence_count * 0.06), 2)
+def _confidence_from(evidence_count: int) -> float:
+    return round(min(0.95, 0.45 + evidence_count * 0.08), 2)
 
 
-def _severity_from(score: int, evidence_count: int) -> float:
-    return round(min(1.0, 0.25 + score * 0.07 + evidence_count * 0.05), 2)
+def _severity_from(evidence_count: int) -> float:
+    return round(min(1.0, 0.25 + evidence_count * 0.08), 2)
 
 
-def map_barrier_to_default_action(barrier_state: str, severity: float) -> str:
+def map_barrier_to_default_action(barrier_state: str) -> str:
     mapping = {
         "payment_confusion": "show_payment_tutorial",
         "coupon_confusion": "show_coupon_guide",
@@ -125,11 +124,8 @@ def infer_barrier_state(
     speech_text: str = "",
     pos_events: list | None = None,
     ui_context: dict | None = None,
-    risk_result: dict | None = None,
 ) -> dict:
     events = pos_events or []
-    risk = risk_result or interaction_event_service.calculate_interaction_risk(events, ui_context)
-    risk_score = int(risk.get("risk_score") or 0)
     page_id = _latest_page(events, ui_context)
     speech = speech_text or ""
     evidence = []
@@ -138,7 +134,6 @@ def infer_barrier_state(
     coupon_error_count = _max_field(events, "coupon_error_count")
     category_switch_count = _max_field(events, "category_switch_count")
     cart_remove_count = _max_field(events, "cart_remove_count")
-    recommend_ignore_count = _max_field(events, "recommend_ignore_count")
     max_dwell_time_sec = _max_field(events, "dwell_time_sec")
     latest_event_type = _latest_event_type(events)
 
@@ -146,10 +141,10 @@ def infer_barrier_state(
     if _contains_any(speech, ["客訴", "投訴", "不爽", "太誇張", "我要找人", "經理", "爛"]):
         barrier_state = "potential_complaint"
         evidence.append("speech contains complaint intent")
-    elif page_id == "payment_page" and (risk_score >= 5 or payment_fail_count >= 1):
+    elif page_id == "payment_page" and payment_fail_count >= 1:
         barrier_state = "payment_confusion"
-        evidence.extend(["page_id=payment_page", "payment risk triggered"])
-    elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]) and risk_score >= 1:
+        evidence.extend(["page_id=payment_page", "payment_fail_count >= 1"])
+    elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]):
         barrier_state = "payment_confusion"
         evidence.append("speech contains payment issue")
     elif _contains_any(speech, ["優惠券", "折扣碼", "掃碼", "qr", "QR"]) and coupon_error_count >= 1:
@@ -158,10 +153,9 @@ def infer_barrier_state(
     elif page_id == "menu_page" and (
         category_switch_count >= 4
         or cart_remove_count >= 2
-        or recommend_ignore_count >= 1
-        or latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat", "recommendation_ignored")
+        or latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat")
         or _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"])
-        or (risk_score >= 5 and max_dwell_time_sec > 40)
+        or max_dwell_time_sec > 40
     ):
         barrier_state = "menu_hesitation"
         evidence.append("page_id=menu_page")
@@ -169,26 +163,21 @@ def infer_barrier_state(
             evidence.append("category_switch_count >= 4")
         if cart_remove_count >= 2:
             evidence.append("cart_remove_count >= 2")
-        if recommend_ignore_count >= 1:
-            evidence.append("recommend_ignore_count >= 1")
-        if latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat", "recommendation_ignored"):
+        if latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat"):
             evidence.append(f"event_type={latest_event_type}")
         if _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"]):
             evidence.append("speech contains menu hesitation")
-        if risk_score >= 5 and max_dwell_time_sec > 40:
-            evidence.append("risk_score >= 5 and dwell_time_sec > 40")
+        if max_dwell_time_sec > 40:
+            evidence.append("dwell_time_sec > 40")
     elif _contains_any(speech, ["不會", "不懂", "怎麼用", "看不懂", "怎麼點"]):
         barrier_state = "operation_confusion"
         evidence.append("speech contains operation confusion")
     elif _contains_any(speech, ["太慢", "等很久", "快一點", "趕時間"]):
         barrier_state = "impatience_detected"
         evidence.append("speech contains impatience")
-    elif risk_score >= 5 and page_id == "coupon_page":
+    elif page_id == "coupon_page" and coupon_error_count >= 1:
         barrier_state = "coupon_confusion"
-        evidence.extend(["risk_score >= threshold", "page_id=coupon_page"])
-    elif risk_score >= 5:
-        barrier_state = "operation_confusion"
-        evidence.append("risk_score >= threshold")
+        evidence.extend(["page_id=coupon_page", "coupon_error_count >= 1"])
     elif not events and not speech.strip():
         barrier_state = "low_confidence"
         evidence.append("insufficient context")
@@ -197,12 +186,9 @@ def infer_barrier_state(
         evidence.append("payment_fail_count >= 1")
     if page_id and f"page_id={page_id}" not in evidence:
         evidence.append(f"page_id={page_id}")
-    for reason in risk.get("trigger_reasons") or []:
-        if reason not in evidence:
-            evidence.append(reason)
 
-    confidence = _confidence_from(risk_score, len(evidence))
-    severity = _severity_from(risk_score, len(evidence))
+    confidence = _confidence_from(len(evidence))
+    severity = _severity_from(len(evidence))
     if barrier_state == "normal_operation":
         confidence = max(0.55, min(confidence, 0.75))
         severity = min(severity, 0.25)
@@ -222,15 +208,11 @@ def infer_barrier_state(
         "severity": severity,
         "confidence": confidence,
         "evidence": evidence,
-        "risk_score": risk_score,
-        "risk_score_scale": int(risk.get("risk_score_scale") or 10),
-        "risk_level": risk.get("risk_level") or "none",
-        "recommended_action": map_barrier_to_default_action(barrier_state, severity),
+        "recommended_action": map_barrier_to_default_action(barrier_state),
         "payment_fail_count": payment_fail_count,
         "coupon_error_count": coupon_error_count,
         "category_switch_count": category_switch_count,
         "cart_remove_count": cart_remove_count,
-        "recommend_ignore_count": recommend_ignore_count,
         **category_info,
         **patent_category_info,
         **scenario_info,

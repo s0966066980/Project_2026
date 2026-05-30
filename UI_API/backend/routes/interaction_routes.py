@@ -141,13 +141,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
         saved_event = await asyncio.to_thread(
             interaction_event_repository.append_interaction_event, event
         )
-        recent_events = await asyncio.to_thread(
-            interaction_event_repository.get_recent_session_events,
-            saved_event.get("session_id", ""),
-        )
-        ui_context = payload.get("ui_context") if isinstance(payload.get("ui_context"), dict) else {}
-        risk_result = interaction_event_service.calculate_interaction_risk(recent_events, ui_context)
-        return {"status": "success", "event": saved_event, "risk_result": risk_result}
+        return {"status": "success", "event": saved_event}
 
     @router.get("/interaction_events/{session_id}")
     async def get_interaction_events(request: Request, session_id: str, limit: int = 200):
