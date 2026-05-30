@@ -62,10 +62,7 @@ let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
-let adminRefreshTimer = null;
-let interventionStatsLoading = false;
 let posRealtime = null;
-let adminRealtime = null;
 let voiceOrderingAvailable = false;
 let autoVoiceTimer = null;
 let autoVoiceInFlight = false;
@@ -257,9 +254,6 @@ function perfValue(key) {
 }
 
 
-function isPeriodicEmotionEnabled() {
-  return runtimeSettings.EMOTION_PERIODIC_ENABLED === true;
-}
 
 function isDemoPublicMode() {
   return runtimeSettings.DEMO_PUBLIC_MODE === true || runtimeSettings.DEMO_PUBLIC_MODE === 'true';
@@ -277,7 +271,6 @@ function restartLoops() {
   emotionLoopId = null;
   if (isSystemRunning && isPosMode()) {
     maybeStartRollingMediaBuffer();
-    if (getFeatures().emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
   }
 }
 
@@ -437,7 +430,7 @@ function toggleFeature(key, el) {
       if (ok) setupAskRecorder();
       if (ok) {
         updateEmotionCameraPanel();
-        if (key === 'emotionBackend' && f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
+        if (key === 'emotionBackend' && f.emotionBackend) startEmotionLoop();
       }
     });
   }
@@ -505,13 +498,9 @@ function maybeStartRollingMediaBuffer() {
 
 function switchMainView(view) {
   if (view === 'admin' && !isAdminMode()) return;
-  switchMainViewUI(view, { clearPOSFloatingUI, loadAdminData, applyFeaturesToPOS, loadMenu });
-  if (view === 'admin') {
-    startAdminRealtime();
-    startAdminLiveRefresh();
-  } else {
+  switchMainViewUI(view, { clearPOSFloatingUI, applyFeaturesToPOS, loadMenu });
+  if (view !== 'admin') {
     startPosRealtime();
-    stopAdminLiveRefresh();
   }
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
@@ -1348,21 +1337,6 @@ function handleRealtimeInteractionIntervention(event = {}) {
   if (payload.intervention?.staff_notify) showPushNotice('已通知店員');
 }
 
-function handleRealtimeEmotionAnalysisStarted(event = {}) {
-  const payload = event.payload || {};
-  console.debug('emotion_analysis_started', payload);
-}
-
-function handleRealtimeEmotionAnalysisCompleted(event = {}) {
-  const payload = event.payload || {};
-  console.debug('emotion_analysis_completed', payload);
-  loadDashboard();
-}
-
-function handleRealtimeStaffNotify(event = {}) {
-  const payload = event.payload || {};
-  showAdminNotice(`建議店員協助：${payload.reason || payload.barrier_result?.barrier_state || '高風險互動'}`, 'warning');
-}
 
 function startPosRealtime() {
   if (!posRealtime) {
@@ -1374,35 +1348,8 @@ function startPosRealtime() {
   }
 }
 
-function startAdminRealtime() {
-  if (!adminRealtime) {
-    adminRealtime = connectRealtime('admin', 'global', {
-      emotion_analysis_started: handleRealtimeEmotionAnalysisStarted,
-      emotion_analysis_completed: handleRealtimeEmotionAnalysisCompleted,
-      staff_notify: handleRealtimeStaffNotify,
-      settings_changed: handleRealtimeSettingsChanged,
-    });
-  }
-}
-
 function initRealtimeClients() {
   if (isPosMode()) startPosRealtime();
-  if (isAdminMode()) startAdminRealtime();
-}
-
-function startAdminLiveRefresh() {
-  if (adminRefreshTimer) return;
-  adminRefreshTimer = setInterval(() => {
-    if (ui.adminView?.classList.contains('hidden')) return;
-    const sec = document.getElementById('admin-sec-dashboard');
-    if (sec && sec.style.display !== 'none') loadDashboard();
-  }, 4000);
-}
-
-function stopAdminLiveRefresh() {
-  if (!adminRefreshTimer) return;
-  clearInterval(adminRefreshTimer);
-  adminRefreshTimer = null;
 }
 
 function applyIntervention(intervention = {}, barrierResult = {}) {
@@ -1609,7 +1556,7 @@ ui.startBtn.onclick = async () => {
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     maybeStartRollingMediaBuffer();
-    if (f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
+    if (f.emotionBackend) startEmotionLoop();
     restartChoiceHesitationTimer();
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
@@ -1641,7 +1588,6 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
 // =========================================================
 function startEmotionLoop() {
   if (isAdminMode()) return;
-  if (!isPeriodicEmotionEnabled()) return;
   if (!getFeatures().emotionBackend) return;
   if (emotionLoopId) return;
   emotionLoopId = setInterval(() => {
@@ -2459,429 +2405,8 @@ ui.confirmPayBtn?.addEventListener('click', () => {
   finishOrder(cartIds, ui.confirmPayBtn, kt('checkoutProcessing'));
 });
 
-// =========================================================
-// 後台
-// =========================================================
-function switchAdminSection(section) {
-  ['dashboard', 'emotion', 'clips', 'menu', 'rag'].forEach(s => {
-    const el = document.getElementById('admin-sec-' + s);
-    if (el) el.style.display = (s === section) ? 'flex' : 'none';
-  });
-  ['emotion', 'clips', 'menu', 'rag'].forEach(s => {
-    const btn   = document.getElementById('admin-nav-' + s);
-    const label = btn?.querySelector('span:last-child');
-    if (btn)   btn.style.background  = (s === section) ? '#f5f3ff' : 'none';
-    if (label) label.style.color     = (s === section) ? '#7c3aed' : '#64748b';
-  });
-  if (section === 'emotion') loadEmotionSettings();
-  if (section === 'clips')   loadClipsPage();
-  if (section === 'menu')    loadMenuPage();
-  if (section === 'rag')     loadRagPage();
-}
-
-async function loadDashboard() {
-  try {
-    const data = await api.getInterventionStats();
-    if (data.status !== 'success') return;
-
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('dash-total', String(data.total_interventions ?? 0));
-    set('dash-rate',  Math.round((data.success_rate ?? 0) * 100) + '%');
-
-    const lastLog  = Array.isArray(data.recent_logs) ? data.recent_logs[0] : null;
-    const barrier  = lastLog?.barrier_result?.barrier_state || '—';
-    const action   = lastLog?.intervention?.action || '—';
-    set('dash-barrier', barrier);
-    set('dash-action',  action);
-
-    const bannerAction = document.getElementById('dash-last-action');
-    const bannerTime   = document.getElementById('dash-last-action-time');
-    if (bannerAction) bannerAction.textContent = lastLog ? ('⚡ ' + action) : '尚無介入紀錄';
-    if (bannerTime && lastLog?.timestamp) {
-      bannerTime.textContent = new Date(lastLog.timestamp).toLocaleTimeString();
-    }
-
-    const logBox = document.getElementById('dash-event-log');
-    if (logBox) {
-      const events = Array.isArray(data.recent_events) ? data.recent_events.slice(0, 3) : [];
-      if (!events.length) {
-        logBox.textContent = '尚無 POS 事件。';
-      } else {
-        const levelBg   = { urgent:'#fee2e2', watch:'#fef9c3', assist:'#fef9c3', stable:'#f1f5f9', critical:'#fecaca' };
-        const levelFg   = { urgent:'#dc2626', watch:'#92400e', assist:'#92400e', stable:'#64748b', critical:'#991b1b' };
-        logBox.textContent = '';
-        events.forEach(ev => {
-          const row  = document.createElement('div');
-          row.style.cssText = 'display:flex;justify-content:space-between;font-size:11px';
-          const ts   = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
-          const desc = String(ev.event_type || ev.button_id || '-');
-          const page = String(ev.page_id || '');
-          const lvl  = String(ev.risk_level || 'stable');
-          const left = document.createElement('span');
-          left.style.color = '#64748b';
-          left.textContent = ts + '  ' + desc + (page ? ' ／ ' + page : '');
-          const badge = document.createElement('span');
-          badge.style.cssText = 'padding:1px 6px;border-radius:4px;font-size:10px;background:' +
-            (levelBg[lvl] || '#f1f5f9') + ';color:' + (levelFg[lvl] || '#64748b');
-          badge.textContent = lvl;
-          row.appendChild(left);
-          row.appendChild(badge);
-          logBox.appendChild(row);
-        });
-      }
-    }
-  } catch { /* 靜默失敗 */ }
-}
-
-async function loadEmotionSettings() {
-  try {
-    fullSettings = await api.getSettings();
-    runtimeSettings = { ...runtimeSettings, ...fullSettings };
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-    const chk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = Boolean(v); };
-    set('inp-emotion-interval',   fullSettings.EMOTION_PING_INTERVAL_SEC ?? 15);
-    set('inp-emotion-record-ms',  fullSettings.EMOTION_RECORD_MS ?? 900);
-    set('inp-whisper-low-db',     fullSettings.WHISPER_LOW_AUDIO_DB ?? -58);
-    set('inp-temp',               fullSettings.OLLAMA_TEMPERATURE ?? 0.8);
-    set('inp-num-predict',        fullSettings.OLLAMA_NUM_PREDICT ?? 220);
-    const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
-    set('inp-ai-provider', allowGemini ? (fullSettings.QA_AI_PROVIDER || 'ollama') : 'ollama');
-    set('inp-model-name',         fullSettings.MODEL_NAME || 'llama3.2');
-    set('inp-ask-model-name',     fullSettings.MODEL_NAME || 'llama3.2');
-    set('inp-gemini-model-name',  fullSettings.GEMINI_MODEL_NAME || 'gemini-3-flash-preview');
-    set('inp-performance-mode',   fullSettings.PERFORMANCE_MODE || 'balanced');
-    set('inp-rag-top-k',          fullSettings.RAG_TOP_K ?? 3);
-    set('inp-voice-assist-model', fullSettings.VOICE_ASSIST_MODEL || 'qwen3.5:4b');
-    set('inp-ask-prompt',         fullSettings.ASK_SYSTEM_PROMPT || '');
-    set('inp-ask-prompt-en',      fullSettings.ASK_SYSTEM_PROMPT_EN || '');
-    set('inp-emotion-prompt',     fullSettings.EMOTION_LLAMA_PROMPT || '');
-    set('inp-voice-assist-prompt',fullSettings.VOICE_ASSIST_SYSTEM_PROMPT || '');
-    const gemFbEl = document.getElementById('inp-gemini-fallback');
-    if (gemFbEl) gemFbEl.value = fullSettings.GEMINI_FALLBACK_TO_OLLAMA !== false ? 'true' : 'false';
-    const ttsEl = document.getElementById('inp-tts-cache');
-    if (ttsEl) ttsEl.value = fullSettings.ENABLE_TTS_CACHE !== false ? 'true' : 'false';
-    const rag = fullSettings.rag || {};
-    chk('inp-rag-strict-grounding',    rag.strict_grounding === true);
-    chk('inp-rag-answer-verification', rag.answer_verification === true);
-    chk('inp-rag-fail-closed',         rag.fail_closed_on_eval_error === true);
-  } catch { /* 靜默失敗 */ }
-}
-
-async function saveEmotionSettings() {
-  const g    = id => document.getElementById(id);
-  const flt  = (id, d) => parseFloat(g(id)?.value || d);
-  const int  = (id, d) => parseInt(g(id)?.value || d, 10);
-  const str  = (id, d) => g(id)?.value?.trim() || d;
-  const bool = (id, d) => g(id) ? (g(id).type === 'checkbox' ? g(id).checked : g(id).value === 'true') : d;
-  const allowGemini = fullSettings.ENABLE_GEMINI_OPTIONS === true;
-  fullSettings.AI_PROVIDER            = 'ollama';
-  fullSettings.QA_AI_PROVIDER         = allowGemini ? str('inp-ai-provider', 'ollama') : 'ollama';
-  fullSettings.EMOTION_AI_PROVIDER    = 'ollama';
-  fullSettings.MODEL_NAME             = str('inp-model-name', 'llama3.2');
-  fullSettings.ASK_MODEL_NAME         = str('inp-ask-model-name', 'llama3.2');
-  fullSettings.GEMINI_MODEL_NAME      = str('inp-gemini-model-name', 'gemini-3-flash-preview');
-  fullSettings.GEMINI_FALLBACK_TO_OLLAMA = bool('inp-gemini-fallback', true);
-  fullSettings.OLLAMA_TEMPERATURE     = flt('inp-temp', '0.8');
-  fullSettings.PERFORMANCE_MODE       = str('inp-performance-mode', 'balanced');
-  fullSettings.OLLAMA_NUM_PREDICT     = int('inp-num-predict', '220');
-  fullSettings.RAG_TOP_K              = int('inp-rag-top-k', '3');
-  fullSettings.ENABLE_TTS_CACHE       = bool('inp-tts-cache', true);
-  fullSettings.EMOTION_PING_INTERVAL_SEC = flt('inp-emotion-interval', '15');
-  fullSettings.EMOTION_RECORD_MS         = int('inp-emotion-record-ms', '900');
-  fullSettings.WHISPER_LOW_AUDIO_DB      = flt('inp-whisper-low-db', '-58');
-  fullSettings.ASK_SYSTEM_PROMPT         = str('inp-ask-prompt', '');
-  fullSettings.ASK_SYSTEM_PROMPT_EN      = g('inp-ask-prompt-en')?.value || '';
-  fullSettings.EMOTION_LLAMA_PROMPT      = g('inp-emotion-prompt')?.value || '';
-  fullSettings.VOICE_ASSIST_MODEL        = str('inp-voice-assist-model', 'qwen3.5:4b');
-  fullSettings.VOICE_ASSIST_SYSTEM_PROMPT = g('inp-voice-assist-prompt')?.value || '';
-  const _existingRag = fullSettings.rag || {};
-  fullSettings.rag = {
-    ..._existingRag,
-    strict_grounding:          bool('inp-rag-strict-grounding', false),
-    answer_verification:       bool('inp-rag-answer-verification', false),
-    fail_closed_on_eval_error: bool('inp-rag-fail-closed', false),
-  };
-  try {
-    await api.saveSettings(fullSettings);
-    runtimeSettings = { ...runtimeSettings, ...fullSettings };
-    restartLoops();
-    showAdminNotice('設定已儲存。', 'success');
-  } catch {
-    showAdminNotice('儲存失敗，請重試。', 'error');
-  }
-}
-
-function loadAdminData() {
-  switchAdminSection('dashboard');
-  loadDashboard();
-}
 
 
-
-async function clearAllRagDocs() {
-  if (!confirm('確定清空全部 RAG 文本、審查紀錄與向量庫？菜單資料會重新建立為基礎 RAG。')) return;
-  const data = await api.clearRagDocs().catch(() => ({}));
-  if (data.status !== 'success') {
-    showAdminNotice(data.message || '清空 RAG 失敗。', 'error');
-    return;
-  }
-  await loadRagPage();
-  showAdminNotice('RAG 已清空並重建菜單基礎資料。', 'success');
-}
-
-async function uploadRagPdf() {
-  const input = document.getElementById('ragPdfFile');
-  const file = input?.files?.[0];
-  if (!file) { showAdminNotice('請先選擇 PDF。', 'error'); return; }
-  const fd = new FormData();
-  fd.append('pdf', file);
-  fd.append('review', document.getElementById('ragPdfReview')?.checked ? 'true' : 'false');
-  const data = await api.uploadRagPdf(fd).catch(() => ({}));
-  if (data.status !== 'success') {
-    showAdminNotice(data.message || 'PDF 匯入失敗。', 'error');
-    return;
-  }
-  input.value = '';
-  await loadRagPage();
-  showAdminNotice('PDF 已匯入 ' + (data.chunks || 0) + ' 個 chunk。', 'success');
-}
-
-async function loadClipsPage() {
-  const box      = document.getElementById('emotionClipList');
-  const countBox = document.getElementById('admin-clips-count');
-  if (!box) return;
-  box.textContent = '';
-  const placeholder = document.createElement('div');
-  placeholder.style.cssText = 'font-size:12px;color:#94a3b8;grid-column:span 2';
-  placeholder.textContent = '載入影像片段中...';
-  box.appendChild(placeholder);
-  try {
-    const data  = await api.getEmotionClips(sessionId);
-    const clips = data.clips || [];
-    if (countBox) countBox.textContent = '共 ' + clips.length + ' 筆';
-    box.textContent = '';
-    if (!clips.length) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:12px;color:#94a3b8;grid-column:span 2';
-      empty.textContent = '目前無影像片段。';
-      box.appendChild(empty);
-      return;
-    }
-    [...clips].reverse().forEach((clip, idx) => {
-      const card = document.createElement('div');
-      card.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)';
-      const suffix = clip.url && clip.url.includes('?') ? api.adminQuerySuffix('&') : api.adminQuerySuffix();
-      const url    = clip.url ? (API_BASE + clip.url + suffix) : '';
-      if (url) {
-        const video = document.createElement('video');
-        video.controls = true;
-        video.muted = true;
-        video.setAttribute('playsinline', '');
-        video.preload = 'metadata';
-        video.src = url;
-        video.style.cssText = 'width:100%;display:block;max-height:120px;object-fit:cover';
-        card.appendChild(video);
-      } else {
-        const noMedia = document.createElement('div');
-        noMedia.style.cssText = 'background:#f1f5f9;height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8';
-        noMedia.textContent = '無媒體（僅分析資料）';
-        card.appendChild(noMedia);
-      }
-      const info = document.createElement('div');
-      info.style.cssText = 'padding:10px;font-size:11px';
-      const emotion = String(clip.emotion_display || clip.emotion || '-');
-      const ts      = clip.created_at ? new Date(clip.created_at).toLocaleString() : '-';
-      const signals = clip.media_signals || {};
-      const sigTxt  = signals.motion_level
-        ? '音量 ' + (signals.audio_mean_db ?? '-') + ' dB / 動作 ' + signals.motion_level
-        : '';
-      const title = document.createElement('div');
-      title.style.cssText = 'font-weight:700;color:#1e293b;margin-bottom:2px';
-      title.textContent = '片段 ' + (clips.length - idx);
-      const badge = document.createElement('span');
-      badge.style.cssText = 'background:#f1f5f9;color:#7c3aed;padding:1px 6px;border-radius:4px;margin-left:4px';
-      badge.textContent = emotion;
-      title.appendChild(badge);
-      const timeEl = document.createElement('div');
-      timeEl.style.color = '#94a3b8';
-      timeEl.textContent = ts;
-      info.appendChild(title);
-      info.appendChild(timeEl);
-      if (sigTxt) {
-        const sigEl = document.createElement('div');
-        sigEl.style.cssText = 'color:#94a3b8;margin-top:2px';
-        sigEl.textContent = sigTxt;
-        info.appendChild(sigEl);
-      }
-      if (clip.emotion_evidence) {
-        const evEl = document.createElement('div');
-        evEl.style.cssText = 'color:#64748b;margin-top:3px';
-        evEl.textContent = clip.emotion_evidence;
-        info.appendChild(evEl);
-      }
-      card.appendChild(info);
-      box.appendChild(card);
-    });
-  } catch {
-    box.textContent = '';
-    const err = document.createElement('div');
-    err.style.cssText = 'font-size:12px;color:#dc2626;grid-column:span 2';
-    err.textContent = '影像片段讀取失敗。';
-    box.appendChild(err);
-  }
-}
-
-async function clearClipsPage() {
-  if (!confirm('確定清除目前這筆訂單的影像片段？')) return;
-  await api.clearEmotionClips(sessionId);
-  await loadClipsPage();
-}
-
-
-async function loadMenuPage() {
-  try {
-    const menu   = await api.getMenu();
-    const editor = document.getElementById('menuEditor');
-    if (editor) editor.value = JSON.stringify(menu, null, 2);
-    const listBox = document.getElementById('admin-menu-list');
-    if (!listBox) return;
-    listBox.textContent = '';
-    const items = Array.isArray(menu) ? menu : [];
-    items.slice(0, 10).forEach(item => {
-      const row = document.createElement('div');
-      row.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px';
-      const left = document.createElement('div');
-      const nameSpan = document.createElement('span');
-      nameSpan.style.cssText = 'font-weight:700;color:#1e293b';
-      nameSpan.textContent = String(item.name || '-');
-      const idSpan = document.createElement('span');
-      idSpan.style.cssText = 'color:#94a3b8;margin-left:8px';
-      idSpan.textContent = String(item.id || '');
-      left.appendChild(nameSpan);
-      left.appendChild(idSpan);
-      const right = document.createElement('div');
-      right.style.cssText = 'display:flex;gap:16px;align-items:center';
-      const priceSpan = document.createElement('span');
-      priceSpan.style.color = '#7c3aed';
-      priceSpan.textContent = '$' + (item.price ?? '-');
-      const catSpan = document.createElement('span');
-      catSpan.style.color = '#94a3b8';
-      catSpan.textContent = String(item.category || '-');
-      right.appendChild(priceSpan);
-      right.appendChild(catSpan);
-      row.appendChild(left);
-      row.appendChild(right);
-      listBox.appendChild(row);
-    });
-    if (items.length > 10) {
-      const more = document.createElement('div');
-      more.style.cssText = 'text-align:center;font-size:11px;color:#94a3b8;padding:6px';
-      more.textContent = '…還有 ' + (items.length - 10) + ' 筆，請用下方 JSON 編輯器';
-      listBox.appendChild(more);
-    }
-  } catch {
-    showAdminNotice('菜單載入失敗。', 'error');
-  }
-}
-
-async function saveMenuJson() {
-  const editor = document.getElementById('menuEditor');
-  if (!editor) return;
-  try {
-    const data = JSON.parse(editor.value);
-    await api.saveMenu(data);
-    showAdminNotice('菜單已儲存。', 'success');
-    await loadMenuPage();
-  } catch (e) {
-    showAdminNotice(e instanceof SyntaxError ? 'JSON 格式錯誤！' : '儲存失敗。', 'error');
-  }
-}
-
-async function loadRagPage() {
-  try {
-    const data  = await api.getRagDocs();
-    const docs  = (data.docs || []).filter(d => !d.deleted);
-    const countEl = document.getElementById('rag-doc-count');
-    if (countEl) countEl.textContent = '（' + docs.length + ' 筆）';
-    const listBox = document.getElementById('ragDocsList');
-    if (!listBox) return;
-    listBox.textContent = '';
-    if (!docs.length) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:12px;color:#94a3b8';
-      empty.textContent = '目前沒有 RAG 文本。';
-      listBox.appendChild(empty);
-      return;
-    }
-    [...docs].reverse().forEach(doc => {
-      const row = document.createElement('div');
-      row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px';
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px';
-      const info = document.createElement('div');
-      const title = document.createElement('span');
-      title.style.cssText = 'font-weight:700;font-size:12px;color:#1e293b';
-      title.textContent = String(doc.source_type || '') + ' / ' + String(doc.source_id || doc.id || '');
-      const meta = document.createElement('div');
-      meta.style.cssText = 'font-size:10px;color:#94a3b8;margin-top:1px';
-      meta.textContent = String(doc.updated_at || '') + ' · ' + String(doc.review_status || '-');
-      info.appendChild(title);
-      info.appendChild(meta);
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.style.cssText = 'background:#fef2f2;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#dc2626;cursor:pointer;flex-shrink:0';
-      delBtn.textContent = '刪除';
-      delBtn.onclick = async () => {
-        if (!confirm('確定刪除這段 RAG 文本？')) return;
-        await api.deleteRagDoc(doc.id);
-        await loadRagPage();
-      };
-      header.appendChild(info);
-      header.appendChild(delBtn);
-      const preview = document.createElement('div');
-      preview.style.cssText = 'font-size:11px;color:#374151;max-height:60px;overflow:hidden;line-height:1.4';
-      const txt = String(doc.reviewed_text || '');
-      preview.textContent = txt.length > 200 ? txt.slice(0, 200) + '…' : txt;
-      row.appendChild(header);
-      row.appendChild(preview);
-      listBox.appendChild(row);
-    });
-  } catch {
-    showAdminNotice('RAG 資料載入失敗。', 'error');
-  }
-}
-
-async function reviewAllRagDocs() {
-  const modelName = document.getElementById('ragReviewModel')?.value?.trim() || fullSettings.MODEL_NAME || 'llama3.2';
-  if (!confirm(`確定使用 ${modelName} 重新審查所有 RAG 文本？`)) return;
-  const resultBox = document.getElementById('ragReviewResult');
-  if (resultBox) resultBox.textContent = 'Ollama 審查中，請稍候...';
-  try {
-    const data = await api.reviewAllRagDocs({ model_name: modelName });
-    if (data.status !== 'success') throw new Error(data.message || '審查失敗');
-    if (resultBox) {
-      resultBox.textContent = `完成：已修正 ${data.reviewed_count || 0} 筆，刪除不相關 ${data.deleted_count || 0} 筆，模型 ${data.model_name || modelName}`;
-    }
-    await loadRagPage();
-  } catch (e) {
-    if (resultBox) resultBox.textContent = `審查失敗：${e.message || e}`;
-  }
-}
-
-async function addRagDoc() {
-  const box = document.getElementById('ragNewText');
-  const sourceText = box.value.trim();
-  if (!sourceText) { showAdminNotice('請先輸入 RAG 文本。', 'error'); return; }
-  try {
-    const data = await api.addRagDoc({ source_text: sourceText });
-    if (data.status !== 'success') { showAdminNotice(data.message || '保存失敗', 'error'); return; }
-    box.value = '';
-    await loadRagPage();
-    showAdminNotice('已完成審查並保存。', 'success');
-  } catch {
-    showAdminNotice('保存失敗。', 'error');
-  }
-}
 
 document.getElementById('inp-performance-mode')?.addEventListener('change', (e) => {
   applyPerformancePreset(e.target.value);
@@ -2994,128 +2519,14 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   restartChoiceHesitationTimer();
 });
 
-// =========================================================
-// 2-4: Admin intervention tab + history with delete
-// =========================================================
-let lastInterventionLogs = [];
-
-function _makeInterventionCell(text, styleStr) {
-  const td = document.createElement('td');
-  td.className = 'p-3 text-xs';
-  if (styleStr) td.setAttribute('style', styleStr);
-  td.textContent = text;
-  return td;
-}
-function _makeInterventionResultBadge(success) {
-  const badge = document.createElement('span');
-  badge.className = 'text-xs font-bold px-2 py-0.5 rounded-full';
-  if (success) {
-    badge.setAttribute('style', 'background:#dcf5e7;color:var(--success)');
-    badge.textContent = '完成';
-  } else {
-    badge.setAttribute('style', 'background:var(--surface2);color:var(--text2)');
-    badge.textContent = '待觀察';
-  }
-  return badge;
-}
-function _makeInterventionHistoryRow(log) {
-  const barrier = log.barrier_result || {};
-  const intervention = log.intervention || {};
-  const uiContext = log.ui_context || {};
-  const result = log.result || {};
-  const success = Boolean(result.checkout_success || result.payment_success);
-  const tr = document.createElement('tr');
-  tr.appendChild(_makeInterventionCell(log.timestamp ? new Date(log.timestamp).toLocaleString() : '-', 'color:var(--text2)'));
-  tr.appendChild(_makeInterventionCell(zhInteractionLabel('page', uiContext.page_id || '-'), 'color:var(--text)'));
-  tr.appendChild(_makeInterventionCell(zhInteractionLabel('barrier', barrier.barrier_state || '-'), 'color:var(--accent2)'));
-  tr.appendChild(_makeInterventionCell(zhInteractionLabel('action', intervention.action || '-'), 'color:var(--info)'));
-  const resultTd = document.createElement('td');
-  resultTd.className = 'p-3 text-center';
-  resultTd.appendChild(_makeInterventionResultBadge(success));
-  tr.appendChild(resultTd);
-  const delTd = document.createElement('td');
-  delTd.className = 'p-3 text-center';
-  const delBtn = document.createElement('button');
-  delBtn.className = 'text-xs px-2 py-1 rounded-xl';
-  delBtn.setAttribute('style', 'color:var(--danger);border:1px solid var(--border)');
-  const icon = document.createElement('i');
-  icon.className = 'fas fa-trash';
-  delBtn.appendChild(icon);
-  delBtn.onclick = () => tr.remove();
-  delTd.appendChild(delBtn);
-  tr.appendChild(delTd);
-  return tr;
-}
-function renderInterventionHistory() {
-  const tbody = document.getElementById('interventionHistoryBody');
-  if (!tbody) return;
-  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
-  if (!lastInterventionLogs.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 6;
-    td.className = 'p-4 text-center text-sm';
-    td.setAttribute('style', 'color:var(--text2)');
-    td.textContent = '尚無歷史介入紀錄。';
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
-  }
-  lastInterventionLogs.forEach(log => tbody.appendChild(_makeInterventionHistoryRow(log)));
-}
-window.switchInterventionTab = function(tab) {
-  const panelCurrent = document.getElementById('int-panel-current');
-  const panelHistory = document.getElementById('int-panel-history');
-  const btnCurrent = document.getElementById('int-tab-current');
-  const btnHistory = document.getElementById('int-tab-history');
-  if (!panelCurrent || !panelHistory) return;
-  if (tab === 'history') {
-    panelCurrent.classList.add('hidden');
-    panelHistory.classList.remove('hidden');
-    btnCurrent?.classList.remove('active');
-    btnHistory?.classList.add('active');
-    renderInterventionHistory();
-  } else {
-    panelHistory.classList.add('hidden');
-    panelCurrent.classList.remove('hidden');
-    btnHistory?.classList.remove('active');
-    btnCurrent?.classList.add('active');
-  }
-};
-window.clearInterventionHistory = async function() {
-  if (!confirm('確定清空所有介入歷史紀錄？此操作無法還原。')) return;
-  try {
-    await api.clearInterventionLogs();
-    lastInterventionLogs = [];
-    renderInterventionHistory();
-    showAdminNotice('歷史介入紀錄已清空。', 'success');
-    loadDashboard();
-  } catch {
-    showAdminNotice('清空失敗，請重試。', 'error');
-  }
-};
-
 
 Object.assign(window, {
   closeVoiceBubble,
   switchMainView,
-  switchAdminSection,
-  loadClipsPage,
-  loadEmotionSettings,
-  saveEmotionSettings,
-  clearClipsPage,
-  saveMenuJson,
-  loadRagPage,
-  clearAllRagDocs,
-  addRagDoc,
-  reviewAllRagDocs,
-  uploadRagPdf,
   updateCartQty: trackedUpdateCartQty,
   deleteCartItem: trackedDeleteCartItem,
   trackInteractionEvent,
   reportInteractionEvent,
-  switchInterventionTab: window.switchInterventionTab,
-  clearInterventionHistory: window.clearInterventionHistory,
 });
 
 if (isAdminMode()) {

@@ -144,12 +144,3 @@ export async function reportInteractionEvent(payload) {
     body: JSON.stringify(payload || {})
   }));
 }
-
-
-export async function getInterventionStats() {
-  return asJson(await fetch(`${API_BASE}/api/intervention_stats`, { headers: adminHeaders() }));
-}
-
-export async function clearInterventionLogs() {
-  return asJson(await fetch(`${API_BASE}/api/intervention_logs`, { method: 'DELETE', headers: adminHeaders() }));
-}
