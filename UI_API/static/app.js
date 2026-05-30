@@ -537,7 +537,7 @@ const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartCha
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
   lastCartAddAt = Date.now();
-  if (metadata.source === 'ai_push') sessionAiPushCartCount++;
+  if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
   hideChoiceHesitationModal();
   restartChoiceHesitationTimer();
   cartManager.addToCart(item);
@@ -558,6 +558,10 @@ function trackedUpdateCartQty(id, delta) {
     cart_edit_count: 1,
     metadata: { action: 'qty', item_id: id, delta }
   });
+  if (cartManager.getCartIds().length === 0) {
+    lastCartAddAt = Date.now();
+    restartChoiceHesitationTimer();
+  }
 }
 
 function trackedDeleteCartItem(id) {
@@ -571,6 +575,10 @@ function trackedDeleteCartItem(id) {
     cart_remove_count: interactionState.cartRemoveCount,
     metadata: { action: 'delete', item_id: id }
   });
+  if (cartManager.getCartIds().length === 0) {
+    lastCartAddAt = Date.now();
+    restartChoiceHesitationTimer();
+  }
 }
 
 function clearAllPushCards() {
@@ -673,7 +681,7 @@ const aiPush = (() => {
   async function _fetch(excludeCurrentItem = true) {
     if (_inFlight || !_eligible()) { if (!_eligible()) hide(); return; }
     _inFlight = true;
-    $('aiPushBar')?.classList.add('loading');
+    if (!_item) $('aiPushBar')?.classList.add('loading');
 
     const fd = new FormData();
     fd.append('session_id', sessionId);
@@ -2443,6 +2451,8 @@ ui.clearCartBtn?.addEventListener('click', () => {
   cartManager.clearCart();
   hideCartScreen();
   renderKioskCategories();
+  lastCartAddAt = Date.now();
+  restartChoiceHesitationTimer();
 });
 ui.kioskPaymentBackBtn?.addEventListener('click', () => {
   hidePaymentScreen();
@@ -2457,6 +2467,9 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
   cartManager.clearCart();
   hidePaymentScreen();
   renderKioskCategories();
+  aiPush.start();
+  lastCartAddAt = Date.now();
+  restartChoiceHesitationTimer();
 });
 ui.kioskFastPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -3055,6 +3068,9 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   cartManager.clearCart();
   hidePaymentScreen();
   renderKioskCategories();
+  aiPush.start();
+  lastCartAddAt = Date.now();
+  restartChoiceHesitationTimer();
 });
 
 // =========================================================

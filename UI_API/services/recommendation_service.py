@@ -1,11 +1,6 @@
-import asyncio
 import re
 from datetime import datetime
 
-import ai_services
-import config
-import database
-from repositories import menu_repository
 from utils.text_utils import to_traditional_lite
 
 
@@ -275,89 +270,6 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
         return cleaned
     return fallback_cart_actions_from_text(user_text, menu_items)
 
-
-def get_default_recommendation(menu_items: list[dict]) -> dict:
-    """不使用 LLM 的預設熱門推播，從超值全餐/極選系列取前 2 項。"""
-    priority_cats = ["超值全餐", "極選系列", "點心"]
-    selected = []
-    for cat in priority_cats:
-        for item in menu_items:
-            if item.get("category") == cat and item.get("id") and len(selected) < 2:
-                if item["id"] not in [s["id"] for s in selected]:
-                    selected.append(item)
-        if len(selected) >= 2:
-            break
-    if not selected:
-        selected = menu_items[:2]
-    ids = [item["id"] for item in selected]
-    if len(selected) > 1:
-        names = "、".join(str(item.get("name")) for item in selected[:3])
-        total = sum(int(float(item.get("price") or 0)) for item in selected[:3])
-        reason = f"如果想一次點得完整，{names} 很適合放在一起；合計約 ${total}。"
-    elif selected:
-        item = selected[0]
-        name = str(item.get("name") or "")
-        price = int(float(item.get("price") or 0))
-        desc = str(item.get("description") or "").strip()
-        if desc:
-            desc = re.sub(r"\s+", "，", desc).strip("，。、,. ")[:34]
-            reason = f"如果想快速決定，可以先選{name}；{desc}，價格 ${price}。"
-        else:
-            reason = f"如果想快速決定，可以先選{name}；點餐簡單、接受度高，價格 ${price}。"
-    else:
-        reason = "這份餐點會比較符合現在的需求。"
-    return {
-        "status": "success",
-        "mode": "default",
-        "recommendation_ids": ids,
-        "reason": reason,
-        "ollama_result": "",
-    }
-
-
-async def generate_recommendation(session_id: str, ollama_semaphore) -> dict:  # session_id reserved for future per-session context
-    """呼叫 Ollama 推薦餐點，回傳 {status, recommendation_ids, reason}。"""
-    full_menu_context, rag_context = await asyncio.gather(
-        asyncio.to_thread(database.build_full_menu_context),
-        asyncio.to_thread(database.retrieve_menu_from_rag, "推薦餐點"),
-    )
-    user_prompt = (
-        f"{full_menu_context}\n\n"
-        f"【RAG 補充規則與知識】\n{rag_context or '（無補充）'}\n\n"
-        "推薦規則：\n"
-        "1. recommendation_ids 只能使用【完整菜單白名單】中存在的 ID。\n"
-        "2. reason 最多 40 字，語氣像店員輕聲提醒，必須提到真實菜單品項名稱。\n"
-        "推薦 1~3 個餐點。"
-    )
-    system_prompt = config.get("RECOMMEND_SYSTEM_PROMPT")
-    menu_items = await asyncio.to_thread(menu_repository.get_menu)
-    menu_ids = [item.get("id") for item in menu_items if item.get("id")]
-    loop = asyncio.get_running_loop()
-    async with ollama_semaphore:
-        raw = await loop.run_in_executor(None, ai_services.ask_ollama, system_prompt, user_prompt)
-    if isinstance(raw, list):
-        raw = next((r for r in raw if isinstance(r, dict)), {})
-    elif not isinstance(raw, dict):
-        raw = {}
-    if "error" in raw:
-        return {"status": "error", "message": raw.get("error", "unknown")}
-
-    raw_ids = raw.get("recommendation_ids") or []
-    if isinstance(raw_ids, str):
-        raw_ids = [raw_ids]
-    cleaned_ids = []
-    for raw_id in raw_ids:
-        menu_id = clean_menu_id(raw_id, menu_ids)
-        if menu_id and menu_id not in cleaned_ids:
-            cleaned_ids.append(menu_id)
-    if not cleaned_ids:
-        cleaned_ids = [menu_ids[0]] if menu_ids else []
-
-    return {
-        "status": "success",
-        "recommendation_ids": cleaned_ids[:3],
-        "reason": str(raw.get("reason") or "這是根據菜單為您挑選的餐點。").strip(),
-    }
 
 
 def fix_ask_reply_for_intent(user_text: str, lang: str, reply: str, cart_actions: list, mentioned_ids: list) -> str:

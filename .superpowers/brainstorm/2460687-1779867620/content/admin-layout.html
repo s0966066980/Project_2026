@@ -1,0 +1,104 @@
+<h2>Admin 端佈局結構</h2>
+<p class="subtitle">新版 admin 主要佈局方向，以專利展示為出發點</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:140px;border:1px solid #333;border-radius:6px;overflow:hidden;background:#111">
+        <div style="width:160px;background:#1a1a2e;padding:12px;display:flex;flex-direction:column;gap:8px;border-right:1px solid #333">
+          <div style="background:#7c3aed;border-radius:4px;padding:6px 8px;font-size:11px;color:#fff">● 即時監控</div>
+          <div style="background:#222;border-radius:4px;padding:6px 8px;font-size:11px;color:#aaa">○ 功能開關</div>
+          <div style="background:#222;border-radius:4px;padding:6px 8px;font-size:11px;color:#aaa">○ Emotion 設定</div>
+          <div style="background:#222;border-radius:4px;padding:6px 8px;font-size:11px;color:#aaa">○ AI 參數</div>
+          <div style="background:#222;border-radius:4px;padding:6px 8px;font-size:11px;color:#aaa">○ 影像片段</div>
+        </div>
+        <div style="flex:1;padding:12px">
+          <div style="background:#1a1a2e;border-radius:4px;padding:8px;margin-bottom:8px;font-size:11px;color:#7c3aed">即時監控儀表板</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="background:#0d2818;border:1px solid #1a5c30;border-radius:4px;padding:6px;font-size:10px;color:#4ade80">Risk Score: 7</div>
+            <div style="background:#1a0d2e;border:1px solid #5b21b6;border-radius:4px;padding:6px;font-size:10px;color:#a78bfa">Emotion: 困惑</div>
+            <div style="background:#1a1a0d;border:1px solid #92400e;border-radius:4px;padding:6px;font-size:10px;color:#fbbf24">介入: 說明中</div>
+            <div style="background:#1a0d0d;border:1px solid #991b1b;border-radius:4px;padding:6px;font-size:10px;color:#f87171">警報: 1</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 側邊導航</h3>
+      <p>固定左側選單，內容區全版顯示。各功能區塊獨立、資訊密度高，適合需要快速切換多個功能的操作場景。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:140px;border:1px solid #333;border-radius:6px;overflow:hidden;background:#111">
+        <div style="display:flex;gap:0;border-bottom:1px solid #333;background:#1a1a2e;padding:0 12px">
+          <div style="padding:8px 12px;font-size:11px;color:#7c3aed;border-bottom:2px solid #7c3aed">即時監控</div>
+          <div style="padding:8px 12px;font-size:11px;color:#aaa">功能開關</div>
+          <div style="padding:8px 12px;font-size:11px;color:#aaa">Emotion</div>
+          <div style="padding:8px 12px;font-size:11px;color:#aaa">AI設定</div>
+          <div style="padding:8px 12px;font-size:11px;color:#aaa">片段</div>
+        </div>
+        <div style="padding:12px">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <div style="background:#0d2818;border:1px solid #1a5c30;border-radius:4px;padding:8px;text-align:center">
+              <div style="font-size:18px;color:#4ade80;font-weight:bold">7</div>
+              <div style="font-size:9px;color:#666">Risk Score</div>
+            </div>
+            <div style="background:#1a0d2e;border:1px solid #5b21b6;border-radius:4px;padding:8px;text-align:center">
+              <div style="font-size:12px;color:#a78bfa;font-weight:bold">困惑</div>
+              <div style="font-size:9px;color:#666">Emotion</div>
+            </div>
+            <div style="background:#1a1a0d;border:1px solid #92400e;border-radius:4px;padding:8px;text-align:center">
+              <div style="font-size:10px;color:#fbbf24;font-weight:bold">說明中</div>
+              <div style="font-size:9px;color:#666">介入狀態</div>
+            </div>
+            <div style="background:#0d1a1a;border:1px solid #0e7490;border-radius:4px;padding:8px;text-align:center">
+              <div style="font-size:12px;color:#22d3ee;font-weight:bold">ON</div>
+              <div style="font-size:9px;color:#666">語音模式</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 頂部 Tab（沿用現有）</h3>
+      <p>頂部標籤切換，與現有 admin 結構相似。改版重點在精簡內容，而非改變操作模式。遷移成本最低。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:140px;border:1px solid #333;border-radius:6px;overflow:hidden;background:#111;padding:10px">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;text-align:center">— 智慧自助點餐介入系統 監控中心 —</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">
+          <div style="background:linear-gradient(135deg,#1a0d2e,#2d1b69);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:20px;color:#a78bfa;font-weight:bold">7.2</div>
+            <div style="font-size:9px;color:#7c3aed">風險指數</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#0d2818,#064e3b);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:11px;color:#4ade80;font-weight:bold">menu_hesitation</div>
+            <div style="font-size:9px;color:#166534">障礙類型</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#1a0d0d,#7f1d1d);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:11px;color:#f87171;font-weight:bold">recommend</div>
+            <div style="font-size:9px;color:#dc2626">介入動作</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px;text-align:center;font-size:9px;color:#7c3aed;cursor:pointer">⚙ 功能</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px;text-align:center;font-size:9px;color:#7c3aed;cursor:pointer">😊 情緒</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px;text-align:center;font-size:9px;color:#7c3aed;cursor:pointer">🤖 AI</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px;text-align:center;font-size:9px;color:#7c3aed;cursor:pointer">🎬 片段</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px;text-align:center;font-size:9px;color:#7c3aed;cursor:pointer">📋 菜單</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 儀表板優先</h3>
+      <p>整頁大圖展示核心指標（風險分數、情緒狀態、介入動作），底部小圖示進入各設定區塊。最具視覺衝擊力，適合站台展示與評審觀看。</p>
+    </div>
+  </div>
+
+</div>

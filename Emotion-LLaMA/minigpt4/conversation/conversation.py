@@ -19,23 +19,6 @@ from typing import List, Tuple, Any
 
 from minigpt4.common.registry import registry
 
-_HUBERT_CACHE = {}
-
-def get_hubert_components(model_file, device):
-    """Cache HuBERT objects so every POS inference does not reload the audio model."""
-    cache_key = (model_file, str(device))
-    cached = _HUBERT_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-    from transformers import HubertModel
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_file)
-    hubert_model = HubertModel.from_pretrained(model_file)
-    hubert_model.eval()
-    if str(device).startswith("cuda"):
-        hubert_model = hubert_model.to(device)
-    _HUBERT_CACHE[cache_key] = (feature_extractor, hubert_model)
-    return _HUBERT_CACHE[cache_key]
-
 
 class SeparatorStyle(Enum):
     """Different separator style."""
@@ -278,11 +261,13 @@ class Chat:
             # print("samples:", samples)
 
             model_file = "checkpoints/transformer/chinese-hubert-large"
-            feature_extractor, hubert_model = get_hubert_components(model_file, self.device)
+            feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_file)
             input_values = feature_extractor(samples, sampling_rate=sr, return_tensors="pt").input_values
-            input_values = input_values.to(self.device)
             # print("input_values:", input_values)
 
+            from transformers import HubertModel
+            hubert_model = HubertModel.from_pretrained(model_file)
+            hubert_model.eval()
             with torch.no_grad():
                 hidden_states = hubert_model(input_values, output_hidden_states=True).hidden_states # tuple of (B, T, D)
                 # print("hidden_states:", hidden_states)
@@ -300,14 +285,8 @@ class Chat:
                 image = image.unsqueeze(0)
             image = image.to(self.device)
 
-        # Keep the placeholder video features on the same device/dtype as HuBERT output.
-        # Otherwise CUDA inference fails when torch.cat mixes CPU and cuda tensors.
-        audio_feature = audio_feature.to(device=self.device)
-        video_features = torch.zeros(
-            [1, 2, audio_feature.shape[-1]],
-            device=audio_feature.device,
-            dtype=audio_feature.dtype,
-        )
+        # print("audio_feature:", audio_feature)
+        video_features = torch.zeros([1, 2, 1024])
         video_features = torch.cat((video_features, audio_feature), dim=1)
 
         print("audio faature shape:", audio_feature.shape)
