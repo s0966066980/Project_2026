@@ -1,12 +1,12 @@
-import * as api from './api.js';
-import { API_BASE } from './api.js';
+import * as api from '../shared/api.js';
+import { API_BASE } from '../shared/api.js';
 import {
   ui,
   escapeHTML,
   switchMainView as switchMainViewUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js';
+} from '../shared/ui.js';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
@@ -14,13 +14,13 @@ import {
   captureVideoFrameBlob
 } from './media.js';
 import { createCartManager } from './cart.js';
-import { connectRealtime } from './realtime_client.js';
+import { connectRealtime } from '../shared/realtime_client.js';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js';
+} from '../shared/media_buffer.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
