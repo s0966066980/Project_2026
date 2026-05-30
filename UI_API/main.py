@@ -10,16 +10,13 @@ from fastapi.staticfiles import StaticFiles
 import config
 import ai_services
 import database
-from seeds.rag_knowledge import RAG_SEEDS
 from routes import (
     core_routes,
     emotion_routes,
     debug_routes,
     menu_routes,
-    rag_routes,
     ai_push_routes,
     voice_routes,
-    multimodal_routes,
     interaction_routes,
     realtime_routes,
 )
@@ -75,11 +72,8 @@ class LoopBoundSemaphore:
         self._current().release()
 
 
-_emotion_semaphore = LoopBoundSemaphore(1)
 _ollama_semaphore = LoopBoundSemaphore(1)
 _background_init_done = False
-_emotion_cache = {}
-_rag_rebuild_task = None
 
 
 app.add_middleware(
@@ -108,89 +102,30 @@ async def _background_init():
 
 
 async def _background_init_once():
-    loop = asyncio.get_running_loop()
-
-    async def _init_rag():
-        try:
-            await loop.run_in_executor(None, database.init_rag_system)
-            print("✅ RAG 系統背景初始化完成")
-        except Exception as e:
-            print(f"❌ RAG 背景初始化失敗: {e}")
-            return
-
-        # PDF 自動匯入（首次啟動時）
-        _pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcdonalds_tw_extra_value_meals_rag.pdf")
-        _pdf_name = "mcdonalds_tw_extra_value_meals_rag.pdf"
-        try:
-            pdf_added = await loop.run_in_executor(
-                None, database.seed_pdf_to_rag, _pdf_path, _pdf_name
-            )
-            if pdf_added > 0:
-                print(f"✅ PDF 自動匯入：{_pdf_name}，{pdf_added} chunks")
-        except Exception as e:
-            print(f"⚠️ PDF 自動匯入失敗（不影響系統運作）: {e}")
-
-        # 知識種子注入（已存在則跳過）
-        try:
-            added = await loop.run_in_executor(None, database.seed_rag_docs, RAG_SEEDS)
-            if added > 0:
-                print(f"✅ RAG 知識種子注入：新增 {added} 筆")
-                await loop.run_in_executor(None, database.init_rag_system, True)
-                print("✅ RAG 重建完成（含種子知識）")
-            else:
-                print("✅ RAG 種子已存在，跳過注入")
-        except Exception as e:
-            print(f"⚠️ RAG 種子注入失敗（不影響系統運作）: {e}")
-
-    async def _preload_gemini_client():
-        if config.get("ENABLE_GEMINI_OPTIONS", False) is not True:
-            return
-        try:
-            ok = await loop.run_in_executor(None, ai_services.init_gemini_client)
-            if ok:
-                print("✅ Gemini client 背景初始化完成")
-        except Exception as e:
-            print(f"❌ Gemini client 背景初始化失敗: {e}")
-
-    await asyncio.gather(_init_rag(), _preload_gemini_client())
-
-
-async def _safe_rebuild_rag(reason: str = ""):
+    if not config.get("ENABLE_GEMINI_OPTIONS", False):
+        return
     loop = asyncio.get_running_loop()
     try:
-        await loop.run_in_executor(None, database.init_rag_system, True)
-        if reason:
-            print(f"✅ RAG rebuilt: {reason}")
+        ok = await loop.run_in_executor(None, ai_services.init_gemini_client)
+        if ok:
+            print("✅ Gemini client 背景初始化完成")
     except Exception as e:
-        print(f"❌ RAG rebuild failed{f' ({reason})' if reason else ''}: {e}")
-
-
-def _schedule_rag_rebuild(reason: str = ""):
-    global _rag_rebuild_task
-    if _rag_rebuild_task and not _rag_rebuild_task.done():
-        return
-    _rag_rebuild_task = asyncio.create_task(_safe_rebuild_rag(reason))
+        print(f"❌ Gemini client 背景初始化失敗: {e}")
 
 
 def _route_dependencies() -> dict:
     return {
-        "emotion_cache": _emotion_cache,
-        "emotion_semaphore": _emotion_semaphore,
         "ollama_semaphore": _ollama_semaphore,
-        "safe_rebuild_rag": _safe_rebuild_rag,
-        "schedule_rag_rebuild": _schedule_rag_rebuild,
     }
 
 
 _deps = _route_dependencies()
 app.include_router(core_routes.create_router(_deps))
 app.include_router(menu_routes.create_router(_deps))
-app.include_router(rag_routes.create_router(_deps))
 app.include_router(voice_routes.create_router(_deps))
 app.include_router(ai_push_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
-app.include_router(multimodal_routes.create_router(_deps))
 app.include_router(realtime_routes.create_router(_deps))
 if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
