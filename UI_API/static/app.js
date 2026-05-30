@@ -1,26 +1,26 @@
-import * as api from './api.js?v=20260527';
-import { API_BASE } from './api.js?v=20260527';
+import * as api from './api.js';
+import { API_BASE } from './api.js';
 import {
   ui,
   escapeHTML,
   switchMainView as switchMainViewUI,
   updateEmotionCameraPanel as updateEmotionCameraPanelUI,
   updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
-} from './ui.js?v=20260527';
+} from './ui.js';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
   captureVideoFrameBlob
-} from './media.js?v=20260527';
-import { createCartManager } from './cart.js?v=20260527';
-import { connectRealtime } from './realtime_client.js?v=20260527';
+} from './media.js';
+import { createCartManager } from './cart.js';
+import { connectRealtime } from './realtime_client.js';
 import {
   captureTriggeredClip,
   hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
-} from './media_buffer.js?v=20260527';
+} from './media_buffer.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;

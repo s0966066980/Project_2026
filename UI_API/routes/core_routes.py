@@ -73,17 +73,19 @@ def _mark_latest_intervention_checkout(
 def create_router(deps: dict) -> APIRouter:
     router = APIRouter(tags=["core"])
 
+    _NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+
     @router.get("/")
     async def serve_frontend():
-        return FileResponse("index.html")
+        return FileResponse("index.html", headers=_NO_CACHE)
 
     @router.get("/pos")
     async def serve_pos():
-        return FileResponse("index.html")
+        return FileResponse("index.html", headers=_NO_CACHE)
 
     @router.get("/admin")
     async def serve_admin():
-        return FileResponse("admin.html")
+        return FileResponse("admin.html", headers=_NO_CACHE)
 
     @router.delete("/api/session_stats")
     async def clear_session_stats():
