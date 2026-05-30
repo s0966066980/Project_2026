@@ -1,19 +1,49 @@
 from services import interaction_event_service
-from services import emotion_risk_service
 from services import scenario_service
-from utils.text_utils import normalize_emotion_label
 
 
 BARRIER_STATES = {
-    "normal_operation",
-    "menu_hesitation",
-    "operation_confusion",
-    "payment_confusion",
-    "coupon_confusion",
-    "impatience_detected",
-    "service_needed",
-    "potential_complaint",
-    "low_confidence",
+    "normal_operation", "menu_hesitation", "operation_confusion",
+    "payment_confusion", "coupon_confusion", "impatience_detected",
+    "service_needed", "potential_complaint", "low_confidence",
+}
+
+INTERVENTION_CATEGORY_MAP = {
+    "menu_hesitation": "menu_confusion",
+    "payment_confusion": "operation_difficulty",
+    "coupon_confusion": "operation_difficulty",
+    "operation_confusion": "operation_difficulty",
+    "impatience_detected": "service_needed",
+    "service_needed": "service_needed",
+    "potential_complaint": "service_needed",
+    "low_confidence": "menu_confusion",
+    "normal_operation": "none",
+}
+
+INTERVENTION_CATEGORY_LABELS = {
+    "menu_confusion": "困惑不知道吃什麼",
+    "operation_difficulty": "不會操作機台",
+    "service_needed": "需要客服協助",
+    "none": "操作正常",
+}
+
+PATENT_CATEGORY_MAP = {
+    "menu_hesitation": "decision_hesitation",
+    "payment_confusion": "operation_failure",
+    "coupon_confusion": "operation_failure",
+    "operation_confusion": "operation_failure",
+    "impatience_detected": "service_or_question",
+    "service_needed": "service_or_question",
+    "potential_complaint": "service_or_question",
+    "low_confidence": "service_or_question",
+    "normal_operation": "none",
+}
+
+PATENT_CATEGORY_LABELS = {
+    "decision_hesitation": "困惑、無法決定餐點",
+    "operation_failure": "操作失敗、不會點餐",
+    "service_or_question": "詢問餐點、客服情況",
+    "none": "正常操作",
 }
 
 
@@ -75,47 +105,6 @@ def map_barrier_to_default_action(barrier_state: str, severity: float) -> str:
     return mapping.get(barrier_state, "ask_clarifying_question")
 
 
-# 三大分類：對應產品需求「困惑不知道吃什麼 / 不會操作機台 / 需要客服協助」
-INTERVENTION_CATEGORY_MAP = {
-    "menu_hesitation": "menu_confusion",
-    "payment_confusion": "operation_difficulty",
-    "coupon_confusion": "operation_difficulty",
-    "operation_confusion": "operation_difficulty",
-    "impatience_detected": "service_needed",
-    "service_needed": "service_needed",
-    "potential_complaint": "service_needed",
-    "low_confidence": "menu_confusion",
-    "normal_operation": "none",
-}
-
-INTERVENTION_CATEGORY_LABELS = {
-    "menu_confusion": "困惑不知道吃什麼",
-    "operation_difficulty": "不會操作機台",
-    "service_needed": "需要客服協助",
-    "none": "操作正常",
-}
-
-
-PATENT_CATEGORY_MAP = {
-    "menu_hesitation": "decision_hesitation",
-    "payment_confusion": "operation_failure",
-    "coupon_confusion": "operation_failure",
-    "operation_confusion": "operation_failure",
-    "impatience_detected": "service_or_question",
-    "service_needed": "service_or_question",
-    "potential_complaint": "service_or_question",
-    "low_confidence": "service_or_question",
-    "normal_operation": "none",
-}
-
-PATENT_CATEGORY_LABELS = {
-    "decision_hesitation": "困惑、無法決定餐點",
-    "operation_failure": "操作失敗、不會點餐",
-    "service_or_question": "詢問餐點、客服情況",
-    "none": "正常操作",
-}
-
-
 def map_barrier_to_category(barrier_state: str) -> dict:
     key = INTERVENTION_CATEGORY_MAP.get(barrier_state, "menu_confusion")
     return {
@@ -133,11 +122,9 @@ def map_barrier_to_patent_category(barrier_state: str) -> dict:
 
 
 def infer_barrier_state(
-    emotion_structured: dict | None,
     speech_text: str = "",
     pos_events: list | None = None,
     ui_context: dict | None = None,
-    media_signals: dict | None = None,
     risk_result: dict | None = None,
 ) -> dict:
     events = pos_events or []
@@ -145,14 +132,6 @@ def infer_barrier_state(
     risk_score = int(risk.get("risk_score") or 0)
     page_id = _latest_page(events, ui_context)
     speech = speech_text or ""
-    emotion = emotion_structured or {}
-    emotion_label = normalize_emotion_label(emotion.get("emotion_label") or "")
-    emotion_risk = emotion_risk_service.calculate_emotion_risk(
-        emotion,
-        media_signals=media_signals,
-        speech_text=speech,
-    )
-    emotion_risk_score = int(emotion_risk.get("emotion_risk_score") or 1)
     evidence = []
 
     payment_fail_count = _max_field(events, "payment_fail_count")
@@ -204,37 +183,20 @@ def infer_barrier_state(
     elif _contains_any(speech, ["太慢", "等很久", "快一點", "趕時間"]):
         barrier_state = "impatience_detected"
         evidence.append("speech contains impatience")
-    elif emotion_label == "生氣" and risk_score >= 5:
-        barrier_state = "service_needed" if risk_score >= 8 else "potential_complaint"
-        evidence.append(f"emotion_label={emotion_label}")
-    elif emotion_label == "焦躁" and risk_score >= 5:
-        barrier_state = "service_needed" if risk_score >= 8 else "impatience_detected"
-        evidence.append(f"emotion_label={emotion_label}")
-    elif emotion_risk_score >= 9:
-        barrier_state = "service_needed"
-        evidence.append("emotion_risk_score >= 9")
-    elif emotion_risk_score >= 7:
-        barrier_state = "potential_complaint" if emotion_label in {"生氣", "焦躁"} else "operation_confusion"
-        evidence.append("emotion_risk_score >= 7")
-    elif emotion_label == "猶豫" and page_id == "menu_page":
-        barrier_state = "menu_hesitation"
-        evidence.extend(["emotion_label=猶豫", "page_id=menu_page"])
     elif risk_score >= 5 and page_id == "coupon_page":
         barrier_state = "coupon_confusion"
         evidence.extend(["risk_score >= threshold", "page_id=coupon_page"])
     elif risk_score >= 5:
         barrier_state = "operation_confusion"
         evidence.append("risk_score >= threshold")
-    elif not events and not speech.strip() and not emotion:
+    elif not events and not speech.strip():
         barrier_state = "low_confidence"
-        evidence.append("insufficient multimodal context")
+        evidence.append("insufficient context")
 
     if payment_fail_count >= 1 and "payment_fail_count >= 1" not in evidence:
         evidence.append("payment_fail_count >= 1")
     if page_id and f"page_id={page_id}" not in evidence:
         evidence.append(f"page_id={page_id}")
-    if emotion_label and f"emotion_label={emotion_label}" not in evidence:
-        evidence.append(f"emotion_label={emotion_label}")
     for reason in risk.get("trigger_reasons") or []:
         if reason not in evidence:
             evidence.append(reason)
@@ -254,6 +216,7 @@ def infer_barrier_state(
     scenario_id = scenario_service.infer_scenario_from_barrier_state(barrier_state)
     if scenario_id:
         scenario_info = scenario_service.attach_scenario_metadata({}, scenario_id)
+
     return {
         "barrier_state": barrier_state,
         "severity": severity,
@@ -262,18 +225,12 @@ def infer_barrier_state(
         "risk_score": risk_score,
         "risk_score_scale": int(risk.get("risk_score_scale") or 10),
         "risk_level": risk.get("risk_level") or "none",
-        "emotion_risk_score": emotion_risk_score,
-        "emotion_risk_level": emotion_risk.get("emotion_risk_level"),
-        "emotion_risk_rules": emotion_risk.get("emotion_risk_rules", []),
-        "emotion_risk_evidence": emotion_risk.get("emotion_risk_evidence", []),
         "recommended_action": map_barrier_to_default_action(barrier_state, severity),
         "payment_fail_count": payment_fail_count,
         "coupon_error_count": coupon_error_count,
         "category_switch_count": category_switch_count,
         "cart_remove_count": cart_remove_count,
         "recommend_ignore_count": recommend_ignore_count,
-        "emotion_label": emotion_label,
-        "media_signals": media_signals or {},
         **category_info,
         **patent_category_info,
         **scenario_info,
