@@ -77,15 +77,15 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/")
     async def serve_frontend():
-        return FileResponse("index.html", headers=_NO_CACHE)
+        return FileResponse("frontend/pos/index.html", headers=_NO_CACHE)
 
     @router.get("/pos")
     async def serve_pos():
-        return FileResponse("index.html", headers=_NO_CACHE)
+        return FileResponse("frontend/pos/index.html", headers=_NO_CACHE)
 
     @router.get("/admin")
     async def serve_admin():
-        return FileResponse("admin.html", headers=_NO_CACHE)
+        return FileResponse("frontend/admin/admin.html", headers=_NO_CACHE)
 
     @router.delete("/api/session_stats")
     async def clear_session_stats():

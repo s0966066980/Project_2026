@@ -35,7 +35,7 @@ _TUNNEL_ORIGIN_REGEX = (
     r"|([a-zA-Z0-9-]+\.)*loca\.lt"
     r")(:[0-9]+)?$"
 )
-_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
 
 
 @asynccontextmanager
