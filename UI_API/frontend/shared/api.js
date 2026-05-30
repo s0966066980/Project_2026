@@ -56,12 +56,6 @@ export async function pingState(formData) {
   return asJson(await fetch(`${API_BASE}/api/ping_state`, { method: 'POST', body: formData }));
 }
 
-export async function triggeredMultimodalAnalysis(formData) {
-  return asJson(await fetch(`${API_BASE}/api/triggered_multimodal_analysis`, {
-    method: 'POST',
-    body: formData
-  }));
-}
 
 export async function autoRecommend(formData, signal) {
   return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData, signal }));
@@ -151,13 +145,6 @@ export async function reportInteractionEvent(payload) {
   }));
 }
 
-export async function barrierState(payload) {
-  return asJson(await fetch(`${API_BASE}/api/barrier_state`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload || {})
-  }));
-}
 
 export async function getInterventionStats() {
   return asJson(await fetch(`${API_BASE}/api/intervention_stats`, { headers: adminHeaders() }));

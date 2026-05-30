@@ -58,8 +58,6 @@ let emotionLoopId = null;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
 let lastMediaSignals = {};
-let barrierCheckInFlight = false;
-let lastBarrierCheckAt = 0;
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
@@ -251,7 +249,6 @@ let runtimeSettings = {
   OLLAMA_NUM_PREDICT: 220,
   RAG_TOP_K: 3,
   ENABLE_TTS_CACHE: true,
-  EVENT_TRIGGERED_MULTIMODAL_ENABLED: true,
   EMOTION_PERIODIC_ENABLED: false
 };
 
@@ -259,9 +256,6 @@ function perfValue(key) {
   return runtimeSettings[key];
 }
 
-function isEventTriggeredMultimodalEnabled() {
-  return getFeatures().emotion && runtimeSettings.EVENT_TRIGGERED_MULTIMODAL_ENABLED !== false;
-}
 
 function isPeriodicEmotionEnabled() {
   return runtimeSettings.EMOTION_PERIODIC_ENABLED === true;
@@ -282,8 +276,7 @@ function restartLoops() {
   if (emotionLoopId) clearInterval(emotionLoopId);
   emotionLoopId = null;
   if (isSystemRunning && isPosMode()) {
-    if (isEventTriggeredMultimodalEnabled()) maybeStartRollingMediaBuffer();
-    else stopRollingMediaBuffer();
+    maybeStartRollingMediaBuffer();
     if (getFeatures().emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
   }
 }
@@ -438,13 +431,12 @@ function toggleFeature(key, el) {
   applyFeaturesToPOS();
   if (isSystemRunning && (key === 'voiceAssist' || key === 'emotion' || key === 'emotionBackend')) {
     ensureMediaTracks({
-      video: f.emotionBackend || isEventTriggeredMultimodalEnabled(),
+      video: f.emotionBackend,
       audio: true
     }).then(ok => {
       if (ok) setupAskRecorder();
       if (ok) {
         updateEmotionCameraPanel();
-        maybeStartRollingMediaBuffer();
         if (key === 'emotionBackend' && f.emotionBackend && isPeriodicEmotionEnabled()) startEmotionLoop();
       }
     });
@@ -506,7 +498,7 @@ function updateEmotionDetectionOverlay(personCheck = {}) {
 }
 
 function maybeStartRollingMediaBuffer() {
-  if (!isPosMode() || !isSystemRunning || !isEventTriggeredMultimodalEnabled()) return false;
+  if (!isPosMode() || !isSystemRunning) return false;
   if (!stream || !stream.getVideoTracks().length || !stream.getAudioTracks().length) return false;
   return startRollingMediaBuffer(stream, Number(runtimeSettings.INTERACTION_PRE_EVENT_BUFFER_SEC) || 5);
 }
@@ -1463,10 +1455,7 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   const safeTitle = escapeHTML(titleMap[modalName] || '操作提示');
   const safeBody = escapeHTML(intervention.tts_text || intervention.reason || '需要協助時可通知店員。');
   const safeCategory = escapeHTML(barrierResult.intervention_category_label || '');
-  const safeRisk = (barrierResult.risk_score != null)
-    ? escapeHTML(`風險 ${barrierResult.risk_score}/${barrierResult.risk_score_scale || 10}`)
-    : '';
-  const tagHtml = [safeCategory, safeRisk].filter(Boolean)
+  const tagHtml = [safeCategory].filter(Boolean)
     .map(t => '<span class="inline-block text-xs px-2 py-0.5 mr-1 rounded-full" style="background:var(--surface2);color:var(--text2)">' + t + '</span>')
     .join('');
   const staffHtml = intervention.staff_notify
@@ -1488,79 +1477,11 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   interactionModalTimer = setTimeout(() => box.remove(), 10000);
 }
 
-function buildInteractionContextForTrigger(riskResult = {}) {
-  const reasons = Array.isArray(riskResult.trigger_reasons) ? riskResult.trigger_reasons : [];
-  const context = buildUIContext();
-  return [
-    `目前頁面：${context.page_id || interactionState.pageId}`,
-    `購物車數量：${context.cart_count ?? 0}`,
-    `風險分數：${riskResult.risk_score ?? 0}/${riskResult.risk_score_scale ?? 10}（${riskResult.risk_level || 'none'}）`,
-    reasons.length ? `觸發原因：${reasons.join('、')}` : '觸發原因：未提供',
-    lastVoiceText ? `最近語音：${lastVoiceText.slice(0, 80)}` : '',
-  ].filter(Boolean).join('\n');
-}
 
-async function maybeCheckBarrierState(riskResult = {}) {
-  if (!riskResult.triggered || barrierCheckInFlight) return;
-  if (Date.now() - lastBarrierCheckAt < 10000) return;
-  barrierCheckInFlight = true;
-  lastBarrierCheckAt = Date.now();
-  try {
-    const uiContext = buildUIContext();
-    if (isEventTriggeredMultimodalEnabled() && hasRollingMediaBuffer()) {
-      ui.pingInd.style.opacity = '1';
-      const blob = await captureTriggeredClip(Number(runtimeSettings.INTERACTION_POST_EVENT_BUFFER_SEC) || 5);
-      const fd = new FormData();
-      fd.append('session_id', sessionId);
-      fd.append('video', blob, 'triggered_interaction.webm');
-      fd.append('risk_result_json', JSON.stringify(riskResult || {}));
-      fd.append('ui_context_json', JSON.stringify(uiContext));
-      fd.append('interaction_context', buildInteractionContextForTrigger(riskResult));
-      const data = await api.triggeredMultimodalAnalysis(fd);
-      if (data.status === 'success') {
-        lastVoiceText = data.speech_text || lastVoiceText;
-        lastEmotionStructured = data.emotion_structured || lastEmotionStructured;
-        lastMediaSignals = data.multimodal_evidence?.audio_evidence || lastMediaSignals || {};
-        setTimeout(() => {
-          if (
-            Date.now() - lastInterventionEventAt > 1800
-            && data.intervention?.action
-            && data.intervention.action !== 'none'
-          ) {
-            applyIntervention(data.intervention, data.barrier_result);
-            if (data.intervention?.staff_notify) showPushNotice('已通知店員');
-          }
-        }, 2000);
-        return;
-      }
-      console.warn('[triggered multimodal skipped]', data);
-    }
-
-    const data = await api.barrierState({
-      session_id: sessionId,
-      speech_text: lastVoiceText,
-      emotion_structured: lastEmotionStructured || {},
-      ui_context: uiContext,
-      media_signals: lastMediaSignals || {},
-    });
-    if (data.status === 'success') {
-      applyIntervention(data.intervention, data.barrier_result);
-    }
-  } catch (err) {
-    console.warn('[interaction barrier_state failed]', err);
-  } finally {
-    ui.pingInd.style.opacity = '0';
-    barrierCheckInFlight = false;
-  }
-}
 
 async function reportInteractionEvent(payload) {
   try {
-    const response = await api.reportInteractionEvent(payload);
-    if (response?.risk_result?.triggered) {
-      await maybeCheckBarrierState(response.risk_result);
-    }
-    return response;
+    return await api.reportInteractionEvent(payload);
   } catch (err) {
     console.warn('[interaction_event failed]', err);
     return null;
@@ -1673,7 +1594,7 @@ ui.startBtn.onclick = async () => {
   try {
     await loadRuntimeSettings();
     const f = getFeatures();
-    const needVideo = f.emotionBackend || isEventTriggeredMultimodalEnabled();
+    const needVideo = f.emotionBackend;
     const needAudio = Boolean(f.voiceAssist);
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
@@ -3193,7 +3114,6 @@ Object.assign(window, {
   deleteCartItem: trackedDeleteCartItem,
   trackInteractionEvent,
   reportInteractionEvent,
-  maybeCheckBarrierState,
   switchInterventionTab: window.switchInterventionTab,
   clearInterventionHistory: window.clearInterventionHistory,
 });
