@@ -68,6 +68,24 @@ DEFAULT_SETTINGS = {
     "PERFORMANCE_MODE": "balanced",
     "OLLAMA_LOG_RAW": False,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
+    # ── 語音模型 ──────────────────────────────
+    "VOICE_ASSIST_MODEL": "qwen3.5:4b",
+    "VOICE_ASSIST_SYSTEM_PROMPT": "",       # 空字串 = 使用 voice_service 內建預設
+    "VOICE_ASSIST_SYSTEM_PROMPT_EN": "",
+    # ── STT ───────────────────────────────────
+    "STT_PROVIDER": "faster_whisper",       # "faster_whisper" | "openai_compatible"
+    "STT_MODEL": "small",                   # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
+    "STT_LANGUAGE": "zh",                   # "" = 自動偵測
+    "STT_INITIAL_PROMPT": "麥當勞點餐，繁體中文，常見品項：大麥克、薯條、麥克雞塊、可樂、套餐、咖啡、拿鐵",
+    "STT_API_URL": "https://api.openai.com",
+    "STT_API_KEY": "",
+    # ── TTS ───────────────────────────────────
+    "TTS_PROVIDER": "melo",                 # "melo" | "openai_compatible"
+    "TTS_SPEED": 1.0,                       # MeloTTS 語速
+    "TTS_MODEL": "tts-1",                   # openai_compatible 模型名稱
+    "TTS_VOICE": "alloy",                   # openai_compatible 聲音
+    "TTS_API_URL": "https://api.openai.com",
+    "TTS_API_KEY": "",
 }
 
 PUBLIC_SETTINGS_KEYS = {

@@ -19,6 +19,7 @@ from routes import (
     demo_routes,
     menu_routes,
     ai_push_routes,
+    voice_routes,
     interaction_routes,
     realtime_routes,
 )
@@ -123,6 +124,7 @@ def _route_dependencies() -> dict:
 _deps = _route_dependencies()
 app.include_router(core_routes.create_router(_deps))
 app.include_router(menu_routes.create_router(_deps))
+app.include_router(voice_routes.create_router(_deps))
 
 app.include_router(ai_push_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))

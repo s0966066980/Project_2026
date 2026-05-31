@@ -1473,6 +1473,10 @@ function _isVoiceActive() {
 function closeVoiceBubble(stopAudio = true) {
   if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
   voiceBubbleTimer = null;
+  if (stopAudio && ui.audio) {
+    ui.audio.pause();
+    ui.audio.currentTime = 0;
+  }
   ui.voiceBubble?.classList.add('hidden');
   ui.voiceBubble?.setAttribute('aria-hidden', 'true');
   const timerBar = document.getElementById('voiceReplyTimerBar');
@@ -1480,6 +1484,12 @@ function closeVoiceBubble(stopAudio = true) {
     timerBar.style.transition = 'none';
     timerBar.style.width = '100%';
   }
+}
+
+function playVoice(b64, format = 'wav') {
+  if (!b64 || !ui.audio) return;
+  ui.audio.src = `data:audio/${format};base64,${b64}`;
+  ui.audio.play().catch(() => {});
 }
 
 function showVoiceBubble(data) {
@@ -1582,11 +1592,47 @@ function setupAskRecorder() {
       return;
     }
     showVoiceAssistOverlay('thinking');
-    // TODO: Send blob to voice API
-    // fd.append('session_id', sessionId);
-    // fd.append('media', blob, 'voice_ask.webm');
-    // fd.append('multi_lang', String(getFeatures().multiLang));
-    showVoiceAssistMessage(kioskLang === 'en' ? 'Voice feature is being redesigned.' : '語音功能重構中，請稍後。');
+    const fd = new FormData();
+    fd.append('session_id', sessionId);
+    fd.append('media', blob, 'voice_ask.webm');
+    fd.append('multi_lang', String(getFeatures().multiLang));
+    try {
+      const data = await api.ask(fd);
+      if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
+        hideVoiceAssistOverlay();
+        return;
+      }
+      if (data.status === 'success') {
+        if (data.audio_base64) playVoice(data.audio_base64, data.audio_format || 'wav');
+        showVoiceBubble(data);
+        const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
+        (data.cart_actions || []).forEach(action => {
+          if (action.action === 'add' && action.id) {
+            for (let i = 0; i < (Number(action.quantity) || 1); i++) {
+              sessionCartSources.push({ id: action.id, source: 'voice_assist' });
+            }
+          }
+        });
+        if (appliedOrders.length) {
+          lastValidOrderActionAt = Date.now();
+          lastCartAddAt = Date.now();
+          restartChoiceHesitationTimer();
+          trackInteractionEvent({
+            event_type: 'cart_edit', button_id: 'askBtn',
+            cart_edit_count: appliedOrders.length,
+            metadata: { source: 'voice_assist', items: appliedOrders }
+          });
+          showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
+        }
+        if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
+      } else {
+        showVoiceAssistMessage(data.ai_response || data.message || kt('voiceOrderFailed'), data.detected_lang || kioskLang);
+        if (data.audio_base64) playVoice(data.audio_base64, data.audio_format || 'wav');
+      }
+    } catch {
+      trackInteractionEvent({ event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn', metadata: { reason: 'api_error' } });
+      showVoiceAssistMessage(kt('voiceOrderFailed'));
+    }
     const _doneText = document.getElementById('voiceAssistBtnText');
     if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
