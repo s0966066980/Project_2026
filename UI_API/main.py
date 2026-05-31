@@ -166,7 +166,6 @@ if config.get("ENABLE_DEBUG_ROUTES", False):
 
 def _ensure_ollama(
     model: str = "qwen3.5:4b",
-    embed_model: str = "nomic-embed-text",
     voice_model: str = "qwen3.5:4b",
     extra_models: list | None = None,
 ):
@@ -193,7 +192,6 @@ def _ensure_ollama(
     specs: dict[str, list[str]] = {}
     _add_model(specs, model, "local LLM for menu Q&A and voice assist fallback")
     _add_model(specs, voice_model, "voice assist LLM")
-    _add_model(specs, embed_model, "embedding model")
     for item in extra_models or []:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
             _add_model(specs, item[0], str(item[1]))
@@ -245,7 +243,6 @@ if __name__ == "__main__":
 
     _ensure_ollama(
         model=config.get("MODEL_NAME", "qwen3.5:4b"),
-        embed_model=(config.get("rag", {}) or {}).get("embedding_model", "nomic-embed-text"),
         voice_model=config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b"),
     )
 
@@ -284,16 +281,17 @@ if __name__ == "__main__":
 
     model_name   = config.get("MODEL_NAME", "qwen3.5:4b")
     voice_model  = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
-    embed_model  = (config.get("rag", {}) or {}).get("embedding_model", "nomic-embed-text")
-    ai_provider  = config.get("QA_AI_PROVIDER", "ollama")
+    stt_provider = config.get("STT_PROVIDER", "faster_whisper")
+    tts_provider = config.get("TTS_PROVIDER", "edge")
     emotion_stat = _check_emotion_llama()
 
     print("\n" + "=" * 65)
     print("📋 功能模組狀態")
-    print(f"   🤖 主要 LLM    : {model_name}  ({ai_provider})")
-    print(f"   🎙️  語音助理    : {voice_model}")
-    print(f"   📚 RAG 嵌入    : {embed_model}")
-    print(f"   👁️  Emotion-LLaMA: {emotion_stat}  ({config.EMOTION_LLAMA_GRADIO_URL})")
+    print(f"   🤖 LLM          : {model_name}")
+    print(f"   🎙️  語音 LLM     : {voice_model}")
+    print(f"   👂 STT          : {stt_provider}")
+    print(f"   🔊 TTS          : {tts_provider}")
+    print(f"   👁️  Emotion-LLaMA: {emotion_stat}")
     print()
 
     # ── 存取網址 ──────────────────────────────────────────
