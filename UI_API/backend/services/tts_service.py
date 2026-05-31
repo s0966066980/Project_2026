@@ -1,10 +1,12 @@
 """TTS Provider 抽象介面與實作。
 
 切換方式：config TTS_PROVIDER
-  "melo"              — MeloTTS 本地函式庫（預設）
+  "edge"              — Edge TTS 雲端（預設，需網路，zh-TW 品質最佳）
+  "melo"              — MeloTTS 本地函式庫（需另行安裝）
   "openai_compatible" — HTTP API（OpenAI 或本地相容服務）
 
 回傳格式：
+  Edge TTS            → MP3 bytes  (audio_format = "mp3")
   MeloTTS             → WAV bytes  (audio_format = "wav")
   OpenAI compatible   → MP3 bytes  (audio_format = "mp3")
 """
@@ -30,6 +32,34 @@ class TTSProvider(ABC):
             return ""
         audio = await self.synthesize(text, lang)
         return base64.b64encode(audio).decode("utf-8") if audio else ""
+
+
+# ── Edge TTS 雲端實作 ─────────────────────────────────────────────
+
+class EdgeTTSProvider(TTSProvider):
+    """Microsoft Edge TTS — 需網路，zh-TW 品質最佳。
+    pip install edge-tts
+    """
+    audio_format = "mp3"
+
+    async def synthesize(self, text: str, lang: str = "zh") -> bytes:
+        import edge_tts
+
+        voice = (
+            config.get("EDGE_TTS_VOICE_EN", "en-US-JennyNeural")
+            if lang == "en"
+            else config.get("EDGE_TTS_VOICE", "zh-TW-HsiaoChenNeural")
+        )
+        communicate = edge_tts.Communicate(text, voice)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+            tmp = f.name
+        try:
+            await communicate.save(tmp)
+            with open(tmp, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
 
 
 # ── MeloTTS 本地實作 ──────────────────────────────────────────────
@@ -100,7 +130,11 @@ class OpenAICompatibleTTS(TTSProvider):
 
 def get_tts() -> TTSProvider:
     """Config TTS_PROVIDER 決定使用哪個實作。"""
-    provider = config.get("TTS_PROVIDER", "melo")
-    if provider == "openai_compatible":
-        return OpenAICompatibleTTS()
-    return MeloTTSProvider()
+    provider = config.get("TTS_PROVIDER", "edge")
+    match provider:
+        case "melo":
+            return MeloTTSProvider()
+        case "openai_compatible":
+            return OpenAICompatibleTTS()
+        case _:
+            return EdgeTTSProvider()  # 預設 edge

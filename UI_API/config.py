@@ -80,7 +80,9 @@ DEFAULT_SETTINGS = {
     "STT_API_URL": "https://api.openai.com",
     "STT_API_KEY": "",
     # ── TTS ───────────────────────────────────
-    "TTS_PROVIDER": "melo",                 # "melo" | "openai_compatible"
+    "TTS_PROVIDER": "edge",                 # "edge" | "melo" | "openai_compatible"
+    "EDGE_TTS_VOICE": "zh-TW-HsiaoChenNeural",
+    "EDGE_TTS_VOICE_EN": "en-US-JennyNeural",
     "TTS_SPEED": 1.0,                       # MeloTTS 語速
     "TTS_MODEL": "tts-1",                   # openai_compatible 模型名稱
     "TTS_VOICE": "alloy",                   # openai_compatible 聲音
