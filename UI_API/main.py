@@ -105,14 +105,43 @@ async def _background_init():
 
 
 async def _background_init_once():
-    if not config.get("ENABLE_GEMINI_OPTIONS", False):
-        return
-    try:
-        ok = await asyncio.to_thread(ai_services.init_gemini_client)
-        if ok:
-            print("✅ Gemini client 背景初始化完成")
-    except Exception as e:
-        print(f"❌ Gemini client 背景初始化失敗: {e}")
+    tasks = []
+
+    # STT 預載（provider 不是 openai_compatible 才需要本地模型）
+    if config.get("STT_PROVIDER", "faster_whisper") != "openai_compatible":
+        async def _init_stt():
+            try:
+                from services.stt_service import FasterWhisperSTT
+                await asyncio.to_thread(FasterWhisperSTT()._init)
+                print("✅ STT 模型預載完成")
+            except Exception as e:
+                print(f"⚠️ STT 預載失敗（不影響服務）: {e}")
+        tasks.append(_init_stt())
+
+    # TTS 預載（只有 melo 需要本地模型）
+    if config.get("TTS_PROVIDER", "edge") == "melo":
+        async def _init_tts():
+            try:
+                from services.tts_service import MeloTTSProvider
+                await asyncio.to_thread(MeloTTSProvider()._init)
+                print("✅ TTS 模型預載完成")
+            except Exception as e:
+                print(f"⚠️ TTS 預載失敗（不影響服務）: {e}")
+        tasks.append(_init_tts())
+
+    # Gemini client 預載（選用）
+    if config.get("ENABLE_GEMINI_OPTIONS", False):
+        async def _init_gemini():
+            try:
+                ok = await asyncio.to_thread(ai_services.init_gemini_client)
+                if ok:
+                    print("✅ Gemini client 背景初始化完成")
+            except Exception as e:
+                print(f"❌ Gemini client 背景初始化失敗: {e}")
+        tasks.append(_init_gemini())
+
+    if tasks:
+        await asyncio.gather(*tasks)
 
 
 def _route_dependencies() -> dict:
