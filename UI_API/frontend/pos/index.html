@@ -114,19 +114,6 @@
   </div>
 </div>
 
-<div id="emotionFeed"></div>
-<div id="emotionCameraPanel" class="hidden">
-  <div class="camera-head">
-    <span><i class="fas fa-video"></i> 偵測鏡頭</span>
-    <span id="emotionCameraStatus">等待偵測</span>
-  </div>
-  <div class="camera-frame">
-    <video id="emotionCameraVideo" autoplay muted playsinline></video>
-    <div id="emotionDetectBox" class="detect-box">
-      <span id="emotionDetectLabel">未偵測</span>
-    </div>
-  </div>
-</div>
 
 <!-- ============ POS 視圖 ============ -->
 <div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
@@ -326,13 +313,8 @@
     </div>
   </div>
 
-  <!-- 隱藏感測區：保留 Emotion-LLaMA 視訊來源，不佔 POS 版面 -->
   <div id="centerPanel" class="hidden">
     <video id="webcam" autoplay muted playsinline class="hidden" style="transform:scaleX(-1)"></video>
-    <div id="mod-camera" class="hidden">
-      <div id="pingIndicator" class="hidden"></div>
-      <div id="emotionBadge" class="hidden"><span id="emotionText">Calm</span></div>
-    </div>
   </div>
 
   <!-- 右：購物車 -->

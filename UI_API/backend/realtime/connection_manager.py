@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Any
 
 
-ALLOWED_CLIENT_TYPES = {"pos", "admin", "demo", "emotion"}
+ALLOWED_CLIENT_TYPES = {"pos", "admin", "demo"}
 
 
 class ConnectionManager:

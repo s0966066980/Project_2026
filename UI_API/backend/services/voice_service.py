@@ -80,7 +80,6 @@ async def handle_voice(
     await asyncio.to_thread(
         session_repository.record_session_state,
         session_id=session_id,
-        emotion="",
         user_speech=user_text,
         ai_response=ai_response,
         language=detected_lang,

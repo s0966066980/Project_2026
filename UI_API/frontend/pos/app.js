@@ -3,8 +3,6 @@ import {
   ui,
   escapeHTML,
   switchMainView as switchMainViewUI,
-  updateEmotionCameraPanel as updateEmotionCameraPanelUI,
-  updateEmotionDetectionOverlay as updateEmotionDetectionOverlayUI
 } from '../shared/ui.js';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
@@ -50,10 +48,7 @@ let sessionPushedIds = new Set();
 let sessionAiPushCartCount = 0;
 let sessionCartSources = []; // [{id, source}] 記錄每筆加入來源
 let voiceBubbleTimer = null;
-let emotionCardTimer = null;
-let emotionLoopId = null;
 let lastVoiceText = '';
-let lastEmotionStructured = null;
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
@@ -138,7 +133,6 @@ const KIOSK_TEXT = {
     recognizingOrder: '辨識餐點中...',
     languageZh: '繁體中文',
     languageEn: 'English',
-    emotion: '情緒',
     priority: '優先級',
     customer: '顧客',
     addedToCart: '已加入購物車：{items}',
@@ -197,7 +191,6 @@ const KIOSK_TEXT = {
     recognizingOrder: 'Recognizing order...',
     languageZh: 'Traditional Chinese',
     languageEn: 'English',
-    emotion: 'Emotion',
     priority: 'Priority',
     customer: 'Customer',
     addedToCart: 'Added to cart: {items}',
@@ -237,8 +230,6 @@ function groupLabel(group) {
 let fullSettings = {};
 let runtimeSettings = {
   PERFORMANCE_MODE: 'balanced',
-  EMOTION_PING_INTERVAL_SEC: 15,
-  EMOTION_RECORD_MS: 900,
   OLLAMA_NUM_PREDICT: 220,
   RAG_TOP_K: 3,
   ENABLE_TTS_CACHE: true,
@@ -263,8 +254,6 @@ async function loadRuntimeSettings() {
 }
 
 function restartLoops() {
-  if (emotionLoopId) clearInterval(emotionLoopId);
-  emotionLoopId = null;
   if (isSystemRunning && isPosMode()) {
     maybeStartRollingMediaBuffer();
   }
@@ -278,10 +267,6 @@ const FEAT_DEFAULTS = {
   voiceAssist: true,
   recommend: true,
   choiceHesitation: true,
-  emotionBackend: false,
-  emotionChat: false,
-  emotionCamera: false,
-  emotionRecommend: true,
   eventTriggeredMultimodal: true,
   multiLang: true
 };
@@ -364,13 +349,10 @@ function getFeatures() {
     const features = { ...FEAT_DEFAULTS, ...saved };
     const shouldApplyDemoDefaults = isDemoPublicMode() && (!hasSavedFeatures || !versionMatches);
     if (!versionMatches || shouldApplyDemoDefaults) {
-      features.emotionBackend = false;
       if (shouldApplyDemoDefaults) {
         features.voiceAssist = true;
         features.recommend = true;
         features.choiceHesitation = true;
-        features.emotionBackend = false;
-        features.emotionCamera = false;
         features.eventTriggeredMultimodal = true;
       }
       localStorage.setItem('kiosk_feat', JSON.stringify(features));
@@ -384,8 +366,6 @@ function getFeatures() {
       features.voiceAssist = true;
       features.recommend = true;
       features.choiceHesitation = true;
-      features.emotionBackend = false;
-      features.emotionCamera = false;
       features.eventTriggeredMultimodal = true;
     }
     return features;
@@ -396,30 +376,19 @@ function saveFeatures(f) {
   localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
 }
 
-function stopEmotionLoop() {
-  if (!emotionLoopId) return;
-  clearInterval(emotionLoopId);
-  emotionLoopId = null;
-}
-
 function toggleFeature(key, el) {
   const f = getFeatures();
   f[key] = !f[key];
   saveFeatures(f);
   el.classList.toggle('on', f[key]);
   if (key === 'voiceAssist' && !f.voiceAssist && askRecorder?.state === 'recording') askRecorder.stop();
-  if ((key === 'emotion' || key === 'emotionBackend') && (!f.emotion || !f.emotionBackend)) stopEmotionLoop();
   applyFeaturesToPOS();
-  if (isSystemRunning && (key === 'voiceAssist' || key === 'emotion' || key === 'emotionBackend')) {
+  if (isSystemRunning && (key === 'voiceAssist' || key === 'emotion')) {
     ensureMediaTracks({
-      video: f.emotionBackend,
+      video: false,
       audio: true
     }).then(ok => {
       if (ok) setupAskRecorder();
-      if (ok) {
-        updateEmotionCameraPanel();
-        if (key === 'emotionBackend' && f.emotionBackend) startEmotionLoop();
-      }
     });
   }
 }
@@ -437,10 +406,7 @@ function applyFeaturesToPOS() {
   // 語音回覆氣泡（關閉語音協助時隱藏）
   if (!f.voiceAssist) closeVoiceBubble();
   if (!f.recommend) aiPush.stop();
-  if (!f.emotionChat) clearEmotionCards();
-  if (!f.emotionBackend) stopEmotionLoop();
   if (!f.emotion) setVoiceOrderingAvailable(true);
-  updateEmotionCameraPanel();
 }
 
 function isCartScreenOpen() {
@@ -461,22 +427,12 @@ function isPosActive() {
 
 function clearPOSFloatingUI() {
   clearAllPushCards();
-  clearEmotionCards();
   closeVoiceBubble();
   hideVoiceAssistOverlay();
   hideChoiceHesitationModal();
   aiPush.hide();
-  if (ui.emotionCameraPanel) ui.emotionCameraPanel.classList.add('hidden');
 }
 
-
-function updateEmotionCameraPanel() {
-  updateEmotionCameraPanelUI({ features: getFeatures(), isPosActive: isPosActive(), stream });
-}
-
-function updateEmotionDetectionOverlay(personCheck = {}) {
-  updateEmotionDetectionOverlayUI(personCheck, { features: getFeatures(), isPosActive: isPosActive(), stream });
-}
 
 function maybeStartRollingMediaBuffer() {
   if (!isPosMode() || !isSystemRunning) return false;
@@ -1487,19 +1443,6 @@ function formatItemPrice(item) {
   return kioskLang === 'en' ? 'Store Price' : '依店價';
 }
 
-// =========================================================
-// 情緒格式化
-// =========================================================
-function formatEmotion(t) {
-  if (!t) return "分析中";
-  const map = [["未偵測到顧客", "未偵測到顧客"], ["沒有明確人臉", "未偵測到顧客"],
-  ["平靜", "平靜"], ["開心", "開心"], ["微笑", "開心"], ["疲憊", "疲憊"],
-  ["累", "疲憊"], ["猶豫", "猶豫"], ["思考", "猶豫"], ["困惑", "困惑"],
-  ["焦躁", "焦躁"], ["驚訝", "驚訝"], ["生氣", "生氣"], ["憤怒", "生氣"],
-  ["難過", "難過"], ["悲傷", "難過"], ["無法判斷", "無法判斷"]];
-  for (const [k, v] of map) if (t.includes(k)) return v;
-  return t.length > 12 ? t.slice(0, 12) + '...' : t;
-}
 
 async function ensureMediaTracks({ video = false, audio = false } = {}) {
   try {
@@ -1519,10 +1462,9 @@ ui.startBtn.onclick = async () => {
   try {
     await loadRuntimeSettings();
     const f = getFeatures();
-    const needVideo = f.emotionBackend;
     const needAudio = Boolean(f.voiceAssist);
-    const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
-    if (!mediaReady && (needVideo || needAudio)) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
+    const mediaReady = await ensureMediaTracks({ video: false, audio: needAudio });
+    if (!mediaReady && needAudio) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
     applyFeaturesToPOS();
     ui.overlay.style.opacity = '0';
@@ -1530,11 +1472,9 @@ ui.startBtn.onclick = async () => {
     isSystemRunning = true;
     lastCartAddAt = Date.now();
     setVoiceOrderingAvailable(true);
-    updateEmotionCameraPanel();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     maybeStartRollingMediaBuffer();
-    if (f.emotionBackend) startEmotionLoop();
     restartChoiceHesitationTimer();
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
@@ -1561,102 +1501,6 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
   setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
 });
 
-// =========================================================
-// 情緒 Loop
-// =========================================================
-function startEmotionLoop() {
-  if (isAdminMode()) return;
-  if (!getFeatures().emotionBackend) return;
-  if (emotionLoopId) return;
-  emotionLoopId = setInterval(() => {
-    const f = getFeatures();
-    if (!isPosActive() || !f.emotionBackend) return;
-    if (document.hidden) return;
-    if (!stream || !stream.getVideoTracks().length) return;
-    const rec = createVideoRecorder(stream);
-    let chunks = [];
-    rec.ondataavailable = e => chunks.push(e.data);
-    rec.onstop = async () => {
-      ui.pingInd.style.opacity = '1';
-      showAdminNotice('Emotion-LLaMA 情緒模型開始分析短片段。');
-      const fd = new FormData();
-      fd.append('session_id', sessionId);
-      fd.append('video', new Blob(chunks, { type: 'video/webm' }));
-      try {
-        const d = await api.pingState(fd);
-        if (d.person_check) updateEmotionDetectionOverlay(d.person_check);
-        if ((d.status === 'success' || d.status === 'not_executed') && d.emotion) {
-          lastEmotionStructured = d.emotion_structured || d;
-          ui.emotionBadge.classList.remove('hidden');
-          ui.emotionText.textContent = formatEmotion(d.emotion);
-          showEmotionCard(d.emotion_structured || d);
-        }
-        if (d.status === 'success') showAdminNotice('Emotion-LLaMA 情緒分析完成。', 'success');
-        if (d.status === 'not_executed') showAdminNotice('Emotion-LLaMA 本次未執行：模型未連線或功能未啟用。');
-      } catch {
-        showAdminNotice('Emotion-LLaMA 情緒分析失敗，請檢查推論服務。', 'error');
-      }
-      setTimeout(() => ui.pingInd.style.opacity = '0', 600);
-    };
-    rec.start();
-    setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, Number(perfValue('EMOTION_RECORD_MS')) || 900);
-  }, Math.max(5, Number(perfValue('EMOTION_PING_INTERVAL_SEC')) || 15) * 1000);
-}
-
-function clearEmotionCards() {
-  if (emotionCardTimer) clearTimeout(emotionCardTimer);
-  emotionCardTimer = null;
-  if (ui.emotionFeed) ui.emotionFeed.innerHTML = '';
-}
-
-function renderDistributionBars(distribution = {}) {
-  const rows = Object.entries(distribution || {})
-    .filter(([, value]) => Number(value) > 0)
-    .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .slice(0, 5);
-  if (!rows.length) return '';
-  return `<div class="emotion-bars">${rows.map(([label, value]) => `
-    <div class="emotion-bar-row">
-      <span>${escapeHTML(label)}</span>
-      <div><i style="width:${Math.max(4, Math.min(100, Number(value) || 0))}%"></i></div>
-      <b>${escapeHTML(value)}%</b>
-    </div>`).join('')}</div>`;
-}
-
-function showEmotionCard(emotionData) {
-  if (!getFeatures().emotionChat || !ui.emotionFeed || !isPosActive()) return;
-  const data = typeof emotionData === 'string'
-    ? { emotion_display: emotionData }
-    : (emotionData || {});
-  lastEmotionStructured = data;
-  const display = data.emotion_display || data.emotion || '尚未取得情緒分析。';
-  const evidence = data.emotion_evidence || data.evidence || '';
-  const distribution = data.emotion_distribution || {};
-  let card = ui.emotionFeed.querySelector('.emotion-card');
-  if (!card) {
-    card = document.createElement('div');
-    card.className = 'emotion-card';
-    card.innerHTML = `
-      <div class="emotion-title"><i class="fas fa-brain"></i><span>Emotion-LLaMA</span></div>
-      <div class="emotion-text"></div>
-      <div class="emotion-evidence"></div>
-      <div class="emotion-dist"></div>`;
-    ui.emotionFeed.appendChild(card);
-  }
-  card.classList.remove('fade-out');
-  card.querySelector('.emotion-text').textContent = display;
-  const evidenceEl = card.querySelector('.emotion-evidence');
-  evidenceEl.textContent = evidence ? `判斷依據：${evidence}` : '';
-  card.querySelector('.emotion-dist').innerHTML = renderDistributionBars(distribution);
-  if (emotionCardTimer) clearTimeout(emotionCardTimer);
-  emotionCardTimer = setTimeout(() => {
-    card.classList.add('fade-out');
-    const target = card;
-    setTimeout(() => {
-      if (target.classList.contains('fade-out')) target.remove();
-    }, 1800);
-  }, 12000);
-}
 
 function _isVoiceActive() {
   // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
@@ -1823,13 +1667,6 @@ function setupAskRecorder() {
         if (data.audio_base64) playVoice(data.audio_base64);
         showVoiceBubble(data);
 
-        // 更新本次語音的情緒分析結果
-        if (data.emotion_structured && Object.keys(data.emotion_structured).length) {
-          lastEmotionStructured = data.emotion_structured;
-          showEmotionCard(data.emotion_structured);
-        }
-        if (data.person_check) updateEmotionDetectionOverlay(data.person_check);
-
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         (data.cart_actions || []).forEach(action => {
           if (action.action === 'add' && action.id) {
@@ -1935,7 +1772,6 @@ window.addEventListener('beforeunload', () => {
   try {
     if (askRecorder?.state === 'recording') askRecorder.stop();
   } catch { }
-  if (emotionLoopId) clearInterval(emotionLoopId);
   if (pageDwellTimer) clearInterval(pageDwellTimer);
   if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
   aiPush.stop();
@@ -1963,7 +1799,7 @@ function shouldTrackInvalidClick(target) {
     'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#voiceReplyBubble'
   );
   if (interactive) return false;
-  if (target.closest('#startupOverlay,#tutorialPopup,#choiceHesitationModal,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack,#emotionFeed,#emotionCameraPanel')) {
+  if (target.closest('#startupOverlay,#tutorialPopup,#choiceHesitationModal,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack')) {
     return false;
   }
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return false;
@@ -2168,7 +2004,6 @@ function showCompletionOverlay(orderData = {}) {
     if (totalEl) totalEl.textContent = `$${total}`;
 
     overlay.classList.remove('hidden', 'opacity-0');
-    updateEmotionCameraPanel();
 
     overlay.querySelector('[data-home-btn]')
       ?.addEventListener('click', () => location.reload());

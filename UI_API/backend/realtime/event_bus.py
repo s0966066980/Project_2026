@@ -5,10 +5,7 @@ from realtime.connection_manager import manager
 
 EVENT_TYPES = {
     "human_reply",
-    "customer_service_request",
     "interaction_intervention",
-    "emotion_analysis_started",
-    "emotion_analysis_completed",
     "staff_notify",
     "settings_changed",
     "demo_event",

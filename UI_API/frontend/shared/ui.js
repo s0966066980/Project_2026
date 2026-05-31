@@ -38,11 +38,6 @@ export const ui = {
   confirmBackBtn: document.getElementById('confirmBackBtn'),
   confirmPayBtn: document.getElementById('confirmPayBtn'),
   webcam: document.getElementById('webcam'),
-  emotionCameraPanel: document.getElementById('emotionCameraPanel'),
-  emotionCameraVideo: document.getElementById('emotionCameraVideo'),
-  emotionCameraStatus: document.getElementById('emotionCameraStatus'),
-  emotionDetectBox: document.getElementById('emotionDetectBox'),
-  emotionDetectLabel: document.getElementById('emotionDetectLabel'),
   audio: document.getElementById('ttsAudio'),
   voiceAssistBtn: document.getElementById('voiceAssistBtn'),
   voiceAssistBtnText: document.getElementById('voiceAssistBtnText'),
@@ -52,12 +47,8 @@ export const ui = {
   voiceAssistStopBtn: document.getElementById('voiceAssistStopBtn'),
   voiceAssistStopText: document.getElementById('voiceAssistStopText'),
   centerPanel: document.getElementById('centerPanel'),
-  pingInd: document.getElementById('pingIndicator'),
-  emotionBadge: document.getElementById('emotionBadge'),
-  emotionText: document.getElementById('emotionText'),
   floatPush: document.getElementById('floatPush'),
   aiPushBar: document.getElementById('aiPushBar'),
-  emotionFeed: document.getElementById('emotionFeed'),
   voiceBubble: document.getElementById('voiceReplyBubble'),
   voiceDialogueGrid: document.getElementById('voiceDialogueGrid'),
   voiceLangBadge: document.getElementById('voiceLangBadge'),
@@ -84,25 +75,3 @@ export function switchMainView(view, callbacks = {}) {
 }
 
 
-export function updateEmotionCameraPanel({ features, isPosActive, stream }) {
-  if (!ui.emotionCameraPanel) return;
-  const shouldShow = Boolean(features.emotionCamera && isPosActive && stream?.getVideoTracks().length);
-  ui.emotionCameraPanel.classList.toggle('hidden', !shouldShow);
-  if (shouldShow && ui.emotionCameraVideo && ui.emotionCameraVideo.srcObject !== stream) {
-    ui.emotionCameraVideo.srcObject = stream;
-  }
-}
-
-export function updateEmotionDetectionOverlay(_personCheck = {}, context = {}) {
-  updateEmotionCameraPanel(context);
-  if (!ui.emotionDetectBox || !ui.emotionCameraStatus) return;
-  ui.emotionDetectBox.classList.remove('detected', 'undetected');
-  ui.emotionDetectBox.style.left = '18%';
-  ui.emotionDetectBox.style.right = '18%';
-  ui.emotionDetectBox.style.top = '12%';
-  ui.emotionDetectBox.style.bottom = '16%';
-  ui.emotionDetectBox.style.width = 'auto';
-  ui.emotionDetectBox.style.height = 'auto';
-  ui.emotionCameraStatus.textContent = '影像分析中';
-  if (ui.emotionDetectLabel) ui.emotionDetectLabel.textContent = '';
-}

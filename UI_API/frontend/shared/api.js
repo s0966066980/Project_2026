@@ -52,9 +52,6 @@ export async function saveMenu(menu) {
   }));
 }
 
-export async function pingState(formData) {
-  return asJson(await fetch(`${API_BASE}/api/ping_state`, { method: 'POST', body: formData }));
-}
 
 
 

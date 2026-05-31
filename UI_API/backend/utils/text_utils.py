@@ -1,5 +1,3 @@
-import re
-
 
 _TRAD_PHRASE_MAP = {
     "菜单": "菜單",
@@ -44,48 +42,4 @@ def latin_noise_count(text: str) -> int:
     return sum(1 for ch in cleaned if "A" <= ch.upper() <= "Z")
 
 
-_EMOTION_LABEL_SYNONYMS = {
-    "生氣": ["生氣", "憤怒", "怒氣", "不悅", "不爽", "氣憤", "angry", "anger", "mad", "furious"],
-    "焦躁": ["焦躁", "焦慮", "急躁", "不耐", "不耐煩", "煩躁", "anxious", "irritated", "impatient", "frustrated"],
-    "猶豫": ["猶豫", "遲疑", "困惑", "迷惘", "不確定", "hesitant", "confused", "uncertain", "unsure"],
-    "疲憊": ["疲憊", "疲倦", "勞累", "倦怠", "tired", "exhausted", "weary"],
-    "難過": ["難過", "傷心", "悲傷", "失落", "沮喪", "sad", "unhappy", "depressed", "down"],
-    "開心": ["開心", "高興", "愉快", "快樂", "歡喜", "happy", "joyful", "pleased", "cheerful"],
-    "平靜": ["平靜", "中性", "冷靜", "平穩", "neutral", "calm", "relaxed"],
-}
-
-
-def normalize_emotion_label(label: str) -> str:
-    """Map free-form emotion descriptions (zh / en / mixed) onto the canonical zh label."""
-    raw = str(label or "").strip().lower()
-    if not raw:
-        return ""
-    for canonical, aliases in _EMOTION_LABEL_SYNONYMS.items():
-        for alias in aliases:
-            if alias.lower() in raw:
-                return canonical
-    return label
-
-
-def remove_latin_noise(text: str) -> str:
-    clean = str(text or "")
-    replacements = {
-        "Emotion-LLaMA": "情緒模型",
-        "neutral": "平靜",
-        "calm": "平靜",
-        "happy": "開心",
-        "tired": "疲憊",
-        "confused": "困惑",
-        "angry": "生氣",
-        "sad": "難過",
-        "customer": "顧客",
-        "person": "顧客",
-        "video": "影像",
-    }
-    for source in sorted(replacements, key=len, reverse=True):
-        clean = re.sub(re.escape(source), replacements[source], clean, flags=re.IGNORECASE)
-    clean = re.sub(r"[A-Za-z][A-Za-z0-9_/'’.-]*", "", clean)
-    clean = re.sub(r"\s+", "", clean)
-    clean = re.sub(r"[，,。；;：:]{2,}", "，", clean)
-    return clean.strip(" ，,。；;：:")
 
