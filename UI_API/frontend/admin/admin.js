@@ -36,7 +36,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles = { stats: '狀態統計', rag: 'RAG 設定' };
+    const titles = { stats: '狀態統計' };
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[page] || page;
     if (page === 'stats') loadStats();

@@ -380,9 +380,6 @@ function saveFeatures(f) {
 function applyFeaturesToPOS() {
   const f = getFeatures();
   const center = document.getElementById('centerPanel');
-  // 攝影機作為背景感測來源保留，不在 POS 版面中顯示欄位
-  const cam = document.getElementById('mod-camera');
-  if (cam) cam.style.display = 'none';
   // 語音協助按鈕只出現在底部導覽列，不出現在購物車、付款、完成頁。
   updateVoiceAssistVisibility();
   // 感測區永遠不佔版面，避免功能關閉後留下空白 UI 欄位

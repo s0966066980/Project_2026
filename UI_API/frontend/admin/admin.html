@@ -188,9 +188,6 @@ body {
 .stat-card-icon.red    { background: #feecec; color: #e84040; }
 .stat-label { font-size: 12px; color: #8494b0; font-weight: 600; }
 .stat-value { font-size: 28px; font-weight: 900; color: #1a2233; line-height: 1; }
-.stat-delta { font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
-.stat-delta.up   { color: #1db87a; }
-.stat-delta.down { color: #e84040; }
 
 /* ── Bottom row ── */
 .bottom-row {
@@ -274,9 +271,6 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="nav-section-label">主選單</div>
     <button class="nav-item active" data-page="stats" type="button">
       <i class="fas fa-chart-pie"></i> 狀態統計
-    </button>
-    <button class="nav-item" data-page="rag" type="button">
-      <i class="fas fa-database"></i> RAG 設定
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -397,13 +391,6 @@ tbody tr:hover td { background: #f8fafd; }
 
   </div>
 
-  <!-- RAG page (placeholder) -->
-  <div class="content" id="page-rag" style="display:none">
-    <div class="card">
-      <div class="card-title"><i class="fas fa-database"></i> RAG 設定</div>
-      <p style="color:#8494b0;font-size:13px">功能開發中。</p>
-    </div>
-  </div>
 </div>
 
 <script type="module" src="/static/admin/admin.js"></script>
