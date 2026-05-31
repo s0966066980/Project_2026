@@ -1,23 +1,62 @@
-# Voice Assist and Emotion-LLaMA Strategy
+# 語音點餐與 Emotion-LLaMA 策略說明
 
-## Scope
+## 語音點餐（現況）
 
-Emotion-LLaMA is not a continuous monitor. It is used only when the patent flow has already produced an event-triggered short clip or when an administrator explicitly starts the independent client for testing.
+語音點餐為乾淨的三段式流程：
 
-## Runtime Policy
+```
+音訊輸入 → Whisper STT → Ollama LLM → Edge TTS
+```
 
-- `Emotion-LLaMA/app_EmotionLlamaClient.py` remains an independent process.
-- `UI_API/main.py` does not preload Emotion-LLaMA.
-- Admin can start it through `/api/emotion_llama/start` and stop it through `/api/emotion_llama/stop`.
-- `VOICE_ASSIST_EMOTION_AUTO_START` defaults to `false`; voice assist should reuse the latest `emotion_cache` produced by triggered multimodal analysis.
-- `VOICE_ASSIST_EMOTION_IDLE_TIMEOUT_SEC` defines the intended idle release window for a future scheduler; the current safe path is explicit stop from admin tooling.
+**實作位置：** `backend/services/voice_service.py`
 
-## Data Flow
+**特性：**
+- Whisper 做語音轉文字與語言偵測（zh / en）
+- Ollama 依菜單白名單回答問題或生成 `cart_actions`
+- `coerce_cart_actions()` 強制校正所有 LLM 輸出的品項 ID
+- prompt 組裝前有 `# TODO: inject RAG context here` 插槽，未來接 RAG 只改此處
+- 語音模型由 `VOICE_ASSIST_MODEL`（預設 `qwen3.5:4b`）控制
 
-1. POS interaction events calculate `risk_score`.
-2. High risk triggers the short media clip path.
-3. The multimodal route runs Whisper and Emotion-LLaMA when available.
-4. Structured emotion is cached per `session_id`.
-5. Voice assist reads the latest cached emotion as optional context and does not start periodic emotion analysis.
+**多語言：**
+- `multi_lang=true` 時自動偵測語言，選對應 system prompt 和 TTS 語音
+- `VOICE_ASSIST_SYSTEM_PROMPT`（中文）、`VOICE_ASSIST_SYSTEM_PROMPT_EN`（英文）
 
-This keeps the system aligned with the PPT claim: event-triggered multimodal evidence, then barrier inference and intervention, rather than always-on surveillance.
+---
+
+## Emotion-LLaMA（目前為 Stub）
+
+Emotion-LLaMA 目前尚未接入，保留預留介面。
+
+**Stub 位置：** `backend/services/emotion_service.py`
+
+```python
+async def analyze(session_id: str, media_path: str) -> dict:
+    # TODO: Connect to Emotion-LLaMA at config.EMOTION_LLAMA_GRADIO_URL
+    return {
+        "emotion_label": "未偵測",
+        "emotion_score": 0,
+        "emotion_available": False,
+        "status": "stub",
+    }
+```
+
+**Endpoint：** `POST /api/emotion/analyze`（接收 `session_id` + `media` 上傳）
+
+**對接方式（未來）：**
+1. 確認 Emotion-LLaMA 服務在 `config.EMOTION_LLAMA_GRADIO_URL`（預設 `http://127.0.0.1:7889`）已啟動
+2. 替換 `emotion_service.py` 的 stub 實作，呼叫 Gradio API
+3. 回傳格式維持：`{session_id, emotion_label, emotion_score, emotion_available, status}`
+
+**啟動 Emotion-LLaMA（可選）：**
+```bash
+cd Emotion-LLaMA && conda activate emotion_ollama
+python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
+```
+
+---
+
+## 設計原則
+
+- Emotion-LLaMA 不直接決定介入動作，只作為輔助證據
+- 介入決策由 `barrier_state_service` 基於 POS 事件計數 + 語音關鍵字判斷，與情緒分析解耦
+- Stub 狀態下系統完整可用，不依賴 Emotion-LLaMA 服務
