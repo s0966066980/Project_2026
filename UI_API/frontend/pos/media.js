@@ -19,13 +19,13 @@ export async function ensureMediaTracks(currentStream, elements, { video = false
   return stream;
 }
 
-export function attachStream(stream, elements = {}) {
+function attachStream(stream, elements = {}) {
   if (!stream) return;
   if (stream.getVideoTracks().length && elements.webcam) elements.webcam.srcObject = stream;
   if (stream.getVideoTracks().length && elements.emotionCameraVideo) elements.emotionCameraVideo.srcObject = stream;
 }
 
-export function videoRecorderOptions() {
+function videoRecorderOptions() {
   return MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
     ? { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 180000 }
     : { mimeType: 'video/webm', videoBitsPerSecond: 180000 };
@@ -59,6 +59,3 @@ export function captureVideoFrameBlob(video, { maxWidth = 320, type = 'image/jpe
   });
 }
 
-export function stopRecorder(recorder) {
-  if (recorder && recorder.state === 'recording') recorder.stop();
-}

@@ -57,9 +57,6 @@ export async function pingState(formData) {
 }
 
 
-export async function autoRecommend(formData, signal) {
-  return asJson(await fetch(`${API_BASE}/api/auto_recommend`, { method: 'POST', body: formData, signal }));
-}
 
 export async function aiPush(formData) {
   return asJson(await fetch(`${API_BASE}/api/ai_push`, { method: 'POST', body: formData }));

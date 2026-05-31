@@ -1,5 +1,4 @@
 import * as api from '../shared/api.js';
-import { API_BASE } from '../shared/api.js';
 import {
   ui,
   escapeHTML,
@@ -16,8 +15,6 @@ import {
 import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
 import {
-  captureTriggeredClip,
-  hasRollingMediaBuffer,
   startRollingMediaBuffer,
   stopRollingMediaBuffer
 } from '../shared/media_buffer.js';
@@ -46,7 +43,6 @@ function buildSessionId() {
 
 const sessionId = buildSessionId();
 let stream, askRecorder;
-let sessionEmotionLog = [];
 let isSystemRunning = false;
 let orderCompleted = false;
 let menuData = [];
@@ -58,7 +54,6 @@ let emotionCardTimer = null;
 let emotionLoopId = null;
 let lastVoiceText = '';
 let lastEmotionStructured = null;
-let lastMediaSignals = {};
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
@@ -360,14 +355,6 @@ const INTERACTION_LABELS = {
     unknown: '未知來源',
   },
 };
-
-function zhInteractionLabel(type, value) {
-  const raw = String(value || 'unknown');
-  const label = INTERACTION_LABELS[type]?.[raw] || raw;
-  if (label !== raw) return label;
-  if (['barrier', 'action', 'page', 'event', 'source'].includes(type)) return '未分類';
-  return raw;
-}
 
 function getFeatures() {
   try {
@@ -867,8 +854,7 @@ function getChoiceHesitationCandidates() {
     const allowed = new Set(group?.categories || []);
     let scoped = pricedItems.filter(item => allowed.has(String(item.category || '')));
     if (kioskActiveFilter && kioskActiveFilter !== '全部') {
-      const keywords = filterKeywords(kioskActiveFilter);
-      scoped = scoped.filter(item => itemMatchesFilter(item, keywords));
+      scoped = scoped.filter(item => itemMatchesSubFilter(item, kioskActiveFilter));
     }
     if (scoped.length) return scoped;
   }
@@ -1308,20 +1294,6 @@ function setVisible(el, visible) {
   el.style.display = visible ? '' : 'none';
 }
 
-function updateGeminiOptionsVisibility(settings = fullSettings) {
-  const enabled = settings?.ENABLE_GEMINI_OPTIONS === true;
-  const providerSelect = document.getElementById('inp-ai-provider');
-  const geminiOption = providerSelect?.querySelector('option[value="gemini"]');
-  if (geminiOption) {
-    geminiOption.hidden = !enabled;
-    geminiOption.disabled = !enabled;
-  }
-  if (providerSelect && !enabled) providerSelect.value = 'ollama';
-
-  setVisible(document.getElementById('inp-gemini-model-name')?.closest('div'), enabled);
-  setVisible(document.getElementById('inp-gemini-fallback')?.closest('label'), enabled);
-}
-
 function handleRealtimeSettingsChanged(event = {}) {
   const settings = event.payload?.settings;
   if (!settings || typeof settings !== 'object') return;
@@ -1615,7 +1587,6 @@ function startEmotionLoop() {
         if (d.person_check) updateEmotionDetectionOverlay(d.person_check);
         if ((d.status === 'success' || d.status === 'not_executed') && d.emotion) {
           lastEmotionStructured = d.emotion_structured || d;
-          lastMediaSignals = d.media_signals || d.emotion_structured?.media_signals || lastMediaSignals || {};
           ui.emotionBadge.classList.remove('hidden');
           ui.emotionText.textContent = formatEmotion(d.emotion);
           showEmotionCard(d.emotion_structured || d);
@@ -1658,7 +1629,6 @@ function showEmotionCard(emotionData) {
     ? { emotion_display: emotionData }
     : (emotionData || {});
   lastEmotionStructured = data;
-  lastMediaSignals = data.media_signals || lastMediaSignals || {};
   const display = data.emotion_display || data.emotion || '尚未取得情緒分析。';
   const evidence = data.emotion_evidence || data.evidence || '';
   const distribution = data.emotion_distribution || {};
@@ -1856,21 +1826,10 @@ function setupAskRecorder() {
         // 更新本次語音的情緒分析結果
         if (data.emotion_structured && Object.keys(data.emotion_structured).length) {
           lastEmotionStructured = data.emotion_structured;
-          lastMediaSignals = data.media_signals || data.emotion_structured?.media_signals || lastMediaSignals || {};
           showEmotionCard(data.emotion_structured);
         }
         if (data.person_check) updateEmotionDetectionOverlay(data.person_check);
 
-        // 累積 session 情緒記錄，結帳時批次寫 RAG
-        if (lastEmotionStructured) {
-          sessionEmotionLog.push({
-            ts: new Date().toISOString(),
-            emotion_label: lastEmotionStructured.emotion_label || lastEmotionStructured.emotion_display || '',
-            emotion_evidence: lastEmotionStructured.emotion_evidence || '',
-            user_text: data.user_text || '',
-            ai_response: data.ai_response || '',
-          });
-        }
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         (data.cart_actions || []).forEach(action => {
           if (action.action === 'add' && action.id) {
@@ -1916,35 +1875,6 @@ function setupAskRecorder() {
     hideVoiceAssistOverlay();
     autoVoiceInFlight = false;
   };
-}
-
-// 語音模式開始時非同步捕捉 emotion 快照（不阻塞錄音）
-function captureEmotionSnapshotForVoice() {
-  if (!stream || !stream.getVideoTracks().length) return;
-  if (!getFeatures().emotion) return;
-  if (!isPosActive()) return;
-  const rec = createVideoRecorder(stream);
-  const chunks = [];
-  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-  rec.onstop = async () => {
-    const blob = new Blob(chunks, { type: 'video/webm' });
-    if (blob.size < 2000) return;
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    fd.append('video', blob, 'voice_emotion_snapshot.webm');
-    fd.append('detect_only', 'false');
-    try {
-      const d = await api.pingState(fd);
-      if (d.person_check) updateEmotionDetectionOverlay(d.person_check);
-      if ((d.status === 'success' || d.status === 'not_executed') && d.emotion_structured) {
-        lastEmotionStructured = d.emotion_structured;
-      }
-    } catch { /* 非關鍵路徑，靜默忽略 */ }
-  };
-  try {
-    rec.start();
-    setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, 1000);
-  } catch { /* 無攝影機時靜默跳過 */ }
 }
 
 function startAskRecording(sourceBtn) {
@@ -2155,9 +2085,6 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('cart_ids', JSON.stringify(cartIds));
   fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
   fd.append('cart_sources', JSON.stringify(sessionCartSources));
-  if (sessionEmotionLog.length > 0) {
-    fd.append('emotion_session_log', JSON.stringify(sessionEmotionLog));
-  }
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
@@ -2318,6 +2245,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
   cartManager.clearCart();
+  sessionCartSources = [];
   ui.overlay.classList.remove('hidden');
   ui.overlay.style.opacity = '1';
   kioskScreen = 'categories';
@@ -2332,6 +2260,7 @@ ui.continueOrderBtn?.addEventListener('click', () => {
 });
 ui.clearCartBtn?.addEventListener('click', () => {
   cartManager.clearCart();
+  sessionCartSources = [];
   hideCartScreen();
   renderKioskCategories();
   lastCartAddAt = Date.now();
@@ -2348,6 +2277,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
     return;
   }
   cartManager.clearCart();
+  sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
@@ -2528,6 +2458,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   hideCancelGuide();
   cancelClickCount = 0;
   cartManager.clearCart();
+  sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
