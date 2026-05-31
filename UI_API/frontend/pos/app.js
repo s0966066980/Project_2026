@@ -12,10 +12,6 @@ import {
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
-import {
-  startRollingMediaBuffer,
-  stopRollingMediaBuffer
-} from '../shared/media_buffer.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -250,9 +246,6 @@ async function loadRuntimeSettings() {
 }
 
 function restartLoops() {
-  if (isSystemRunning && isPosMode()) {
-    maybeStartRollingMediaBuffer();
-  }
 }
 
 // =========================================================
@@ -410,11 +403,6 @@ function clearPOSFloatingUI() {
 }
 
 
-function maybeStartRollingMediaBuffer() {
-  if (!isPosMode() || !isSystemRunning) return false;
-  if (!stream || !stream.getVideoTracks().length || !stream.getAudioTracks().length) return false;
-  return startRollingMediaBuffer(stream, Number(runtimeSettings.INTERACTION_PRE_EVENT_BUFFER_SEC) || 5);
-}
 
 function switchMainView(view) {
   if (view === 'admin' && !isAdminMode()) return;
@@ -1235,7 +1223,6 @@ function handleRealtimeSettingsChanged(event = {}) {
 function handleRealtimeHumanReply(event = {}) {
   const payload = event.payload || {};
   if (!payload.reply) return;
-  if (payload.audio_base64) playVoice(payload.audio_base64);
   showPushNotice(payload.reply.slice(0, 80));
 }
 
@@ -1448,7 +1435,6 @@ ui.startBtn.onclick = async () => {
     lastCartAddAt = Date.now();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
-    maybeStartRollingMediaBuffer();
     restartChoiceHesitationTimer();
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
@@ -1493,10 +1479,6 @@ function closeVoiceBubble(stopAudio = true) {
   if (timerBar) {
     timerBar.style.transition = 'none';
     timerBar.style.width = '100%';
-  }
-  if (stopAudio) {
-    ui.audio.pause();
-    ui.audio.currentTime = 0;
   }
 }
 
@@ -1669,12 +1651,6 @@ window.addEventListener('beforeunload', () => {
   if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
   aiPush.stop();
 });
-
-function playVoice(b64) {
-  if (!b64) return;
-  ui.audio.src = `data:audio/mp3;base64,${b64}`;
-  ui.audio.play();
-}
 
 // =========================================================
 // 無效點擊偵測（需連續 N 次才觸發教學提示）
@@ -1900,7 +1876,6 @@ async function finishOrder(cartIds, button, loadingText) {
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
   aiPush.stop();
-  stopRollingMediaBuffer();
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
   if (button) button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${loadingText}`;
@@ -1957,7 +1932,6 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
   aiPush.stop();
-  stopRollingMediaBuffer();
   cartManager.clearCart();
   sessionCartSources = [];
   ui.overlay.classList.remove('hidden');

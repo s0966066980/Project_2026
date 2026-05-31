@@ -38,7 +38,6 @@ export const ui = {
   confirmBackBtn: document.getElementById('confirmBackBtn'),
   confirmPayBtn: document.getElementById('confirmPayBtn'),
   webcam: document.getElementById('webcam'),
-  audio: document.getElementById('ttsAudio'),
   voiceAssistBtn: document.getElementById('voiceAssistBtn'),
   voiceAssistBtnText: document.getElementById('voiceAssistBtnText'),
   voiceAssistOverlay: document.getElementById('voiceAssistOverlay'),
