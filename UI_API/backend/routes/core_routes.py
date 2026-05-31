@@ -107,6 +107,7 @@ def create_router(deps: dict) -> APIRouter:
                 "ai_push_cart_count": int(l.get("ai_push_cart_count", 0)),
                 "ai_push_success": bool(l.get("ai_push_success", False)),
                 "final_cart_ids": l.get("final_cart_ids", []),
+                "cart_sources": l.get("cart_sources", []),
             }
             for l in reversed(logs)
         ]
@@ -181,6 +182,7 @@ def create_router(deps: dict) -> APIRouter:
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
         ai_push_cart_count: str = Form(default="0"),
+        cart_sources: str = Form(default="[]"),
     ):
         try:
             pushed_list = json.loads(pushed_ids) if pushed_ids else []
@@ -222,14 +224,19 @@ def create_router(deps: dict) -> APIRouter:
 
         try:
             ai_count = max(0, int(ai_push_cart_count or 0))
+            sources = json.loads(cart_sources) if cart_sources else []
+            if not isinstance(sources, list):
+                sources = []
             logs = log_repository.get_session_logs()
             if logs:
                 logs[-1]["ai_push_cart_count"] = ai_count
                 logs[-1]["ai_push_success"] = ai_count >= 1
+                logs[-1]["cart_sources"] = sources
                 log_repository.save_session_logs(logs)
             log_entry = dict(log_entry or {})
             log_entry["ai_push_cart_count"] = ai_count
             log_entry["ai_push_success"] = ai_count >= 1
+            log_entry["cart_sources"] = sources
         except Exception:
             log_entry = dict(log_entry or {})
 

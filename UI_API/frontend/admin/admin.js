@@ -49,11 +49,23 @@ function setText(id, v) {
   if (el) el.textContent = v;
 }
 
+const SOURCE_LABELS = {
+  ai_push:          'AI推播',
+  choice_hesitation:'猶豫視窗',
+  voice_assist:     '語音點餐',
+  manual:           '手動',
+  menu_card:        '手動',
+};
+
+function sourceLabel(src) {
+  return SOURCE_LABELS[src] || '手動';
+}
+
 function emptyRow(tbody, msg, color) {
   tbody.textContent = '';
   const tr = document.createElement('tr');
   const td = document.createElement('td');
-  td.colSpan = 5;
+  td.colSpan = 6;
   td.className = 'adm-empty';
   if (color) td.style.color = color;
   td.textContent = msg;
@@ -208,7 +220,28 @@ function renderTable(sessions) {
     const names = (s.final_cart_ids || []).map(id => menuName(id));
     tdCart.textContent = names.join('、') || '—';
 
-    tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart);
+    // 加入方式欄：聚合每個品項的來源
+    const tdSource = document.createElement('td');
+    tdSource.style.cssText = 'font-size:11px';
+    const sources = s.cart_sources || [];
+    if (sources.length) {
+      const sourceMap = {};
+      sources.forEach(({ id, source }) => {
+        if (!sourceMap[id]) sourceMap[id] = new Set();
+        sourceMap[id].add(sourceLabel(source));
+      });
+      const parts = (s.final_cart_ids || []).map(id => {
+        const labels = sourceMap[id] ? [...sourceMap[id]].join('/') : '手動';
+        return `${menuName(id)}（${labels}）`;
+      });
+      tdSource.style.color = '#4b5679';
+      tdSource.textContent = parts.join('、') || '—';
+    } else {
+      tdSource.style.color = '#adb5c9';
+      tdSource.textContent = '—';
+    }
+
+    tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart, tdSource);
     tbody.appendChild(tr);
   });
 }

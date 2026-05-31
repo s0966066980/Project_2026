@@ -52,6 +52,7 @@ let orderCompleted = false;
 let menuData = [];
 let sessionPushedIds = new Set();
 let sessionAiPushCartCount = 0;
+let sessionCartSources = []; // [{id, source}] 記錄每筆加入來源
 let voiceBubbleTimer = null;
 let emotionCardTimer = null;
 let emotionLoopId = null;
@@ -98,8 +99,8 @@ const KIOSK_GROUPS = [
   { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/mcd_categories/single.jpg', categories: ['超值全餐配餐'] },
   { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/mcd_categories/value.jpg', categories: ['1+1星級點'] },
   { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/mcd_categories/recommended.jpg', categories: ['麥當勞分享盒'] },
-  { id: 'happymeal', label: 'Happy Meal®', labelEn: 'Happy Meal®', image: '/static/mcd_categories/single.jpg', categories: ['Happy Meal®'] },
-  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/single.jpg', categories: ['點心'] },
+  { id: 'happymeal', label: 'Happy Meal®', labelEn: 'Happy Meal®', image: '/static/mcd_categories/kids.jpg', categories: ['Happy Meal®'] },
+  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/deals.jpg', categories: ['點心'] },
   { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
   { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
 ];
@@ -519,6 +520,7 @@ function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
   lastCartAddAt = Date.now();
   if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
+  if (item?.id) sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
   hideChoiceHesitationModal();
   restartChoiceHesitationTimer();
   cartManager.addToCart(item);
@@ -1866,6 +1868,13 @@ function setupAskRecorder() {
           });
         }
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
+        (data.cart_actions || []).forEach(action => {
+          if (action.action === 'add' && action.id) {
+            for (let i = 0; i < (Number(action.quantity) || 1); i++) {
+              sessionCartSources.push({ id: action.id, source: 'voice_assist' });
+            }
+          }
+        });
         if (appliedOrders.length) {
           trackInteractionEvent({
             event_type: 'cart_edit',
@@ -2139,6 +2148,7 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('pushed_ids', JSON.stringify(Array.from(sessionPushedIds)));
   fd.append('cart_ids', JSON.stringify(cartIds));
   fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
+  fd.append('cart_sources', JSON.stringify(sessionCartSources));
   if (sessionEmotionLog.length > 0) {
     fd.append('emotion_session_log', JSON.stringify(sessionEmotionLog));
   }
