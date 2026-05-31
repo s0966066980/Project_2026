@@ -257,6 +257,14 @@ tbody tr:hover td { background: #f8fafd; }
   .stat-cards { grid-template-columns: 1fr; }
   .content { padding: 16px; }
 }
+.setting-row { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
+.setting-label { width:110px; flex-shrink:0; font-size:12px; font-weight:600; color:#3b4a6b; }
+.setting-input {
+  flex:1; padding:7px 10px; border:1.5px solid #dde3f0; border-radius:8px;
+  font-size:13px; color:#1a2233; background:#fff; outline:none;
+}
+.setting-input:focus { border-color:#3b7aee; }
+.hidden { display:none !important; }
 </style>
 </head>
 <body>
@@ -271,6 +279,9 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="nav-section-label">主選單</div>
     <button class="nav-item active" data-page="stats" type="button">
       <i class="fas fa-chart-pie"></i> 狀態統計
+    </button>
+    <button class="nav-item" data-page="settings" type="button">
+      <i class="fas fa-sliders-h"></i> 功能設定
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -389,6 +400,97 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
     </div>
 
+  </div>
+
+  <!-- Settings page -->
+  <div class="content" id="page-settings" style="display:none">
+    <div class="card" style="max-width:640px">
+      <div class="card-title"><i class="fas fa-sliders-h"></i> 功能設定</div>
+
+      <div style="display:flex;flex-direction:column;gap:20px">
+
+        <!-- Ollama -->
+        <section>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Ollama 語音模型</div>
+          <div class="setting-row">
+            <label class="setting-label">語音 LLM 模型</label>
+            <input id="inp-voice-model" class="setting-input" type="text" placeholder="qwen3.5:4b">
+          </div>
+        </section>
+
+        <hr style="border:none;border-top:1px solid #edf0f7">
+
+        <!-- STT -->
+        <section>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">STT（語音辨識）</div>
+          <div class="setting-row">
+            <label class="setting-label">提供者</label>
+            <select id="inp-stt-provider" class="setting-input" onchange="onSttProviderChange()">
+              <option value="faster_whisper">faster-whisper（本地）</option>
+              <option value="openai_compatible">OpenAI 相容 API</option>
+            </select>
+          </div>
+          <div class="setting-row" id="row-stt-model">
+            <label class="setting-label">模型大小</label>
+            <select id="inp-stt-model" class="setting-input">
+              <option value="tiny">tiny（最快，準確度較低）</option>
+              <option value="small">small（推薦）</option>
+              <option value="medium">medium（最準，較慢）</option>
+            </select>
+          </div>
+          <div class="setting-row hidden" id="row-stt-api">
+            <label class="setting-label">API URL</label>
+            <input id="inp-stt-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
+          </div>
+          <div class="setting-row hidden" id="row-stt-key">
+            <label class="setting-label">API Key</label>
+            <input id="inp-stt-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
+          </div>
+        </section>
+
+        <hr style="border:none;border-top:1px solid #edf0f7">
+
+        <!-- TTS -->
+        <section>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">TTS（語音合成）</div>
+          <div class="setting-row">
+            <label class="setting-label">提供者</label>
+            <select id="inp-tts-provider" class="setting-input" onchange="onTtsProviderChange()">
+              <option value="edge">Edge TTS（雲端，需網路）</option>
+              <option value="melo">MeloTTS（本地）</option>
+              <option value="openai_compatible">OpenAI 相容 API</option>
+            </select>
+          </div>
+          <div class="setting-row" id="row-tts-edge-zh">
+            <label class="setting-label">中文語音</label>
+            <input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural">
+          </div>
+          <div class="setting-row" id="row-tts-edge-en">
+            <label class="setting-label">英文語音</label>
+            <input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural">
+          </div>
+          <div class="setting-row hidden" id="row-tts-api">
+            <label class="setting-label">API URL</label>
+            <input id="inp-tts-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
+          </div>
+          <div class="setting-row hidden" id="row-tts-key">
+            <label class="setting-label">API Key</label>
+            <input id="inp-tts-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
+          </div>
+          <div class="setting-row hidden" id="row-tts-voice">
+            <label class="setting-label">聲音名稱</label>
+            <input id="inp-tts-voice" class="setting-input" type="text" placeholder="alloy">
+          </div>
+        </section>
+
+        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+          <button class="refresh-btn" id="saveSettingsBtn" type="button" onclick="saveSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
+            <i class="fas fa-save"></i> 儲存設定
+          </button>
+          <span id="settings-notice" style="font-size:12px;color:#1db87a;display:none"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>

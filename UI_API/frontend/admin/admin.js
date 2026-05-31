@@ -27,6 +27,18 @@ if (dateEl) {
   });
 }
 
+// ── Admin token helper ──
+function adminToken() {
+  const params = new URLSearchParams(window.location.search);
+  const t = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
+  if (t) sessionStorage.setItem('admin_demo_token', t);
+  return t;
+}
+function adminHeaders(extra = {}) {
+  const t = adminToken();
+  return t ? { ...extra, 'X-Admin-Token': t } : extra;
+}
+
 // ── Sidebar navigation ──
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -36,10 +48,11 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles = { stats: '狀態統計' };
+    const titles = { stats: '狀態統計', settings: '功能設定' };
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[page] || page;
     if (page === 'stats') loadStats();
+    if (page === 'settings') loadSettings();
   });
 });
 
@@ -262,6 +275,101 @@ async function clearStats() {
     if (btn) btn.disabled = false;
   }
 }
+
+// ── Settings ──
+
+function g(id) { return document.getElementById(id); }
+function val(id) { return g(id)?.value?.trim() || ''; }
+function setVal(id, v) { if (g(id)) g(id).value = v ?? ''; }
+function showRow(id, visible) { g(id)?.classList.toggle('hidden', !visible); }
+
+function onSttProviderChange() {
+  const isApi = val('inp-stt-provider') === 'openai_compatible';
+  showRow('row-stt-model', !isApi);
+  showRow('row-stt-api',   isApi);
+  showRow('row-stt-key',   isApi);
+}
+
+function onTtsProviderChange() {
+  const p = val('inp-tts-provider');
+  showRow('row-tts-edge-zh', p === 'edge');
+  showRow('row-tts-edge-en', p === 'edge');
+  showRow('row-tts-api',     p === 'openai_compatible');
+  showRow('row-tts-key',     p === 'openai_compatible');
+  showRow('row-tts-voice',   p === 'openai_compatible');
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const s = await res.json();
+
+    setVal('inp-voice-model',   s.VOICE_ASSIST_MODEL  || 'qwen3.5:4b');
+    setVal('inp-stt-provider',  s.STT_PROVIDER        || 'faster_whisper');
+    setVal('inp-stt-model',     s.STT_MODEL           || 'small');
+    setVal('inp-stt-api-url',   s.STT_API_URL         || '');
+    setVal('inp-stt-api-key',   s.STT_API_KEY         || '');
+    setVal('inp-tts-provider',  s.TTS_PROVIDER        || 'edge');
+    setVal('inp-tts-voice-zh',  s.EDGE_TTS_VOICE      || 'zh-TW-HsiaoChenNeural');
+    setVal('inp-tts-voice-en',  s.EDGE_TTS_VOICE_EN   || 'en-US-JennyNeural');
+    setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
+    setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
+    setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
+
+    onSttProviderChange();
+    onTtsProviderChange();
+  } catch (e) {
+    console.error('loadSettings failed', e);
+  }
+}
+
+async function saveSettings() {
+  const btn = g('saveSettingsBtn');
+  const notice = g('settings-notice');
+  if (btn) btn.disabled = true;
+  if (notice) { notice.style.display = 'none'; }
+  try {
+    const body = {
+      VOICE_ASSIST_MODEL:  val('inp-voice-model')  || 'qwen3.5:4b',
+      STT_PROVIDER:        val('inp-stt-provider')  || 'faster_whisper',
+      STT_MODEL:           val('inp-stt-model')     || 'small',
+      STT_API_URL:         val('inp-stt-api-url'),
+      STT_API_KEY:         val('inp-stt-api-key'),
+      TTS_PROVIDER:        val('inp-tts-provider')  || 'edge',
+      EDGE_TTS_VOICE:      val('inp-tts-voice-zh')  || 'zh-TW-HsiaoChenNeural',
+      EDGE_TTS_VOICE_EN:   val('inp-tts-voice-en')  || 'en-US-JennyNeural',
+      TTS_API_URL:         val('inp-tts-api-url'),
+      TTS_API_KEY:         val('inp-tts-api-key'),
+      TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
+    };
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (notice) {
+      notice.textContent = '✓ 儲存成功';
+      notice.style.color = '#1db87a';
+      notice.style.display = '';
+      setTimeout(() => { notice.style.display = 'none'; }, 3000);
+    }
+  } catch (e) {
+    if (notice) {
+      notice.textContent = `✗ 儲存失敗：${e.message}`;
+      notice.style.color = '#e84040';
+      notice.style.display = '';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// expose to inline handlers
+window.onSttProviderChange = onSttProviderChange;
+window.onTtsProviderChange = onTtsProviderChange;
+window.saveSettings = saveSettings;
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
