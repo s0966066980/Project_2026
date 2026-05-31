@@ -56,7 +56,7 @@ async def handle_voice(
             ai_services.ask_ollama, system_prompt, user_prompt, "", model
         )
 
-    if not isinstance(result, dict) or "error" in result:
+    if not isinstance(result, dict) or not result.get("ai_response"):
         ai_response = (
             "I can help with menu questions or add items to your cart."
             if detected_lang == "en"

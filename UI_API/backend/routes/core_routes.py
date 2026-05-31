@@ -192,7 +192,7 @@ def create_router(deps: dict) -> APIRouter:
             cart_list = json.loads(cart_ids) if cart_ids else []
         except (json.JSONDecodeError, ValueError):
             cart_list = [x.strip() for x in cart_ids.split(",") if x.strip()]
-        session_history = session_repository.get_session_history(session_id)
+        session_history = await asyncio.to_thread(session_repository.get_session_history, session_id)
         try:
             loop = asyncio.get_running_loop()
             log_entry = await asyncio.wait_for(
@@ -209,9 +209,12 @@ def create_router(deps: dict) -> APIRouter:
         except asyncio.TimeoutError:
             log_entry = {"skipped": True}
 
-        intervention_result = await asyncio.to_thread(
-            _mark_latest_intervention_checkout, session_id, True, cart_list
-        )
+        if not log_entry.get("skipped"):
+            intervention_result = await asyncio.to_thread(
+                _mark_latest_intervention_checkout, session_id, True, cart_list
+            )
+        else:
+            intervention_result = None
         if intervention_result:
             log_entry = dict(log_entry or {})
             log_entry["recommendation_result"] = {

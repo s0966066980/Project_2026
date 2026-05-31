@@ -147,6 +147,9 @@ def infer_barrier_state(
     elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]):
         barrier_state = "payment_confusion"
         evidence.append("speech contains payment issue")
+    elif page_id == "coupon_page" and coupon_error_count >= 1:
+        barrier_state = "coupon_confusion"
+        evidence.extend(["page_id=coupon_page", "coupon_error_count >= 1"])
     elif _contains_any(speech, ["優惠券", "折扣碼", "掃碼", "qr", "QR"]) and coupon_error_count >= 1:
         barrier_state = "coupon_confusion"
         evidence.extend(["coupon_error_count >= 1", "speech contains coupon issue"])
@@ -175,9 +178,6 @@ def infer_barrier_state(
     elif _contains_any(speech, ["太慢", "等很久", "快一點", "趕時間"]):
         barrier_state = "impatience_detected"
         evidence.append("speech contains impatience")
-    elif page_id == "coupon_page" and coupon_error_count >= 1:
-        barrier_state = "coupon_confusion"
-        evidence.extend(["page_id=coupon_page", "coupon_error_count >= 1"])
     elif not events and not speech.strip():
         barrier_state = "low_confidence"
         evidence.append("insufficient context")

@@ -227,6 +227,7 @@ function renderTable(sessions) {
     if (sources.length) {
       const sourceMap = {};
       sources.forEach(({ id, source }) => {
+        if (!id) return;
         if (!sourceMap[id]) sourceMap[id] = new Set();
         sourceMap[id].add(sourceLabel(source));
       });

@@ -18,6 +18,7 @@ from routes import (
     core_routes,
     emotion_routes,
     debug_routes,
+    demo_routes,
     menu_routes,
     ai_push_routes,
     voice_routes,
@@ -131,6 +132,7 @@ app.include_router(ai_push_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
 app.include_router(realtime_routes.create_router(_deps))
+app.include_router(demo_routes.create_router(_deps))
 if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
 

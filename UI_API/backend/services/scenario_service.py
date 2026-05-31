@@ -97,45 +97,6 @@ def infer_scenario_from_barrier_state(barrier_state: str) -> str:
     return _BARRIER_TO_SCENARIO.get(str(barrier_state or ""), "")
 
 
-def infer_scenario_from_event(event: dict) -> str:
-    if not isinstance(event, dict):
-        return ""
-
-    page_id = str(_event_value(event, "page_id", "") or "")
-    event_type = str(_event_value(event, "event_type", "") or "")
-    metadata = _metadata(event)
-    reason = str(metadata.get("reason") or "")
-    speech_text = " ".join([
-        str(event.get("speech_text") or ""),
-        str(metadata.get("speech_text") or ""),
-        str(metadata.get("speech_hint") or ""),
-    ]).strip()
-
-    if page_id == "payment_page" or event_type == "payment_failed":
-        return "payment_problem"
-
-    if (
-        _contains_any(reason, ["hesitation", "recommend", "猶豫", "推薦"])
-        or _contains_any(event_type, ["menu_page_dwell_timeout", "category_switch_repeat"])
-    ):
-        return "menu_hesitation"
-
-    if (
-        _as_int(_event_value(event, "invalid_touch_count")) >= 3
-        or _as_int(_event_value(event, "back_count")) >= 2
-        or _contains_any(speech_text, ["不會", "怎麼點", "不懂"])
-    ):
-        return "operation_difficulty"
-
-    if page_id == "menu_page" and (
-        _as_int(_event_value(event, "category_switch_count")) >= 4
-        or _as_int(_event_value(event, "cart_remove_count")) >= 2
-        or _contains_any(speech_text, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"])
-    ):
-        return "menu_hesitation"
-
-    return ""
-
 
 def get_scenario_definition(scenario_id: str) -> dict:
     normalized = normalize_scenario_id(scenario_id)

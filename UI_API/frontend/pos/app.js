@@ -535,6 +535,9 @@ function trackedAddToCart(item, metadata = {}) {
 function trackedUpdateCartQty(id, delta) {
   lastValidOrderActionAt = Date.now();
   cartManager.updateCartQty(id, delta);
+  if (!cartManager.getCartIds().includes(id)) {
+    sessionCartSources = sessionCartSources.filter(e => e.id !== id);
+  }
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: `cart_qty_${id}`,
@@ -551,6 +554,7 @@ function trackedDeleteCartItem(id) {
   lastValidOrderActionAt = Date.now();
   interactionState.cartRemoveCount += 1;
   cartManager.deleteCartItem(id);
+  sessionCartSources = sessionCartSources.filter(e => e.id !== id);
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: `cart_delete_${id}`,
@@ -1876,6 +1880,8 @@ function setupAskRecorder() {
           }
         });
         if (appliedOrders.length) {
+          lastCartAddAt = Date.now();
+          restartChoiceHesitationTimer();
           trackInteractionEvent({
             event_type: 'cart_edit',
             button_id: 'askBtn',

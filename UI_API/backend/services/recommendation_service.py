@@ -272,34 +272,6 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
 
 
 
-def fix_ask_reply_for_intent(user_text: str, lang: str, reply: str, cart_actions: list, mentioned_ids: list) -> str:
-    """避免模型在不確定時把顧客問句原樣丟回去。"""
-    clean_user = re.sub(r"\s+", "", to_traditional_lite(user_text or "").strip()).lower()
-    clean_reply = re.sub(r"\s+", "", to_traditional_lite(reply or "").strip()).lower()
-    if not clean_reply:
-        return "I can help recommend a main dish or drink from the menu." if lang == "en" else "我可以協助您從菜單中推薦主餐或飲品。"
-    if cart_actions:
-        no_item_phrases = ["菜單沒有", "沒有這個品項", "沒有在菜單", "找不到", "目前菜單沒有"]
-        if lang != "en" and any(phrase in clean_reply for phrase in no_item_phrases):
-            return ""
-        return reply
-    if mentioned_ids:
-        return reply
-
-    repeated = clean_user and (
-        clean_reply == clean_user
-        or clean_reply in clean_user
-        or clean_user in clean_reply
-    )
-    vague_zh = any(key in clean_user for key in ["不知道", "不確定", "推薦什麼", "吃什麼", "怎麼點", "不會點"])
-    vague_en = any(key in clean_user for key in ["recommend", "whattoeat", "howtoorder", "don'tknow", "notsure"])
-    if repeated or (lang != "en" and vague_zh and len(clean_reply) < 18):
-        return "我可以協助您從菜單中推薦主餐或飲品，也可以直接說出想點的餐點名稱。"
-    if lang == "en" and vague_en and len(clean_reply) < 24:
-        return "I can recommend a main dish or drink from the menu, or you can say the item you want to order."
-    return reply
-
-
 def build_checkout_log_entry(
     session_id: str,
     pushed_ids: list,
