@@ -77,7 +77,8 @@ async def handle_voice(
             else:
                 ai_response = "已為您加入購物車。" if cart_actions else "我可以協助您了解菜單或加入餐點。"
 
-    session_repository.record_session_state(
+    await asyncio.to_thread(
+        session_repository.record_session_state,
         session_id=session_id,
         emotion="",
         user_speech=user_text,

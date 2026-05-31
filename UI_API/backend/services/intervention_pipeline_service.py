@@ -43,10 +43,7 @@ async def run_intervention_pipeline(
         scenario_service.attach_scenario_metadata(intervention, normalized_scenario)
 
     intervention_log = None
-    if (
-        intervention.get("action") != "none"
-        and barrier_result.get("barrier_state") != "normal_operation"
-    ):
+    if barrier_result.get("barrier_state") != "normal_operation":
         log_payload = intervention_service.build_intervention_log(
             safe_session_id, barrier_result, intervention, safe_ui_context,
         )

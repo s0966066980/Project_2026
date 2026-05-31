@@ -4,10 +4,8 @@ NUMERIC_FIELDS = {
     "invalid_touch_count": 0,
     "payment_fail_count": 0,
     "coupon_error_count": 0,
-    "cart_edit_count": 0,
     "category_switch_count": 0,
     "cart_remove_count": 0,
-    "idle_time_sec": 0.0,
 }
 
 

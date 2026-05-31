@@ -138,6 +138,7 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
         action = "none"
         action_level = "none"
     else:
+        action = "none"
         action_level = "none"
 
     patent_info = map_action_to_patent_intervention(action)

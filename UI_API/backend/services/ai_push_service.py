@@ -67,8 +67,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
 
     try:
         async with ollama_semaphore:
-            raw = await asyncio.get_running_loop().run_in_executor(
-                None,
+            raw = await asyncio.to_thread(
                 ai_services.ask_ollama,
                 system, user, "AI_PUSH",
                 config.get("MODEL_NAME", "qwen3.5:4b"),

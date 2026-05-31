@@ -66,23 +66,6 @@ def _contains_any(text: str, keywords: list[str]) -> bool:
     return any(str(keyword or "").lower() in lowered for keyword in keywords)
 
 
-def _as_int(value, default: int = 0) -> int:
-    try:
-        return max(0, int(float(value)))
-    except Exception:
-        return default
-
-
-def _metadata(event: dict) -> dict:
-    metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
-    return metadata
-
-
-def _event_value(event: dict, key: str, default=None):
-    if key in event:
-        return event.get(key)
-    return _metadata(event).get(key, default)
-
 
 def normalize_scenario_id(raw: str) -> str:
     scenario_id = str(raw or "").strip()

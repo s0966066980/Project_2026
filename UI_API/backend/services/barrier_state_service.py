@@ -1,4 +1,3 @@
-from services import scenario_service
 
 
 BARRIER_STATES = {
@@ -153,11 +152,13 @@ def infer_barrier_state(
     elif _contains_any(speech, ["優惠券", "折扣碼", "掃碼", "qr", "QR"]) and coupon_error_count >= 1:
         barrier_state = "coupon_confusion"
         evidence.extend(["coupon_error_count >= 1", "speech contains coupon issue"])
+    elif _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"]):
+        barrier_state = "menu_hesitation"
+        evidence.append("speech contains menu hesitation")
     elif page_id == "menu_page" and (
         category_switch_count >= 4
         or cart_remove_count >= 2
         or latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat")
-        or _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"])
         or max_dwell_time_sec > 40
     ):
         barrier_state = "menu_hesitation"
@@ -168,8 +169,6 @@ def infer_barrier_state(
             evidence.append("cart_remove_count >= 2")
         if latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat"):
             evidence.append(f"event_type={latest_event_type}")
-        if _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"]):
-            evidence.append("speech contains menu hesitation")
         if max_dwell_time_sec > 40:
             evidence.append("dwell_time_sec > 40")
     elif _contains_any(speech, ["不會", "不懂", "怎麼用", "看不懂", "怎麼點"]):
@@ -182,10 +181,11 @@ def infer_barrier_state(
         barrier_state = "low_confidence"
         evidence.append("insufficient context")
 
-    if payment_fail_count >= 1 and "payment_fail_count >= 1" not in evidence:
-        evidence.append("payment_fail_count >= 1")
-    if page_id and f"page_id={page_id}" not in evidence:
-        evidence.append(f"page_id={page_id}")
+    if barrier_state != "normal_operation":
+        if payment_fail_count >= 1 and "payment_fail_count >= 1" not in evidence:
+            evidence.append("payment_fail_count >= 1")
+        if page_id and page_id != "unknown" and f"page_id={page_id}" not in evidence:
+            evidence.append(f"page_id={page_id}")
 
     confidence = _confidence_from(len(evidence))
     severity = _severity_from(len(evidence))
@@ -195,13 +195,6 @@ def infer_barrier_state(
     if barrier_state == "low_confidence":
         confidence = 0.35
         severity = 0.2
-
-    category_info = map_barrier_to_category(barrier_state)
-    patent_category_info = map_barrier_to_patent_category(barrier_state)
-    scenario_info = {}
-    scenario_id = scenario_service.infer_scenario_from_barrier_state(barrier_state)
-    if scenario_id:
-        scenario_info = scenario_service.attach_scenario_metadata({}, scenario_id)
 
     return {
         "barrier_state": barrier_state,
@@ -213,7 +206,6 @@ def infer_barrier_state(
         "coupon_error_count": coupon_error_count,
         "category_switch_count": category_switch_count,
         "cart_remove_count": cart_remove_count,
-        **category_info,
-        **patent_category_info,
-        **scenario_info,
+        **map_barrier_to_category(barrier_state),
+        **map_barrier_to_patent_category(barrier_state),
     }
