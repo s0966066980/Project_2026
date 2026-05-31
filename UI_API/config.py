@@ -4,10 +4,6 @@ import threading
 import time
 from dotenv import load_dotenv
 from prompts.defaults import (
-    ASK_SYSTEM_PROMPT,
-    ASK_SYSTEM_PROMPT_EN,
-    CUSTOMER_SERVICE_SYSTEM_PROMPT,
-    EMOTION_LLAMA_PROMPT,
     VOICE_ASSIST_SYSTEM_PROMPT,
     VOICE_ASSIST_SYSTEM_PROMPT_EN,
 )
@@ -45,15 +41,14 @@ for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
 MENU_JSON_PATH = "./menu_data/menu.json"
 LEARNING_DATA_DIR = "./learning_data"
 SETTINGS_JSON_PATH = "./learning_data/settings.json"
+os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
 
 OLLAMA_TIMEOUT = 120
-GEMINI_TIMEOUT = 120
-EMOTION_LLAMA_TIMEOUT = 120
 
 _settings_cache = None
 _settings_mtime = None
 _settings_last_check = 0.0
-_settings_lock = threading.Lock()
+_settings_lock = threading.RLock()  # RLock allows re-entry from save_settings → load_settings
 
 # ==========================================
 # 動態設定管理器 (支援後台即時讀寫)
@@ -62,9 +57,7 @@ DEFAULT_SETTINGS = {
     "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
     "AI_PROVIDER": "ollama",
     "QA_AI_PROVIDER": "ollama",
-    "EMOTION_AI_PROVIDER": "ollama",
     "MODEL_NAME": "qwen3.5:4b",
-    "ASK_MODEL_NAME": "qwen3.5:4b",
     "ENABLE_GEMINI_OPTIONS": False,
     "GEMINI_MODEL_NAME": "gemini-3-flash-preview",
     "GEMINI_FALLBACK_TO_OLLAMA": True,
@@ -75,44 +68,15 @@ DEFAULT_SETTINGS = {
     "ALLOW_POS_RUNTIME_SETTING_QUERY": False,
     "USE_AI_RECOMMEND": True,          # True=啟用底部 AI 推播欄
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",  # 語音協助專用模型
-    "VOICE_ASSIST_EMOTION_ENABLED": True,
-    "VOICE_ASSIST_EMOTION_AUTO_START": False,
-    "VOICE_ASSIST_EMOTION_IDLE_TIMEOUT_SEC": 300,
     "EMOTION_PERIODIC_ENABLED": False,
     "WHISPER_MODEL_SIZE": "base",
     "TTS_VOICE": "zh-TW-HsiaoChenNeural",
     "TTS_VOICE_EN": "en-US-JennyNeural",
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
-    "RAG_TOP_K": 3,
-    "rag": {
-        "use_multi_query": True,
-        "multi_query_count": 2,
-        "eval_skip_overlap": 3,
-        "use_hybrid_search": True,
-        "use_reranker": True,
-        "use_context_compression": True,
-        "use_answer_evaluation": True,
-        "strict_grounding": True,
-        "answer_verification": True,
-        "fail_closed_on_eval_error": True,
-        "min_keyword_overlap": 1,
-        "max_answer_chars": 420,
-        "top_k_vector": 10,
-        "top_k_keyword": 10,
-        "top_k_final": 5,
-        "context_max_chars": 2600,
-        "chunk_size": 700,
-        "chunk_overlap": 120,
-        "embedding_provider": "ollama",
-        "embedding_model": "nomic-embed-text",
-        "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    },
     "PERFORMANCE_MODE": "balanced",
     "EMOTION_PING_INTERVAL_SEC": 15,
     "EMOTION_RECORD_MS": 900,
-    "EMOTION_MIN_GAP_SEC": 12,
-    "CUSTOMER_EMOTION_WAIT_SEC": 8,
     "ENABLE_TTS_CACHE": True,
     "WHISPER_MIN_AUDIO_SEC": 0.45,
     "WHISPER_LOW_AUDIO_DB": -58,
@@ -123,15 +87,6 @@ DEFAULT_SETTINGS = {
     "OLLAMA_LOG_RAW": False,
     "INTERACTION_PRE_EVENT_BUFFER_SEC": 5,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
-    "EMOTION_CLIP_MAX_PER_SESSION": 30,
-    "EMOTION_LLAMA_PREPROCESS_VIDEO": True,
-    "EMOTION_LLAMA_MAX_VIDEO_SEC": 12,
-    "EMOTION_LOW_AUDIO_DB": -45,
-    "EMOTION_LLAMA_ENABLED_FOR_VOICE": True,
-    "EMOTION_LLAMA_PROMPT": EMOTION_LLAMA_PROMPT,
-    "ASK_SYSTEM_PROMPT": ASK_SYSTEM_PROMPT,
-    "ASK_SYSTEM_PROMPT_EN": ASK_SYSTEM_PROMPT_EN,
-    "CUSTOMER_SERVICE_SYSTEM_PROMPT": CUSTOMER_SERVICE_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT": VOICE_ASSIST_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT_EN": VOICE_ASSIST_SYSTEM_PROMPT_EN,
 }
@@ -145,7 +100,6 @@ PUBLIC_SETTINGS_KEYS = {
     "PERFORMANCE_MODE",
     "USE_AI_RECOMMEND",
     "VOICE_ASSIST_MODEL",
-    "VOICE_ASSIST_EMOTION_ENABLED",
 }
 
 
@@ -172,7 +126,6 @@ def is_demo_public_mode() -> bool:
 def load_settings():
     global _settings_cache, _settings_mtime, _settings_last_check
 
-    os.makedirs(os.path.dirname(SETTINGS_JSON_PATH), exist_ok=True)
     now = time.time()
     try:
         current_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
@@ -221,22 +174,13 @@ def load_settings():
                 should_write = True
 
         # Restore defaults for prompt fields stored as empty strings
-        _prompt_keys = [
-            "EMOTION_LLAMA_PROMPT",
-            "ASK_SYSTEM_PROMPT",
-            "ASK_SYSTEM_PROMPT_EN",
-            "VOICE_ASSIST_SYSTEM_PROMPT",
-            "VOICE_ASSIST_SYSTEM_PROMPT_EN",
-            "CUSTOMER_SERVICE_SYSTEM_PROMPT",
-        ]
-        for _k in _prompt_keys:
+        for _k in ("VOICE_ASSIST_SYSTEM_PROMPT", "VOICE_ASSIST_SYSTEM_PROMPT_EN"):
             if not settings.get(_k) and DEFAULT_SETTINGS.get(_k):
                 settings[_k] = DEFAULT_SETTINGS[_k]
 
         if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
             settings["AI_PROVIDER"] = "ollama"
             settings["QA_AI_PROVIDER"] = "ollama"
-            settings["EMOTION_AI_PROVIDER"] = "ollama"
 
         if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
             settings["DEMO_PUBLIC_MODE"] = True

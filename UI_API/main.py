@@ -3,7 +3,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend'))
 
 import asyncio
-import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -13,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 import ai_services
-import database
 from routes import (
     core_routes,
     emotion_routes,
@@ -109,9 +107,8 @@ async def _background_init():
 async def _background_init_once():
     if not config.get("ENABLE_GEMINI_OPTIONS", False):
         return
-    loop = asyncio.get_running_loop()
     try:
-        ok = await loop.run_in_executor(None, ai_services.init_gemini_client)
+        ok = await asyncio.to_thread(ai_services.init_gemini_client)
         if ok:
             print("✅ Gemini client 背景初始化完成")
     except Exception as e:
@@ -164,9 +161,9 @@ def _ensure_ollama(
             specs[clean_name].append(purpose)
 
     specs: dict[str, list[str]] = {}
-    _add_model(specs, model, "local LLM for menu Q&A, RAG review, and fallback reasoning")
+    _add_model(specs, model, "local LLM for menu Q&A and voice assist fallback")
     _add_model(specs, voice_model, "voice assist LLM")
-    _add_model(specs, embed_model, "RAG embedding model")
+    _add_model(specs, embed_model, "embedding model")
     for item in extra_models or []:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
             _add_model(specs, item[0], str(item[1]))
