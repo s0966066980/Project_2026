@@ -117,10 +117,10 @@ function renderTop3(sessions) {
   const box = document.getElementById('top3-list');
   if (!box) return;
 
-  // 統計成功 session 購物車各品項出現頻率
+  // 統計所有 session 購物車各品項出現頻率（含手動、語音、AI推播）
   const freq = {};
   sessions.forEach(s => {
-    if (s.ai_push_success && Array.isArray(s.final_cart_ids)) {
+    if (Array.isArray(s.final_cart_ids)) {
       s.final_cart_ids.forEach(id => { freq[id] = (freq[id] || 0) + 1; });
     }
   });
@@ -131,7 +131,7 @@ function renderTop3(sessions) {
   if (!sorted.length) {
     const empty = document.createElement('div');
     empty.style.cssText = 'color:#adb5c9;font-size:12px';
-    empty.textContent = '尚無成功點餐紀錄。';
+    empty.textContent = '尚無點餐紀錄。';
     box.appendChild(empty);
     return;
   }
