@@ -317,6 +317,10 @@ async function loadSettings() {
     setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
     setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
+    // RAG
+    setVal('inp-rag-enabled',   String(s.RAG_ENABLED  ?? false));
+    setVal('inp-rag-threshold', s.RAG_SCORE_THRESHOLD ?? 0.5);
+    setVal('inp-rag-top-k',     s.RAG_TOP_K           ?? 3);
 
     onSttProviderChange();
     onTtsProviderChange();
@@ -343,6 +347,10 @@ async function saveSettings() {
       TTS_API_URL:         val('inp-tts-api-url'),
       TTS_API_KEY:         val('inp-tts-api-key'),
       TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
+      // RAG
+      RAG_ENABLED:         val('inp-rag-enabled') === 'true',
+      RAG_SCORE_THRESHOLD: parseFloat(val('inp-rag-threshold') || '0.5'),
+      RAG_TOP_K:           parseInt(val('inp-rag-top-k') || '3', 10),
     };
     const res = await fetch(`${API}/api/settings`, {
       method: 'POST',

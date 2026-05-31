@@ -486,6 +486,29 @@ tbody tr:hover td { background: #f8fafd; }
           </div>
         </section>
 
+        <hr style="border:none;border-top:1px solid #edf0f7">
+
+        <!-- RAG -->
+        <section>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">RAG 知識庫</div>
+          <div class="setting-row">
+            <label class="setting-label">啟用 RAG</label>
+            <select id="inp-rag-enabled" class="setting-input" style="width:160px">
+              <option value="false">關閉（預設）</option>
+              <option value="true">開啟</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label">相似度門檻</label>
+            <input id="inp-rag-threshold" class="setting-input" type="number" step="0.05" min="0" max="1" placeholder="0.5" style="width:100px">
+            <span style="font-size:11px;color:#8494b0;margin-left:6px">0~1，越高越嚴格</span>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label">查詢筆數</label>
+            <input id="inp-rag-top-k" class="setting-input" type="number" min="1" max="10" placeholder="3" style="width:80px">
+          </div>
+        </section>
+
         <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
           <button class="refresh-btn" id="saveSettingsBtn" type="button" onclick="saveSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
             <i class="fas fa-save"></i> 儲存設定
