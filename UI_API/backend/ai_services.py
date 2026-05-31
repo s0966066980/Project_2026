@@ -7,9 +7,9 @@ import re
 import tempfile
 import base64
 import math
+import struct
 import time
 import wave
-import audioop
 import threading
 from collections import OrderedDict
 import edge_tts
@@ -32,37 +32,6 @@ _gemini_client = None
 _gemini_cooldown_until = 0.0
 _gemini_last_error = ""
 
-
-class _suppress_native_stderr:
-    """Temporarily silence native FFmpeg/OpenCV stderr noise from malformed WebM chunks."""
-    def __enter__(self):
-        self._saved_fd = None
-        self._devnull_fd = None
-        try:
-            self._saved_fd = os.dup(2)
-            self._devnull_fd = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(self._devnull_fd, 2)
-        except OSError:
-            self._cleanup()
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
-            if self._saved_fd is not None:
-                os.dup2(self._saved_fd, 2)
-        except OSError:
-            pass
-        self._cleanup()
-
-    def _cleanup(self):
-        for fd_name in ("_saved_fd", "_devnull_fd"):
-            fd = getattr(self, fd_name, None)
-            if fd is not None:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
-                setattr(self, fd_name, None)
 
 
 async def _run_process(args: list[str], timeout: float | None = None, capture_stderr: bool = False) -> str:
@@ -179,10 +148,16 @@ def _wav_rms_db(path: str) -> float:
     try:
         with wave.open(path, "rb") as wav_file:
             sample_width = wav_file.getsampwidth() or 2
-            frames = wav_file.readframes(wav_file.getnframes())
+            n_frames = wav_file.getnframes()
+            frames = wav_file.readframes(n_frames)
         if not frames:
             return -120.0
-        rms = audioop.rms(frames, sample_width)
+        fmt = {1: "b", 2: "h", 4: "i"}.get(sample_width, "h")
+        n_samples = len(frames) // sample_width
+        if n_samples == 0:
+            return -120.0
+        samples = struct.unpack(f"<{n_samples}{fmt}", frames[: n_samples * sample_width])
+        rms = math.sqrt(sum(s * s for s in samples) / n_samples)
         if rms <= 0:
             return -120.0
         max_amp = float((1 << (8 * sample_width - 1)) - 1)
@@ -260,17 +235,6 @@ def _read_binary_file(path: str) -> bytes:
     with open(path, "rb") as f:
         return f.read()
 
-def _resolve_local_path(path: str) -> str:
-    if os.path.isabs(path or ""):
-        return path
-    candidates = [
-        os.path.abspath(path or ""),
-        os.path.join(os.path.dirname(__file__), path or "")
-    ]
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    return candidates[-1]
 
 def _normalize_language(raw_language: str = "", text: str = "") -> str:
     """將 Whisper 語言偵測壓成產品只支援的 zh / en。"""
@@ -581,7 +545,7 @@ def _should_use_gemini_json_mime(model: str) -> bool:
     return bool(config.get("GEMINI_USE_JSON_MIME", False))
 
 
-def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float = None) -> dict:
+def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float | None = None) -> dict:
     """呼叫本機 Ollama 並強制擷取 JSON。"""
     enforced_system = (
         _enforced_json_system_prompt(system_prompt)
@@ -670,36 +634,9 @@ def ask_gemini(system_prompt: str, user_prompt: str, response_tag: str = "", mod
 
 
 def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "") -> dict:
-    """本地 Ollama 專用入口。推薦、RAG 審查與背景整理一律使用這條路徑。"""
+    """本地 Ollama 專用入口。語音、AI 推播、介入分析一律使用這條路徑。"""
     return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=None)
 
-
-def ask_llm(
-    system_prompt: str,
-    user_prompt: str,
-    response_tag: str = "",
-    model_name: str = "",
-    provider: str = "",
-    temperature: float = None,
-) -> dict:
-    """
-    問答類功能專用 LLM 入口。
-    QA_AI_PROVIDER=ollama 時走本地 Ollama；QA_AI_PROVIDER=gemini 時走 Gemini API。
-    """
-    provider = str(provider or config.get("QA_AI_PROVIDER", "ollama") or "ollama").lower()
-    if provider == "gemini":
-        gemini_result = ask_gemini(system_prompt, user_prompt, response_tag, model_name)
-        if "error" not in gemini_result:
-            return gemini_result
-        if config.get("GEMINI_FALLBACK_TO_OLLAMA", True):
-            print("↩️ Gemini 不可用，改用本地 Ollama 備援。")
-            fallback = _ask_ollama_local(system_prompt, user_prompt, response_tag, "", temperature=temperature)
-            if "error" not in fallback:
-                fallback["_fallback_from"] = "gemini"
-                fallback["_gemini_error"] = gemini_result.get("error", "")
-            return fallback
-        return gemini_result
-    return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=temperature)
 
 
 async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:
@@ -735,32 +672,3 @@ async def generate_tts_audio_base64(text: str, lang: str = "zh") -> str:
     finally:
         if temp_path and os.path.exists(temp_path):
             await asyncio.to_thread(os.remove, temp_path)
-def check_emotion_llama_status(timeout: float = 2.0) -> dict:
-    url = config.EMOTION_LLAMA_GRADIO_URL.rstrip("/")
-    try:
-        response = requests.get(url, timeout=timeout)
-        return {
-            "available": response.status_code < 500,
-            "status_code": response.status_code,
-            "url": url,
-            "message": "Emotion-LLaMA 推論服務可連線",
-        }
-    except Exception as e:
-        return {
-            "available": False,
-            "status_code": 0,
-            "url": url,
-            "message": str(e),
-        }
-
-
-def list_ollama_models(timeout: float = 3.0) -> list[str]:
-    try:
-        base = config.OLLAMA_API_URL.split("/api/")[0].rstrip("/")
-        response = requests.get(f"{base}/api/tags", timeout=timeout)
-        response.raise_for_status()
-        rows = response.json().get("models", [])
-        names = [str(row.get("name") or "").strip() for row in rows if row.get("name")]
-        return names
-    except Exception:
-        return []
