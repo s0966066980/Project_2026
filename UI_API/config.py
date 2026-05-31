@@ -3,10 +3,6 @@ import json
 import threading
 import time
 from dotenv import load_dotenv
-from prompts.defaults import (
-    VOICE_ASSIST_SYSTEM_PROMPT,
-    VOICE_ASSIST_SYSTEM_PROMPT_EN,
-)
 
 load_dotenv()
 
@@ -66,36 +62,18 @@ DEFAULT_SETTINGS = {
     "GEMINI_USE_JSON_MIME": False,
     "ENABLE_DEBUG_ROUTES": False,
     "ALLOW_POS_RUNTIME_SETTING_QUERY": False,
-    "USE_AI_RECOMMEND": True,          # True=啟用底部 AI 推播欄
-    "VOICE_ASSIST_MODEL": "qwen3.5:4b",  # 語音協助專用模型
-    "WHISPER_MODEL_SIZE": "base",
-    "TTS_VOICE": "zh-TW-HsiaoChenNeural",
-    "TTS_VOICE_EN": "en-US-JennyNeural",
+    "USE_AI_RECOMMEND": True,
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
     "PERFORMANCE_MODE": "balanced",
-    "ENABLE_TTS_CACHE": True,
-    "WHISPER_MIN_AUDIO_SEC": 0.45,
-    "WHISPER_LOW_AUDIO_DB": -58,
-    "WHISPER_MAX_NO_SPEECH_PROB": 0.68,
-    "WHISPER_MIN_AVG_LOGPROB": -1.15,
-    "WHISPER_MAX_COMPRESSION_RATIO": 2.6,
-    "WHISPER_INITIAL_PROMPT": "繁體中文自助點餐語音，常見詞：大麥克、薯條、雞塊、套餐、飲料、可樂、咖啡、付款、推薦餐點、客服協助。",
     "OLLAMA_LOG_RAW": False,
-    "INTERACTION_PRE_EVENT_BUFFER_SEC": 5,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
-    "VOICE_ASSIST_SYSTEM_PROMPT": VOICE_ASSIST_SYSTEM_PROMPT,
-    "VOICE_ASSIST_SYSTEM_PROMPT_EN": VOICE_ASSIST_SYSTEM_PROMPT_EN,
 }
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
-    "INTERACTION_PRE_EVENT_BUFFER_SEC",
-    "TTS_VOICE",
-    "TTS_VOICE_EN",
     "PERFORMANCE_MODE",
     "USE_AI_RECOMMEND",
-    "VOICE_ASSIST_MODEL",
 }
 
 
@@ -168,11 +146,6 @@ def load_settings():
             except Exception as e:
                 print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
                 should_write = True
-
-        # Restore defaults for prompt fields stored as empty strings
-        for _k in ("VOICE_ASSIST_SYSTEM_PROMPT", "VOICE_ASSIST_SYSTEM_PROMPT_EN"):
-            if not settings.get(_k) and DEFAULT_SETTINGS.get(_k):
-                settings[_k] = DEFAULT_SETTINGS[_k]
 
         if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
             settings["AI_PROVIDER"] = "ollama"
