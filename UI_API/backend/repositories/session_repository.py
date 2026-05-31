@@ -16,7 +16,7 @@ def record_session_state(
         session_db[session_id] = []
 
     record = {
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "timestamp": datetime.now().isoformat(),
         "emotion": emotion,
         "user_speech": user_speech,
         "ai_response": ai_response,

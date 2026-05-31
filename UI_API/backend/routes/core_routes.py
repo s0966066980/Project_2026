@@ -1,7 +1,6 @@
 import asyncio
 import json
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import FileResponse
@@ -192,6 +191,14 @@ def create_router(deps: dict) -> APIRouter:
             cart_list = json.loads(cart_ids) if cart_ids else []
         except (json.JSONDecodeError, ValueError):
             cart_list = [x.strip() for x in cart_ids.split(",") if x.strip()]
+        try:
+            sources = json.loads(cart_sources) if cart_sources else []
+            if not isinstance(sources, list):
+                sources = []
+        except (json.JSONDecodeError, ValueError):
+            sources = []
+        ai_count = max(0, int(ai_push_cart_count or 0))
+
         session_history = await asyncio.to_thread(session_repository.get_session_history, session_id)
         try:
             loop = asyncio.get_running_loop()
@@ -203,6 +210,8 @@ def create_router(deps: dict) -> APIRouter:
                     pushed_list,
                     cart_list,
                     session_history,
+                    ai_count,
+                    sources,
                 ),
                 timeout=5.0,
             )
@@ -224,24 +233,6 @@ def create_router(deps: dict) -> APIRouter:
                 "is_success": bool(log_entry.get("is_success", False)),
             }
             log_entry["intervention_result"] = intervention_result
-
-        try:
-            ai_count = max(0, int(ai_push_cart_count or 0))
-            sources = json.loads(cart_sources) if cart_sources else []
-            if not isinstance(sources, list):
-                sources = []
-            logs = log_repository.get_session_logs()
-            if logs:
-                logs[-1]["ai_push_cart_count"] = ai_count
-                logs[-1]["ai_push_success"] = ai_count >= 1
-                logs[-1]["cart_sources"] = sources
-                log_repository.save_session_logs(logs)
-            log_entry = dict(log_entry or {})
-            log_entry["ai_push_cart_count"] = ai_count
-            log_entry["ai_push_success"] = ai_count >= 1
-            log_entry["cart_sources"] = sources
-        except Exception:
-            log_entry = dict(log_entry or {})
 
         order_number = len(log_repository.get_session_logs())
 

@@ -221,10 +221,12 @@ def get_recent_session_events(session_id: str, window_sec: int = 120) -> list:
     except Exception:
         safe_window = 120
     rows = get_interaction_events(session_id, MAX_RECORDS)
-    return [
-        row for row in rows
-        if _parse_event_ts(row) and now - _parse_event_ts(row) <= safe_window
-    ]
+    result = []
+    for row in rows:
+        ts = _parse_event_ts(row)
+        if ts and now - ts <= safe_window:
+            result.append(row)
+    return result
 
 
 def append_intervention_log(log: dict) -> dict:

@@ -35,6 +35,8 @@ def record_final_checkout(
     pushed_ids: list,
     cart_ids: list,
     session_history: list,
+    ai_push_cart_count: int = 0,
+    cart_sources: list | None = None,
 ) -> dict:
     log_entry = recommendation_service.build_checkout_log_entry(
         session_id=session_id,
@@ -42,4 +44,7 @@ def record_final_checkout(
         cart_ids=cart_ids,
         session_history=session_history,
     )
+    log_entry["ai_push_cart_count"] = max(0, int(ai_push_cart_count))
+    log_entry["ai_push_success"] = ai_push_cart_count >= 1
+    log_entry["cart_sources"] = cart_sources if isinstance(cart_sources, list) else []
     return log_repository.append_session_log(log_entry)

@@ -37,10 +37,17 @@ def _write_list(path: str, rows: list) -> list:
     if parent:
         os.makedirs(parent, exist_ok=True)
     snapshot = list(rows)
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(snapshot, f, ensure_ascii=False, indent=4)
-    os.replace(tmp_path, path)
+    tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, indent=4)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
     try:
         mtime = os.path.getmtime(path)
     except OSError:

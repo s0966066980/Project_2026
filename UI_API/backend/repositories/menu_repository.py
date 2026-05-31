@@ -24,7 +24,9 @@ def get_menu() -> list:
 
 def save_menu(menu_data: list) -> list:
     global _menu_cache, _menu_cache_mtime
-    os.makedirs(os.path.dirname(config.MENU_JSON_PATH), exist_ok=True)
+    parent = os.path.dirname(config.MENU_JSON_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     with open(config.MENU_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(menu_data, f, ensure_ascii=False, indent=4)
     _menu_cache = menu_data
@@ -33,11 +35,4 @@ def save_menu(menu_data: list) -> list:
     except OSError:
         _menu_cache_mtime = None
     return menu_data
-
-
-def ensure_default_menu(default_menu: list) -> list:
-    os.makedirs(os.path.dirname(config.MENU_JSON_PATH), exist_ok=True)
-    if not os.path.exists(config.MENU_JSON_PATH):
-        return save_menu(default_menu)
-    return get_menu()
 

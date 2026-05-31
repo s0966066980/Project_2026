@@ -103,7 +103,6 @@ LEGACY_SCENARIO_ALIASES = {
     "coupon_error": "operation_difficulty",
     "customer_service_requested": "operation_difficulty",
     "complaint_risk": "operation_difficulty",
-    "human_service": "operation_difficulty",
 }
 
 
