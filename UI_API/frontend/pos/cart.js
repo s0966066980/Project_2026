@@ -1,4 +1,4 @@
-export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t }) {
+export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh' }) {
   const cart = {};
   const tx = (key, fallback = key) => (typeof t === 'function' ? t(key) : fallback);
 
@@ -69,7 +69,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
       qty += item.quantity;
       const priceLabel = itemPrice > 0
         ? `$${itemPrice}`
-        : ((typeof kioskLang !== 'undefined' && kioskLang === 'en') ? 'Store Price' : '依店價');
+        : (lang() === 'en' ? 'Store Price' : '依店價');
       ui.cartList.innerHTML += `
         <div class="cart-item p-4 flex justify-between items-center">
           <div class="kiosk-cart-product">

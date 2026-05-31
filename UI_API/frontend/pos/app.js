@@ -376,22 +376,6 @@ function saveFeatures(f) {
   localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
 }
 
-function toggleFeature(key, el) {
-  const f = getFeatures();
-  f[key] = !f[key];
-  saveFeatures(f);
-  el.classList.toggle('on', f[key]);
-  if (key === 'voiceAssist' && !f.voiceAssist && askRecorder?.state === 'recording') askRecorder.stop();
-  applyFeaturesToPOS();
-  if (isSystemRunning && (key === 'voiceAssist' || key === 'emotion')) {
-    ensureMediaTracks({
-      video: false,
-      audio: true
-    }).then(ok => {
-      if (ok) setupAskRecorder();
-    });
-  }
-}
 
 function applyFeaturesToPOS() {
   const f = getFeatures();
@@ -457,7 +441,7 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt });
+const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang });
 
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
@@ -1676,6 +1660,7 @@ function setupAskRecorder() {
           }
         });
         if (appliedOrders.length) {
+          lastValidOrderActionAt = Date.now();
           lastCartAddAt = Date.now();
           restartChoiceHesitationTimer();
           trackInteractionEvent({
@@ -1830,18 +1815,6 @@ document.addEventListener('pointerdown', (event) => {
   }
 });
 
-function applyPerformancePreset(mode) {
-  const presets = {
-    eco: { emotion: 30, record: 700, tokens: 160, rag: 2 },
-    balanced: { emotion: 15, record: 900, tokens: 220, rag: 3 },
-    quality: { emotion: 8, record: 1500, tokens: 360, rag: 4 }
-  };
-  const p = presets[mode] || presets.balanced;
-  document.getElementById('inp-emotion-interval').value = p.emotion;
-  document.getElementById('inp-emotion-record-ms').value = p.record;
-  document.getElementById('inp-num-predict').value = p.tokens;
-  document.getElementById('inp-rag-top-k').value = p.rag;
-}
 
 // =========================================================
 // 結帳
@@ -2189,9 +2162,6 @@ ui.confirmPayBtn?.addEventListener('click', () => {
 
 
 
-document.getElementById('inp-performance-mode')?.addEventListener('change', (e) => {
-  applyPerformancePreset(e.target.value);
-});
 document.getElementById('inp-model-name')?.addEventListener('change', (e) => {
   const askModelInput = document.getElementById('inp-ask-model-name');
   if (askModelInput) askModelInput.value = e.target.value || 'llama3.2';

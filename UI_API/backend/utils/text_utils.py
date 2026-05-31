@@ -33,13 +33,5 @@ def to_traditional_lite(text: str) -> str:
     return out.translate(_TRAD_CHAR_MAP)
 
 
-def has_cjk(text: str) -> bool:
-    return any("\u4e00" <= ch <= "\u9fff" for ch in text or "")
-
-
-def latin_noise_count(text: str) -> int:
-    cleaned = "".join(ch for ch in text or "" if ch.isalpha() or ch.isspace())
-    return sum(1 for ch in cleaned if "A" <= ch.upper() <= "Z")
-
 
 
