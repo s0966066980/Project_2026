@@ -59,9 +59,17 @@ async def handle_voice(
     else:
         system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT") or _DEFAULT_SYSTEM_PROMPT
 
-    # TODO: inject RAG context here
-    # rag_context = rag_provider.query(user_text)
-    user_prompt = f"【顧客語音輸入】\n{user_text}\n\n{full_menu_context}"
+    # RAG context 注入
+    if config.get("RAG_ENABLED", False):
+        from services.rag_provider import get_rag
+        rag_context = await get_rag().query(user_text)
+    else:
+        rag_context = ""
+    user_prompt = (
+        f"【顧客語音輸入】\n{user_text}\n\n"
+        + (f"{rag_context}\n\n" if rag_context else "")
+        + full_menu_context
+    )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
     async with ollama_semaphore:

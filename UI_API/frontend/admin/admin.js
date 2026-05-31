@@ -48,11 +48,12 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles = { stats: '狀態統計', settings: '功能設定' };
+    const titles = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫' };
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[page] || page;
     if (page === 'stats') loadStats();
     if (page === 'settings') loadSettings();
+    if (page === 'rag') loadRagDocs();
   });
 });
 
@@ -366,10 +367,116 @@ async function saveSettings() {
   }
 }
 
+// ── RAG ──
+
+const RAG_TYPE_LABELS = {
+  manual: '政策/規則', faq: 'FAQ', menu_supplement: '菜單補充',
+};
+
+function ragNotice(msg, ok = true) {
+  const el = document.getElementById('rag-notice');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? '#1db87a' : '#e84040';
+  el.style.display = '';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+async function loadRagDocs() {
+  try {
+    const res = await fetch(`${API}/api/rag/docs`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const docs = data.docs || [];
+    const countEl = document.getElementById('rag-count');
+    if (countEl) countEl.textContent = `(${docs.length})`;
+    const list = document.getElementById('rag-list');
+    if (!list) return;
+    list.textContent = '';
+    if (!docs.length) {
+      list.innerHTML = '<div style="color:#adb5c9;font-size:13px;padding:12px 0">尚無知識文件。</div>';
+      return;
+    }
+    docs.forEach(doc => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#f8fafd;border:1px solid #edf0f7;border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start';
+      const body = document.createElement('div');
+      body.style.cssText = 'flex:1;min-width:0';
+      const tag = document.createElement('span');
+      tag.style.cssText = 'font-size:10px;font-weight:700;color:#3b7aee;text-transform:uppercase;letter-spacing:.04em';
+      tag.textContent = RAG_TYPE_LABELS[doc.source_type] || doc.source_type;
+      const text = document.createElement('div');
+      text.style.cssText = 'font-size:12px;color:#2d3a55;margin-top:4px;white-space:pre-wrap;line-height:1.5;max-height:80px;overflow:hidden;text-overflow:ellipsis';
+      text.textContent = doc.content;
+      body.append(tag, text);
+      const del = document.createElement('button');
+      del.style.cssText = 'flex-shrink:0;color:#e84040;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px';
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-trash';
+      del.appendChild(icon);
+      del.onclick = () => deleteRagDoc(doc.id);
+      card.append(body, del);
+      list.appendChild(card);
+    });
+  } catch (e) {
+    ragNotice(`載入失敗：${e.message}`, false);
+  }
+}
+
+async function addRagDoc() {
+  const content = (document.getElementById('rag-content')?.value || '').trim();
+  const type = document.getElementById('rag-type')?.value || 'manual';
+  if (!content) { ragNotice('請輸入內容', false); return; }
+  try {
+    const res = await fetch(`${API}/api/rag/docs`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, source_type: type }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (document.getElementById('rag-content')) document.getElementById('rag-content').value = '';
+    ragNotice('✓ 新增成功');
+    await loadRagDocs();
+  } catch (e) {
+    ragNotice(`新增失敗：${e.message}`, false);
+  }
+}
+
+async function deleteRagDoc(id) {
+  if (!confirm('確定刪除這筆文件？')) return;
+  try {
+    const res = await fetch(`${API}/api/rag/docs/${encodeURIComponent(id)}`, {
+      method: 'DELETE', headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    ragNotice('✓ 已刪除');
+    await loadRagDocs();
+  } catch (e) {
+    ragNotice(`刪除失敗：${e.message}`, false);
+  }
+}
+
+async function clearRagDocs() {
+  if (!confirm('確定清空全部 RAG 文件？此操作無法還原。')) return;
+  try {
+    const res = await fetch(`${API}/api/rag/docs`, {
+      method: 'DELETE', headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    ragNotice('✓ 已清空');
+    await loadRagDocs();
+  } catch (e) {
+    ragNotice(`清空失敗：${e.message}`, false);
+  }
+}
+
 // expose to inline handlers
 window.onSttProviderChange = onSttProviderChange;
 window.onTtsProviderChange = onTtsProviderChange;
 window.saveSettings = saveSettings;
+window.addRagDoc = addRagDoc;
+window.deleteRagDoc = deleteRagDoc;
+window.clearRagDocs = clearRagDocs;
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);

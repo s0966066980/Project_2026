@@ -68,6 +68,12 @@ DEFAULT_SETTINGS = {
     "PERFORMANCE_MODE": "balanced",
     "OLLAMA_LOG_RAW": False,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
+    # ── RAG ───────────────────────────────────────────────────────
+    "RAG_ENABLED": False,                   # 預設關閉；加好文件後改為 True
+    "RAG_EMBEDDING_MODEL": "shibing624/text2vec-base-chinese",
+    "RAG_COLLECTION": "kiosk_rag",
+    "RAG_TOP_K": 3,                         # 每次查詢取前 K 筆
+    "RAG_SCORE_THRESHOLD": 0.5,             # 相似度門檻（0~1，越高越嚴格）
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
     "VOICE_ASSIST_SYSTEM_PROMPT": "",       # 空字串 = 使用 voice_service 內建預設

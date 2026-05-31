@@ -20,6 +20,7 @@ from routes import (
     menu_routes,
     ai_push_routes,
     voice_routes,
+    rag_routes,
     interaction_routes,
     realtime_routes,
 )
@@ -129,6 +130,18 @@ async def _background_init_once():
                 print(f"⚠️ TTS 預載失敗（不影響服務）: {e}")
         tasks.append(_init_tts())
 
+    # RAG Embedding 模型預載（RAG_ENABLED=true 時）
+    if config.get("RAG_ENABLED", False):
+        async def _init_rag():
+            try:
+                from services.rag_provider import get_rag
+                await asyncio.to_thread(get_rag()._init)
+                count = await get_rag().count()
+                print(f"✅ RAG 模型預載完成（文件數：{count}）")
+            except Exception as e:
+                print(f"⚠️ RAG 預載失敗（不影響服務）: {e}")
+        tasks.append(_init_rag())
+
     # Gemini client 預載（選用）
     if config.get("ENABLE_GEMINI_OPTIONS", False):
         async def _init_gemini():
@@ -154,6 +167,7 @@ _deps = _route_dependencies()
 app.include_router(core_routes.create_router(_deps))
 app.include_router(menu_routes.create_router(_deps))
 app.include_router(voice_routes.create_router(_deps))
+app.include_router(rag_routes.create_router(_deps))
 
 app.include_router(ai_push_routes.create_router(_deps))
 app.include_router(emotion_routes.create_router(_deps))
