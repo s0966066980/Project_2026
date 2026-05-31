@@ -48,15 +48,11 @@ let sessionPushedIds = new Set();
 let sessionAiPushCartCount = 0;
 let sessionCartSources = []; // [{id, source}] 記錄每筆加入來源
 let voiceBubbleTimer = null;
-let lastVoiceText = '';
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let posRealtime = null;
-let voiceOrderingAvailable = false;
-let autoVoiceTimer = null;
-let autoVoiceInFlight = false;
 let askRecordingStartedAt = 0;
 let lastValidOrderActionAt = 0;
 let lastCartAddAt = Date.now();
@@ -387,7 +383,6 @@ function applyFeaturesToPOS() {
   // 語音回覆氣泡（關閉語音協助時隱藏）
   if (!f.voiceAssist) closeVoiceBubble();
   if (!f.recommend) aiPush.stop();
-  if (!f.emotion) setVoiceOrderingAvailable(true);
 }
 
 function isCartScreenOpen() {
@@ -1135,7 +1130,6 @@ function showPaymentScreen() {
   setInteractionPage('payment_page', { source: 'checkout_button' });
   stopChoiceHesitationTimer();
   aiPush.stop();
-  stopAutoVoiceOrdering();
   clearPOSFloatingUI();
   updateVoiceAssistVisibility();
 }
@@ -1452,7 +1446,6 @@ ui.startBtn.onclick = async () => {
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
     lastCartAddAt = Date.now();
-    setVoiceOrderingAvailable(true);
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     maybeStartRollingMediaBuffer();
@@ -1581,25 +1574,6 @@ function hideVoiceAssistOverlay() {
   ui.voiceAssistOverlay?.setAttribute('aria-hidden', 'true');
 }
 
-function setVoiceOrderingAvailable(available) {
-  voiceOrderingAvailable = Boolean(available);
-  const disabled = isPosMode() && isSystemRunning && getFeatures().emotion && !voiceOrderingAvailable;
-  const _vaBtn = document.getElementById('voiceAssistBtn');
-  const _vaBtnText = document.getElementById('voiceAssistBtnText');
-  if (_vaBtn) _vaBtn.classList.toggle('opacity-50', disabled);
-  if (_vaBtnText && disabled) _vaBtnText.textContent = kioskLang === 'en' ? 'Voice assist is not ready yet' : '語音協助尚未準備完成';
-  if (_vaBtn) _vaBtn.disabled = disabled;
-  if (!voiceOrderingAvailable) stopAutoVoiceOrdering();
-}
-
-function stopAutoVoiceOrdering() {
-  if (autoVoiceTimer) clearTimeout(autoVoiceTimer);
-  autoVoiceTimer = null;
-  autoVoiceInFlight = false;
-  if (askRecorder?.state === 'recording') {
-    try { stopAskRecording(); } catch { }
-  }
-}
 
 function setupAskRecorder() {
   if (isAdminMode()) return;
@@ -1622,85 +1596,22 @@ function setupAskRecorder() {
         button_id: 'voiceAssistBtn',
         metadata: { reason: 'audio_too_short', duration_ms: durationMs, bytes: blob.size }
       });
-      const _tooShort = document.getElementById('voiceAssistBtnText');
-      if (_tooShort) _tooShort.textContent = kt('holdVoiceOrder');
       showVoiceAssistMessage(kt('voiceTooShort'));
-      autoVoiceInFlight = false;
       return;
     }
-
-    const _btnText = document.getElementById('voiceAssistBtnText');
-    if (_btnText) _btnText.textContent = kt('aiThinking');
     showVoiceAssistOverlay('thinking');
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    fd.append('media', blob, 'voice_ask.webm');   // 改為 media，對應後端新參數名
-    fd.append('multi_lang', String(getFeatures().multiLang));
-    try {
-      const data = await api.ask(fd);
-      if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
-        hideVoiceAssistOverlay();
-        autoVoiceInFlight = false;
-        return;
-      }
-      if (data.status === 'success') {
-        lastVoiceText = data.user_text || lastVoiceText;
-        if (data.audio_base64) playVoice(data.audio_base64);
-        showVoiceBubble(data);
-
-        const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
-        (data.cart_actions || []).forEach(action => {
-          if (action.action === 'add' && action.id) {
-            for (let i = 0; i < (Number(action.quantity) || 1); i++) {
-              sessionCartSources.push({ id: action.id, source: 'voice_assist' });
-            }
-          }
-        });
-        if (appliedOrders.length) {
-          lastValidOrderActionAt = Date.now();
-          lastCartAddAt = Date.now();
-          restartChoiceHesitationTimer();
-          trackInteractionEvent({
-            event_type: 'cart_edit',
-            button_id: 'askBtn',
-            cart_edit_count: appliedOrders.length,
-            metadata: { source: 'voice_assist', items: appliedOrders }
-          });
-          showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
-        }
-
-        if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
-      } else {
-        console.debug('[voice assistant skipped]', data.message || data.status);
-        showVoiceAssistMessage(
-          data.ai_response || data.message || kt('voiceOrderFailed'),
-          data.detected_lang || kioskLang
-        );
-        if (data.audio_base64) playVoice(data.audio_base64);
-      }
-    } catch (err) {
-      trackInteractionEvent({
-        event_type: 'voice_assist_failed',
-        button_id: 'voiceAssistBtn',
-        metadata: { reason: 'api_error' }
-      });
-      showVoiceBubble({
-        detected_lang: 'zh',
-        dialogue: { zh: { user_text: '', ai_response: kt('networkFailed') } }
-      });
-    }
+    // TODO: Send blob to voice API
+    // fd.append('session_id', sessionId);
+    // fd.append('media', blob, 'voice_ask.webm');
+    // fd.append('multi_lang', String(getFeatures().multiLang));
+    showVoiceAssistMessage(kioskLang === 'en' ? 'Voice feature is being redesigned.' : '語音功能重構中，請稍後。');
     const _doneText = document.getElementById('voiceAssistBtnText');
     if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
-    autoVoiceInFlight = false;
   };
 }
 
 function startAskRecording(sourceBtn) {
-  if (!voiceOrderingAvailable) {
-    showPushNotice(kioskLang === 'en' ? 'Voice assist is not ready yet.' : '語音協助尚未準備完成。');
-    return;
-  }
   if (!askRecorder) setupAskRecorder();
   if (!askRecorder || askRecorder.state !== 'inactive') {
     showVoiceAssistMessage(kt('voiceMicNotReady'));
@@ -1989,7 +1900,6 @@ async function finishOrder(cartIds, button, loadingText) {
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
   aiPush.stop();
-  stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
@@ -2047,7 +1957,6 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
   aiPush.stop();
-  stopAutoVoiceOrdering();
   stopRollingMediaBuffer();
   cartManager.clearCart();
   sessionCartSources = [];
