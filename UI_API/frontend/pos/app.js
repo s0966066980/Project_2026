@@ -8,7 +8,10 @@ import {
   ensureMediaTracks as ensureMediaTracksCore,
   createVideoRecorder,
   createAudioRecorder,
-  captureVideoFrameBlob
+  captureVideoFrameBlob,
+  startRollingBuffer,
+  stopRollingBuffer,
+  capturePreEventClip,
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
@@ -1406,7 +1409,8 @@ ui.startBtn.onclick = async () => {
     await loadRuntimeSettings();
     const f = getFeatures();
     const needAudio = Boolean(f.voiceAssist);
-    const mediaReady = await ensureMediaTracks({ video: false, audio: needAudio });
+    const needVideo = Boolean(runtimeSettings.EMOTION_LLAMA_ENABLED);
+    const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && needAudio) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
     applyFeaturesToPOS();
@@ -1419,6 +1423,9 @@ ui.startBtn.onclick = async () => {
     restartChoiceHesitationTimer();
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
+    if (runtimeSettings.EMOTION_LLAMA_ENABLED && stream) {
+      startRollingBuffer(stream, Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0);
+    }
   } catch { alert("無法存取攝影機與麥克風。"); }
 };
 
@@ -2098,7 +2105,21 @@ const TUTORIAL_COOLDOWN_MS = 8000;
 const tutorialPopupEl = document.getElementById('tutorialPopup');
 const tutorialTimerBar = document.getElementById('tutorialPopupTimerBar');
 
+async function _triggerEmotionCapture(eventType) {
+  if (!runtimeSettings.EMOTION_LLAMA_ENABLED) return;
+  try {
+    const blob = await capturePreEventClip();
+    if (!blob) return;
+    api.analyzeEmotionEvent(sessionId, eventType, blob).catch(e => {
+      console.warn('[emotion] analyze_event failed:', e);
+    });
+  } catch (e) {
+    console.warn('[emotion] capture failed:', e);
+  }
+}
+
 function showTutorialPopup() {
+  _triggerEmotionCapture('tutorial_popup');
   const now = Date.now();
   if (now - lastTutorialShowAt < TUTORIAL_COOLDOWN_MS) return;
   if (!tutorialPopupEl) return;

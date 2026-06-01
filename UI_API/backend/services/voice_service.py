@@ -65,8 +65,28 @@ async def handle_voice(
         rag_context = await get_rag().query(user_text)
     else:
         rag_context = ""
+
+    # Emotion-LLaMA 快取注入（若啟用且有快取）
+    emotion_context = ""
+    if config.get("EMOTION_LLAMA_AFFECT_VOICE", False):
+        from services.emotion_service import get_voice_emotion_cache
+        cached = get_voice_emotion_cache(session_id)
+        if cached and cached.get("emotion"):
+            parts = [f"情緒：{cached['emotion']}"]
+            if cached.get("intensity"):
+                parts.append(f"強度：{cached['intensity']}")
+            if cached.get("facial"):
+                parts.append(f"表情：{cached['facial']}")
+            if cached.get("vocal"):
+                parts.append(f"語調：{cached['vocal']}")
+            emotion_context = "【顧客情緒參考（Emotion-LLaMA）】\n" + "　".join(parts)
+
+    if emotion_context:
+        system_prompt += "\n若有顧客情緒參考，請據此調整語氣，但不要直接提及你在分析情緒。"
+
     user_prompt = (
         f"【顧客語音輸入】\n{user_text}\n\n"
+        + (f"{emotion_context}\n\n" if emotion_context else "")
         + (f"{rag_context}\n\n" if rag_context else "")
         + full_menu_context
     )
