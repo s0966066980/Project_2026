@@ -52,12 +52,24 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
     if not ids:
         return {"status": "error", "message": "menu is empty"}
 
+    # RAG context（活動/特惠/主打資訊）
+    rag_section = ""
+    if config.get("RAG_ENABLED", False):
+        try:
+            from services.rag_provider import get_rag
+            rag_context = await get_rag().query("推薦 活動 特惠 主打 套餐", top_k=2)
+            if rag_context:
+                rag_section = f"{rag_context}\n\n"
+        except Exception:
+            pass
+
     system = (
         "你是麥當勞自助點餐機的 AI 推播助手。"
         "只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。"
         '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。'
     )
     user = (
+        f"{rag_section}"
         "【菜單白名單】\n"
         f"{_menu_context(items)}\n\n"
         f"【本次排除 ID】{', '.join(exclude) or '無'}\n"
