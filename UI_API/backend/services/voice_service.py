@@ -12,6 +12,23 @@ from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
 
+
+def _format_history(history: list, max_turns: int = 4) -> str:
+    """格式化最近 N 輪對話歷史，供注入 LLM prompt。"""
+    if not history:
+        return ""
+    recent = history[-max_turns:]
+    lines = []
+    for turn in recent:
+        if turn.get("user_speech"):
+            lines.append(f"顧客：{turn['user_speech']}")
+        if turn.get("ai_response"):
+            lines.append(f"系統：{turn['ai_response']}")
+    if not lines:
+        return ""
+    return "【對話歷史（最近幾輪）】\n" + "\n".join(lines)
+
+
 _DEFAULT_SYSTEM_PROMPT = (
     "你是一位專業、友善的 AI 語音助理，支援加入餐點與語音問答兩種模式。\n"
     "若顧客直接說出想點的餐點與數量，輸出 cart_actions；否則用自然口語回答。\n"
@@ -54,6 +71,9 @@ async def handle_voice(
     menu_items = await asyncio.to_thread(menu_repository.get_menu)
     full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
 
+    history = await asyncio.to_thread(session_repository.get_session_history, session_id)
+    history_context = _format_history(history)
+
     if detected_lang == "en":
         system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN") or _DEFAULT_SYSTEM_PROMPT
     else:
@@ -84,8 +104,10 @@ async def handle_voice(
     if emotion_context:
         system_prompt += "\n若有顧客情緒參考，請據此調整語氣，但不要直接提及你在分析情緒。"
 
+    input_label = "【本輪語音輸入】" if history_context else "【顧客語音輸入】"
     user_prompt = (
-        f"【顧客語音輸入】\n{user_text}\n\n"
+        (f"{history_context}\n\n" if history_context else "")
+        + f"{input_label}\n{user_text}\n\n"
         + (f"{emotion_context}\n\n" if emotion_context else "")
         + (f"{rag_context}\n\n" if rag_context else "")
         + full_menu_context
