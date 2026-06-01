@@ -23,7 +23,8 @@
 | TTS 語音回覆 | `backend/ai_services.py` | `POST /api/ask`（回傳） | `audio_base64` |
 | 結帳 → 成效回寫 | `backend/routes/core_routes.py`, `backend/repositories/interaction_event_repository.py` | `POST /api/checkout`, `POST /api/intervention_result` | `session_logs.json`, `intervention_logs.json` |
 | 後台統計 | `frontend/admin/admin.js`, `backend/routes/interaction_routes.py`, `backend/routes/core_routes.py` | `GET /api/intervention_stats`, `GET /api/session_stats` | `barrier_state_counts`, `success_rate`, `cart_sources` |
-| Emotion-LLaMA（預留） | `backend/services/emotion_service.py`, `backend/routes/emotion_routes.py` | `POST /api/emotion/analyze` | stub，`emotion_available: false` |
+| Emotion-LLaMA 事件分析 | `backend/services/emotion_service.py`, `backend/routes/emotion_routes.py`, `backend/repositories/emotion_log_repository.py` | `POST /api/emotion/analyze_event`, `GET/DELETE /api/emotion/intervention_logs` | 事件觸發截片 → Gradio API（port 7889）→ `emotion_intervention_logs.json`；可選注入語音 prompt 或觸發 barrier pipeline |
+| Emotion-LLaMA（通用，向下相容） | `backend/services/emotion_service.py` | `POST /api/emotion/analyze` | stub 格式，`emotion_available: false` |
 
 ---
 

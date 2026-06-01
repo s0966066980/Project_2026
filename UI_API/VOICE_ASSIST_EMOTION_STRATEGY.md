@@ -11,7 +11,7 @@
 **實作位置：** `backend/services/voice_service.py`
 
 **特性：**
-- Whisper 做語音轉文字與語言偵測（zh / en）
+- STT 支援 faster-whisper（本地）或 openai-compatible（雲端）
 - Ollama 依菜單白名單回答問題或生成 `cart_actions`
 - `coerce_cart_actions()` 強制校正所有 LLM 輸出的品項 ID
 - prompt 組裝前有 `# TODO: inject RAG context here` 插槽，未來接 RAG 只改此處
@@ -21,37 +21,60 @@
 - `multi_lang=true` 時自動偵測語言，選對應 system prompt 和 TTS 語音
 - `VOICE_ASSIST_SYSTEM_PROMPT`（中文）、`VOICE_ASSIST_SYSTEM_PROMPT_EN`（英文）
 
+**Emotion-LLaMA 注入（可選）：**
+- 若 `EMOTION_LLAMA_AFFECT_VOICE=true`，`voice_service` 在組 prompt 前讀取 `emotion_service.get_voice_emotion_cache(session_id)`
+- 快取命中時在 `user_prompt` 前加入 `【顧客情緒參考】` 區塊（情緒、強度、表情、語調）
+- 同時在 system_prompt 後加一句：「若有顧客情緒參考，請據此調整語氣，但不要直接提及你在分析情緒。」
+
 ---
 
-## Emotion-LLaMA（目前為 Stub）
+## Emotion-LLaMA（事件驅動，可選）
 
-Emotion-LLaMA 目前尚未接入，保留預留介面。
+Emotion-LLaMA 採事件觸發方式運作，**非持續分析**。
 
-**Stub 位置：** `backend/services/emotion_service.py`
+### 觸發流程
 
-```python
-async def analyze(session_id: str, media_path: str) -> dict:
-    # TODO: Connect to Emotion-LLaMA at config.EMOTION_LLAMA_GRADIO_URL
-    return {
-        "emotion_label": "未偵測",
-        "emotion_score": 0,
-        "emotion_available": False,
-        "status": "stub",
-    }
+```
+前端：「如何點餐」彈跳視窗（或其他事件）觸發
+  → _triggerEmotionCapture('tutorial_popup')
+    → capturePreEventClip()（截取 rolling buffer 最近 N 秒）
+    → POST /api/emotion/analyze_event（非阻擋 fire-and-forget）
+      → emotion_service.analyze_event()
+        → _call_gradio(video_path, question, skip_quality_check)
+        → emotion_log_repository.append_log(entry)
+        → 更新 _voice_cache[session_id]
+        → （可選）asyncio.create_task(_trigger_barrier_update())
 ```
 
-**Endpoint：** `POST /api/emotion/analyze`（接收 `session_id` + `media` 上傳）
+### Rolling Buffer
 
-**對接方式（未來）：**
-1. 確認 Emotion-LLaMA 服務在 `config.EMOTION_LLAMA_GRADIO_URL`（預設 `http://127.0.0.1:7889`）已啟動
-2. 替換 `emotion_service.py` 的 stub 實作，呼叫 Gradio API
-3. 回傳格式維持：`{session_id, emotion_label, emotion_score, emotion_available, status}`
+- `media.js` 的 `startRollingBuffer(stream, clipSec)` 在「開始點餐」時啟動
+- 每 500ms 產生一個 chunk，維持固定長度（`clipSec + 緩衝`）的環形 buffer
+- `capturePreEventClip()` 在事件發生時快照 buffer，回傳 `Blob`
 
-**啟動 Emotion-LLaMA（可選）：**
+### 啟動條件
+
+- `runtimeSettings.EMOTION_LLAMA_ENABLED === true`（`PUBLIC_SETTINGS_KEYS` 中，POS 可讀）
+- `runtimeSettings.EMOTION_LLAMA_CLIP_SEC`（截片秒數，也在 Public Settings）
+- Emotion-LLaMA 服務需在 `config.EMOTION_LLAMA_GRADIO_URL`（預設 `http://127.0.0.1:7889`）
+
+### 啟動 Emotion-LLaMA 服務
+
 ```bash
 cd Emotion-LLaMA && conda activate emotion_ollama
 python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 ```
+
+### 後台設定（Admin → Emotion-LLaMA）
+
+| 設定 | 說明 |
+|------|------|
+| `EMOTION_LLAMA_ENABLED` | 啟用事件分析 |
+| `EMOTION_LLAMA_CLIP_SEC` | 截片秒數（預設 2.0） |
+| `EMOTION_LLAMA_QUALITY_CHECK` | 啟用品質快篩（`skip_quality_check=false`） |
+| `EMOTION_LLAMA_AFFECT_VOICE` | 分析結果注入下一輪語音 prompt |
+| `EMOTION_LLAMA_AFFECT_BARRIER` | 分析結果觸發 barrier pipeline |
+| `EMOTION_LLAMA_PROMPT` | 分析 prompt 模板（`{speech_text}` 為佔位） |
 
 ---
 
@@ -59,4 +82,5 @@ python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 
 - Emotion-LLaMA 不直接決定介入動作，只作為輔助證據
 - 介入決策由 `barrier_state_service` 基於 POS 事件計數 + 語音關鍵字判斷，與情緒分析解耦
-- Stub 狀態下系統完整可用，不依賴 Emotion-LLaMA 服務
+- 所有 Emotion 功能均可透過 `EMOTION_LLAMA_ENABLED=false` 完全關閉，不影響系統其他功能
+- `analyze()` 保留 stub 格式維持向下相容，避免舊呼叫端報錯

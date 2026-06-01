@@ -173,11 +173,27 @@ AI 推播邏輯。
 **回傳：** `{status, recommendation_id, push_text}`
 
 ### `emotion_service.py`
-Emotion-LLaMA 對接介面（目前為 stub）。
+Emotion-LLaMA 事件驅動分析服務。
 
-**`analyze(session_id, media_path)`：**
-- `# TODO: Connect to Emotion-LLaMA at config.EMOTION_LLAMA_GRADIO_URL`
-- 固定回傳 `{emotion_label: "未偵測", emotion_score: 0, emotion_available: False, status: "stub"}`
+**`is_enabled()`：**
+- 讀取 `config.get("EMOTION_LLAMA_ENABLED", False)`
+
+**`analyze(session_id, media_path)`（向下相容）：**
+- 固定回傳 stub 格式（`emotion_available: False`），供 `POST /api/emotion/analyze` 使用
+
+**`analyze_event(session_id, media_path, event_type)`（主入口）：**
+1. `is_enabled()` 檢查，未啟用回傳 `{status: "disabled"}`
+2. 讀取 prompt template（`EMOTION_LLAMA_PROMPT`）
+3. `_call_gradio(media_path, question, skip_quality_check)` → Gradio HTTP API
+4. 解析回傳 JSON（支援 `[EMOTION_LLAMA_SKIP]` / `[EMOTION_LLAMA_ERROR]` 前綴）
+5. `emotion_log_repository.append_log(entry)` 寫入紀錄
+6. 若有有效情緒結果：更新 `_voice_cache[session_id]`；若 `EMOTION_LLAMA_AFFECT_BARRIER` 啟用，以 `asyncio.create_task` 觸發 barrier pipeline
+
+**語音快取：**
+- `get_voice_emotion_cache(session_id)` → 取得快取，供 `voice_service` 注入 prompt
+- `clear_voice_emotion_cache(session_id)` → 清除快取
+
+**`EVENT_TYPE_LABELS`：** 事件類型中文對照（`"tutorial_popup"` → `"如何點餐彈跳視窗"`）
 
 ### `barrier_state_service.py`
 POS 事件 + 語音 → 互動障礙狀態推論。
@@ -257,6 +273,16 @@ POS 事件標準化。
 ---
 
 ## 資料存取（`backend/repositories/`）
+
+### `emotion_log_repository.py`
+讀寫 `learning_data/emotion_intervention_logs.json`。
+
+- `append_log(entry)` → 原子 append 分析紀錄
+- `get_logs(limit=200)` → 取最新 N 筆（由新到舊由外部 reverse）
+- `clear_logs()` → 清空並回傳清除筆數
+- 使用 `threading.Lock()` 確保並發安全
+
+---
 
 ### `interaction_event_repository.py`
 最複雜的 repository，含完整讀寫機制。
@@ -339,7 +365,7 @@ POS 事件標準化。
 | 互動追蹤 | `trackInteractionEvent()` → `reportInteractionEvent()` → `POST /api/interaction_event` |
 | WebSocket | `startPosRealtime()` — 接收 `interaction_intervention`, `human_reply`, `settings_changed` |
 | 結帳 | `writeCheckoutLog()` → `POST /api/checkout`（含 `sessionCartSources`, `sessionAiPushCartCount`） |
-| 情緒 loop | `startEmotionLoop()` — 週期性拍照送 emotion stub（`EMOTION_PERIODIC_ENABLED`） |
+| Emotion 觸發 | `_triggerEmotionCapture(eventType)` — 非阻擋；呼叫 `capturePreEventClip()` 後 fire-and-forget `api.analyzeEmotionEvent()` |
 
 **關鍵 session 狀態：**
 - `sessionId`：per-page-load unique ID
@@ -352,6 +378,11 @@ POS 事件標準化。
 - `choice_hesitation`：猶豫彈跳視窗
 - `voice_assist`：語音點餐
 - `manual`（預設）：手動點選菜單
+
+**Rolling Buffer（Emotion-LLaMA 事件截片）：**
+- `startRollingBuffer(stream, clipSec)` → 啟動 500ms chunk MediaRecorder，維持固定長度環形 buffer
+- `stopRollingBuffer()` → 停止並清空 buffer
+- `capturePreEventClip()` → 快照目前 buffer + 觸發 `requestData()`，回傳 `Blob | null`；含 100ms 保底 timeout 防 callback 未觸發
 
 ### `frontend/pos/cart.js`
 - `createCartManager({ui, escapeHTML, findMenuItems, onCartChange, t})` → 工廠函式
@@ -378,7 +409,9 @@ POS 事件標準化。
 - `reportInteractionEvent(payload)` → POS 事件
 - `getLogs()`, `clearLogs()`, `deleteLog(index)`
 - `getInterventionStats()`
-- `getOllamaModels()`, `clearEmotionClips()` 等管理功能
+- `analyzeEmotionEvent(sessionId, eventType, mediaBlob)` → `POST /api/emotion/analyze_event`
+- `getEmotionInterventionLogs(limit)` → `GET /api/emotion/intervention_logs`
+- `getOllamaModels()` 等管理功能
 
 ---
 
@@ -446,6 +479,6 @@ POS 事件標準化。
 1. **`sys.path` 橋接**：`main.py` 執行時 `backend/` 加入 `sys.path[0]`，所有 `backend/` 下的 import 無需前綴
 2. **`menu_data/` 保持根目錄**：`config.py` 使用 CWD 相對路徑 `./menu_data/menu.json`
 3. **`cart_sources` 在前端追蹤**：`sessionCartSources` 在每次 `trackedAddToCart`/`applyCartActions` 時記錄，結帳時傳給後端
-4. **Emotion-LLaMA 為 stub**：`emotion_service.py` 固定回傳 `emotion_available=False`，等 Emotion-LLaMA 服務就緒後替換實作
+4. **Emotion-LLaMA 事件驅動**：`emotion_service.py` 實作 `analyze_event()`，事件觸發時截片送 Gradio；`analyze()` 保留 stub 格式維持向下相容。`EMOTION_LLAMA_ENABLED`（Public Settings）控制是否啟用，預設 `false`
 5. **RAG 插槽**：`voice_service.py` prompt 組裝前有 `# TODO: inject RAG context here`，未來接入時只改這一處
 6. **Barrier state 不依賴 risk score**：直接用 POS 事件計數（`payment_fail_count`、`category_switch_count` 等）+ 語音關鍵字判斷，無需計算風險分數

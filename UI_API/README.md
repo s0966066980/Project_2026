@@ -58,7 +58,10 @@ UI_API/
 | `GET` | `/api/menu` | 菜單清單 |
 | `POST` | `/api/ask` | 語音點餐：音訊 → STT → LLM → TTS |
 | `POST` | `/api/ai_push` | AI 推播：從菜單選 1 品推薦 |
-| `POST` | `/api/emotion/analyze` | Emotion-LLaMA stub（預留介面） |
+| `POST` | `/api/emotion/analyze` | Emotion-LLaMA 通用入口（向下相容） |
+| `POST` | `/api/emotion/analyze_event` | 事件驅動分析：截片 → Gradio → log |
+| `GET` | `/api/emotion/intervention_logs` | 取得 Emotion-LLaMA 介入紀錄 |
+| `DELETE` | `/api/emotion/intervention_logs` | 清空 Emotion-LLaMA 介入紀錄 |
 | `POST` | `/api/interaction_event` | 保存 POS 操作事件 |
 | `POST` | `/api/barrier_state` | 推論互動障礙狀態 + 產生介入 |
 | `POST` | `/api/intervention_result` | 回寫介入結果（閉環） |
@@ -99,9 +102,9 @@ UI_API/
 | 檔案 | 職責 |
 |------|------|
 | `index.html` | 16:9 kiosk UI 骨架 |
-| `app.js` | 主控制器：菜單渲染、購物車、語音、AI 推播、猶豫彈窗、互動追蹤 |
+| `app.js` | 主控制器：菜單渲染、購物車、語音、AI 推播、猶豫彈窗、互動追蹤、Emotion 事件觸發 |
 | `cart.js` | 購物車 factory（createCartManager） |
-| `media.js` | 媒體裝置（麥克風、攝影機）管理 |
+| `media.js` | 媒體裝置管理 + rolling buffer（`startRollingBuffer`, `capturePreEventClip`, `stopRollingBuffer`） |
 
 ### `frontend/admin/` — 後台
 
@@ -116,7 +119,6 @@ UI_API/
 |------|------|
 | `api.js` | 所有後端 API 呼叫封裝 |
 | `ui.js` | 共用 UI 元件（通知、切換等）|
-| `media_buffer.js` | Rolling media buffer（語音錄製前緩衝） |
 | `realtime_client.js` | WebSocket 連線管理 |
 | `styles.css` | 全域樣式 |
 
@@ -132,7 +134,7 @@ UI_API/
 | `menu_routes.py` | `/api` | 菜單讀寫 |
 | `voice_routes.py` | `/api` | 語音點餐（POST /api/ask） |
 | `ai_push_routes.py` | `/api` | AI 推播（POST /api/ai_push） |
-| `emotion_routes.py` | `/api/emotion` | Emotion-LLaMA stub |
+| `emotion_routes.py` | `/api/emotion` | Emotion-LLaMA 分析、事件驅動、介入紀錄 |
 | `interaction_routes.py` | `/api` | POS 事件、障礙狀態、介入統計 |
 | `realtime_routes.py` | `/ws` | WebSocket |
 | `demo_routes.py` | `/api/demo` | 測試情境觸發 |
@@ -144,7 +146,7 @@ UI_API/
 |------|------|
 | `voice_service.py` | 語音流程：STT → Ollama → TTS |
 | `ai_push_service.py` | 推播邏輯：Ollama 選品 + 促購短句 |
-| `emotion_service.py` | Emotion-LLaMA stub（預留對接介面） |
+| `emotion_service.py` | Emotion-LLaMA 事件分析：`analyze_event()`、語音快取（`get/clear_voice_emotion_cache()`） |
 | `barrier_state_service.py` | POS 事件 + 語音 → barrier_state 推論 |
 | `intervention_service.py` | barrier_state → intervention_action 決策 |
 | `intervention_pipeline_service.py` | 完整介入流程：事件→障礙→介入→log→推播 |
@@ -160,6 +162,7 @@ UI_API/
 | `log_repository.py` | `learning_data/session_logs.json` | Session log 讀寫 |
 | `session_repository.py` | 記憶體 dict | Session 狀態（語音對話歷史） |
 | `interaction_event_repository.py` | `learning_data/interaction_events.json` | 事件與介入紀錄 |
+| `emotion_log_repository.py` | `learning_data/emotion_intervention_logs.json` | Emotion-LLaMA 分析紀錄 |
 
 ### `backend/realtime/`
 
@@ -196,14 +199,20 @@ NGROK_AUTHTOKEN, POS_DEMO_TOKEN, ADMIN_DEMO_TOKEN
 |----------|------|------|
 | `MODEL_NAME` | `qwen3.5:4b` | Ollama 主要模型（AI 推播） |
 | `VOICE_ASSIST_MODEL` | `qwen3.5:4b` | 語音協助模型 |
-| `VOICE_ASSIST_SYSTEM_PROMPT` | （見 prompts/defaults.py）| 語音 LLM 系統 prompt |
-| `TTS_VOICE` | `zh-TW-HsiaoChenNeural` | 中文 TTS 語音 |
-| `TTS_VOICE_EN` | `en-US-JennyNeural` | 英文 TTS 語音 |
-| `WHISPER_MODEL_SIZE` | `base` | Whisper 模型大小 |
-| `ENABLE_TTS_CACHE` | `true` | TTS 快取 |
-| `USE_AI_RECOMMEND` | `true` | 底部 AI 推播欄 |
-| `PERFORMANCE_MODE` | `balanced` | 效能模式 |
-| `EMOTION_PERIODIC_ENABLED` | `false` | 週期性情緒分析 |
+| `VOICE_ASSIST_SYSTEM_PROMPT` | `""` | 語音 LLM 系統 prompt（空 = 使用內建預設） |
+| `STT_PROVIDER` | `faster_whisper` | STT 來源：`faster_whisper` / `openai_compatible` |
+| `STT_MODEL` | `small` | faster-whisper 模型大小（tiny/small/medium） |
+| `TTS_PROVIDER` | `melo` | TTS 來源：`melo` / `edge` / `openai_compatible` |
+| `EDGE_TTS_VOICE` | `zh-TW-HsiaoChenNeural` | Edge TTS 中文語音 |
+| `EDGE_TTS_VOICE_EN` | `en-US-JennyNeural` | Edge TTS 英文語音 |
+| `TTS_SPEED` | `1.0` | MeloTTS 語速 |
+| `RAG_ENABLED` | `true` | RAG 開關（無文件時自動跳過） |
+| `RAG_EMBEDDING_MODEL` | `BAAI/bge-small-zh-v1.5` | fastembed 嵌入模型 |
+| `EMOTION_LLAMA_ENABLED` | `false` | Emotion-LLaMA 事件分析開關 |
+| `EMOTION_LLAMA_CLIP_SEC` | `2.0` | 截片秒數 |
+| `EMOTION_LLAMA_QUALITY_CHECK` | `true` | 品質快篩 |
+| `EMOTION_LLAMA_AFFECT_VOICE` | `false` | 情緒結果注入語音 prompt |
+| `EMOTION_LLAMA_AFFECT_BARRIER` | `false` | 情緒結果觸發 barrier pipeline |
 | `ENABLE_DEBUG_ROUTES` | `false` | Debug API 開關 |
 | `ENABLE_GEMINI_OPTIONS` | `false` | Gemini API 開關 |
 
@@ -217,6 +226,7 @@ NGROK_AUTHTOKEN, POS_DEMO_TOKEN, ADMIN_DEMO_TOKEN
 | `session_logs.json` | 結帳 session 紀錄（含 ai_push_cart_count、cart_sources） |
 | `interaction_events.json` | POS 操作事件序列 |
 | `intervention_logs.json` | 介入紀錄與結果 |
+| `emotion_intervention_logs.json` | Emotion-LLaMA 事件分析紀錄 |
 
 ---
 

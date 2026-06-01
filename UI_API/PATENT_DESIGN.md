@@ -2,11 +2,12 @@
 
 本文件是技術設計與概念版專利請求項草稿，不是法律最終版。實際申請前仍需由專利代理人依各國法規整理。
 
-> **實作現況說明（2026-05）**
+> **實作現況說明（2026-06）**
 > 本文件描述的是完整專利概念架構。目前原型系統的實作狀態：
 > - **已實作**：POS 事件記錄、barrier_state 推論（基於事件計數 + 語音）、intervention_action 決策、WebSocket 推播、語音點餐（STT→LLM→TTS）、AI 推播、猶豫彈跳視窗
-> - **Stub 預留**：Emotion-LLaMA（`POST /api/emotion/analyze` 回傳固定格式，待接入）
-> - **尚未實作**：事件觸發式 risk_score 門檻機制（已移除，改由語音輸入或管理端手動觸發 barrier_state 分析）、RAG 模組
+> - **已實作（Emotion-LLaMA 事件驅動）**：前端 rolling buffer 截片 → `POST /api/emotion/analyze_event` → Gradio API（port 7889）→ log 寫入；可選注入語音 prompt 或觸發 barrier pipeline
+> - **尚未實作**：事件觸發式 risk_score 門檻機制（已移除，改由語音輸入或管理端手動觸發 barrier_state 分析）
+> - **可選模組**：RAG（fastembed，無文件時自動跳過）
 > 
 > 詳細現況架構請參考 `CODEBASE.md` 與 `ARCHITECTURE_MAPPING.md`。
 

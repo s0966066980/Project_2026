@@ -9,7 +9,7 @@
 - WebSocket 即時通訊（POS / Admin）
 - 後台統計與設定管理
 
-Emotion-LLaMA 目前為 **stub**（預留對接介面），尚未接入。
+Emotion-LLaMA 事件分析已實作（事件觸發截片 → Gradio API → log），可透過後台開關啟用。
 
 ---
 
@@ -19,7 +19,7 @@ Emotion-LLaMA 目前為 **stub**（預留對接介面），尚未接入。
 - **前端**：Vanilla JS（ES modules，無框架）
 - **AI 推論**：Ollama（qwen3.5:4b）、可選 Gemini API
 - **語音**：Whisper（本地 STT）、Edge TTS
-- **視覺**：Emotion-LLaMA（stub，port 7889 預留）
+- **視覺**：Emotion-LLaMA（port 7889，事件觸發式，可選）
 - **資料庫**：JSON 檔（session/log/menu）
 - **設定**：`.env`（靜態）+ `learning_data/settings.json`（後台即時讀寫）
 
@@ -38,7 +38,7 @@ Project_2026/
 │   │   ├── database.py                ← 菜單 context、checkout log
 │   │   ├── routes/                    ← FastAPI endpoints
 │   │   ├── services/                  ← 業務邏輯
-│   │   ├── repositories/              ← JSON 資料存取
+│   │   ├── repositories/              ← JSON 資料存取（含 emotion_log_repository.py）
 │   │   ├── realtime/                  ← WebSocket event bus
 │   │   ├── utils/                     ← 共用工具
 │   │   ├── prompts/defaults.py        ← LLM system prompt 預設值
@@ -183,7 +183,9 @@ curl http://127.0.0.1:8001/api/settings
 
 ## 目前 Sprint / 進行中工作
 
-- 程式碼重構清理（code review 系列）
+- Emotion-LLaMA 事件驅動分析已完成（rolling buffer + analyze_event + admin 統計頁）
+- 語音 STT/TTS 多 provider 支援（faster-whisper / openai-compatible / MeloTTS）
+- RAG 整合（fastembed + rag_provider.py，可選）
 
 ---
 
