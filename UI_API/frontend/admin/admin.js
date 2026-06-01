@@ -436,9 +436,19 @@ async function saveEmotionSettings() {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    if (notice) { notice.style.display = 'inline'; setTimeout(() => { notice.style.display = 'none'; }, 2000); }
+    if (notice) {
+      notice.textContent = '✓ 儲存成功';
+      notice.style.color = '#1db87a';
+      notice.style.display = 'inline';
+      setTimeout(() => { notice.style.display = 'none'; }, 2000);
+    }
   } catch (e) {
     console.error('saveEmotionSettings failed', e);
+    if (notice) {
+      notice.textContent = '✗ 儲存失敗';
+      notice.style.color = '#e84040';
+      notice.style.display = 'inline';
+    }
   }
 }
 
@@ -498,7 +508,8 @@ async function loadEmotionLogs() {
 async function clearEmotionLogs() {
   if (!confirm('確定清除所有 Emotion-LLaMA 介入紀錄？')) return;
   try {
-    await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
+    const res = await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     loadEmotionLogs();
   } catch (e) {
     console.error('clearEmotionLogs failed', e);
