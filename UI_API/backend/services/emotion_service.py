@@ -1,24 +1,42 @@
-"""Emotion-LLaMA 情緒分析 stub — 預留對接介面。
+"""Emotion-LLaMA 情緒分析服務。
 
-相關設定（learning_data/settings.json）：
-  EMOTION_LLAMA_ENABLED        (bool)  — 是否啟用情緒分析
-  EMOTION_LLAMA_CLIP_SEC       (float) — 擷取片段秒數
-  EMOTION_LLAMA_QUALITY_CHECK  (bool)  — 是否啟用品質檢查
-  EMOTION_LLAMA_AFFECT_VOICE   (bool)  — 是否影響語音回應
-  EMOTION_LLAMA_AFFECT_BARRIER (bool)  — 是否影響障礙偵測
-  EMOTION_LLAMA_PROMPT         (str)   — 分析提問模板，含 {speech_text}
+事件驅動：事件觸發時呼叫 analyze_event()，非同步呼叫 Gradio，結果寫入 log。
+語音快取：analyze_event 結果存入 session 快取，下一輪語音可讀取。
 """
+import asyncio
+import json
+import threading
+from datetime import datetime
+
+import httpx
+
 import config
+from repositories import emotion_log_repository
+
+EVENT_TYPE_LABELS = {
+    "tutorial_popup": "如何點餐彈跳視窗",
+}
+
+_voice_cache: dict[str, dict] = {}
+_cache_lock = threading.Lock()
 
 
 def is_enabled() -> bool:
-    """回傳 Emotion-LLaMA 是否設定為啟用。"""
     return bool(config.get("EMOTION_LLAMA_ENABLED", False))
 
 
+def get_voice_emotion_cache(session_id: str) -> dict | None:
+    with _cache_lock:
+        return _voice_cache.get(session_id)
+
+
+def clear_voice_emotion_cache(session_id: str) -> None:
+    with _cache_lock:
+        _voice_cache.pop(session_id, None)
+
+
 async def analyze(session_id: str, media_path: str) -> dict:
-    # TODO: Connect to Emotion-LLaMA at config.EMOTION_LLAMA_GRADIO_URL
-    # Replace this stub when Emotion-LLaMA service is ready.
+    """emotion_routes 通用入口（保持向下相容）。"""
     return {
         "session_id": session_id,
         "emotion_label": "未偵測",
@@ -26,3 +44,83 @@ async def analyze(session_id: str, media_path: str) -> dict:
         "emotion_available": False,
         "status": "stub",
     }
+
+
+async def analyze_event(session_id: str, media_path: str, event_type: str) -> dict:
+    """事件驅動分析主入口。非同步執行，結果寫 log + 更新語音快取。"""
+    if not is_enabled():
+        return {"status": "disabled"}
+
+    skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
+    prompt_template = config.get("EMOTION_LLAMA_PROMPT", "")
+    question = prompt_template.replace("{speech_text}", "")
+
+    try:
+        raw = await _call_gradio(media_path, question, skip_quality_check=skip_qc)
+    except Exception as e:
+        print(f"⚠️ Emotion-LLaMA analyze_event 失敗: {e}")
+        return {"status": "error", "message": str(e)}
+
+    quality_skipped = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_SKIP]")
+    error = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_ERROR]")
+
+    if isinstance(raw, str):
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError:
+            result = {"emotion": "", "description": raw, "facial": "", "body": "", "vocal": "", "intensity": ""}
+    else:
+        result = raw
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "session_id": session_id,
+        "event_type": event_type,
+        "event_type_label": EVENT_TYPE_LABELS.get(event_type, event_type),
+        "clip_sec": float(config.get("EMOTION_LLAMA_CLIP_SEC", 2.0)),
+        "quality_skipped": quality_skipped,
+        "emotion": result.get("emotion", ""),
+        "intensity": result.get("intensity", ""),
+        "facial": result.get("facial", ""),
+        "vocal": result.get("vocal", ""),
+        "description": result.get("description", ""),
+        "status": "skipped" if quality_skipped else ("error" if error else "ok"),
+    }
+
+    emotion_log_repository.append_log(entry)
+
+    if not quality_skipped and not error and entry.get("emotion"):
+        with _cache_lock:
+            _voice_cache[session_id] = entry
+        if config.get("EMOTION_LLAMA_AFFECT_BARRIER", False):
+            asyncio.create_task(_trigger_barrier_update(session_id, entry))
+
+    return entry
+
+
+async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
+    """情緒結果非同步觸發 barrier_state 更新。"""
+    try:
+        from services import intervention_pipeline_service
+        emotion_hint = {
+            "emotion": emotion_entry.get("emotion", ""),
+            "intensity": emotion_entry.get("intensity", ""),
+            "event_type": emotion_entry.get("event_type", ""),
+        }
+        await intervention_pipeline_service.run_intervention_pipeline(
+            session_id=session_id,
+            ui_context={"emotion_hint": emotion_hint},
+            speech_text="",
+            source="emotion_llama",
+        )
+    except Exception as e:
+        print(f"⚠️ Emotion barrier update 失敗: {e}")
+
+
+async def _call_gradio(video_path: str, question: str, skip_quality_check: bool = False) -> str:
+    url = f"{config.EMOTION_LLAMA_GRADIO_URL}/run/predict"
+    timeout = 30.0
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(url, json={"data": [video_path, question, skip_quality_check]})
+        resp.raise_for_status()
+        return resp.json()["data"][0]
