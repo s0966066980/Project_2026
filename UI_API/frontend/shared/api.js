@@ -138,3 +138,15 @@ export async function reportInteractionEvent(payload) {
     body: JSON.stringify(payload || {})
   }));
 }
+
+export async function analyzeEmotionEvent(sessionId, eventType, mediaBlob) {
+  const fd = new FormData();
+  fd.append('session_id', sessionId);
+  fd.append('event_type', eventType);
+  fd.append('media', mediaBlob, 'emotion_clip.webm');
+  return asJson(await fetch(`${API_BASE}/api/emotion/analyze_event`, { method: 'POST', body: fd }));
+}
+
+export async function getEmotionInterventionLogs(limit = 200) {
+  return asJson(await fetch(`${API_BASE}/api/emotion/intervention_logs?limit=${limit}`, { headers: adminHeaders() }));
+}

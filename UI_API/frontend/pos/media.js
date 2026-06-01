@@ -59,3 +59,59 @@ export function captureVideoFrameBlob(video, { maxWidth = 320, type = 'image/jpe
   });
 }
 
+// ── Rolling Buffer（Emotion-LLaMA 事件截片用）────────────────────────
+const ROLLING_CHUNK_MS = 500;
+
+let _rollingRecorder = null;
+let _rollingChunks = [];
+let _rollingMaxChunks = 6;
+
+export function startRollingBuffer(stream, clipSec = 2.0) {
+  if (_rollingRecorder && _rollingRecorder.state !== 'inactive') return;
+  if (!stream || !stream.getVideoTracks().length) return;
+
+  _rollingMaxChunks = Math.ceil((clipSec * 1000) / ROLLING_CHUNK_MS) + 2;
+  _rollingChunks = [];
+
+  _rollingRecorder = new MediaRecorder(stream, videoRecorderOptions());
+  _rollingRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) {
+      _rollingChunks.push(e.data);
+      if (_rollingChunks.length > _rollingMaxChunks) _rollingChunks.shift();
+    }
+  };
+  _rollingRecorder.start(ROLLING_CHUNK_MS);
+}
+
+export function stopRollingBuffer() {
+  if (_rollingRecorder && _rollingRecorder.state !== 'inactive') {
+    _rollingRecorder.stop();
+  }
+  _rollingRecorder = null;
+  _rollingChunks = [];
+}
+
+export async function capturePreEventClip() {
+  if (!_rollingRecorder || _rollingRecorder.state !== 'recording') return null;
+
+  return new Promise((resolve) => {
+    const snapChunks = [..._rollingChunks];
+
+    const onData = (e) => {
+      if (e.data && e.data.size > 0) snapChunks.push(e.data);
+      _rollingRecorder.removeEventListener('dataavailable', onData);
+      const blob = new Blob(snapChunks, { type: 'video/webm' });
+      resolve(blob.size > 0 ? blob : null);
+    };
+
+    _rollingRecorder.addEventListener('dataavailable', onData);
+    _rollingRecorder.requestData();
+
+    setTimeout(() => {
+      _rollingRecorder?.removeEventListener('dataavailable', onData);
+      const blob = new Blob(snapChunks, { type: 'video/webm' });
+      resolve(blob.size > 0 ? blob : null);
+    }, 100);
+  });
+}
+
