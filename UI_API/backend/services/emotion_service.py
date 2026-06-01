@@ -93,7 +93,10 @@ async def analyze_event(session_id: str, media_path: str, event_type: str) -> di
         with _cache_lock:
             _voice_cache[session_id] = entry
         if config.get("EMOTION_LLAMA_AFFECT_BARRIER", False):
-            asyncio.create_task(_trigger_barrier_update(session_id, entry))
+            try:
+                asyncio.create_task(_trigger_barrier_update(session_id, entry))
+            except RuntimeError:
+                pass
 
     return entry
 
