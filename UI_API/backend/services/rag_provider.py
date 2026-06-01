@@ -193,7 +193,7 @@ class RAGProvider:
         meta = {"source_type": source_type, **(metadata or {})}
 
         def _run() -> str:
-            embedding = RAGProvider._model.encode([content])[0].tolist()
+            embedding = next(RAGProvider._model.embed([content])).tolist()
             try:
                 RAGProvider._collection.delete(ids=[doc_id])
             except Exception:
