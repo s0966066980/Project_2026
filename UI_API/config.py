@@ -88,6 +88,21 @@ DEFAULT_SETTINGS = {
     "TTS_VOICE": "alloy",                   # openai_compatible 聲音
     "TTS_API_URL": "https://api.openai.com",
     "TTS_API_KEY": "",
+    # ── Emotion-LLaMA ─────────────────────────────────────────────
+    "EMOTION_LLAMA_ENABLED": False,
+    "EMOTION_LLAMA_CLIP_SEC": 2.0,
+    "EMOTION_LLAMA_QUALITY_CHECK": True,
+    "EMOTION_LLAMA_AFFECT_VOICE": False,
+    "EMOTION_LLAMA_AFFECT_BARRIER": False,
+    "EMOTION_LLAMA_PROMPT": (
+        "The person in video says: {speech_text}\n"
+        "[reason] What are the facial expressions, body language, gestures, and vocal tone "
+        "used in the video? What is the intended meaning behind the words? Which emotion does "
+        "this reflect? If the audio is quiet or there are few words, do not answer unable only "
+        "because speech is limited; use visible facial expressions, subtle gestures, posture, "
+        "and body language. If a person is visible but emotional cues are subtle, describe the "
+        "most likely low-intensity emotional state and the evidence."
+    ),
 }
 
 PUBLIC_SETTINGS_KEYS = {
