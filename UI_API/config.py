@@ -69,8 +69,8 @@ DEFAULT_SETTINGS = {
     "OLLAMA_LOG_RAW": False,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
     # ── RAG ───────────────────────────────────────────────────────
-    "RAG_ENABLED": False,                   # 預設關閉；加好文件後改為 True
-    "RAG_EMBEDDING_MODEL": "shibing624/text2vec-base-chinese",
+    "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
+    "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
     "RAG_COLLECTION": "kiosk_rag",
     "RAG_TOP_K": 3,                         # 每次查詢取前 K 筆
     "RAG_SCORE_THRESHOLD": 0.5,             # 相似度門檻（0~1，越高越嚴格）

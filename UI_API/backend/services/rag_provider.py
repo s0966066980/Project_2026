@@ -1,13 +1,15 @@
 """RAG Provider — Hybrid Search（Dense + BM25 + RRF）
 
 Pipeline:
-  1. Dense Vector Search  — sentence-transformers + ChromaDB（語意相近）
+  1. Dense Vector Search  — fastembed + ChromaDB（語意相近）
   2. BM25 Sparse Search   — rank-bm25 + jieba 斷詞（精確關鍵字）
   3. RRF Fusion           — Reciprocal Rank Fusion 合併排序（k=60）
   4. 注入 LLM prompt
 
-安裝依賴：pip install sentence-transformers chromadb rank-bm25 jieba
+安裝依賴：pip install fastembed chromadb rank-bm25 jieba
 切換/停用：config RAG_ENABLED = false
+
+fastembed 優點：不依賴 transformers/PyTorch，安裝乾淨，用 ONNX 執行。
 """
 import asyncio
 import os
@@ -31,10 +33,10 @@ class RAGProvider:
     def _init(self):
         """懶初始化：載入 Embedding 模型與 ChromaDB，並重建 BM25 index。"""
         if RAGProvider._model is None:
-            from sentence_transformers import SentenceTransformer
-            model_name = config.get("RAG_EMBEDDING_MODEL", "shibing624/text2vec-base-chinese")
-            print(f"載入 RAG Embedding 模型 ({model_name}, CPU)...")
-            RAGProvider._model = SentenceTransformer(model_name, device="cpu")
+            from fastembed import TextEmbedding
+            model_name = config.get("RAG_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+            print(f"載入 RAG Embedding 模型 ({model_name}, ONNX/CPU)...")
+            RAGProvider._model = TextEmbedding(model_name=model_name)
             print("✅ RAG Embedding 模型載入完成")
 
         if RAGProvider._collection is None:
@@ -118,7 +120,7 @@ class RAGProvider:
             n = min(fetch_k, count)
 
             # ── Dense Search ──
-            embedding = RAGProvider._model.encode([text])[0].tolist()
+            embedding = next(RAGProvider._model.embed([text])).tolist()
             dense_results = RAGProvider._collection.query(
                 query_embeddings=[embedding],
                 n_results=n,

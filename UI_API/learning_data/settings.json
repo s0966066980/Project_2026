@@ -17,7 +17,7 @@
     "PERFORMANCE_MODE": "balanced",
     "OLLAMA_LOG_RAW": false,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": true,
-    "RAG_ENABLED": false,
+    "RAG_ENABLED": true,
     "RAG_EMBEDDING_MODEL": "shibing624/text2vec-base-chinese",
     "RAG_COLLECTION": "kiosk_rag",
     "RAG_TOP_K": 3,
