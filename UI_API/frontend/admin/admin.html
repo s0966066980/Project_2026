@@ -93,15 +93,30 @@ body {
 .topbar {
   background: #fff;
   border-bottom: 1px solid #e8ecf4;
-  padding: 14px 28px;
+  padding: 0 28px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: stretch;
   flex-shrink: 0;
+  min-height: 56px;
 }
-.topbar-title { font-size: 18px; font-weight: 800; color: #1a2233; }
+.topbar-left {
+  display: flex; align-items: center; gap: 12px;
+}
+.topbar-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: #e8f0fe; color: #3b7aee;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+}
+.topbar-title { font-size: 17px; font-weight: 800; color: #1a2233; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
-.topbar-date { font-size: 12px; color: #8494b0; }
+.topbar-date {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: #5a6a8a;
+  background: #f4f6fa; border: 1.5px solid #e0e6f0;
+  border-radius: 8px; padding: 5px 12px;
+}
 .refresh-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 7px 14px;
@@ -253,18 +268,91 @@ tbody tr:hover td { background: #f8fafd; }
   .stat-cards   { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 700px) {
-  .sidebar { display: none; }
   .stat-cards { grid-template-columns: 1fr; }
-  .content { padding: 16px; }
 }
 .setting-row { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
-.setting-label { width:110px; flex-shrink:0; font-size:12px; font-weight:600; color:#3b4a6b; }
+.setting-label { width:120px; flex-shrink:0; font-size:12px; font-weight:600; color:#3b4a6b; }
 .setting-input {
   flex:1; padding:7px 10px; border:1.5px solid #dde3f0; border-radius:8px;
   font-size:13px; color:#1a2233; background:#fff; outline:none;
 }
 .setting-input:focus { border-color:#3b7aee; }
 .hidden { display:none !important; }
+.section-title {
+  font-size:12px; font-weight:800; color:#1a2233; margin-bottom:10px;
+  text-transform:uppercase; letter-spacing:.05em;
+}
+.settings-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:0 36px; align-items:start;
+}
+@media (max-width:900px) { .settings-grid { grid-template-columns:1fr; } }
+/* ── RAG page ── */
+#page-rag {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  grid-template-rows: 1fr;
+  gap: 24px;
+  overflow: hidden;
+}
+.rag-left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.rag-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.rag-right .rag-list-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+}
+.rag-doc-card {
+  background: #f8fafd;
+  border: 1.5px solid #edf0f7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  transition: border-color 0.15s;
+}
+.rag-doc-card:hover { border-color: #c8d6f0; }
+.rag-doc-tag {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 8px; border-radius: 6px; flex-shrink: 0;
+  margin-bottom: 6px;
+}
+.rag-doc-tag.manual  { background:#e8f0fe; color:#3b7aee; }
+.rag-doc-tag.faq     { background:#e6f7ef; color:#1db87a; }
+.rag-doc-tag.menu_supplement { background:#fff4e5; color:#f5871f; }
+.rag-doc-body { flex:1; min-width:0; }
+.rag-doc-text {
+  font-size: 12px; color: #2d3a55; line-height: 1.6;
+  white-space: pre-wrap; max-height: 72px;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+.rag-del-btn {
+  flex-shrink: 0; color: #c8d0df; background: none; border: none;
+  cursor: pointer; font-size: 14px; padding: 2px 4px;
+  border-radius: 6px; transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+.rag-del-btn:hover { color: #e84040; background: #feecec; }
+@media (max-width:1000px) { #page-rag { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+@media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
 </style>
 </head>
 <body>
@@ -285,15 +373,21 @@ tbody tr:hover td { background: #f8fafd; }
     <button class="nav-item" data-page="rag" type="button">
       <i class="fas fa-database"></i> RAG 知識庫
     </button>
+    <button class="nav-item" data-page="emotion" type="button">
+      <i class="fas fa-eye"></i> Emotion-LLaMA
+    </button>
   </nav>
 </aside>
 
 <!-- ── Main ── -->
 <div class="main">
   <div class="topbar">
-    <div class="topbar-title" id="page-title">狀態統計</div>
+    <div class="topbar-left">
+      <div class="topbar-icon" id="topbar-icon"><i class="fas fa-chart-pie"></i></div>
+      <div class="topbar-title" id="page-title">狀態統計</div>
+    </div>
     <div class="topbar-right">
-      <span class="topbar-date" id="topbar-date"></span>
+      <span class="topbar-date" id="topbar-date"><i class="fas fa-calendar-alt"></i><span id="topbar-date-text"></span></span>
     </div>
   </div>
 
@@ -405,165 +499,193 @@ tbody tr:hover td { background: #f8fafd; }
 
   <!-- Settings page -->
   <div class="content" id="page-settings" style="display:none">
-    <div class="card" style="max-width:640px">
+    <div class="card">
       <div class="card-title"><i class="fas fa-sliders-h"></i> 功能設定</div>
 
-      <div style="display:flex;flex-direction:column;gap:20px">
+      <div class="settings-grid">
 
-        <!-- Ollama -->
-        <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Ollama 模型</div>
-          <div class="setting-row">
-            <label class="setting-label">主要 LLM 模型</label>
-            <input id="inp-model-name" class="setting-input" type="text" placeholder="qwen3.5:4b">
-            <span style="font-size:11px;color:#8494b0;margin-left:6px">AI 推播 / 問答</span>
-          </div>
-          <div class="setting-row">
-            <label class="setting-label">語音 LLM 模型</label>
-            <input id="inp-voice-model" class="setting-input" type="text" placeholder="qwen3.5:4b">
-          </div>
-          <div class="setting-row">
-            <label class="setting-label">溫度（Temperature）</label>
-            <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8" style="width:90px">
-          </div>
-          <div class="setting-row">
-            <label class="setting-label">最大輸出 Token</label>
-            <input id="inp-num-predict" class="setting-input" type="number" min="64" max="8192" placeholder="2048" style="width:100px">
-          </div>
-        </section>
+        <!-- ── 左欄：模型 / STT / TTS ── -->
+        <div style="display:flex;flex-direction:column;gap:20px">
 
-        <hr style="border:none;border-top:1px solid #edf0f7">
+          <!-- Ollama -->
+          <section>
+            <div class="section-title">Ollama 模型</div>
+            <div class="setting-row">
+              <label class="setting-label">主要 LLM 模型</label>
+              <input id="inp-model-name" class="setting-input" type="text" placeholder="qwen3.5:4b">
+              <span style="font-size:11px;color:#8494b0;flex-shrink:0">AI 推播</span>
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">語音 LLM 模型</label>
+              <input id="inp-voice-model" class="setting-input" type="text" placeholder="qwen3.5:4b">
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">Temperature</label>
+              <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8">
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">最大輸出 Token</label>
+              <input id="inp-num-predict" class="setting-input" type="number" min="64" max="8192" placeholder="2048">
+            </div>
+          </section>
 
-        <!-- Prompts -->
-        <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">語音 System Prompt</div>
-          <div style="margin-bottom:8px">
-            <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:4px">中文 Prompt（空白 = 使用系統預設）</label>
-            <textarea id="inp-voice-prompt-zh" rows="5" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace" placeholder="留空使用內建預設 Prompt"></textarea>
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:4px">英文 Prompt（空白 = 使用系統預設）</label>
-            <textarea id="inp-voice-prompt-en" rows="4" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace" placeholder="留空使用內建預設 English Prompt"></textarea>
-          </div>
-        </section>
+          <hr style="border:none;border-top:1px solid #edf0f7">
 
-        <hr style="border:none;border-top:1px solid #edf0f7">
+          <!-- STT -->
+          <section>
+            <div class="section-title">STT（語音辨識）</div>
+            <div class="setting-row">
+              <label class="setting-label">提供者</label>
+              <select id="inp-stt-provider" class="setting-input" onchange="onSttProviderChange()">
+                <option value="faster_whisper">faster-whisper（本地）</option>
+                <option value="openai_compatible">OpenAI 相容 API</option>
+              </select>
+            </div>
+            <div class="setting-row" id="row-stt-model">
+              <label class="setting-label">模型大小</label>
+              <select id="inp-stt-model" class="setting-input">
+                <option value="tiny">tiny（最快，準確度較低）</option>
+                <option value="small">small（推薦）</option>
+                <option value="medium">medium（最準，較慢）</option>
+              </select>
+            </div>
+            <div class="setting-row hidden" id="row-stt-api">
+              <label class="setting-label">API URL</label>
+              <input id="inp-stt-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
+            </div>
+            <div class="setting-row hidden" id="row-stt-key">
+              <label class="setting-label">API Key</label>
+              <input id="inp-stt-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
+            </div>
+          </section>
 
-        <!-- STT -->
-        <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">STT（語音辨識）</div>
-          <div class="setting-row">
-            <label class="setting-label">提供者</label>
-            <select id="inp-stt-provider" class="setting-input" onchange="onSttProviderChange()">
-              <option value="faster_whisper">faster-whisper（本地）</option>
-              <option value="openai_compatible">OpenAI 相容 API</option>
-            </select>
-          </div>
-          <div class="setting-row" id="row-stt-model">
-            <label class="setting-label">模型大小</label>
-            <select id="inp-stt-model" class="setting-input">
-              <option value="tiny">tiny（最快，準確度較低）</option>
-              <option value="small">small（推薦）</option>
-              <option value="medium">medium（最準，較慢）</option>
-            </select>
-          </div>
-          <div class="setting-row hidden" id="row-stt-api">
-            <label class="setting-label">API URL</label>
-            <input id="inp-stt-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
-          </div>
-          <div class="setting-row hidden" id="row-stt-key">
-            <label class="setting-label">API Key</label>
-            <input id="inp-stt-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
-          </div>
-        </section>
+          <hr style="border:none;border-top:1px solid #edf0f7">
 
-        <hr style="border:none;border-top:1px solid #edf0f7">
+          <!-- TTS -->
+          <section>
+            <div class="section-title">TTS（語音合成）</div>
+            <div class="setting-row">
+              <label class="setting-label">提供者</label>
+              <select id="inp-tts-provider" class="setting-input" onchange="onTtsProviderChange()">
+                <option value="edge">Edge TTS（雲端，需網路）</option>
+                <option value="melo">MeloTTS（本地）</option>
+                <option value="openai_compatible">OpenAI 相容 API</option>
+              </select>
+            </div>
+            <div class="setting-row" id="row-tts-edge-zh">
+              <label class="setting-label">中文語音</label>
+              <input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural">
+            </div>
+            <div class="setting-row" id="row-tts-edge-en">
+              <label class="setting-label">英文語音</label>
+              <input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural">
+            </div>
+            <div class="setting-row hidden" id="row-tts-api">
+              <label class="setting-label">API URL</label>
+              <input id="inp-tts-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
+            </div>
+            <div class="setting-row hidden" id="row-tts-key">
+              <label class="setting-label">API Key</label>
+              <input id="inp-tts-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
+            </div>
+            <div class="setting-row hidden" id="row-tts-voice">
+              <label class="setting-label">聲音名稱</label>
+              <input id="inp-tts-voice" class="setting-input" type="text" placeholder="alloy">
+            </div>
+          </section>
 
-        <!-- TTS -->
-        <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">TTS（語音合成）</div>
-          <div class="setting-row">
-            <label class="setting-label">提供者</label>
-            <select id="inp-tts-provider" class="setting-input" onchange="onTtsProviderChange()">
-              <option value="edge">Edge TTS（雲端，需網路）</option>
-              <option value="melo">MeloTTS（本地）</option>
-              <option value="openai_compatible">OpenAI 相容 API</option>
-            </select>
+          <div style="display:flex;align-items:center;gap:12px;padding-top:4px">
+            <button class="refresh-btn" id="saveSettingsBtn" type="button" onclick="saveSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
+              <i class="fas fa-save"></i> 儲存設定
+            </button>
+            <span id="settings-notice" style="font-size:12px;color:#1db87a;display:none"></span>
           </div>
-          <div class="setting-row" id="row-tts-edge-zh">
-            <label class="setting-label">中文語音</label>
-            <input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural">
-          </div>
-          <div class="setting-row" id="row-tts-edge-en">
-            <label class="setting-label">英文語音</label>
-            <input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural">
-          </div>
-          <div class="setting-row hidden" id="row-tts-api">
-            <label class="setting-label">API URL</label>
-            <input id="inp-tts-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
-          </div>
-          <div class="setting-row hidden" id="row-tts-key">
-            <label class="setting-label">API Key</label>
-            <input id="inp-tts-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
-          </div>
-          <div class="setting-row hidden" id="row-tts-voice">
-            <label class="setting-label">聲音名稱</label>
-            <input id="inp-tts-voice" class="setting-input" type="text" placeholder="alloy">
-          </div>
-        </section>
+        </div>
 
-        <hr style="border:none;border-top:1px solid #edf0f7">
+        <!-- ── 右欄：System Prompts ── -->
+        <div style="display:flex;flex-direction:column;gap:20px">
 
-        <!-- RAG -->
-        <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">RAG 知識庫</div>
-          <div class="setting-row">
-            <label class="setting-label">啟用 RAG</label>
-            <select id="inp-rag-enabled" class="setting-input" style="width:160px">
-              <option value="false">關閉（預設）</option>
-              <option value="true">開啟</option>
-            </select>
-          </div>
-          <div class="setting-row">
-            <label class="setting-label">相似度門檻</label>
-            <input id="inp-rag-threshold" class="setting-input" type="number" step="0.05" min="0" max="1" placeholder="0.5" style="width:100px">
-            <span style="font-size:11px;color:#8494b0;margin-left:6px">0~1，越高越嚴格</span>
-          </div>
-          <div class="setting-row">
-            <label class="setting-label">查詢筆數</label>
-            <input id="inp-rag-top-k" class="setting-input" type="number" min="1" max="10" placeholder="3" style="width:80px">
-          </div>
-        </section>
+          <!-- Voice Prompt -->
+          <section>
+            <div class="section-title">語音 System Prompt</div>
+            <div style="margin-bottom:12px">
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文 Prompt（空白 = 使用系統預設）</label>
+              <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文 Prompt（空白 = 使用系統預設）</label>
+              <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 English Prompt"></textarea>
+            </div>
+          </section>
 
-        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
-          <button class="refresh-btn" id="saveSettingsBtn" type="button" onclick="saveSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> 儲存設定
-          </button>
-          <span id="settings-notice" style="font-size:12px;color:#1db87a;display:none"></span>
+          <hr style="border:none;border-top:1px solid #edf0f7">
+
+          <!-- AI Push Prompt -->
+          <section>
+            <div class="section-title">AI 推播 System Prompt</div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推播 Prompt（空白 = 使用系統預設）</label>
+              <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推播 Prompt"></textarea>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>
   </div>
 
-</div>
-
-  <!-- RAG page -->
+  <!-- RAG page — inside .main, two-column full-panel layout -->
   <div class="content" id="page-rag" style="display:none">
-    <div class="card" style="max-width:720px">
-      <div class="card-title"><i class="fas fa-database"></i> RAG 知識庫</div>
-      <p style="font-size:12px;color:#8494b0;margin-bottom:16px">新增政策、FAQ、套餐說明等知識，讓語音助理能回答更準確的問題。<br>啟用 RAG：後台「功能設定」→ <code>RAG_ENABLED: true</code></p>
 
-      <!-- 新增表單 -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        <select id="rag-type" class="setting-input" style="width:180px">
-          <option value="manual">政策 / 規則</option>
-          <option value="faq">FAQ</option>
-          <option value="menu_supplement">菜單補充說明</option>
-        </select>
-        <textarea id="rag-content" rows="4" class="setting-input" placeholder="輸入知識內容，例如：麥當勞早餐供應時間為每日 05:00 至 10:30。" style="resize:vertical;font-size:13px;line-height:1.6"></textarea>
+    <!-- ── 左欄：設定 + 新增表單 ── -->
+    <div class="rag-left">
+
+      <!-- RAG 設定 -->
+      <div class="card">
+        <div class="card-title"><i class="fas fa-cog"></i> RAG 設定</div>
+        <div class="setting-row">
+          <label class="setting-label">啟用 RAG</label>
+          <select id="inp-rag-enabled" class="setting-input">
+            <option value="false">關閉</option>
+            <option value="true">開啟</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">相似度門檻</label>
+          <input id="inp-rag-threshold" class="setting-input" type="number" step="0.05" min="0" max="1" placeholder="0.5">
+          <span style="font-size:11px;color:#8494b0;flex-shrink:0">0~1 越高越嚴格</span>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">查詢筆數</label>
+          <input id="inp-rag-top-k" class="setting-input" type="number" min="1" max="10" placeholder="3">
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+          <button class="refresh-btn" type="button" onclick="saveRagSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
+            <i class="fas fa-save"></i> 儲存 RAG 設定
+          </button>
+          <span id="rag-settings-notice" style="font-size:12px;display:none"></span>
+        </div>
+      </div>
+
+      <!-- 新增知識文件 -->
+      <div class="card" style="flex:1;display:flex;flex-direction:column">
+        <div class="card-title"><i class="fas fa-plus-circle"></i> 新增知識文件</div>
+        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">新增政策、FAQ、套餐說明等知識，讓語音助理回答更準確。</p>
+        <div class="setting-row">
+          <label class="setting-label">文件類型</label>
+          <select id="rag-type" class="setting-input">
+            <option value="manual">政策 / 規則</option>
+            <option value="faq">FAQ</option>
+            <option value="menu_supplement">菜單補充說明</option>
+          </select>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;margin-bottom:14px">
+          <div class="section-title" style="margin-bottom:8px">內容</div>
+          <textarea id="rag-content" class="setting-input" style="flex:1;min-height:120px;resize:vertical;font-size:13px;line-height:1.6" placeholder="輸入知識內容，例如：麥當勞早餐供應時間為每日 05:00 至 10:30。"></textarea>
+        </div>
         <div style="display:flex;align-items:center;gap:10px">
           <button class="refresh-btn" onclick="addRagDoc()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-plus"></i> 新增
+            <i class="fas fa-plus"></i> 新增文件
           </button>
           <button class="clear-btn" onclick="clearRagDocs()" type="button">
             <i class="fas fa-trash-alt"></i> 清空全部
@@ -572,13 +694,94 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
       </div>
 
-      <!-- 文件清單 -->
-      <div style="font-size:11px;font-weight:700;color:#8494b0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
-        已儲存文件 <span id="rag-count" style="color:#3b7aee"></span>
+    </div>
+
+    <!-- ── 右欄：文件清單 ── -->
+    <div class="card rag-right">
+      <div class="card-title" style="flex-shrink:0">
+        <i class="fas fa-database"></i> 已儲存文件
+        <span id="rag-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
+        <button class="refresh-btn" onclick="loadRagDocs()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
       </div>
-      <div id="rag-list" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto"></div>
+      <div id="rag-list" class="rag-list-body"></div>
+    </div>
+
+  </div>
+
+  <!-- Emotion-LLaMA page -->
+  <div class="content" id="page-emotion" style="display:none">
+
+    <!-- 設定卡片 -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><i class="fas fa-eye"></i> Emotion-LLaMA 設定</div>
+      <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0">
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用分析</label>
+          <input type="checkbox" id="inp-emotion-enabled">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">片段時長（秒）</label>
+          <input type="number" id="inp-emotion-clip-sec" class="setting-input" style="width:100px" min="1" max="10" step="0.5">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用品質快篩</label>
+          <input type="checkbox" id="inp-emotion-quality-check">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">結果注入語音 Prompt</label>
+          <input type="checkbox" id="inp-emotion-affect-voice">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">結果影響介入系統</label>
+          <input type="checkbox" id="inp-emotion-affect-barrier">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:13px;color:var(--text2)">分析 Prompt 模板（{speech_text} 為語音文字佔位）</label>
+          <textarea id="inp-emotion-prompt" class="setting-input" rows="5" style="resize:vertical;font-size:12px;line-height:1.5"></textarea>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-primary" onclick="saveEmotionSettings()" type="button">儲存設定</button>
+          <span id="emotion-settings-notice" style="font-size:12px;color:#1db87a;display:none">已儲存</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 介入紀錄卡片 -->
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span><i class="fas fa-list-alt"></i> Emotion-LLaMA 介入紀錄</span>
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="clearEmotionLogs()" type="button">
+          <i class="fas fa-trash-alt"></i> 清除
+        </button>
+      </div>
+      <div id="emotion-logs-table-wrap" style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface2);text-align:left">
+              <th style="padding:8px 10px">時間</th>
+              <th style="padding:8px 10px">Session ID</th>
+              <th style="padding:8px 10px">事件類型</th>
+              <th style="padding:8px 10px">分析結果</th>
+            </tr>
+          </thead>
+          <tbody id="emotion-logs-tbody">
+            <tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
+
+</div><!-- /.main -->
 
 <script type="module" src="/static/admin/admin.js"></script>
 </body>

@@ -1,6 +1,11 @@
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
 
+const DEFAULT_PUSH_PROMPT =
+  '你是麥當勞自助點餐機的 AI 推播助手。' +
+  '只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。' +
+  '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。';
+
 // ── Menu cache (for name/image lookup) ──
 let menuCache = {};
 
@@ -20,9 +25,9 @@ function menuName(id)  { return menuCache[id]?.name  || id; }
 function menuImage(id) { return menuCache[id]?.image || ''; }
 
 // ── Date in topbar ──
-const dateEl = document.getElementById('topbar-date');
-if (dateEl) {
-  dateEl.textContent = new Date().toLocaleDateString('zh-TW', {
+const dateTextEl = document.getElementById('topbar-date-text');
+if (dateTextEl) {
+  dateTextEl.textContent = new Date().toLocaleDateString('zh-TW', {
     year: 'numeric', month: '2-digit', day: '2-digit',
   });
 }
@@ -48,12 +53,21 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫' };
+    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA' };
+    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye' };
     const titleEl = document.getElementById('page-title');
+    const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
+    if (iconEl) {
+      const ico = document.createElement('i');
+      ico.className = `fas ${icons[page] || 'fa-circle'}`;
+      iconEl.textContent = '';
+      iconEl.appendChild(ico);
+    }
     if (page === 'stats') loadStats();
     if (page === 'settings') loadSettings();
-    if (page === 'rag') loadRagDocs();
+    if (page === 'rag') { loadRagSettings(); loadRagDocs(); }
+    if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
   });
 });
 
@@ -314,6 +328,7 @@ async function loadSettings() {
     // Prompts
     setVal('inp-voice-prompt-zh', s.VOICE_ASSIST_SYSTEM_PROMPT    || '');
     setVal('inp-voice-prompt-en', s.VOICE_ASSIST_SYSTEM_PROMPT_EN || '');
+    setVal('inp-push-prompt',     s.AI_PUSH_SYSTEM_PROMPT         || DEFAULT_PUSH_PROMPT);
     // STT
     setVal('inp-stt-provider',  s.STT_PROVIDER        || 'faster_whisper');
     setVal('inp-stt-model',     s.STT_MODEL           || 'small');
@@ -326,10 +341,6 @@ async function loadSettings() {
     setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
     setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
-    // RAG
-    setVal('inp-rag-enabled',   String(s.RAG_ENABLED  ?? false));
-    setVal('inp-rag-threshold', s.RAG_SCORE_THRESHOLD ?? 0.5);
-    setVal('inp-rag-top-k',     s.RAG_TOP_K           ?? 3);
 
     onSttProviderChange();
     onTtsProviderChange();
@@ -353,6 +364,7 @@ async function saveSettings() {
       // Prompts
       VOICE_ASSIST_SYSTEM_PROMPT:    val('inp-voice-prompt-zh'),
       VOICE_ASSIST_SYSTEM_PROMPT_EN: val('inp-voice-prompt-en'),
+      AI_PUSH_SYSTEM_PROMPT:         val('inp-push-prompt') === DEFAULT_PUSH_PROMPT ? '' : val('inp-push-prompt'),
       // STT
       STT_PROVIDER:        val('inp-stt-provider')  || 'faster_whisper',
       STT_MODEL:           val('inp-stt-model')     || 'small',
@@ -365,10 +377,6 @@ async function saveSettings() {
       TTS_API_URL:         val('inp-tts-api-url'),
       TTS_API_KEY:         val('inp-tts-api-key'),
       TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
-      // RAG
-      RAG_ENABLED:         val('inp-rag-enabled') === 'true',
-      RAG_SCORE_THRESHOLD: parseFloat(val('inp-rag-threshold') || '0.5'),
-      RAG_TOP_K:           parseInt(val('inp-rag-top-k') || '3', 10),
     };
     const res = await fetch(`${API}/api/settings`, {
       method: 'POST',
@@ -393,7 +401,154 @@ async function saveSettings() {
   }
 }
 
-// ── RAG ──
+// ── Emotion-LLaMA settings ──
+
+async function loadEmotionSettings() {
+  try {
+    const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const s = await res.json();
+    g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_LLAMA_ENABLED);
+    setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC    ?? 2.0);
+    g('inp-emotion-quality-check').checked  = s.EMOTION_LLAMA_QUALITY_CHECK !== false;
+    g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_LLAMA_AFFECT_VOICE);
+    g('inp-emotion-affect-barrier').checked = Boolean(s.EMOTION_LLAMA_AFFECT_BARRIER);
+    setVal('inp-emotion-prompt',              s.EMOTION_LLAMA_PROMPT || '');
+  } catch (e) {
+    console.error('loadEmotionSettings failed', e);
+  }
+}
+
+async function saveEmotionSettings() {
+  const notice = g('emotion-settings-notice');
+  if (notice) notice.style.display = 'none';
+  try {
+    const body = {
+      EMOTION_LLAMA_ENABLED:        g('inp-emotion-enabled').checked,
+      EMOTION_LLAMA_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
+      EMOTION_LLAMA_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
+      EMOTION_LLAMA_AFFECT_VOICE:   g('inp-emotion-affect-voice').checked,
+      EMOTION_LLAMA_AFFECT_BARRIER: g('inp-emotion-affect-barrier').checked,
+      EMOTION_LLAMA_PROMPT:         val('inp-emotion-prompt'),
+    };
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (notice) { notice.style.display = 'inline'; setTimeout(() => { notice.style.display = 'none'; }, 2000); }
+  } catch (e) {
+    console.error('saveEmotionSettings failed', e);
+  }
+}
+
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const EMOTION_EVENT_LABELS = {
+  tutorial_popup: '如何點餐彈跳視窗',
+};
+
+async function loadEmotionLogs() {
+  const tbody = g('emotion-logs-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>';
+  try {
+    const res = await fetch(`${API}/api/emotion/intervention_logs?limit=200`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const logs = (data.logs || []).slice().reverse();
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(r => {
+      const time = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
+      const sid  = escHtml(r.session_id || '—');
+      const evt  = escHtml(EMOTION_EVENT_LABELS[r.event_type] || r.event_type || '—');
+      let emo;
+      if (r.quality_skipped) {
+        emo = '<span style="color:var(--text2)">品質快篩跳過</span>';
+      } else if (r.status === 'error') {
+        emo = '<span style="color:var(--danger)">分析失敗</span>';
+      } else {
+        emo = escHtml(
+          [r.emotion, r.intensity ? `（${r.intensity}）` : '', r.description]
+            .filter(Boolean).join(' ')
+        );
+      }
+      return `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:7px 10px;white-space:nowrap">${time}</td>
+        <td style="padding:7px 10px;font-family:monospace;font-size:11px">${sid}</td>
+        <td style="padding:7px 10px">${evt}</td>
+        <td style="padding:7px 10px;max-width:320px;overflow-wrap:break-word">${emo}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function clearEmotionLogs() {
+  if (!confirm('確定清除所有 Emotion-LLaMA 介入紀錄？')) return;
+  try {
+    await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
+    loadEmotionLogs();
+  } catch (e) {
+    console.error('clearEmotionLogs failed', e);
+  }
+}
+
+// ── RAG settings ──
+
+async function loadRagSettings() {
+  try {
+    const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const s = await res.json();
+    setVal('inp-rag-enabled',   String(s.RAG_ENABLED  ?? false));
+    setVal('inp-rag-threshold', s.RAG_SCORE_THRESHOLD ?? 0.5);
+    setVal('inp-rag-top-k',     s.RAG_TOP_K           ?? 3);
+  } catch (e) {
+    console.error('loadRagSettings failed', e);
+  }
+}
+
+async function saveRagSettings() {
+  const notice = g('rag-settings-notice');
+  try {
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        RAG_ENABLED:         val('inp-rag-enabled') === 'true',
+        RAG_SCORE_THRESHOLD: parseFloat(val('inp-rag-threshold') || '0.5'),
+        RAG_TOP_K:           parseInt(val('inp-rag-top-k') || '3', 10),
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (notice) {
+      notice.textContent = '✓ 儲存成功';
+      notice.style.color = '#1db87a';
+      notice.style.display = '';
+      setTimeout(() => { notice.style.display = 'none'; }, 3000);
+    }
+  } catch (e) {
+    if (notice) {
+      notice.textContent = `✗ 儲存失敗：${e.message}`;
+      notice.style.color = '#e84040';
+      notice.style.display = '';
+    }
+  }
+}
+
+// ── RAG docs ──
 
 const RAG_TYPE_LABELS = {
   manual: '政策/規則', faq: 'FAQ', menu_supplement: '菜單補充',
@@ -409,38 +564,52 @@ function ragNotice(msg, ok = true) {
 }
 
 async function loadRagDocs() {
+  const list = document.getElementById('rag-list');
+  if (!list) return;
   try {
     const res = await fetch(`${API}/api/rag/docs`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const docs = data.docs || [];
+
     const countEl = document.getElementById('rag-count');
-    if (countEl) countEl.textContent = `(${docs.length})`;
-    const list = document.getElementById('rag-list');
-    if (!list) return;
+    if (countEl) countEl.textContent = docs.length ? `(${docs.length})` : '';
+
     list.textContent = '';
     if (!docs.length) {
-      list.innerHTML = '<div style="color:#adb5c9;font-size:13px;padding:12px 0">尚無知識文件。</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:#adb5c9;font-size:13px;padding:20px 0;text-align:center';
+      empty.textContent = '尚無知識文件。';
+      list.appendChild(empty);
       return;
     }
+
     docs.forEach(doc => {
       const card = document.createElement('div');
-      card.style.cssText = 'background:#f8fafd;border:1px solid #edf0f7;border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start';
+      card.className = 'rag-doc-card';
+
       const body = document.createElement('div');
-      body.style.cssText = 'flex:1;min-width:0';
+      body.className = 'rag-doc-body';
+
       const tag = document.createElement('span');
-      tag.style.cssText = 'font-size:10px;font-weight:700;color:#3b7aee;text-transform:uppercase;letter-spacing:.04em';
+      const tagClass = { manual: 'manual', faq: 'faq', menu_supplement: 'menu_supplement' };
+      tag.className = `rag-doc-tag ${tagClass[doc.source_type] || 'manual'}`;
       tag.textContent = RAG_TYPE_LABELS[doc.source_type] || doc.source_type;
+
       const text = document.createElement('div');
-      text.style.cssText = 'font-size:12px;color:#2d3a55;margin-top:4px;white-space:pre-wrap;line-height:1.5;max-height:80px;overflow:hidden;text-overflow:ellipsis';
+      text.className = 'rag-doc-text';
       text.textContent = doc.content;
+
       body.append(tag, text);
+
       const del = document.createElement('button');
-      del.style.cssText = 'flex-shrink:0;color:#e84040;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px';
+      del.className = 'rag-del-btn';
+      del.title = '刪除';
       const icon = document.createElement('i');
       icon.className = 'fas fa-trash';
       del.appendChild(icon);
       del.onclick = () => deleteRagDoc(doc.id);
+
       card.append(body, del);
       list.appendChild(card);
     });
@@ -499,10 +668,14 @@ async function clearRagDocs() {
 // expose to inline handlers
 window.onSttProviderChange = onSttProviderChange;
 window.onTtsProviderChange = onTtsProviderChange;
-window.saveSettings = saveSettings;
-window.addRagDoc = addRagDoc;
-window.deleteRagDoc = deleteRagDoc;
-window.clearRagDocs = clearRagDocs;
+window.saveSettings    = saveSettings;
+window.saveRagSettings = saveRagSettings;
+window.loadRagDocs     = loadRagDocs;
+window.addRagDoc       = addRagDoc;
+window.deleteRagDoc    = deleteRagDoc;
+window.clearRagDocs    = clearRagDocs;
+window.saveEmotionSettings = saveEmotionSettings;
+window.clearEmotionLogs    = clearEmotionLogs;
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
@@ -510,4 +683,8 @@ document.getElementById('clearBtn')?.addEventListener('click', clearStats);
 
 // 先載入菜單對照表，再載入統計
 loadMenu().then(loadStats);
-setInterval(loadStats, 15000);
+// 只在統計頁可見時才自動重整
+setInterval(() => {
+  const statsPage = document.getElementById('page-stats');
+  if (statsPage && statsPage.style.display !== 'none') loadStats();
+}, 15000);
