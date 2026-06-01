@@ -60,9 +60,13 @@ export function captureVideoFrameBlob(video, { maxWidth = 320, type = 'image/jpe
 }
 
 // ── Rolling Buffer（Emotion-LLaMA 事件截片用）────────────────────────
+// WebM 格式說明：MediaRecorder 第一個 chunk 是含 EBML 標頭的 init segment，
+// 後續 chunks 是無法獨立解碼的 continuation fragments。
+// 截片時必須永遠在最前面補上 init segment，否則 ffmpeg 會報 EBML header parsing failed。
 const ROLLING_CHUNK_MS = 500;
 
 let _rollingRecorder = null;
+let _rollingInitChunk = null;   // 保存含 EBML 標頭的第一個 chunk
 let _rollingChunks = [];
 let _rollingMaxChunks = 6;
 
@@ -71,14 +75,18 @@ export function startRollingBuffer(stream, clipSec = 2.0) {
   if (!stream || !stream.getVideoTracks().length) return;
 
   _rollingMaxChunks = Math.ceil((clipSec * 1000) / ROLLING_CHUNK_MS) + 2;
+  _rollingInitChunk = null;
   _rollingChunks = [];
 
   _rollingRecorder = new MediaRecorder(stream, videoRecorderOptions());
   _rollingRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) {
-      _rollingChunks.push(e.data);
-      if (_rollingChunks.length > _rollingMaxChunks) _rollingChunks.shift();
+    if (!e.data || e.data.size === 0) return;
+    if (_rollingInitChunk === null) {
+      _rollingInitChunk = e.data;   // 第一個 chunk = init segment，單獨保存
+      return;
     }
+    _rollingChunks.push(e.data);
+    if (_rollingChunks.length > _rollingMaxChunks) _rollingChunks.shift();
   };
   _rollingRecorder.start(ROLLING_CHUNK_MS);
 }
@@ -88,6 +96,7 @@ export function stopRollingBuffer() {
     _rollingRecorder.stop();
   }
   _rollingRecorder = null;
+  _rollingInitChunk = null;
   _rollingChunks = [];
 }
 
@@ -98,13 +107,19 @@ export async function capturePreEventClip() {
     const snapChunks = [..._rollingChunks];
     let resolved = false;
 
-    const onData = (e) => {
-      if (e.data && e.data.size > 0) snapChunks.push(e.data);
-      _rollingRecorder.removeEventListener('dataavailable', onData);
+    const finish = (flushedChunk) => {
       if (resolved) return;
       resolved = true;
-      const blob = new Blob(snapChunks, { type: 'video/webm' });
+      if (flushedChunk && flushedChunk.size > 0) snapChunks.push(flushedChunk);
+      // init segment 必須排在最前面，確保 EBML 標頭完整
+      const allChunks = _rollingInitChunk ? [_rollingInitChunk, ...snapChunks] : snapChunks;
+      const blob = new Blob(allChunks, { type: 'video/webm' });
       resolve(blob.size > 0 ? blob : null);
+    };
+
+    const onData = (e) => {
+      _rollingRecorder.removeEventListener('dataavailable', onData);
+      finish(e.data);
     };
 
     _rollingRecorder.addEventListener('dataavailable', onData);
@@ -112,10 +127,7 @@ export async function capturePreEventClip() {
 
     setTimeout(() => {
       _rollingRecorder?.removeEventListener('dataavailable', onData);
-      if (resolved) return;
-      resolved = true;
-      const blob = new Blob(snapChunks, { type: 'video/webm' });
-      resolve(blob.size > 0 ? blob : null);
+      finish(null);
     }, 100);
   });
 }
