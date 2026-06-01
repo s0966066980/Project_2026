@@ -96,10 +96,13 @@ export async function capturePreEventClip() {
 
   return new Promise((resolve) => {
     const snapChunks = [..._rollingChunks];
+    let resolved = false;
 
     const onData = (e) => {
       if (e.data && e.data.size > 0) snapChunks.push(e.data);
       _rollingRecorder.removeEventListener('dataavailable', onData);
+      if (resolved) return;
+      resolved = true;
       const blob = new Blob(snapChunks, { type: 'video/webm' });
       resolve(blob.size > 0 ? blob : null);
     };
@@ -109,6 +112,8 @@ export async function capturePreEventClip() {
 
     setTimeout(() => {
       _rollingRecorder?.removeEventListener('dataavailable', onData);
+      if (resolved) return;
+      resolved = true;
       const blob = new Blob(snapChunks, { type: 'video/webm' });
       resolve(blob.size > 0 ? blob : null);
     }, 100);
