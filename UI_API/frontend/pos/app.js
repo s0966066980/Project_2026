@@ -2106,7 +2106,7 @@ const tutorialPopupEl = document.getElementById('tutorialPopup');
 const tutorialTimerBar = document.getElementById('tutorialPopupTimerBar');
 
 async function _triggerEmotionCapture(eventType) {
-  if (!runtimeSettings.EMOTION_LLAMA_ENABLED) return;
+  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
   try {
     const blob = await capturePreEventClip();
     if (!blob) return;
