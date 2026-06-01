@@ -265,7 +265,7 @@ def get_chat():
 # =========================================================
 # 核心推論函式
 # =========================================================
-def process_video_question(video_path: str, question: str) -> str:
+def process_video_question(video_path: str, question: str, skip_quality_check: bool = False) -> str:
     """
     依據 conversation.py 的實際 API 實作正確推論流程：
 
@@ -292,10 +292,11 @@ def process_video_question(video_path: str, question: str) -> str:
     if not video_ok:
         return f"[EMOTION_LLAMA_ERROR] {video_error}: {video_path}"
 
-    quality_ok, quality_reason = _quick_quality_check(video_path)
-    if not quality_ok:
-        print(f"⚠️ Emotion-LLaMA 品質快篩未通過: {quality_reason}")
-        return f"[EMOTION_LLAMA_SKIP] {quality_reason}"
+    if not skip_quality_check:
+        quality_ok, quality_reason = _quick_quality_check(video_path)
+        if not quality_ok:
+            print(f"⚠️ Emotion-LLaMA 品質快篩未通過: {quality_reason}")
+            return f"[EMOTION_LLAMA_SKIP] {quality_reason}"
 
     chat = get_chat()
 
@@ -383,6 +384,7 @@ if __name__ == "__main__":
         inputs=[
             gr.Textbox(label="視頻路徑", placeholder="例如：/tmp/video.webm"),
             gr.Textbox(label="問題", placeholder="例如：視頻中的人物表達了什麼情緒？"),
+            gr.Checkbox(label="跳過品質快篩", value=False),
         ],
         outputs=gr.Textbox(label="模型回答"),
         title="Emotion-LLaMA API",
