@@ -272,11 +272,10 @@ tbody tr:hover td { background: #f8fafd; }
 <!-- ── Sidebar ── -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <div class="sidebar-brand-title">AI 推播系統</div>
+    <div class="sidebar-brand-title">AI 多模態點餐機</div>
     <div class="sidebar-brand-sub">Admin 管理台</div>
   </div>
   <nav class="sidebar-nav">
-    <div class="nav-section-label">主選單</div>
     <button class="nav-item active" data-page="stats" type="button">
       <i class="fas fa-chart-pie"></i> 狀態統計
     </button>
@@ -287,11 +286,6 @@ tbody tr:hover td { background: #f8fafd; }
       <i class="fas fa-database"></i> RAG 知識庫
     </button>
   </nav>
-  <div class="sidebar-footer">
-    <button class="nav-item" type="button" onclick="location.href='/'">
-      <i class="fas fa-arrow-left"></i> 返回 POS
-    </button>
-  </div>
 </aside>
 
 <!-- ── Main ── -->
@@ -300,6 +294,14 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="topbar-title" id="page-title">狀態統計</div>
     <div class="topbar-right">
       <span class="topbar-date" id="topbar-date"></span>
+    </div>
+  </div>
+
+  <!-- Stats page -->
+  <div class="content" id="page-stats">
+
+    <!-- 統計操作列：固定在統計頁右上 -->
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px;flex-shrink:0">
       <button class="refresh-btn" id="refreshBtn" type="button">
         <i class="fas fa-sync-alt"></i> 重新整理
       </button>
@@ -307,10 +309,6 @@ tbody tr:hover td { background: #f8fafd; }
         <i class="fas fa-trash-alt"></i> 清除統計
       </button>
     </div>
-  </div>
-
-  <!-- Stats page -->
-  <div class="content" id="page-stats">
 
     <div class="summary-row">
       <!-- Donut chart -->
@@ -414,10 +412,38 @@ tbody tr:hover td { background: #f8fafd; }
 
         <!-- Ollama -->
         <section>
-          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Ollama 語音模型</div>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Ollama 模型</div>
+          <div class="setting-row">
+            <label class="setting-label">主要 LLM 模型</label>
+            <input id="inp-model-name" class="setting-input" type="text" placeholder="qwen3.5:4b">
+            <span style="font-size:11px;color:#8494b0;margin-left:6px">AI 推播 / 問答</span>
+          </div>
           <div class="setting-row">
             <label class="setting-label">語音 LLM 模型</label>
             <input id="inp-voice-model" class="setting-input" type="text" placeholder="qwen3.5:4b">
+          </div>
+          <div class="setting-row">
+            <label class="setting-label">溫度（Temperature）</label>
+            <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8" style="width:90px">
+          </div>
+          <div class="setting-row">
+            <label class="setting-label">最大輸出 Token</label>
+            <input id="inp-num-predict" class="setting-input" type="number" min="64" max="8192" placeholder="2048" style="width:100px">
+          </div>
+        </section>
+
+        <hr style="border:none;border-top:1px solid #edf0f7">
+
+        <!-- Prompts -->
+        <section>
+          <div style="font-size:12px;font-weight:800;color:#1a2233;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">語音 System Prompt</div>
+          <div style="margin-bottom:8px">
+            <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:4px">中文 Prompt（空白 = 使用系統預設）</label>
+            <textarea id="inp-voice-prompt-zh" rows="5" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace" placeholder="留空使用內建預設 Prompt"></textarea>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:4px">英文 Prompt（空白 = 使用系統預設）</label>
+            <textarea id="inp-voice-prompt-en" rows="4" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace" placeholder="留空使用內建預設 English Prompt"></textarea>
           </div>
         </section>
 

@@ -306,11 +306,20 @@ async function loadSettings() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
 
+    // Ollama
+    setVal('inp-model-name',    s.MODEL_NAME          || 'qwen3.5:4b');
     setVal('inp-voice-model',   s.VOICE_ASSIST_MODEL  || 'qwen3.5:4b');
+    setVal('inp-temperature',   s.OLLAMA_TEMPERATURE  ?? 0.8);
+    setVal('inp-num-predict',   s.OLLAMA_NUM_PREDICT  ?? 2048);
+    // Prompts
+    setVal('inp-voice-prompt-zh', s.VOICE_ASSIST_SYSTEM_PROMPT    || '');
+    setVal('inp-voice-prompt-en', s.VOICE_ASSIST_SYSTEM_PROMPT_EN || '');
+    // STT
     setVal('inp-stt-provider',  s.STT_PROVIDER        || 'faster_whisper');
     setVal('inp-stt-model',     s.STT_MODEL           || 'small');
     setVal('inp-stt-api-url',   s.STT_API_URL         || '');
     setVal('inp-stt-api-key',   s.STT_API_KEY         || '');
+    // TTS
     setVal('inp-tts-provider',  s.TTS_PROVIDER        || 'edge');
     setVal('inp-tts-voice-zh',  s.EDGE_TTS_VOICE      || 'zh-TW-HsiaoChenNeural');
     setVal('inp-tts-voice-en',  s.EDGE_TTS_VOICE_EN   || 'en-US-JennyNeural');
@@ -336,11 +345,20 @@ async function saveSettings() {
   if (notice) { notice.style.display = 'none'; }
   try {
     const body = {
-      VOICE_ASSIST_MODEL:  val('inp-voice-model')  || 'qwen3.5:4b',
+      // Ollama
+      MODEL_NAME:                val('inp-model-name')      || 'qwen3.5:4b',
+      VOICE_ASSIST_MODEL:        val('inp-voice-model')     || 'qwen3.5:4b',
+      OLLAMA_TEMPERATURE:        parseFloat(val('inp-temperature') || '0.8'),
+      OLLAMA_NUM_PREDICT:        parseInt(val('inp-num-predict') || '2048', 10),
+      // Prompts
+      VOICE_ASSIST_SYSTEM_PROMPT:    val('inp-voice-prompt-zh'),
+      VOICE_ASSIST_SYSTEM_PROMPT_EN: val('inp-voice-prompt-en'),
+      // STT
       STT_PROVIDER:        val('inp-stt-provider')  || 'faster_whisper',
       STT_MODEL:           val('inp-stt-model')     || 'small',
       STT_API_URL:         val('inp-stt-api-url'),
       STT_API_KEY:         val('inp-stt-api-key'),
+      // TTS
       TTS_PROVIDER:        val('inp-tts-provider')  || 'edge',
       EDGE_TTS_VOICE:      val('inp-tts-voice-zh')  || 'zh-TW-HsiaoChenNeural',
       EDGE_TTS_VOICE_EN:   val('inp-tts-voice-en')  || 'en-US-JennyNeural',
