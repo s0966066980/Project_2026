@@ -2,14 +2,13 @@
 
 BARRIER_STATES = {
     "normal_operation", "menu_hesitation", "operation_confusion",
-    "payment_confusion", "coupon_confusion", "impatience_detected",
+    "payment_confusion", "impatience_detected",
     "service_needed", "potential_complaint", "low_confidence",
 }
 
 INTERVENTION_CATEGORY_MAP = {
     "menu_hesitation": "menu_confusion",
     "payment_confusion": "operation_difficulty",
-    "coupon_confusion": "operation_difficulty",
     "operation_confusion": "operation_difficulty",
     "impatience_detected": "service_needed",
     "service_needed": "service_needed",
@@ -28,7 +27,6 @@ INTERVENTION_CATEGORY_LABELS = {
 PATENT_CATEGORY_MAP = {
     "menu_hesitation": "decision_hesitation",
     "payment_confusion": "operation_failure",
-    "coupon_confusion": "operation_failure",
     "operation_confusion": "operation_failure",
     "impatience_detected": "service_or_question",
     "service_needed": "service_or_question",
@@ -91,10 +89,9 @@ def _severity_from(evidence_count: int) -> float:
 def map_barrier_to_default_action(barrier_state: str) -> str:
     mapping = {
         "payment_confusion": "show_payment_tutorial",
-        "coupon_confusion": "show_coupon_guide",
         "operation_confusion": "show_operation_hint",
         "menu_hesitation": "recommend_popular_combo",
-        "impatience_detected": "call_staff_or_fast_mode",
+        "impatience_detected": "call_staff",
         "service_needed": "call_staff",
         "potential_complaint": "call_staff",
         "low_confidence": "ask_clarifying_question",
@@ -130,7 +127,6 @@ def infer_barrier_state(
     evidence = []
 
     payment_fail_count = _max_field(events, "payment_fail_count")
-    coupon_error_count = _max_field(events, "coupon_error_count")
     category_switch_count = _max_field(events, "category_switch_count")
     cart_remove_count = _max_field(events, "cart_remove_count")
     max_dwell_time_sec = _max_field(events, "dwell_time_sec")
@@ -146,12 +142,6 @@ def infer_barrier_state(
     elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]):
         barrier_state = "payment_confusion"
         evidence.append("speech contains payment issue")
-    elif page_id == "coupon_page" and coupon_error_count >= 1:
-        barrier_state = "coupon_confusion"
-        evidence.extend(["page_id=coupon_page", "coupon_error_count >= 1"])
-    elif _contains_any(speech, ["優惠券", "折扣碼", "掃碼", "qr", "QR"]) and coupon_error_count >= 1:
-        barrier_state = "coupon_confusion"
-        evidence.extend(["coupon_error_count >= 1", "speech contains coupon issue"])
     elif _contains_any(speech, ["不知道吃什麼", "推薦", "吃什麼", "選不出來", "猶豫"]):
         barrier_state = "menu_hesitation"
         evidence.append("speech contains menu hesitation")
@@ -203,7 +193,6 @@ def infer_barrier_state(
         "evidence": evidence,
         "recommended_action": map_barrier_to_default_action(barrier_state),
         "payment_fail_count": payment_fail_count,
-        "coupon_error_count": coupon_error_count,
         "category_switch_count": category_switch_count,
         "cart_remove_count": cart_remove_count,
         **map_barrier_to_category(barrier_state),

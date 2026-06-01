@@ -182,7 +182,6 @@ def _privacy_event_vector(record: dict) -> dict:
         "back_count": _as_number(record.get("back_count")),
         "invalid_touch_count": _as_number(record.get("invalid_touch_count")),
         "payment_fail_count": _as_number(record.get("payment_fail_count")),
-        "coupon_error_count": _as_number(record.get("coupon_error_count")),
         "cart_edit_count": _as_number(record.get("cart_edit_count")),
         "category_switch_count": _as_number(record.get("category_switch_count")),
         "cart_remove_count": _as_number(record.get("cart_remove_count")),

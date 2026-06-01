@@ -3,7 +3,6 @@ NUMERIC_FIELDS = {
     "back_count": 0,
     "invalid_touch_count": 0,
     "payment_fail_count": 0,
-    "coupon_error_count": 0,
     "category_switch_count": 0,
     "cart_remove_count": 0,
 }

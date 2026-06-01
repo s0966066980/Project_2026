@@ -45,7 +45,6 @@ ISSUE_EVENT_TYPES = {
     "invalid_touch",
     "payment_failed",
     "checkout_error",
-    "coupon_error",
     "customer_service_failed",
     "voice_order_failed",
     "menu_page_dwell_timeout",

@@ -51,33 +51,27 @@ _settings_lock = threading.RLock()  # RLock allows re-entry from save_settings �
 # ==========================================
 DEFAULT_SETTINGS = {
     "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
-    "AI_PROVIDER": "ollama",
-    "QA_AI_PROVIDER": "ollama",
     "MODEL_NAME": "qwen3.5:4b",
     "ENABLE_GEMINI_OPTIONS": False,
     "GEMINI_MODEL_NAME": "gemini-3-flash-preview",
-    "GEMINI_FALLBACK_TO_OLLAMA": True,
     "GEMINI_COOLDOWN_SEC": 60,
     "GEMINI_NUM_PREDICT": 512,
     "GEMINI_USE_JSON_MIME": False,
     "ENABLE_DEBUG_ROUTES": False,
-    "ALLOW_POS_RUNTIME_SETTING_QUERY": False,
-    "USE_AI_RECOMMEND": True,
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
-    "PERFORMANCE_MODE": "balanced",
     "OLLAMA_LOG_RAW": False,
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
     # ── RAG ───────────────────────────────────────────────────────
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
     "RAG_COLLECTION": "kiosk_rag",
-    "RAG_TOP_K": 3,                         # 每次查詢取前 K 筆
-    "RAG_SCORE_THRESHOLD": 0.5,             # 相似度門檻（0~1，越高越嚴格）
+    "RAG_TOP_K": 3,
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
     "VOICE_ASSIST_SYSTEM_PROMPT": "",       # 空字串 = 使用 voice_service 內建預設
     "VOICE_ASSIST_SYSTEM_PROMPT_EN": "",
+    "AI_PUSH_SYSTEM_PROMPT": "",            # 空字串 = 使用 ai_push_service 內建預設
     # ── STT ───────────────────────────────────
     "STT_PROVIDER": "faster_whisper",       # "faster_whisper" | "openai_compatible"
     "STT_MODEL": "small",                   # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
@@ -98,8 +92,6 @@ DEFAULT_SETTINGS = {
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
-    "PERFORMANCE_MODE",
-    "USE_AI_RECOMMEND",
 }
 
 

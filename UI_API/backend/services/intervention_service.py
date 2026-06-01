@@ -4,42 +4,26 @@ from datetime import datetime
 def _base_patch() -> dict:
     return {
         "show_modal": "",
-        "highlight": [],
         "disable_promotion": False,
-        "simplified_mode": False,
     }
 
 
 _STATE_PRESENTATION = {
     "payment_confusion": {
         "action_level": "medium",
-        "patch": {
-            "show_modal": "payment_guide",
-            "highlight": ["payment_method_panel"],
-            "disable_promotion": True,
-        },
+        "patch": {"show_modal": "payment_guide", "disable_promotion": True},
         "tts_text": "我可以協助您完成付款，請選擇下方付款方式。",
         "reason": "偵測到付款頁停留與付款失敗，顧客可能付款卡關。",
     },
-    "coupon_confusion": {
-        "action_level": "medium",
-        "patch": {"show_modal": "coupon_guide", "highlight": ["coupon_input"]},
-        "tts_text": "我可以協助您使用優惠券，請確認折扣碼或掃碼內容。",
-        "reason": "偵測到優惠券或掃碼錯誤，顧客可能卡在折扣流程。",
-    },
     "operation_confusion": {
         "action_level": "medium",
-        "patch": {"show_modal": "operation_hint", "simplified_mode": True},
+        "patch": {"show_modal": "operation_hint"},
         "tts_text": "我可以協助您操作，請先點選想要的餐點再加入購物車。",
-        "reason": "偵測到操作困惑，介面切換為較簡化的協助模式。",
+        "reason": "偵測到操作困惑，顯示操作提示協助顧客。",
     },
     "menu_hesitation": {
         "action_level": "low",
-        "patch": {
-            "show_modal": "recommendation_card",
-            "highlight": ["menu_recommendation_area"],
-            "disable_promotion": False,
-        },
+        "patch": {"show_modal": "recommendation_card"},
         "tts_text": "如果還沒決定，我可以推薦幾個熱門餐點給您。",
         "reason": "偵測到餐點選擇猶豫，提供餐點推薦以降低選擇負擔。",
     },
@@ -76,10 +60,8 @@ _STATE_PRESENTATION = {
 
 PATENT_INTERVENTION_MAP = {
     "show_payment_tutorial": "payment_tutorial",
-    "show_coupon_guide": "operation_hint",
     "show_operation_hint": "operation_hint",
     "recommend_popular_combo": "recommendation",
-    "call_staff_or_fast_mode": "human_service",
     "call_staff": "human_service",
     "ask_clarifying_question": "voice_explanation",
     "none": "normal_interface",
@@ -132,7 +114,7 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
             action_level = "high"
             staff_notify = True
             if int(result.get("payment_fail_count") or 0) >= 2:
-                action = "call_staff_or_fast_mode"
+                action = "call_staff"
                 patch["disable_promotion"] = True
     elif state == "normal_operation":
         action = "none"

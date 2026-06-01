@@ -66,7 +66,6 @@ const interactionState = {
   backCount: 0,
   invalidTouchCount: 0,
   paymentFailCount: 0,
-  couponErrorCount: 0,
   cartEditCount: 0,
   categorySwitchCount: 0,
   cartRemoveCount: 0,
@@ -220,17 +219,7 @@ function groupLabel(group) {
   return kioskLang === 'en' ? (group.labelEn || group.label) : group.label;
 }
 let fullSettings = {};
-let runtimeSettings = {
-  PERFORMANCE_MODE: 'balanced',
-  OLLAMA_NUM_PREDICT: 220,
-  RAG_TOP_K: 3,
-  ENABLE_TTS_CACHE: true,
-  EMOTION_PERIODIC_ENABLED: false
-};
-
-function perfValue(key) {
-  return runtimeSettings[key];
-}
+let runtimeSettings = {};
 
 
 
@@ -267,7 +256,6 @@ const INTERACTION_LABELS = {
     menu_hesitation: '菜單選擇猶豫',
     operation_confusion: '操作困惑',
     payment_confusion: '付款卡關',
-    coupon_confusion: '優惠券/掃碼卡關',
     impatience_detected: '等待不耐',
     service_needed: '需要真人協助',
     potential_complaint: '疑似客訴',
@@ -277,10 +265,8 @@ const INTERACTION_LABELS = {
   action: {
     none: '不介入',
     show_payment_tutorial: '顯示付款教學',
-    show_coupon_guide: '顯示優惠券指引',
     show_operation_hint: '顯示操作提示',
     recommend_popular_combo: '推薦熱門組合',
-    call_staff_or_fast_mode: '通知店員或快速模式',
     call_staff: '通知店員',
     ask_clarifying_question: '詢問釐清問題',
     unknown: '未知動作',
@@ -304,7 +290,6 @@ const INTERACTION_LABELS = {
     payment_attempt: '付款嘗試',
     payment_failed: '付款失敗',
     checkout_error: '結帳錯誤',
-    coupon_error: '優惠券錯誤',
     voice_assist_started: '語音協助開始',
     voice_assist_failed: '語音協助失敗',
     voice_ask_started: '語音協助開始',
@@ -320,7 +305,6 @@ const INTERACTION_LABELS = {
     voiceAssistBtn: '語音協助按鈕',
     startSystemBtn: '開始點餐按鈕',
     linepay_button: 'LINE Pay 按鈕',
-    coupon_input: '優惠券輸入欄',
     menu_grid: '菜單區域',
     service_button: '客服按鈕',
     demo_ui: '實施例腳本',
@@ -1183,7 +1167,6 @@ function normalizeInteractionPayload(event = {}) {
     back_count: Number(event.back_count ?? interactionState.backCount) || 0,
     invalid_touch_count: Number(event.invalid_touch_count ?? interactionState.invalidTouchCount) || 0,
     payment_fail_count: Number(event.payment_fail_count ?? interactionState.paymentFailCount) || 0,
-    coupon_error_count: Number(event.coupon_error_count ?? interactionState.couponErrorCount) || 0,
     cart_edit_count: Number(event.cart_edit_count ?? interactionState.cartEditCount) || 0,
     category_switch_count: Number(event.category_switch_count ?? interactionState.categorySwitchCount) || 0,
     cart_remove_count: Number(event.cart_remove_count ?? interactionState.cartRemoveCount) || 0,
@@ -1292,7 +1275,6 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
   }
   const titleMap = {
     payment_guide: '付款協助',
-    coupon_guide: '優惠券協助',
     operation_hint: '操作協助',
   };
   const safeTitle = escapeHTML(titleMap[modalName] || '操作提示');
@@ -1337,7 +1319,6 @@ function trackInteractionEvent(event = {}) {
   if (event.event_type === 'invalid_touch') interactionState.invalidTouchCount += 1;
   if (event.event_type === 'payment_failed') interactionState.paymentFailCount += 1;
   if (event.event_type === 'checkout_error') interactionState.paymentFailCount += 1;
-  if (event.event_type === 'coupon_error') interactionState.couponErrorCount += 1;
   if (event.event_type === 'cart_edit') interactionState.cartEditCount += 1;
   const payload = normalizeInteractionPayload({
     ...event,
