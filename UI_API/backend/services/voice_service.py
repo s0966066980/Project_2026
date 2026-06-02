@@ -3,6 +3,7 @@
 STT 和 TTS 實作透過 Provider 抽象層決定，不在此層關心。
 """
 import asyncio
+import time
 
 import ai_services
 import config
@@ -11,6 +12,23 @@ from repositories import menu_repository, session_repository
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
+
+_menu_cache: dict = {"items": None, "context": None, "ts": 0.0}
+_MENU_CACHE_TTL = 60.0
+
+
+async def _load_menu_cached() -> tuple:
+    """菜單資料快取，TTL 60s，避免每次請求重複讀 JSON。"""
+    now = time.monotonic()
+    if _menu_cache["items"] is None or now - _menu_cache["ts"] > _MENU_CACHE_TTL:
+        items, context = await asyncio.gather(
+            asyncio.to_thread(menu_repository.get_menu),
+            asyncio.to_thread(database.build_full_menu_context),
+        )
+        _menu_cache["items"] = items
+        _menu_cache["context"] = context
+        _menu_cache["ts"] = now
+    return _menu_cache["items"], _menu_cache["context"]
 
 
 def _format_history(history: list, max_turns: int = 4) -> str:
@@ -68,10 +86,10 @@ async def handle_voice(
         }
 
     # ── 2. Ollama LLM ─────────────────────────────────────────────
-    menu_items = await asyncio.to_thread(menu_repository.get_menu)
-    full_menu_context = await asyncio.to_thread(database.build_full_menu_context)
-
-    history = await asyncio.to_thread(session_repository.get_session_history, session_id)
+    (menu_items, full_menu_context), history = await asyncio.gather(
+        _load_menu_cached(),
+        asyncio.to_thread(session_repository.get_session_history, session_id),
+    )
     history_context = _format_history(history)
 
     if detected_lang == "en":

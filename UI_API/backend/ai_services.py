@@ -1,11 +1,25 @@
 import os
 import asyncio
 import requests
+from requests.adapters import HTTPAdapter
 import json
 import re
 import time
 
 import config
+
+_ollama_session: requests.Session | None = None
+
+
+def _get_ollama_session() -> requests.Session:
+    global _ollama_session
+    if _ollama_session is None:
+        s = requests.Session()
+        adapter = HTTPAdapter(pool_connections=2, pool_maxsize=4)
+        s.mount("http://", adapter)
+        s.mount("https://", adapter)
+        _ollama_session = s
+    return _ollama_session
 
 try:
     from google import genai
@@ -240,7 +254,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         }
     }
     try:
-        response = requests.post(config.OLLAMA_API_URL, json=payload, timeout=config.OLLAMA_TIMEOUT)
+        response = _get_ollama_session().post(config.OLLAMA_API_URL, json=payload, timeout=config.OLLAMA_TIMEOUT)
         response.raise_for_status()
         content = response.json().get("response", "")
         if config.get("OLLAMA_LOG_RAW", False):
