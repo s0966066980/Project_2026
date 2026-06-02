@@ -1,17 +1,21 @@
 """Emotion-LLaMA 情緒分析服務。
 
-事件驅動：事件觸發時呼叫 analyze_event()，非同步呼叫 Gradio，結果寫入 log。
+事件驅動：事件觸發時呼叫 analyze_event()，直接 in-process 呼叫推論函式，結果寫入 log。
 語音快取：analyze_event 結果存入 session 快取，下一輪語音可讀取。
 """
 import asyncio
 import json
+import os
+import sys
 import threading
 from datetime import datetime
 
-import httpx
-
 import config
 from repositories import emotion_log_repository
+
+_EMOTION_LLAMA_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "Emotion-LLaMA")
+)
 
 EVENT_TYPE_LABELS = {
     "tutorial_popup": "如何點餐彈跳視窗",
@@ -56,7 +60,7 @@ async def analyze_event(session_id: str, media_path: str, event_type: str) -> di
     question = prompt_template.replace("{speech_text}", "")
 
     try:
-        raw = await _call_gradio(media_path, question, skip_quality_check=skip_qc)
+        raw = await _call_direct(media_path, question, skip_quality_check=skip_qc)
     except Exception as e:
         print(f"⚠️ Emotion-LLaMA analyze_event 失敗: {e}")
         return {"status": "error", "message": str(e)}
@@ -120,10 +124,8 @@ async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
         print(f"⚠️ Emotion barrier update 失敗: {e}")
 
 
-async def _call_gradio(video_path: str, question: str, skip_quality_check: bool = False) -> str:
-    url = f"{config.EMOTION_LLAMA_GRADIO_URL}/run/predict"
-    timeout = 30.0
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(url, json={"data": [video_path, question, skip_quality_check]})
-        resp.raise_for_status()
-        return resp.json()["data"][0]
+async def _call_direct(video_path: str, question: str, skip_quality_check: bool = False) -> str:
+    if _EMOTION_LLAMA_DIR not in sys.path:
+        sys.path.insert(0, _EMOTION_LLAMA_DIR)
+    from app_EmotionLlamaClient import process_video_question  # noqa: PLC0415
+    return await asyncio.to_thread(process_video_question, video_path, question, skip_quality_check)

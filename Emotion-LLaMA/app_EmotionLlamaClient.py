@@ -18,7 +18,6 @@ import tempfile
 import threading
 import time
 import torch
-import gradio as gr
 
 
 # =========================================================
@@ -370,38 +369,12 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
         return f"[EMOTION_LLAMA_ERROR] inference_failed: {e}"
 
 
-# =========================================================
-# Gradio 介面與啟動
-# =========================================================
 if __name__ == "__main__":
-    args = parse_args()
-
     print("🔧 Emotion-LLaMA 推論設定:")
     print(f"  EMOTION_LLAMA_TEMPERATURE={os.getenv('EMOTION_LLAMA_TEMPERATURE', '0.2')}")
     print(f"  EMOTION_LLAMA_MAX_NEW_TOKENS={os.getenv('EMOTION_LLAMA_MAX_NEW_TOKENS', '120')}")
     print(f"  EMOTION_LLAMA_MAX_LENGTH={os.getenv('EMOTION_LLAMA_MAX_LENGTH', '1600')}")
     print(f"  EMOTION_LLAMA_NUM_BEAMS={os.getenv('EMOTION_LLAMA_NUM_BEAMS', '1')}")
-    print(f"  port={args.port}")
-
     print("🔄 預先載入 Emotion-LLaMA 模型...")
     get_chat()
-
-    iface = gr.Interface(
-        fn=process_video_question,
-        inputs=[
-            gr.Textbox(label="視頻路徑", placeholder="例如：/tmp/video.webm"),
-            gr.Textbox(label="問題", placeholder="例如：視頻中的人物表達了什麼情緒？"),
-            gr.Checkbox(label="跳過品質快篩", value=False),
-        ],
-        outputs=gr.Textbox(label="模型回答"),
-        title="Emotion-LLaMA API",
-        allow_flagging="never",
-    )
-
-    # 必須關閉 queue，否則 Gradio 回傳 event_id 而非 data
-    iface.launch(
-        server_name="0.0.0.0",
-        server_port=args.port,
-        share=False,
-        show_error=True,
-    )
+    print("✅ 模型已就緒，可透過 process_video_question() 直接呼叫")
