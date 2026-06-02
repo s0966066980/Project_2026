@@ -14,13 +14,12 @@ from services.stt_service import get_stt
 from services.tts_service import get_tts
 
 _menu_cache: dict = {"items": None, "context": None, "ts": 0.0}
-_MENU_CACHE_TTL = 60.0
 
 
 async def _load_menu_cached() -> tuple:
-    """菜單資料快取，TTL 60s，避免每次請求重複讀 JSON。"""
     now = time.monotonic()
-    if _menu_cache["items"] is None or now - _menu_cache["ts"] > _MENU_CACHE_TTL:
+    ttl = float(config.get("VOICE_MENU_CACHE_TTL_SEC", 60.0))
+    if _menu_cache["items"] is None or now - _menu_cache["ts"] > ttl:
         items, context = await asyncio.gather(
             asyncio.to_thread(menu_repository.get_menu),
             asyncio.to_thread(database.build_full_menu_context),
@@ -31,10 +30,10 @@ async def _load_menu_cached() -> tuple:
     return _menu_cache["items"], _menu_cache["context"]
 
 
-def _format_history(history: list, max_turns: int = 4) -> str:
-    """格式化最近 N 輪對話歷史，供注入 LLM prompt。"""
+def _format_history(history: list) -> str:
     if not history:
         return ""
+    max_turns = int(config.get("VOICE_HISTORY_MAX_TURNS", 4))
     recent = history[-max_turns:]
     lines = []
     for turn in recent:
@@ -46,14 +45,6 @@ def _format_history(history: list, max_turns: int = 4) -> str:
         return ""
     return "【對話歷史（最近幾輪）】\n" + "\n".join(lines)
 
-
-_DEFAULT_SYSTEM_PROMPT = (
-    "你是一位專業、友善的 AI 語音助理，支援加入餐點與語音問答兩種模式。\n"
-    "若顧客直接說出想點的餐點與數量，輸出 cart_actions；否則用自然口語回答。\n"
-    "禁止創造菜單不存在的餐點、價格或 ID。\n"
-    "只輸出合法 JSON：\n"
-    '{"ai_response":"回答","mentioned_ids":[],"cart_actions":[]}'
-)
 
 
 async def handle_voice(
@@ -93,9 +84,9 @@ async def handle_voice(
     history_context = _format_history(history)
 
     if detected_lang == "en":
-        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN") or _DEFAULT_SYSTEM_PROMPT
+        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN")
     else:
-        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT") or _DEFAULT_SYSTEM_PROMPT
+        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT")
 
     # RAG context 注入
     if config.get("RAG_ENABLED", False):
