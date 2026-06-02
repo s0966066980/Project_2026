@@ -286,18 +286,12 @@ if __name__ == "__main__":
 
     # ── 功能模組狀態 ──────────────────────────────────────
     def _check_emotion_llama() -> str:
-        enabled = config.get("EMOTION_LLAMA_ENABLED", False)
-        if not enabled:
-            return "⏸️ 停用"
-        import os, sys
-        emotion_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "Emotion-LLaMA"))
-        if emotion_dir not in sys.path:
-            sys.path.insert(0, emotion_dir)
+        import urllib.request
         try:
-            import app_EmotionLlamaClient  # noqa: F401
-            return "✅ 可用"
+            urllib.request.urlopen(f"{config.EMOTION_LLAMA_GRADIO_URL}/health", timeout=1)
+            return "✅ 開啟"
         except Exception:
-            return "❌ 模組不可用"
+            return "❌ 未開啟"
 
     model_name   = config.get("MODEL_NAME", "qwen3.5:4b")
     voice_model  = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")

@@ -398,11 +398,33 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
 
 
 if __name__ == "__main__":
+    import uvicorn
+    from fastapi import FastAPI
+    from pydantic import BaseModel
+
+    class _InferRequest(BaseModel):
+        video_path: str
+        question: str
+        skip_quality_check: bool = False
+
+    api = FastAPI()
+
+    @api.get("/health")
+    def _health():
+        return {"status": "ok"}
+
+    @api.post("/predict")
+    def _predict(req: _InferRequest):
+        result = process_video_question(req.video_path, req.question, req.skip_quality_check)
+        return {"result": result}
+
+    args = parse_args()
     print("🔧 Emotion-LLaMA 推論設定:")
     print(f"  EMOTION_LLAMA_TEMPERATURE={os.getenv('EMOTION_LLAMA_TEMPERATURE', '0.2')}")
-    print(f"  EMOTION_LLAMA_MAX_NEW_TOKENS={os.getenv('EMOTION_LLAMA_MAX_NEW_TOKENS', '120')}")
+    print(f"  EMOTION_LLAMA_MAX_NEW_TOKENS={os.getenv('EMOTION_LLAMA_MAX_NEW_TOKENS', '50')}")
     print(f"  EMOTION_LLAMA_MAX_LENGTH={os.getenv('EMOTION_LLAMA_MAX_LENGTH', '1600')}")
     print(f"  EMOTION_LLAMA_NUM_BEAMS={os.getenv('EMOTION_LLAMA_NUM_BEAMS', '1')}")
+    print(f"  port={args.port}")
     print("🔄 預先載入 Emotion-LLaMA 模型...")
     get_chat()
-    print("✅ 模型已就緒，可透過 process_video_question() 直接呼叫")
+    uvicorn.run(api, host="0.0.0.0", port=args.port)
