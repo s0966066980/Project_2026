@@ -317,21 +317,33 @@ if __name__ == "__main__":
             from pyngrok import ngrok
 
             ngrok.set_auth_token(config.NGROK_AUTHTOKEN)
-            existing = []
-            try:
-                existing = ngrok.get_tunnels()
-            except Exception:
-                existing = []
+
+            # 尋找現有 tunnel（避免重複開）
             tunnel_url = ""
-            for tunnel in existing:
-                config_data = getattr(tunnel, "config", {}) or {}
-                addr = str(config_data.get("addr") if isinstance(config_data, dict) else "")
-                if addr.endswith(f":{pos_port}") or addr.endswith(f"://localhost:{pos_port}"):
-                    tunnel_url = str(getattr(tunnel, "public_url", "") or "")
-                    break
+            try:
+                for t in ngrok.get_tunnels():
+                    addr = str((getattr(t, "config", {}) or {}).get("addr", ""))
+                    if f":{pos_port}" in addr:
+                        tunnel_url = str(getattr(t, "public_url", "") or "")
+                        break
+            except Exception:
+                pass
+
             if not tunnel_url:
-                tunnel = ngrok.connect(pos_port)
-                tunnel_url = str(getattr(tunnel, "public_url", "") or "")
+                try:
+                    t = ngrok.connect(pos_port)
+                    tunnel_url = str(getattr(t, "public_url", "") or "")
+                except Exception as connect_err:
+                    # 上次 main.py 被 kill 後 ngrok agent 殘留，endpoint 仍在雲端，
+                    # 重啟時拿不到舊 tunnel 但 connect 被拒 (ERR_NGROK_334)。
+                    # 殺掉舊 agent 再重試一次。
+                    if "ERR_NGROK_334" in str(connect_err) or "already online" in str(connect_err):
+                        ngrok.kill()
+                        t = ngrok.connect(pos_port)
+                        tunnel_url = str(getattr(t, "public_url", "") or "")
+                    else:
+                        raise
+
             if tunnel_url:
                 public_url = tunnel_url.rstrip("/")
                 print(f"🖥️  POS:    {public_url}/pos"
