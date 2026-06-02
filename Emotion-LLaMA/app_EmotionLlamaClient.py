@@ -178,8 +178,8 @@ def _ffmpeg_sanitize_video(path: str, keep_audio: bool = True) -> tuple[str, str
     os.close(fd)
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-fflags", "+genpts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "12"),
-        "-vf", "fps=8,scale=640:-2:force_original_aspect_ratio=decrease",
+        "-fflags", "+genpts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "4"),
+        "-vf", "fps=4,scale=320:-2:force_original_aspect_ratio=decrease",
         "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
         "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
     ]
@@ -250,6 +250,13 @@ def get_chat():
     model_config = cfg.model_cfg
     model_cls = registry.get_model_class(model_config.arch)
     model = model_cls.from_config(model_config).to(device)
+    if device == "cuda":
+        model = model.half()
+        try:
+            model = torch.compile(model, mode="reduce-overhead")
+            print("✅ torch.compile 啟用（第一次推論會 warm-up ~30s）")
+        except Exception as e:
+            print(f"⚠️ torch.compile 不可用，跳過: {e}")
     model.eval()
 
     vis_processor_cfg = cfg.datasets_cfg.feature_face_caption.vis_processor.train
