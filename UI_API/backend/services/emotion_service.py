@@ -46,14 +46,14 @@ async def analyze(session_id: str, media_path: str) -> dict:
     }
 
 
-async def analyze_event(session_id: str, media_path: str, event_type: str) -> dict:
+async def analyze_event(session_id: str, media_path: str, event_type: str, speech_text: str = "") -> dict:
     """事件驅動分析主入口。非同步執行，結果寫 log + 更新語音快取。"""
     if not is_enabled():
         return {"status": "disabled"}
 
     skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
     prompt_template = config.get("EMOTION_LLAMA_PROMPT", "")
-    question = prompt_template.replace("{speech_text}", "")
+    question = prompt_template.replace("{speech_text}", speech_text)
 
     try:
         raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
@@ -122,7 +122,7 @@ async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
 
 async def _call_http(video_path: str, question: str, skip_quality_check: bool = False) -> str:
     url = f"{config.EMOTION_LLAMA_GRADIO_URL}/predict"
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120))) as client:
         resp = await client.post(url, json={
             "video_path": video_path,
             "question": question,
