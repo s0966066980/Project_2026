@@ -176,8 +176,9 @@ def _ffmpeg_sanitize_video(path: str, keep_audio: bool = True) -> tuple[str, str
     fd, output_path = tempfile.mkstemp(suffix=".mp4")
     os.close(fd)
     cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-fflags", "+genpts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "4"),
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
+        "-err_detect", "ignore_err",
+        "-fflags", "+genpts+discardcorrupt+igndts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "4"),
         "-vf", "fps=4,scale=320:-2:force_original_aspect_ratio=decrease",
         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
         "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
