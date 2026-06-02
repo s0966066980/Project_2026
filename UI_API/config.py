@@ -39,8 +39,6 @@ LEARNING_DATA_DIR = "./learning_data"
 SETTINGS_JSON_PATH = "./learning_data/settings.json"
 os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
 
-OLLAMA_TIMEOUT = 120
-
 _settings_cache = None
 _settings_mtime = None
 _settings_last_check = 0.0
@@ -61,6 +59,9 @@ DEFAULT_SETTINGS = {
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
     "OLLAMA_LOG_RAW": False,
+    "OLLAMA_TIMEOUT": 120,           # HTTP 請求 timeout（秒），熱改有效
+    "OLLAMA_POOL_CONNECTIONS": 2,    # 連線池數量（需重啟生效）
+    "OLLAMA_POOL_MAXSIZE": 4,        # 連線池最大連線數（需重啟生效）
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
     # ── RAG ───────────────────────────────────────────────────────
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
@@ -69,9 +70,45 @@ DEFAULT_SETTINGS = {
     "RAG_TOP_K": 3,
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
-    "VOICE_ASSIST_SYSTEM_PROMPT": "",       # 空字串 = 使用 voice_service 內建預設
-    "VOICE_ASSIST_SYSTEM_PROMPT_EN": "",
-    "AI_PUSH_SYSTEM_PROMPT": "",            # 空字串 = 使用 ai_push_service 內建預設
+    "VOICE_HISTORY_MAX_TURNS": 4,           # 注入 LLM 的對話歷史輪數
+    "VOICE_ASSIST_SYSTEM_PROMPT": (
+        "你是一位專業、友善的 AI 語音助理，支援加入餐點與語音問答兩種模式。\n"
+        "【加入餐點】：若顧客直接說出想點的餐點與數量，輸出 cart_actions 讓前端加入購物車；"
+        "id 必須是菜單白名單中的真實 ID。\n"
+        "【語音問答】：根據菜單白名單回答菜單、價格、製作時間與推薦問題；"
+        "政策、活動、操作規則才參考 RAG 補充內容。\n"
+        "禁止創造菜單不存在的餐點、價格或 ID。\n"
+        "使用繁體中文回答，語氣自然口語。若顧客說英文，改用英文回答。\n"
+        "不確定顧客意思時，直接提供 1 句可執行協助，不要重複顧客問句。\n"
+        "\n"
+        "只輸出合法 JSON：\n"
+        '{"ai_response":"繁體中文或英文回答","mentioned_ids":["MCD001"],'
+        '"cart_actions":[{"action":"add","id":"MCD001","quantity":1}]}'
+    ),
+    "VOICE_ASSIST_SYSTEM_PROMPT_EN": (
+        "You are a professional AI voice assistant supporting both adding menu items and voice Q&A.\n"
+        "Add menu items: if the customer says item names and quantities, output cart_actions "
+        "with real menu IDs from the whitelist.\n"
+        "Voice Q&A: answer questions about menu, price, prep time, or recommendations. "
+        "Use RAG context only for policies and operations.\n"
+        "Never invent menu items, prices, or IDs. Answer in English only.\n"
+        "\n"
+        'Output valid JSON only: {"ai_response":"English answer","mentioned_ids":["MCD001"],'
+        '"cart_actions":[{"action":"add","id":"MCD001","quantity":1}]}'
+    ),
+    "AI_PUSH_SYSTEM_PROMPT": (
+        "你是麥當勞自助點餐機的 AI 推播助手。"
+        "只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。"
+        '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。'
+    ),
+    # ── AI 推播 / 前端行為 ────────────────────
+    "AI_PUSH_REFRESH_SEC": 15,              # 推播欄刷新間隔（秒）
+    "CHOICE_HESITATION_IDLE_SEC": 60,       # 無操作多少秒後顯示猶豫彈窗
+    "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效
+        "超值全餐", "極選系列", "點心", "飲料", "麥當勞分享盒"
+    ],
+    # ── 語音菜單快取 ──────────────────────────
+    "VOICE_MENU_CACHE_TTL_SEC": 60.0,       # 菜單資料快取 TTL（秒）
     # ── STT ───────────────────────────────────
     "STT_PROVIDER": "faster_whisper",       # "faster_whisper" | "openai_compatible"
     "STT_MODEL": "small",                   # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
@@ -79,6 +116,7 @@ DEFAULT_SETTINGS = {
     "STT_INITIAL_PROMPT": "麥當勞點餐，繁體中文，常見品項：大麥克、薯條、麥克雞塊、可樂、套餐、咖啡、拿鐵",
     "STT_API_URL": "https://api.openai.com",
     "STT_API_KEY": "",
+    "STT_HTTP_TIMEOUT_SEC": 30,             # HTTP STT API 請求 timeout（秒）
     # ── TTS ───────────────────────────────────
     "TTS_PROVIDER": "edge",                 # "edge" | "melo" | "openai_compatible"
     "EDGE_TTS_VOICE": "zh-TW-HsiaoChenNeural",
@@ -88,9 +126,11 @@ DEFAULT_SETTINGS = {
     "TTS_VOICE": "alloy",                   # openai_compatible 聲音
     "TTS_API_URL": "https://api.openai.com",
     "TTS_API_KEY": "",
+    "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
     # ── Emotion-LLaMA ─────────────────────────────────────────────
     "EMOTION_LLAMA_ENABLED": False,
     "EMOTION_LLAMA_CLIP_SEC": 2.0,
+    "EMOTION_LLAMA_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
     "EMOTION_LLAMA_QUALITY_CHECK": True,
     "EMOTION_LLAMA_AFFECT_VOICE": False,
     "EMOTION_LLAMA_AFFECT_BARRIER": False,
@@ -103,12 +143,19 @@ DEFAULT_SETTINGS = {
         "and body language. If a person is visible but emotional cues are subtle, describe the "
         "most likely low-intensity emotional state and the evidence."
     ),
+    # ── 互動障礙偵測閾值 ──────────────────────
+    "BARRIER_DWELL_TIMEOUT_SEC": 40,        # 選單頁停留超過此秒數視為 menu_hesitation
+    "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
+    "BARRIER_CART_REMOVE_MAX": 2,           # 購物車移除次數達此值視為 menu_hesitation
+    "BARRIER_PAYMENT_FAIL_MAX": 1,          # 付款失敗次數達此值視為 payment_confusion
 }
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EMOTION_LLAMA_ENABLED",
     "EMOTION_LLAMA_CLIP_SEC",
+    "AI_PUSH_REFRESH_SEC",
+    "CHOICE_HESITATION_IDLE_SEC",
 }
 
 
