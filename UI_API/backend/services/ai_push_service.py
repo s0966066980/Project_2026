@@ -7,9 +7,6 @@ import config
 from repositories import menu_repository
 from services.recommendation_service import clean_menu_id
 
-_PRIORITY_CATS = {"超值全餐", "極選系列", "點心", "飲料", "麥當勞分享盒"}
-
-
 def _price(item: dict) -> int:
     try:
         return int(float(item.get("price") or 0))
@@ -18,8 +15,9 @@ def _price(item: dict) -> int:
 
 
 def _menu_context(items: list[dict], limit: int = 80) -> str:
+    priority_cats = set(config.get("AI_PUSH_PRIORITY_CATS", []))
     candidates = [i for i in items if i.get("id") and i.get("name")]
-    preferred  = [i for i in candidates if str(i.get("category") or "") in _PRIORITY_CATS]
+    preferred  = [i for i in candidates if str(i.get("category") or "") in priority_cats]
     rows = [
         f"{i['id']}｜{i['name']}｜{i.get('category', '')}｜${_price(i)}"
         for i in (preferred or candidates)[:limit]
@@ -63,11 +61,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         except Exception:
             pass
 
-    system = (
-        "你是麥當勞自助點餐機的 AI 推播助手。"
-        "只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。"
-        '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。'
-    )
+    system = config.get("AI_PUSH_SYSTEM_PROMPT")
     user = (
         f"{rag_section}"
         "【菜單白名單】\n"
