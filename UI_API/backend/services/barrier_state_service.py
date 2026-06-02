@@ -1,4 +1,4 @@
-
+import config
 
 BARRIER_STATES = {
     "normal_operation", "menu_hesitation", "operation_confusion",
@@ -132,13 +132,18 @@ def infer_barrier_state(
     max_dwell_time_sec = _max_field(events, "dwell_time_sec")
     latest_event_type = _latest_event_type(events)
 
+    payment_fail_max = int(config.get("BARRIER_PAYMENT_FAIL_MAX", 1))
+    category_switch_max = int(config.get("BARRIER_CATEGORY_SWITCH_MAX", 4))
+    cart_remove_max = int(config.get("BARRIER_CART_REMOVE_MAX", 2))
+    dwell_timeout = float(config.get("BARRIER_DWELL_TIMEOUT_SEC", 40))
+
     barrier_state = "normal_operation"
     if _contains_any(speech, ["客訴", "投訴", "不爽", "太誇張", "我要找人", "經理", "爛"]):
         barrier_state = "potential_complaint"
         evidence.append("speech contains complaint intent")
-    elif page_id == "payment_page" and payment_fail_count >= 1:
+    elif page_id == "payment_page" and payment_fail_count >= payment_fail_max:
         barrier_state = "payment_confusion"
-        evidence.extend(["page_id=payment_page", "payment_fail_count >= 1"])
+        evidence.extend(["page_id=payment_page", f"payment_fail_count >= {payment_fail_max}"])
     elif _contains_any(speech, ["不能刷", "付款", "刷卡", "line pay", "LINE Pay", "悠遊卡"]):
         barrier_state = "payment_confusion"
         evidence.append("speech contains payment issue")
@@ -146,21 +151,21 @@ def infer_barrier_state(
         barrier_state = "menu_hesitation"
         evidence.append("speech contains menu hesitation")
     elif page_id == "menu_page" and (
-        category_switch_count >= 4
-        or cart_remove_count >= 2
+        category_switch_count >= category_switch_max
+        or cart_remove_count >= cart_remove_max
         or latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat")
-        or max_dwell_time_sec > 40
+        or max_dwell_time_sec > dwell_timeout
     ):
         barrier_state = "menu_hesitation"
         evidence.append("page_id=menu_page")
-        if category_switch_count >= 4:
-            evidence.append("category_switch_count >= 4")
-        if cart_remove_count >= 2:
-            evidence.append("cart_remove_count >= 2")
+        if category_switch_count >= category_switch_max:
+            evidence.append(f"category_switch_count >= {category_switch_max}")
+        if cart_remove_count >= cart_remove_max:
+            evidence.append(f"cart_remove_count >= {cart_remove_max}")
         if latest_event_type in ("menu_page_dwell_timeout", "category_switch_repeat"):
             evidence.append(f"event_type={latest_event_type}")
-        if max_dwell_time_sec > 40:
-            evidence.append("dwell_time_sec > 40")
+        if max_dwell_time_sec > dwell_timeout:
+            evidence.append(f"dwell_time_sec > {dwell_timeout}")
     elif _contains_any(speech, ["不會", "不懂", "怎麼用", "看不懂", "怎麼點"]):
         barrier_state = "operation_confusion"
         evidence.append("speech contains operation confusion")
@@ -172,8 +177,9 @@ def infer_barrier_state(
         evidence.append("insufficient context")
 
     if barrier_state != "normal_operation":
-        if payment_fail_count >= 1 and "payment_fail_count >= 1" not in evidence:
-            evidence.append("payment_fail_count >= 1")
+        fail_evidence = f"payment_fail_count >= {payment_fail_max}"
+        if payment_fail_count >= payment_fail_max and fail_evidence not in evidence:
+            evidence.append(fail_evidence)
         if page_id and page_id != "unknown" and f"page_id={page_id}" not in evidence:
             evidence.append(f"page_id={page_id}")
 
