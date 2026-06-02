@@ -15,7 +15,10 @@ def _get_ollama_session() -> requests.Session:
     global _ollama_session
     if _ollama_session is None:
         s = requests.Session()
-        adapter = HTTPAdapter(pool_connections=2, pool_maxsize=4)
+        adapter = HTTPAdapter(
+            pool_connections=int(config.get("OLLAMA_POOL_CONNECTIONS", 2)),
+            pool_maxsize=int(config.get("OLLAMA_POOL_MAXSIZE", 4)),
+        )
         s.mount("http://", adapter)
         s.mount("https://", adapter)
         _ollama_session = s
@@ -254,7 +257,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         }
     }
     try:
-        response = _get_ollama_session().post(config.OLLAMA_API_URL, json=payload, timeout=config.OLLAMA_TIMEOUT)
+        response = _get_ollama_session().post(config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120)))
         response.raise_for_status()
         content = response.json().get("response", "")
         if config.get("OLLAMA_LOG_RAW", False):
