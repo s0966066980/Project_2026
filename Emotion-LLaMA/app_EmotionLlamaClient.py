@@ -179,7 +179,7 @@ def _ffmpeg_sanitize_video(path: str, keep_audio: bool = True) -> tuple[str, str
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-fflags", "+genpts", "-i", path, "-t", os.getenv("EMOTION_LLAMA_MAX_INPUT_SEC", "4"),
         "-vf", "fps=4,scale=320:-2:force_original_aspect_ratio=decrease",
-        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
         "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
     ]
     if keep_audio:
@@ -265,7 +265,34 @@ def get_chat():
 
     _chat = Chat(model, vis_processor, device=device)
     print("✅ Emotion-LLaMA 模型載入完成")
+    _warmup_model()
     return _chat
+
+
+def _warmup_model() -> None:
+    """模型載入後立即觸發 torch.compile warm-up，避免首位顧客等到 ~30s。"""
+    import subprocess
+    import tempfile
+    fd, dummy_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    try:
+        subprocess.run([
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "color=black:size=320x240:duration=1:rate=4",
+            "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono",
+            "-t", "1", "-c:v", "libx264", "-preset", "ultrafast",
+            "-c:a", "aac", dummy_path,
+        ], check=True, timeout=15)
+        print("🔥 執行模型預熱推論...")
+        process_video_question(dummy_path, "warmup", skip_quality_check=True)
+        print("✅ 模型預熱完成")
+    except Exception as e:
+        print(f"⚠️ 模型預熱失敗（不影響功能）: {e}")
+    finally:
+        try:
+            os.remove(dummy_path)
+        except OSError:
+            pass
 
 
 # =========================================================
@@ -294,15 +321,16 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
         return f"[EMOTION_LLAMA_ERROR] video_not_found: {video_path}"
     if not is_allowed_video_path(video_path):
         return f"[EMOTION_LLAMA_ERROR] path_not_allowed: {video_path}"
-    video_ok, video_error = is_readable_video(video_path)
-    if not video_ok:
-        return f"[EMOTION_LLAMA_ERROR] {video_error}: {video_path}"
-
-    if not skip_quality_check:
+    if skip_quality_check:
+        video_ok, video_error = is_readable_video(video_path)
+        if not video_ok:
+            return f"[EMOTION_LLAMA_ERROR] {video_error}: {video_path}"
+    else:
         quality_ok, quality_reason = _quick_quality_check(video_path)
         if not quality_ok:
             print(f"⚠️ Emotion-LLaMA 品質快篩未通過: {quality_reason}")
-            return f"[EMOTION_LLAMA_SKIP] {quality_reason}"
+            prefix = "[EMOTION_LLAMA_ERROR]" if quality_reason == "quality_check_error" else "[EMOTION_LLAMA_SKIP]"
+            return f"{prefix} {quality_reason}"
 
     chat = get_chat()
 
@@ -345,7 +373,7 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
                 conv=chat_state,
                 img_list=img_list,
                 temperature=float(os.getenv("EMOTION_LLAMA_TEMPERATURE", "0.2")),
-                max_new_tokens=int(os.getenv("EMOTION_LLAMA_MAX_NEW_TOKENS", "120")),
+                max_new_tokens=int(os.getenv("EMOTION_LLAMA_MAX_NEW_TOKENS", "50")),
                 max_length=int(os.getenv("EMOTION_LLAMA_MAX_LENGTH", "1600")),
                 num_beams=int(os.getenv("EMOTION_LLAMA_NUM_BEAMS", "1")),
             )
