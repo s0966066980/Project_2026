@@ -1146,33 +1146,15 @@
     width: var(--kiosk-width) !important;
     height: var(--kiosk-height) !important;
     transform: translate(-50%, -50%);
-    background: #fffaf5 url('/static/mcd_start.png') center / cover no-repeat !important;
-    color: transparent !important;
-  }
-  #startupOverlay::after {
-    content: "";
-    position: absolute;
-    left: 25.5%;
-    bottom: 2.8%;
-    width: 49%;
-    height: 14%;
-    border-radius: 18px;
-    background: rgba(255, 199, 44, 0);
-    box-shadow: inset 0 0 0 0 rgba(0,0,0,0);
-    transform: scale(1);
-    transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
-    pointer-events: none;
-    z-index: 1;
-  }
-  #startupOverlay.startup-pressing::after {
-    background: rgba(255, 199, 44, 0.28);
-    box-shadow: inset 0 8px 22px rgba(80, 36, 16, 0.24), 0 0 0 4px rgba(255,255,255,0.32);
-    transform: scale(0.985);
-  }
-  #startupOverlay > .mb-6,
-  #startupOverlay > h1,
-  #startupOverlay > p {
-    display: none !important;
+    background: #f5eedc !important;
+    color: #1a1a1a !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
   }
   .startup-lang-btn {
     position: absolute;
@@ -1190,33 +1172,26 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
-    font-size: clamp(18px, 1.65vw, 28px);
+    font-size: clamp(14px, 1.4vw, 20px);
     font-weight: 900;
     z-index: 2;
   }
-  #startupOverlay .flex {
-    position: absolute;
-    left: 50%;
-    right: auto;
-    bottom: 2.8%;
-    width: 49%;
-    height: 14%;
-    transform: translateX(-50%);
-    display: flex !important;
-  }
   #startupOverlay #startSystemBtn {
-    width: 100%;
-    height: 100%;
-    opacity: 0.01;
-    border-radius: 18px !important;
-    background: transparent !important;
-    color: transparent !important;
-    font-size: clamp(22px, 1.9vw, 30px) !important;
-    font-weight: 950;
-    box-shadow: none;
+    opacity: 1 !important;
+    background: #1a1a1a !important;
+    color: white !important;
+    font-size: clamp(15px, 1.6vw, 20px) !important;
+    font-weight: 900 !important;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3) !important;
+    border-radius: 50px !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: clamp(10px,1.6vh,16px) 20px !important;
+    transition: background 0.25s, transform 0.1s !important;
   }
-  #startupOverlay #startSystemBtn + button {
-    display: none !important;
+  #startupOverlay #startSystemBtn:hover {
+    transform: translateY(-2px) !important;
+    background: #2d2d2d !important;
   }
 
   #mod-voice {

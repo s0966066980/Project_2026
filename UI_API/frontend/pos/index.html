@@ -119,37 +119,58 @@
 <div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
 
   <!-- 開始 overlay -->
-  <div id="startupOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-500" style="background:#FFC72C">
-    <button id="startupLangBtn" class="startup-lang-btn" type="button" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.85);color:#1a1a1a;border-radius:20px;padding:6px 14px;font-weight:700;font-size:13px;border:none;cursor:pointer">
+  <div id="startupOverlay" class="absolute inset-0 z-50 transition-opacity duration-500">
+
+    <!-- 語言切換（CSS 絕對定位，右上角） -->
+    <button id="startupLangBtn" class="startup-lang-btn" type="button">
       <i class="fas fa-globe"></i><span style="margin:0 4px">中文</span><i class="fas fa-chevron-down"></i>
     </button>
 
-    <!-- 標題 -->
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-size:32px;margin-bottom:8px">🍟</div>
-      <h1 style="font-size:28px;font-weight:900;color:#1a1a1a;margin-bottom:4px">歡迎來點今天的好心情</h1>
-      <p style="font-size:13px;color:#555;margin-bottom:4px">Welcome / Start Your Order</p>
-      <p style="font-size:13px;font-weight:600;color:#333">✦ 先選擇今天的心情，再開始點餐</p>
-    </div>
+    <!-- 主體：左右分割 -->
+    <div style="display:flex;width:100%;height:100%">
 
-    <!-- 心情卡 -->
-    <div style="background:rgba(255,255,255,0.88);border-radius:16px;padding:24px 32px;width:min(480px,90vw);margin-bottom:20px">
-      <p style="font-size:17px;font-weight:800;color:#1a1a1a;margin-bottom:4px">今天心情如何？</p>
-      <p style="font-size:12px;color:#777;margin-bottom:18px">Tap the stars to share your mood</p>
+      <!-- 左側：互動內容 -->
+      <div style="flex:0 0 58%;display:flex;flex-direction:column;justify-content:center;padding:2% 3% 3% 4.5%;gap:0;position:relative;z-index:1">
 
-      <div id="moodStarsRow" style="display:flex;justify-content:space-around;margin-bottom:12px">
-        <!-- 星星由 JS renderMoodStars() 動態產生 -->
+        <!-- McDonald's M logo -->
+        <div style="position:absolute;left:4.5%;top:7%;display:flex;align-items:center;gap:10px">
+          <div style="width:clamp(32px,4vw,46px);height:clamp(32px,4vw,46px);background:#DA291C;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(218,41,28,0.4)">
+            <span style="color:#FFC72C;font-size:clamp(20px,2.5vw,30px);font-weight:900;font-family:Impact,'Arial Black',sans-serif;line-height:1;display:block">M</span>
+          </div>
+        </div>
+
+        <!-- 標題 -->
+        <h1 style="font-size:clamp(18px,2.4vw,30px);font-weight:900;color:#1a1a1a;margin-bottom:4px;line-height:1.3;margin-top:clamp(32px,5vh,52px)">歡迎來點今天的好心情</h1>
+        <p style="font-size:clamp(10px,0.95vw,13px);color:#888;margin-bottom:3px">Welcome / Start Your Order</p>
+        <p style="font-size:clamp(10px,0.95vw,12px);color:#555;font-weight:600;margin-bottom:clamp(12px,2vh,20px)">✦ 先選擇今天的心情，再開始點餐</p>
+
+        <!-- 心情卡（黃底） -->
+        <div style="background:#FFC72C;border-radius:clamp(12px,1.6vw,20px);padding:clamp(12px,1.8vh,20px) clamp(14px,2.2vw,26px);margin-bottom:clamp(12px,2vh,20px);box-shadow:0 4px 18px rgba(255,199,44,0.4)">
+          <p style="font-size:clamp(13px,1.4vw,18px);font-weight:800;color:#1a1a1a;margin-bottom:3px">今天心情如何？</p>
+          <p style="font-size:clamp(9px,0.85vw,12px);color:#5a4500;margin-bottom:clamp(10px,1.5vh,16px)">點點選星星告訴我們 / Tap the stars to share your mood</p>
+
+          <div id="moodStarsRow" style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <!-- 星星由 JS renderMoodStars() 動態產生 -->
+          </div>
+
+          <div id="moodFeedbackText" style="text-align:center;font-size:clamp(9px,0.9vw,12px);font-weight:700;color:#8B4513;height:15px;margin-top:4px"></div>
+          <p style="font-size:clamp(8px,0.75vw,10px);color:#6a4f00;text-align:center;margin-top:6px">✦ 您的心情將幫助我們提供更適合的餐點</p>
+        </div>
+
+        <!-- 開始按鈕 -->
+        <button id="startSystemBtn" type="button">開始點餐</button>
+        <p style="font-size:clamp(8px,0.8vw,11px);color:#aaa;text-align:center;margin-top:5px;font-weight:600;letter-spacing:2px">Touch To Start</p>
+        <p id="moodSkipHint" style="font-size:clamp(8px,0.75vw,10px);color:#bbb;text-align:center;margin-top:3px">或直接按「開始點餐」跳過心情選擇</p>
       </div>
 
-      <div id="moodFeedbackText" style="text-align:center;font-size:13px;font-weight:700;color:#DA291C;height:18px;margin-top:4px"></div>
-      <p style="font-size:11px;color:#888;text-align:center;margin-top:8px">💬 您的心情將幫助我們提供更適合的餐點</p>
+      <!-- 右側：食物圖 (mcd_start.png 右半部分) -->
+      <div style="flex:1;position:relative;overflow:hidden">
+        <!-- 暖色光暈 -->
+        <div style="position:absolute;left:-15%;top:-20%;width:130%;height:140%;background:radial-gradient(ellipse 60% 70% at 40% 50%,rgba(255,199,44,0.18) 0%,transparent 70%);pointer-events:none"></div>
+        <!-- 食物圖片（右對齊，僅顯示食物部分） -->
+        <div style="position:absolute;inset:0;background:url('/static/mcd_start.png') 100% 42% / 220% auto no-repeat"></div>
+      </div>
     </div>
-
-    <!-- 開始按鈕 -->
-    <button id="startSystemBtn"
-      style="width:min(480px,90vw);padding:18px;border-radius:50px;border:none;font-size:18px;font-weight:900;cursor:pointer;letter-spacing:1px;background:#1a1a1a;color:white;transition:background 0.25s,box-shadow 0.25s;box-shadow:0 4px 20px rgba(0,0,0,0.25)"
-      type="button">開始點餐</button>
-    <p id="moodSkipHint" style="font-size:12px;color:#666;margin-top:10px">或直接點「開始點餐」跳過心情選擇</p>
   </div>
 
   <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->
