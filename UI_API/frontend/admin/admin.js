@@ -1,6 +1,17 @@
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
 
+const MOOD_BAR_COLORS = { '1':'#ef9a9a','2':'#ffcc80','3':'#fff176','4':'#a5d6a7','5':'#81d4fa' };
+const MOOD_BAR_LABELS = { '1':'★ 很差','2':'★★ 普通','3':'★★★ 還不錯','4':'★★★★ 很開心','5':'★★★★★ 超棒' };
+const MOOD_CHIP_STYLES = {
+  0: 'background:#f0f0f0;color:#aaa',
+  1: 'background:#ffebee;color:#c62828',
+  2: 'background:#fff8e1;color:#f57f17',
+  3: 'background:#fffde7;color:#827717',
+  4: 'background:#e8f5e9;color:#2e7d32',
+  5: 'background:#e3f2fd;color:#0d47a1',
+};
+
 const DEFAULT_PUSH_PROMPT =
   '你是麥當勞自助點餐機的 AI 推播助手。' +
   '只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。' +
@@ -132,6 +143,7 @@ async function loadStats() {
     setText('s-fail-rate', failRate + '%');
 
     const sessions = data.sessions || [];
+    renderMoodStats(data);
     renderTop3(sessions);
     renderTable(sessions);
 
@@ -139,6 +151,37 @@ async function loadStats() {
     const tbody = document.getElementById('s-tbody');
     if (tbody) emptyRow(tbody, '載入失敗，請重新整理。', '#e84040');
   }
+}
+
+function renderMoodStats(data) {
+  const hitPct    = document.getElementById('mood-hit-pct');
+  const hitDetail = document.getElementById('mood-hit-detail');
+  const barsEl    = document.getElementById('mood-dist-bars');
+  if (!hitPct || !barsEl) return;
+
+  const hitRate   = data.mood_hit_rate ?? 0;
+  const moodSess  = data.mood_sessions ?? 0;
+  const totalSess = data.total_sessions ?? 0;
+  const dist      = data.mood_distribution ?? {};
+
+  hitPct.textContent    = Math.round(hitRate * 100);
+  hitDetail.textContent = `${moodSess} / ${totalSess} 位顧客選了心情`;
+
+  barsEl.textContent = '';
+  ['1','2','3','4','5'].forEach(k => {
+    const count = dist[k] ?? 0;
+    const pct   = moodSess > 0 ? Math.round((count / moodSess) * 100) : 0;
+    const row   = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:7px';
+    row.innerHTML = `
+      <span style="font-size:11px;color:#444;width:80px;flex-shrink:0">${MOOD_BAR_LABELS[k]}</span>
+      <div style="flex:1;height:18px;background:#f0f0f0;border-radius:9px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${MOOD_BAR_COLORS[k]};border-radius:9px;transition:width 0.6s ease"></div>
+      </div>
+      <span style="font-size:11px;color:#888;width:56px;text-align:right;flex-shrink:0">${count} 次 (${pct}%)</span>
+    `;
+    barsEl.appendChild(row);
+  });
 }
 
 function renderTop3(sessions) {
@@ -271,6 +314,21 @@ function renderTable(sessions) {
     }
 
     tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart, tdSource);
+
+    // 心情欄
+    const tdMood = document.createElement('td');
+    const score = s.mood_score ?? 0;
+    if (score > 0) {
+      const chip = document.createElement('span');
+      chip.style.cssText = `display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;${MOOD_CHIP_STYLES[score] || ''}`;
+      chip.textContent = `${'★'.repeat(score)} ${['','很差','普通','還不錯','很開心','超棒'][score]}`;
+      tdMood.appendChild(chip);
+    } else {
+      tdMood.style.cssText = 'color:#bbb;font-size:12px';
+      tdMood.textContent = '—';
+    }
+    tr.appendChild(tdMood);
+
     tbody.appendChild(tr);
   });
 }
