@@ -1,11 +1,25 @@
 """AI 推播服務 — 透過 Ollama 生成底部欄推播餐點與理由。"""
 import asyncio
 import re
+import time
 
 import ai_services
 import config
 from repositories import menu_repository
 from services.recommendation_service import clean_menu_id
+from services.mood_service import get_mood_context
+
+_menu_cache: dict = {"items": None, "ts": 0.0}
+
+
+async def _get_menu_cached() -> list:
+    now = time.monotonic()
+    ttl = float(config.get("VOICE_MENU_CACHE_TTL_SEC", 60.0))
+    if _menu_cache["items"] is None or now - _menu_cache["ts"] > ttl:
+        _menu_cache["items"] = await asyncio.to_thread(menu_repository.get_menu)
+        _menu_cache["ts"] = now
+    return _menu_cache["items"]
+
 
 def _price(item: dict) -> int:
     try:
@@ -26,8 +40,9 @@ def _menu_context(items: list[dict], limit: int = 80) -> str:
 
 
 def _fallback_item(items: list[dict], exclude: set) -> dict:
+    priority_cats = config.get("AI_PUSH_PRIORITY_CATS", [])
     candidates = [i for i in items if i.get("id") and i["id"] not in exclude and _price(i) > 0]
-    for cat in ["超值全餐", "極選系列", "點心"]:
+    for cat in priority_cats:
         hit = next((i for i in candidates if i.get("category") == cat), None)
         if hit:
             return hit
@@ -39,10 +54,10 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
     呼叫 Ollama 選出 1 個推薦餐點並生成促購短句。
     回傳 {"recommendation_id": "MCDxxx", "push_text": "...", "status": "success|fallback"}
     """
-    items    = await asyncio.to_thread(menu_repository.get_menu)
-    ids      = [i["id"] for i in items if i.get("id")]
-    by_id    = {i["id"]: i for i in items if i.get("id")}
-    exclude  = set(exclude_ids or [])
+    items   = await _get_menu_cached()
+    by_id   = {i["id"]: i for i in items if i.get("id")}
+    ids     = list(by_id)
+    exclude = set(exclude_ids or [])
     fallback = _fallback_item(items, exclude)
     fb_id    = fallback.get("id") or (ids[0] if ids else "")
     fb_name  = fallback.get("name") or "推薦餐點"
@@ -62,7 +77,10 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
             pass
 
     system = config.get("AI_PUSH_SYSTEM_PROMPT")
+    mood_context = get_mood_context(session_id)
+    mood_section = f"【顧客心情參考】\n{mood_context}\n\n" if mood_context else ""
     user = (
+        f"{mood_section}"
         f"{rag_section}"
         "【菜單白名單】\n"
         f"{_menu_context(items)}\n\n"
