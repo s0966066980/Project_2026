@@ -99,6 +99,14 @@ def create_router(deps: dict) -> APIRouter:
         success_count = sum(1 for l in logs if l.get("ai_push_success", False))
         failure_count = total - success_count
         rate = round(success_count / total, 4) if total > 0 else 0.0
+        # 心情統計
+        mood_sessions = sum(1 for l in logs if int(l.get("mood_score") or 0) > 0)
+        mood_hit_rate = round(mood_sessions / total, 4) if total > 0 else 0.0
+        mood_distribution = {str(i): 0 for i in range(1, 6)}
+        for l in logs:
+            score = int(l.get("mood_score") or 0)
+            if 1 <= score <= 5:
+                mood_distribution[str(score)] += 1
         sessions = [
             {
                 "timestamp": l.get("timestamp", ""),
@@ -107,6 +115,8 @@ def create_router(deps: dict) -> APIRouter:
                 "ai_push_success": bool(l.get("ai_push_success", False)),
                 "final_cart_ids": l.get("final_cart_ids", []),
                 "cart_sources": l.get("cart_sources", []),
+                "mood_score": int(l.get("mood_score") or 0),
+                "mood_label": str(l.get("mood_label") or ""),
             }
             for l in reversed(logs)
         ]
@@ -117,6 +127,9 @@ def create_router(deps: dict) -> APIRouter:
             "success_sessions": success_count,
             "failure_sessions": failure_count,
             "success_rate": rate,
+            "mood_hit_rate": mood_hit_rate,
+            "mood_sessions": mood_sessions,
+            "mood_distribution": mood_distribution,
             "cumulative_score": success_count - failure_count,
             "sessions": sessions,
         }
