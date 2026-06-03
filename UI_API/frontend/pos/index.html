@@ -127,18 +127,18 @@
     </button>
 
     <!-- 心情卡：image4.png 為視覺背景，星星互動區域覆蓋在上 -->
-    <div style="position:absolute;left:2.5%;top:16%;width:52%;height:66%;
+    <div style="position:absolute;left:2.5%;top:33%;width:50%;height:44%;
                 background:url('/static/image4.png') center/cover no-repeat;
                 border-radius:16px;overflow:hidden">
 
       <!-- 奶油遮罩：覆蓋 image4 的靜態星星+標籤區，讓 HTML 互動星星顯示 -->
-      <div style="position:absolute;left:0;right:0;top:36%;bottom:18%;
+      <div style="position:absolute;left:0;right:0;top:33%;bottom:19%;
                   background:#f4e6cc;
                   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0">
 
         <!-- 互動星星列 -->
         <div id="moodStarsRow" style="display:flex;justify-content:space-around;align-items:flex-start;
-                                       width:100%;padding:0 6%;height:75%">
+                                       width:100%;padding:0 5%;height:78%">
           <!-- JS renderMoodStars() 動態產生 -->
         </div>
 
@@ -152,7 +152,7 @@
     <button id="startSystemBtn" type="button">開始點餐</button>
 
     <!-- 跳過提示 -->
-    <p id="moodSkipHint" style="position:absolute;bottom:2.5%;left:19%;width:37%;
+    <p id="moodSkipHint" style="position:absolute;bottom:1.5%;left:19.5%;width:36%;
                                   text-align:center;font-size:clamp(8px,0.75vw,10px);color:#aaa">
       或直接按「開始點餐」跳過心情選擇
     </p>

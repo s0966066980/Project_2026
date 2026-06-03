@@ -1174,10 +1174,10 @@
   /* 開始按鈕：image3.png 為視覺，透明文字 */
   #startupOverlay #startSystemBtn {
     position: absolute !important;
-    left: 19% !important;
-    bottom: 6% !important;
-    width: 37% !important;
-    height: 16% !important;
+    left: 19.5% !important;
+    bottom: 5% !important;
+    width: 36% !important;
+    height: 15% !important;
     opacity: 1 !important;
     background: url('/static/image3.png') center / contain no-repeat !important;
     border: none !important;
