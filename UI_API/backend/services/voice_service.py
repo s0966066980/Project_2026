@@ -9,17 +9,24 @@ import ai_services
 import config
 import database
 from repositories import menu_repository, session_repository
+from services.mood_service import get_mood_context
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
 
 _menu_cache: dict = {"items": None, "context": None, "ts": 0.0}
+_menu_cache_lock = asyncio.Lock()
 
 
 async def _load_menu_cached() -> tuple:
     now = time.monotonic()
     ttl = float(config.get("VOICE_MENU_CACHE_TTL_SEC", 60.0))
-    if _menu_cache["items"] is None or now - _menu_cache["ts"] > ttl:
+    if _menu_cache["items"] is not None and now - _menu_cache["ts"] <= ttl:
+        return _menu_cache["items"], _menu_cache["context"]
+    async with _menu_cache_lock:
+        now = time.monotonic()
+        if _menu_cache["items"] is not None and now - _menu_cache["ts"] <= ttl:
+            return _menu_cache["items"], _menu_cache["context"]
         items, context = await asyncio.gather(
             asyncio.to_thread(menu_repository.get_menu),
             asyncio.to_thread(database.build_full_menu_context),
@@ -94,6 +101,11 @@ async def handle_voice(
         rag_context = await get_rag().query(user_text)
     else:
         rag_context = ""
+
+    # 注入心情 context（若顧客有選心情星星）
+    mood_context = get_mood_context(session_id)
+    if mood_context:
+        system_prompt = f"【顧客心情參考】\n{mood_context}\n\n{system_prompt}"
 
     # Emotion-LLaMA 快取注入（若啟用且有快取）
     emotion_context = ""
