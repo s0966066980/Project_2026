@@ -1171,34 +1171,67 @@
     font-weight: 900;
     z-index: 10;
   }
-  /* 開始按鈕：image3.png 為視覺，透明文字 */
+  /* ── 開始按鈕：純 CSS 對應 image3.png 風格 ── */
   #startupOverlay #startSystemBtn {
     position: absolute !important;
     left: 19.5% !important;
     bottom: 5% !important;
     width: 36% !important;
-    height: 15% !important;
-    opacity: 1 !important;
-    background: url('/static/image3.png') center / contain no-repeat !important;
-    border: none !important;
+    height: 14% !important;
+    background: linear-gradient(180deg,#FFE566 0%,#FFC92C 50%,#FFB000 100%) !important;
+    border: 3px solid rgba(255,255,255,0.88) !important;
+    border-radius: 100px !important;
     cursor: pointer !important;
-    color: transparent !important;
-    font-size: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    transition: opacity 0.1s !important;
+    color: #2a1800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: clamp(8px,1.1vw,18px) !important;
+    font-size: inherit !important;
+    box-shadow: 0 4px 20px rgba(160,90,0,0.28), inset 0 1px 0 rgba(255,255,255,0.55) !important;
+    transition: transform 0.12s, box-shadow 0.12s !important;
+    padding: 0 clamp(14px,1.8vw,26px) !important;
   }
-  #startupOverlay #startSystemBtn:active { opacity: 0.85 !important; }
-  /* Kiosk 心情星星尺寸 */
+  #startupOverlay #startSystemBtn:hover {
+    box-shadow: 0 6px 28px rgba(160,90,0,0.38), inset 0 1px 0 rgba(255,255,255,0.55) !important;
+  }
+  #startupOverlay #startSystemBtn:active { transform: scale(0.97) !important; }
+
+  .start-btn-icon {
+    font-size: clamp(22px, 3.2vw, 46px);
+    line-height: 1;
+    display: block;
+  }
+  .start-btn-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .start-btn-main {
+    font-size: clamp(15px, 1.9vw, 26px);
+    font-weight: 900;
+    color: #2a1800;
+    line-height: 1;
+    font-family: "Noto Sans TC", "Segoe UI", sans-serif;
+  }
+  .start-btn-sub {
+    font-size: clamp(8px, 0.9vw, 13px);
+    font-weight: 600;
+    color: #5a3800;
+    letter-spacing: 0.5px;
+    margin-top: clamp(1px, 0.2vh, 3px);
+  }
+
+  /* ── Kiosk 心情星星尺寸 & 3D 漸層 ── */
   #startupOverlay .mood-star-svg {
-    width: clamp(28px, 4.2vw, 54px) !important;
-    height: clamp(28px, 4.2vw, 54px) !important;
+    width: clamp(28px, 4.4vw, 56px) !important;
+    height: clamp(28px, 4.4vw, 56px) !important;
   }
   #startupOverlay .mood-star-label {
-    font-size: clamp(8px, 0.88vw, 12px) !important;
-    color: #5a4500 !important;
-    margin-top: 4px !important;
+    font-size: clamp(7px, 0.82vw, 11px) !important;
+    color: #6a4800 !important;
+    margin-top: clamp(2px,0.3vh,5px) !important;
+    text-align: center !important;
   }
   #startupOverlay .mood-star-item.lit .mood-star-label {
     color: #8B2500 !important;
@@ -2901,11 +2934,11 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
 }
 .mood-star-item:hover { transform: scale(1.05); }
 .mood-star-svg { width: 48px; height: 48px; transition: transform 0.15s, filter 0.15s; }
-.mood-star-svg .star-poly { fill: #d0cdc6; transition: fill 0.15s; }
-.mood-star-item.lit .star-poly { fill: #FFB300; }
+.mood-star-svg .star-poly { fill: url(#starGrayGrad); transition: fill 0.15s; }
+.mood-star-item.lit .star-poly { fill: url(#starGoldGrad); }
 .mood-star-item.lit .mood-star-svg {
   transform: scale(1.18);
-  filter: drop-shadow(0 3px 8px rgba(255,179,0,0.55));
+  filter: drop-shadow(0 4px 8px rgba(200,100,0,0.45));
 }
 @keyframes mood-pop {
   0%   { transform: scale(1); }

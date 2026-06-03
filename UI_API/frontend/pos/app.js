@@ -1442,24 +1442,16 @@ function renderMoodStars() {
     }
   });
 
-  // 更新按鈕與提示文字
-  const btn = document.getElementById('startSystemBtn');
+  // 更新按鈕標籤與提示文字（按鈕外觀由 CSS 控制）
+  const btnLabel = document.getElementById('startBtnLabel');
   const feedback = document.getElementById('moodFeedbackText');
   const skipHint = document.getElementById('moodSkipHint');
   if (currentMoodScore > 0) {
-    if (btn) {
-      btn.style.background = '#DA291C';
-      btn.style.boxShadow = '0 4px 20px rgba(218,41,28,0.4)';
-      btn.textContent = `開始點餐　${MOOD_EMOJIS[currentMoodScore - 1]} ${MOOD_LABELS[currentMoodScore - 1]}`;
-    }
+    if (btnLabel) btnLabel.textContent = `開始點餐 ${MOOD_EMOJIS[currentMoodScore - 1]}`;
     if (feedback) feedback.textContent = `已選 ${currentMoodScore} 顆星`;
     if (skipHint) skipHint.style.visibility = 'hidden';
   } else {
-    if (btn) {
-      btn.style.background = '#1a1a1a';
-      btn.style.boxShadow = '0 4px 20px rgba(0,0,0,0.25)';
-      btn.textContent = '開始點餐';
-    }
+    if (btnLabel) btnLabel.textContent = '開始點餐';
     if (feedback) feedback.textContent = '';
     if (skipHint) skipHint.style.visibility = 'visible';
   }

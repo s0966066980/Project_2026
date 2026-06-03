@@ -118,44 +118,90 @@
 <!-- ============ POS 視圖 ============ -->
 <div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
 
-  <!-- 開始 overlay：image2=背景, image4=心情卡, image3=按鈕 -->
+  <!-- SVG 漸層定義：3D 金色星星 / 灰色未選星星 -->
+  <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <radialGradient id="starGoldGrad" cx="38%" cy="26%" r="70%">
+        <stop offset="0%"   stop-color="#FFFDE7"/>
+        <stop offset="28%"  stop-color="#FFE066"/>
+        <stop offset="62%"  stop-color="#FFC107"/>
+        <stop offset="100%" stop-color="#BF6A00"/>
+      </radialGradient>
+      <radialGradient id="starGrayGrad" cx="38%" cy="26%" r="70%">
+        <stop offset="0%"   stop-color="#F2EEE6"/>
+        <stop offset="60%"  stop-color="#D4CFC6"/>
+        <stop offset="100%" stop-color="#B0ABA2"/>
+      </radialGradient>
+    </defs>
+  </svg>
+
+  <!-- 開始 overlay：image2=全螢幕背景；卡片與按鈕皆純 CSS 重建 -->
   <div id="startupOverlay" class="absolute inset-0 z-50 transition-opacity duration-500">
 
-    <!-- 語言切換（CSS 定位右上角） -->
+    <!-- 語言切換（CSS 絕對定位右上角） -->
     <button id="startupLangBtn" class="startup-lang-btn" type="button">
       <i class="fas fa-globe"></i><span style="margin:0 4px">中文</span><i class="fas fa-chevron-down"></i>
     </button>
 
-    <!-- 心情卡：image4.png 為視覺背景，星星互動區域覆蓋在上 -->
-    <div style="position:absolute;left:2.5%;top:33%;width:50%;height:44%;
-                background:url('/static/image4.png') center/cover no-repeat;
-                border-radius:16px;overflow:hidden">
+    <!-- 心情卡：純 CSS，對應 image4.png 視覺風格 -->
+    <div style="
+      position:absolute; left:3%; top:27%; width:48%; height:50%;
+      background:linear-gradient(155deg,#fef7e2 0%,#f8e9be 100%);
+      border-radius:22px;
+      box-shadow:0 8px 36px rgba(120,80,0,0.14),0 2px 8px rgba(0,0,0,0.07);
+      display:flex; flex-direction:column; align-items:center; justify-content:space-evenly;
+      padding:clamp(8px,1.4vh,18px) clamp(12px,2vw,28px);
+      overflow:hidden;
+    ">
+      <!-- 角落裝飾 sparkles -->
+      <span style="position:absolute;top:5%;left:4%;color:#E5A800;font-size:clamp(12px,1.3vw,18px);transform:rotate(-20deg);line-height:1">✦</span>
+      <span style="position:absolute;top:4%;right:5%;color:#E5A800;font-size:clamp(9px,1vw,14px);transform:rotate(15deg);line-height:1">✦</span>
+      <span style="position:absolute;bottom:7%;right:4%;color:#E5A800;font-size:clamp(10px,1.1vw,16px);transform:rotate(-10deg);line-height:1">✦</span>
 
-      <!-- 奶油遮罩：覆蓋 image4 的靜態星星+標籤區，讓 HTML 互動星星顯示 -->
-      <div style="position:absolute;left:0;right:0;top:33%;bottom:19%;
-                  background:#f4e6cc;
-                  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0">
-
-        <!-- 互動星星列 -->
-        <div id="moodStarsRow" style="display:flex;justify-content:space-around;align-items:flex-start;
-                                       width:100%;padding:0 5%;height:78%">
-          <!-- JS renderMoodStars() 動態產生 -->
-        </div>
-
-        <!-- 選了幾顆星的回饋文字 -->
-        <div id="moodFeedbackText" style="font-size:clamp(9px,0.85vw,12px);font-weight:700;
-                                           color:#8B4513;height:14px;text-align:center"></div>
+      <!-- 標題 -->
+      <div style="text-align:center">
+        <h2 style="font-size:clamp(14px,1.7vw,24px);font-weight:900;color:#1a0f00;margin:0;line-height:1.2">今天心情如何？</h2>
+        <p style="font-size:clamp(9px,0.95vw,13px);font-weight:600;color:#5a3800;margin:clamp(2px,0.4vh,5px) 0 0">請點選星星告訴我們</p>
+        <p style="font-size:clamp(8px,0.78vw,11px);color:#9a7a40;margin:clamp(1px,0.2vh,3px) 0 0">Tap the stars to share your mood</p>
       </div>
+
+      <!-- 星星區（虛線框） -->
+      <div style="
+        width:91%;
+        border:1.5px dashed rgba(160,110,20,0.38);
+        border-radius:14px;
+        padding:clamp(6px,1vh,12px) clamp(4px,0.8vw,10px) clamp(4px,0.6vh,8px);
+      ">
+        <div id="moodStarsRow" style="
+          display:flex; justify-content:space-around; align-items:flex-start; width:100%;
+        "><!-- JS renderMoodStars() 動態產生 --></div>
+        <div id="moodFeedbackText" style="
+          height:13px; text-align:center;
+          font-size:clamp(8px,0.78vw,11px); font-weight:700; color:#8B4513;
+          margin-top:clamp(2px,0.4vh,5px);
+        "></div>
+      </div>
+
+      <!-- 說明文字 -->
+      <p style="font-size:clamp(7px,0.72vw,10px);color:#7a5a20;text-align:center;margin:0">
+        ✦ 您的心情將幫助我們提供更適合的餐點
+      </p>
     </div>
 
-    <!-- 開始按鈕：CSS 定位，image3.png 為視覺 -->
-    <button id="startSystemBtn" type="button">開始點餐</button>
+    <!-- 開始按鈕：純 CSS，對應 image3.png 視覺風格 -->
+    <button id="startSystemBtn" type="button">
+      <span class="start-btn-icon">☝</span>
+      <span class="start-btn-content">
+        <span id="startBtnLabel" class="start-btn-main">開始點餐</span>
+        <span class="start-btn-sub">Touch To Start</span>
+      </span>
+    </button>
 
     <!-- 跳過提示 -->
-    <p id="moodSkipHint" style="position:absolute;bottom:1.5%;left:19.5%;width:36%;
-                                  text-align:center;font-size:clamp(8px,0.75vw,10px);color:#aaa">
-      或直接按「開始點餐」跳過心情選擇
-    </p>
+    <p id="moodSkipHint" style="
+      position:absolute; bottom:1.5%; left:19.5%; width:36%;
+      text-align:center; font-size:clamp(8px,0.72vw,10px); color:#bbb;
+    ">或直接按「開始點餐」跳過心情選擇</p>
   </div>
 
   <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->
