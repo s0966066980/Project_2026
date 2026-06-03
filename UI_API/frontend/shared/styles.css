@@ -1146,15 +1146,10 @@
     width: var(--kiosk-width) !important;
     height: var(--kiosk-height) !important;
     transform: translate(-50%, -50%);
-    background: #f5eedc !important;
+    background: url('/static/image2.png') center / cover no-repeat !important;
     color: #1a1a1a !important;
-    display: flex !important;
-    flex-direction: column !important;
     overflow: hidden !important;
     padding: 0 !important;
-    gap: 0 !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
   }
   .startup-lang-btn {
     position: absolute;
@@ -1174,24 +1169,40 @@
     gap: 7px;
     font-size: clamp(14px, 1.4vw, 20px);
     font-weight: 900;
-    z-index: 2;
+    z-index: 10;
   }
+  /* 開始按鈕：image3.png 為視覺，透明文字 */
   #startupOverlay #startSystemBtn {
+    position: absolute !important;
+    left: 19% !important;
+    bottom: 6% !important;
+    width: 37% !important;
+    height: 16% !important;
     opacity: 1 !important;
-    background: #1a1a1a !important;
-    color: white !important;
-    font-size: clamp(15px, 1.6vw, 20px) !important;
-    font-weight: 900 !important;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.3) !important;
-    border-radius: 50px !important;
-    width: 100% !important;
-    height: auto !important;
-    padding: clamp(10px,1.6vh,16px) 20px !important;
-    transition: background 0.25s, transform 0.1s !important;
+    background: url('/static/image3.png') center / contain no-repeat !important;
+    border: none !important;
+    cursor: pointer !important;
+    color: transparent !important;
+    font-size: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    transition: opacity 0.1s !important;
   }
-  #startupOverlay #startSystemBtn:hover {
-    transform: translateY(-2px) !important;
-    background: #2d2d2d !important;
+  #startupOverlay #startSystemBtn:active { opacity: 0.85 !important; }
+  /* Kiosk 心情星星尺寸 */
+  #startupOverlay .mood-star-svg {
+    width: clamp(28px, 4.2vw, 54px) !important;
+    height: clamp(28px, 4.2vw, 54px) !important;
+  }
+  #startupOverlay .mood-star-label {
+    font-size: clamp(8px, 0.88vw, 12px) !important;
+    color: #5a4500 !important;
+    margin-top: 4px !important;
+  }
+  #startupOverlay .mood-star-item.lit .mood-star-label {
+    color: #8B2500 !important;
+    font-weight: 900 !important;
   }
 
   #mod-voice {

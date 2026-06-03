@@ -1422,7 +1422,7 @@ function renderMoodStars() {
         <svg class="mood-star-svg" viewBox="0 0 52 52">
           <polygon class="star-poly" points="26,4 32,18 47,18 36,28 40,43 26,34 12,43 16,28 5,18 20,18"/>
         </svg>
-        <div class="mood-star-label">${MOOD_LABELS[i - 1]}</div>
+        <div class="mood-star-label"><span style="display:block;font-size:0.78em;opacity:0.65">${i}顆星</span>${MOOD_LABELS[i - 1]}</div>
       `;
       item.addEventListener('click', () => selectMood(i));
       row.appendChild(item);
