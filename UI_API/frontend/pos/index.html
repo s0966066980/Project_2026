@@ -119,16 +119,37 @@
 <div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
 
   <!-- 開始 overlay -->
-  <div id="startupOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500" style="background:linear-gradient(135deg,#13201e,#274b47)">
-    <button id="startupLangBtn" class="startup-lang-btn" type="button">
-      <i class="fas fa-globe"></i><span>中文</span><i class="fas fa-chevron-down"></i>
+  <div id="startupOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-500" style="background:#FFC72C">
+    <button id="startupLangBtn" class="startup-lang-btn" type="button" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.85);color:#1a1a1a;border-radius:20px;padding:6px 14px;font-weight:700;font-size:13px;border:none;cursor:pointer">
+      <i class="fas fa-globe"></i><span style="margin:0 4px">中文</span><i class="fas fa-chevron-down"></i>
     </button>
-    <div class="mb-6 w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.12)"><i class="fas fa-utensils text-3xl"></i></div>
-    <h1 class="text-4xl md:text-5xl font-bold mb-3 text-center tracking-tight">智慧點餐</h1>
-    <p class="text-lg mb-10" style="color:rgba(255,255,255,0.5)">AI-Powered Smart Kiosk</p>
-    <div class="flex flex-col sm:flex-row gap-4 w-full px-6 md:px-0 md:w-auto items-center">
-      <button id="startSystemBtn" class="btn-primary w-full md:w-auto px-12 py-4 text-xl rounded-2xl shadow-2xl relative z-50">開始點餐</button>
+
+    <!-- 標題 -->
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:32px;margin-bottom:8px">🍟</div>
+      <h1 style="font-size:28px;font-weight:900;color:#1a1a1a;margin-bottom:4px">歡迎來點今天的好心情</h1>
+      <p style="font-size:13px;color:#555;margin-bottom:4px">Welcome / Start Your Order</p>
+      <p style="font-size:13px;font-weight:600;color:#333">✦ 先選擇今天的心情，再開始點餐</p>
     </div>
+
+    <!-- 心情卡 -->
+    <div style="background:rgba(255,255,255,0.88);border-radius:16px;padding:24px 32px;width:min(480px,90vw);margin-bottom:20px">
+      <p style="font-size:17px;font-weight:800;color:#1a1a1a;margin-bottom:4px">今天心情如何？</p>
+      <p style="font-size:12px;color:#777;margin-bottom:18px">Tap the stars to share your mood</p>
+
+      <div id="moodStarsRow" style="display:flex;justify-content:space-around;margin-bottom:12px">
+        <!-- 星星由 JS renderMoodStars() 動態產生 -->
+      </div>
+
+      <div id="moodFeedbackText" style="text-align:center;font-size:13px;font-weight:700;color:#DA291C;height:18px;margin-top:4px"></div>
+      <p style="font-size:11px;color:#888;text-align:center;margin-top:8px">💬 您的心情將幫助我們提供更適合的餐點</p>
+    </div>
+
+    <!-- 開始按鈕 -->
+    <button id="startSystemBtn"
+      style="width:min(480px,90vw);padding:18px;border-radius:50px;border:none;font-size:18px;font-weight:900;cursor:pointer;letter-spacing:1px;background:#1a1a1a;color:white;transition:background 0.25s,box-shadow 0.25s;box-shadow:0 4px 20px rgba(0,0,0,0.25)"
+      type="button">開始點餐</button>
+    <p id="moodSkipHint" style="font-size:12px;color:#666;margin-top:10px">或直接點「開始點餐」跳過心情選擇</p>
   </div>
 
   <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->

@@ -2906,3 +2906,32 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
   color: rgba(255,255,255,0.88) !important;
   margin-top: -4px !important;
 }
+
+/* ── 心情星星 ──────────────────────────────────────── */
+.mood-star-item {
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s;
+}
+.mood-star-item:hover { transform: scale(1.05); }
+.mood-star-svg { width: 48px; height: 48px; transition: transform 0.15s, filter 0.15s; }
+.mood-star-svg .star-poly { fill: #d0cdc6; transition: fill 0.15s; }
+.mood-star-item.lit .star-poly { fill: #FFB300; }
+.mood-star-item.lit .mood-star-svg {
+  transform: scale(1.18);
+  filter: drop-shadow(0 3px 8px rgba(255,179,0,0.55));
+}
+@keyframes mood-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.38); }
+  70%  { transform: scale(1.06); }
+  100% { transform: scale(1.18); }
+}
+.mood-star-item.lit.popping .mood-star-svg {
+  animation: mood-pop 0.3s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.mood-star-label {
+  font-size: 11px; font-weight: 600; color: #888; margin-top: 6px;
+  transition: color 0.15s, font-weight 0.15s;
+}
+.mood-star-item.lit .mood-star-label { color: #DA291C; font-weight: 800; }
