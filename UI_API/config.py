@@ -81,6 +81,17 @@ DEFAULT_SETTINGS = {
         "使用繁體中文回答，語氣自然口語。若顧客說英文，改用英文回答。\n"
         "不確定顧客意思時，直接提供 1 句可執行協助，不要重複顧客問句。\n"
         "\n"
+        "【語音諧音修正（重要）】：語音辨識（Whisper）容易產生諧音或同音字錯誤，"
+        "解析顧客點餐時必須先做諧音對照，常見修正：\n"
+        "大買克／大賣可／大邁可 → 大麥克；"
+        "賣香魚／買香魚／麥鄉魚 → 麥香魚；"
+        "賣脆雞／買脆雞 → 麥脆雞；"
+        "樹條／書條／鼠條／暑條 → 薯條；"
+        "書餅 → 薯餅；賣咖啡 → 麥咖啡；"
+        "快樂兒童／快樂小孩餐 → 快樂兒童餐；"
+        "雞快 → 雞塊；喝樂 → 可樂；"
+        "麥（賣）系列開頭的品項名稱若不確定，優先對應菜單白名單中最接近的品項。\n"
+        "\n"
         "只輸出合法 JSON：\n"
         '{"ai_response":"繁體中文或英文回答","mentioned_ids":["MCD001"],'
         '"cart_actions":[{"action":"add","id":"MCD001","quantity":1}]}'
@@ -148,6 +159,27 @@ DEFAULT_SETTINGS = {
     "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
     "BARRIER_CART_REMOVE_MAX": 2,           # 購物車移除次數達此值視為 menu_hesitation
     "BARRIER_PAYMENT_FAIL_MAX": 1,          # 付款失敗次數達此值視為 payment_confusion
+    # ── 心情星星 prompt context ──────────────────────────────────
+    "MOOD_CONTEXT_1": (
+        "顧客今天心情很差（1星）。優先推薦薯條、麥脆雞等撫慰系餐點；"
+        "語氣溫柔體貼，例如「今天辛苦了，讓美食陪伴你」。避免強調慶祝或升級。"
+    ),
+    "MOOD_CONTEXT_2": (
+        "顧客今天心情普通（2星）。推薦熱門主餐如大麥克、麥香魚；"
+        "語氣自然親切，不過度熱情。"
+    ),
+    "MOOD_CONTEXT_3": (
+        "顧客今天心情還不錯（3星）。推薦均衡熱門組合或套餐；"
+        "語氣友善正向，可適度推薦加購。"
+    ),
+    "MOOD_CONTEXT_4": (
+        "顧客今天心情很開心（4星）。推薦升級套餐或加大；"
+        "語氣開朗，可用輕度慶祝語氣，例如「心情好，就來份大份的！」。"
+    ),
+    "MOOD_CONTEXT_5": (
+        "顧客今天心情超棒（5星）。推薦限定款、高價位或雙份餐；"
+        "語氣活潑慶祝，例如「心情超好！來份大麥克犒賞自己！」。"
+    ),
 }
 
 PUBLIC_SETTINGS_KEYS = {
@@ -273,6 +305,6 @@ def save_settings(new_settings):
 def get(key, default=None):
     """供外部服務調用，動態獲取參數，並支援預設值防呆"""
     value = load_settings().get(key)
-    if value is not None:
+    if value is not None and value != "":
         return value
     return DEFAULT_SETTINGS.get(key, default)
