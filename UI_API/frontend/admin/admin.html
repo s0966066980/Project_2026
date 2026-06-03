@@ -472,6 +472,27 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
       </div>
 
+      <!-- 心情評分統計 -->
+      <div style="background:white;border-radius:14px;padding:20px 24px;border:2px solid #DA291C;margin-bottom:20px;box-shadow:0 2px 12px rgba(218,41,28,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <span style="font-size:14px;font-weight:800;color:#1a2233">⭐ 心情評分統計</span>
+          <span style="background:#DA291C;color:white;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px">NEW</span>
+        </div>
+        <div style="display:flex;gap:20px;align-items:flex-start">
+          <!-- 觸擊率 -->
+          <div style="background:#fff8f8;border-radius:12px;padding:14px 18px;text-align:center;min-width:130px;border:1px solid #fde0e0;flex-shrink:0">
+            <div style="font-size:36px;font-weight:900;color:#DA291C;line-height:1"><span id="mood-hit-pct">—</span><span style="font-size:18px">%</span></div>
+            <div style="font-size:11px;color:#888;margin-top:4px">心情觸擊率</div>
+            <div id="mood-hit-detail" style="font-size:11px;color:#aaa;margin-top:6px">— / — 位顧客</div>
+          </div>
+          <!-- 分佈 -->
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">心情分佈</div>
+            <div id="mood-dist-bars"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Session table -->
       <div class="card">
         <div class="card-title"><i class="fas fa-list-alt"></i> 點餐記錄明細</div>
@@ -485,6 +506,7 @@ tbody tr:hover td { background: #f8fafd; }
                 <th>推播結果</th>
                 <th>最終購物車</th>
                 <th>加入方式</th>
+                <th>心情</th>
               </tr>
             </thead>
             <tbody id="s-tbody">
