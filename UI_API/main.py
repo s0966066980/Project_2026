@@ -23,6 +23,7 @@ from routes import (
     rag_routes,
     interaction_routes,
     realtime_routes,
+    mood_routes,
 )
 
 # Allow same-origin requests over any ngrok/cloudflared/localhost tunnel URL so the
@@ -174,6 +175,7 @@ app.include_router(emotion_routes.create_router(_deps))
 app.include_router(interaction_routes.create_router(_deps))
 app.include_router(realtime_routes.create_router(_deps))
 app.include_router(demo_routes.create_router(_deps))
+app.include_router(mood_routes.create_router(_deps))
 if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
 
