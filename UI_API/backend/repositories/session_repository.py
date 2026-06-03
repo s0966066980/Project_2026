@@ -34,6 +34,7 @@ def get_session_history(session_id: str):
 def archive_session(session_id: str):
     if session_id in session_db:
         del session_db[session_id]
+    clear_session_mood(session_id)
 
 
 # ── 心情評分儲存（與語音對話 session_db 分開） ──────────────────
