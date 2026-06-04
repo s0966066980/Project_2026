@@ -113,6 +113,8 @@ DEFAULT_SETTINGS = {
         '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。'
     ),
     # ── AI 推播 / 前端行為 ────────────────────
+    "AI_PUSH_TEXT_MIN": 18,                 # push_text 最少字數
+    "AI_PUSH_TEXT_MAX": 34,                 # push_text 最多字數
     "AI_PUSH_REFRESH_SEC": 15,              # 推播欄刷新間隔（秒）
     "CHOICE_HESITATION_IDLE_SEC": 60,       # 無操作多少秒後顯示猶豫彈窗
     "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效

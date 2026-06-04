@@ -86,7 +86,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         f"{_menu_context(items)}\n\n"
         f"【本次排除 ID】{', '.join(exclude) or '無'}\n"
         "請挑 1 個適合現在推播的餐點。"
-        "push_text：繁體中文、18–34 字、自然熱情促購語氣，不要出現 JSON 以外的文字。"
+        f"push_text：繁體中文、{config.get('AI_PUSH_TEXT_MIN', 18)}–{config.get('AI_PUSH_TEXT_MAX', 34)} 字、自然熱情促購語氣，不要出現 JSON 以外的文字。"
     )
 
     try:
@@ -116,7 +116,8 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         sel_id = fb_id
 
     selected  = by_id.get(sel_id) or fallback
-    push_text = re.sub(r"\s+", " ", str(raw.get("push_text") or "")).strip()[:60]
+    _hard_cap = int(config.get("AI_PUSH_TEXT_MAX", 34)) * 2  # 給 LLM 一倍餘裕，仍有上限
+    push_text = re.sub(r"\s+", " ", str(raw.get("push_text") or "")).strip()[:_hard_cap]
     if not push_text:
         push_text = f"{selected.get('name') or fb_name}現在很適合來一份！"
 

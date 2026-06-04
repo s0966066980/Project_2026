@@ -1449,7 +1449,7 @@ function renderMoodStars() {
   const skipHint = document.getElementById('moodSkipHint');
   if (currentMoodScore > 0) {
     if (btnLabel) btnLabel.textContent = `開始點餐 ${MOOD_EMOJIS[currentMoodScore - 1]}`;
-    if (feedback) feedback.textContent = `已選 ${currentMoodScore} 顆星`;
+
     if (skipHint) skipHint.style.visibility = 'hidden';
   } else {
     if (btnLabel) btnLabel.textContent = '開始點餐';

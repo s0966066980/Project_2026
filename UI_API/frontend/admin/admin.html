@@ -472,27 +472,6 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
       </div>
 
-      <!-- 心情評分統計 -->
-      <div style="background:white;border-radius:14px;padding:20px 24px;border:2px solid #DA291C;margin-bottom:20px;box-shadow:0 2px 12px rgba(218,41,28,0.08)">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-          <span style="font-size:14px;font-weight:800;color:#1a2233">⭐ 心情評分統計</span>
-          <span style="background:#DA291C;color:white;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px">NEW</span>
-        </div>
-        <div style="display:flex;gap:20px;align-items:flex-start">
-          <!-- 觸擊率 -->
-          <div style="background:#fff8f8;border-radius:12px;padding:14px 18px;text-align:center;min-width:130px;border:1px solid #fde0e0;flex-shrink:0">
-            <div style="font-size:36px;font-weight:900;color:#DA291C;line-height:1"><span id="mood-hit-pct">—</span><span style="font-size:18px">%</span></div>
-            <div style="font-size:11px;color:#888;margin-top:4px">心情觸擊率</div>
-            <div id="mood-hit-detail" style="font-size:11px;color:#aaa;margin-top:6px">— / — 位顧客</div>
-          </div>
-          <!-- 分佈 -->
-          <div style="flex:1">
-            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">心情分佈</div>
-            <div id="mood-dist-bars"></div>
-          </div>
-        </div>
-      </div>
-
       <!-- Session table -->
       <div class="card">
         <div class="card-title"><i class="fas fa-list-alt"></i> 點餐記錄明細</div>
@@ -510,7 +489,7 @@ tbody tr:hover td { background: #f8fafd; }
               </tr>
             </thead>
             <tbody id="s-tbody">
-              <tr><td colspan="6" class="adm-empty">載入中…</td></tr>
+              <tr><td colspan="7" class="adm-empty">載入中…</td></tr>
             </tbody>
           </table>
         </div>
@@ -645,9 +624,50 @@ tbody tr:hover td { background: #f8fafd; }
           <!-- AI Push Prompt -->
           <section>
             <div class="section-title">AI 推播 System Prompt</div>
+            <div class="setting-row" style="margin-bottom:12px">
+              <label class="setting-label">push_text 字數範圍</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input id="inp-push-text-min" class="setting-input" type="number" min="5" max="200" placeholder="18" style="width:72px">
+                <span style="color:#8494b0;font-size:13px">–</span>
+                <input id="inp-push-text-max" class="setting-input" type="number" min="5" max="200" placeholder="34" style="width:72px">
+                <span style="color:#8494b0;font-size:12px">字（繁體中文）</span>
+              </div>
+            </div>
             <div>
               <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推播 Prompt（空白 = 使用系統預設）</label>
               <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推播 Prompt"></textarea>
+            </div>
+          </section>
+
+          <hr style="border:none;border-top:1px solid #edf0f7">
+
+          <!-- 心情 Prompt -->
+          <section>
+            <div class="section-title">心情評分 Prompt 注入</div>
+            <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
+              顧客選擇星星後，對應文字會插入 AI 推播與語音 Prompt 最前方（<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">【顧客心情參考】</code>）。空白則使用系統預設。
+            </p>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★ 1 星 — 很差</label>
+                <textarea id="inp-mood-ctx-1" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★ 2 星 — 普通</label>
+                <textarea id="inp-mood-ctx-2" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★ 3 星 — 還不錯</label>
+                <textarea id="inp-mood-ctx-3" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★★ 4 星 — 很開心</label>
+                <textarea id="inp-mood-ctx-4" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★★★ 5 星 — 超棒</label>
+                <textarea id="inp-mood-ctx-5" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
+              </div>
             </div>
           </section>
 

@@ -1175,10 +1175,10 @@
   #startupOverlay #startSystemBtn {
     position: absolute !important;
     left: 50% !important;
-    bottom: 4.5% !important;
+    bottom: 3% !important;
     transform: translateX(-50%) !important;
-    width: 56% !important;
-    height: 16% !important;
+    width: 50% !important;
+    height: 11% !important;
     border-radius: 100px !important;
     cursor: pointer !important;
     color: #3a1c08 !important;
@@ -1257,20 +1257,20 @@
   }
   .start-btn-main {
     display: block;
-    font-size: clamp(22px, 4vw, 72px);
+    font-size: clamp(18px, 3vw, 52px);
     font-weight: 900;
     color: #3a1c08;
     line-height: 1;
-    letter-spacing: clamp(1px, 0.2vw, 4px);
+    letter-spacing: clamp(1px, 0.2vw, 3px);
     font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", Arial, sans-serif;
   }
   .start-btn-sub {
     display: block;
-    font-size: clamp(10px, 1.8vw, 34px);
-    font-weight: 800;
+    font-size: clamp(8px, 1.3vw, 22px);
+    font-weight: 700;
     color: #3a1c08;
     letter-spacing: clamp(0.5px, 0.1vw, 2px);
-    margin-top: clamp(4px, 0.8vh, 14px);
+    margin-top: clamp(2px, 0.5vh, 8px);
     line-height: 1;
   }
 
@@ -1279,10 +1279,10 @@
      ══════════════════════════════════════════════════════ */
   .mood-card-overlay {
     position: absolute;
-    left: 7.5%;
-    top: 42%;
-    width: 42%;
-    height: 33%;
+    left: 16%;
+    top: 52%;
+    width: 36%;
+    height: 31%;
 
     background: linear-gradient(160deg, #fffdf5 0%, #fdf5dc 100%);
     border-radius: clamp(18px, 2.8vw, 46px);
@@ -1315,12 +1315,12 @@
   /* Header — 完全對齊 image4.png 字型設計 */
   .mood-card-header { text-align: center; }
 
-  /* 大標題：Noto Sans TC Black，深暖棕近黑，尺寸比例 3.3x */
+  /* 大標題：Noto Sans TC Black，深棕色，尺寸比例 3.3x */
   .mood-card-title {
     font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
-    font-size: clamp(22px, 3.2vw, 56px);
+    font-size: clamp(16px, 2.2vw, 38px);
     font-weight: 900;
-    color: #1a0f00;
+    color: #3d2200;
     line-height: 1.2;
     margin: 0;
     letter-spacing: 0.01em;
@@ -1329,20 +1329,20 @@
   /* 副標：Noto Sans TC Bold，稍淺棕，尺寸比例 1.6x */
   .mood-card-subtitle {
     font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
-    font-size: clamp(12px, 1.5vw, 27px);
+    font-size: clamp(9px, 1.05vw, 18px);
     font-weight: 700;
     color: #3d2200;
-    margin: clamp(4px, 0.55vh, 9px) 0 0;
+    margin: clamp(2px, 0.35vh, 6px) 0 0;
     letter-spacing: 0.01em;
   }
 
   /* 英文：Noto Sans TC Regular，中灰色，尺寸比例 1x */
   .mood-card-en {
     font-family: "Noto Sans TC", "PingFang TC", Arial, sans-serif;
-    font-size: clamp(9px, 0.95vw, 17px);
+    font-size: clamp(7px, 0.72vw, 12px);
     font-weight: 400;
     color: #888888;
-    margin: clamp(2px, 0.3vh, 5px) 0 0;
+    margin: clamp(1px, 0.2vh, 4px) 0 0;
     letter-spacing: 0.01em;
   }
 
@@ -1402,16 +1402,16 @@
     bottom: 1.2%;
     left: 50%;
     transform: translateX(-50%);
-    width: 56%;
+    width: 50%;
     text-align: center;
-    font-size: clamp(8px, 0.8vw, 13px);
+    font-size: clamp(7px, 0.7vw, 11px);
     color: #bbb;
   }
 
   /* ── Kiosk 心情星星 ── */
   #startupOverlay .mood-star-svg {
-    width:  clamp(34px, 5.8vw, 96px) !important;
-    height: clamp(34px, 5.8vw, 96px) !important;
+    width:  clamp(24px, 3.8vw, 62px) !important;
+    height: clamp(24px, 3.8vw, 62px) !important;
   }
   /* lit 狀態：放大 + 光暈強調（顏色由全域 starGoldGrad 規則處理） */
   #startupOverlay .mood-star-item.lit .mood-star-svg {
@@ -1422,10 +1422,10 @@
   }
   #startupOverlay .mood-star-label {
     font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif !important;
-    font-size: clamp(10px, 1.2vw, 20px) !important;
+    font-size: clamp(8px, 0.9vw, 14px) !important;
     font-weight: 700 !important;
     color: #3d2200 !important;
-    margin-top: clamp(3px, 0.4vh, 6px) !important;
+    margin-top: clamp(2px, 0.3vh, 4px) !important;
     text-align: center !important;
     letter-spacing: 0.01em !important;
   }
@@ -2664,7 +2664,7 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
 .choice-hesitation-card {
   position: relative;
   z-index: 1;
-  width: min(92vw, 460px);
+  width: min(92vw, 520px);
   border-radius: 30px;
   background: #f5f1ea;
   color: #2a2119;

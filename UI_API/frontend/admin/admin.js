@@ -143,7 +143,6 @@ async function loadStats() {
     setText('s-fail-rate', failRate + '%');
 
     const sessions = data.sessions || [];
-    renderMoodStats(data);
     renderTop3(sessions);
     renderTable(sessions);
 
@@ -153,36 +152,6 @@ async function loadStats() {
   }
 }
 
-function renderMoodStats(data) {
-  const hitPct    = document.getElementById('mood-hit-pct');
-  const hitDetail = document.getElementById('mood-hit-detail');
-  const barsEl    = document.getElementById('mood-dist-bars');
-  if (!hitPct || !barsEl) return;
-
-  const hitRate   = data.mood_hit_rate ?? 0;
-  const moodSess  = data.mood_sessions ?? 0;
-  const totalSess = data.total_sessions ?? 0;
-  const dist      = data.mood_distribution ?? {};
-
-  hitPct.textContent    = Math.round(hitRate * 100);
-  hitDetail.textContent = `${moodSess} / ${totalSess} 位顧客選了心情`;
-
-  barsEl.textContent = '';
-  ['1','2','3','4','5'].forEach(k => {
-    const count = dist[k] ?? 0;
-    const pct   = moodSess > 0 ? Math.round((count / moodSess) * 100) : 0;
-    const row   = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:7px';
-    row.innerHTML = `
-      <span style="font-size:11px;color:#444;width:80px;flex-shrink:0">${MOOD_BAR_LABELS[k]}</span>
-      <div style="flex:1;height:18px;background:#f0f0f0;border-radius:9px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${MOOD_BAR_COLORS[k]};border-radius:9px;transition:width 0.6s ease"></div>
-      </div>
-      <span style="font-size:11px;color:#888;width:56px;text-align:right;flex-shrink:0">${count} 次 (${pct}%)</span>
-    `;
-    barsEl.appendChild(row);
-  });
-}
 
 function renderTop3(sessions) {
   const box = document.getElementById('top3-list');
@@ -387,6 +356,8 @@ async function loadSettings() {
     setVal('inp-voice-prompt-zh', s.VOICE_ASSIST_SYSTEM_PROMPT    || '');
     setVal('inp-voice-prompt-en', s.VOICE_ASSIST_SYSTEM_PROMPT_EN || '');
     setVal('inp-push-prompt',     s.AI_PUSH_SYSTEM_PROMPT         || DEFAULT_PUSH_PROMPT);
+    setVal('inp-push-text-min',   s.AI_PUSH_TEXT_MIN ?? 18);
+    setVal('inp-push-text-max',   s.AI_PUSH_TEXT_MAX ?? 34);
     // STT
     setVal('inp-stt-provider',  s.STT_PROVIDER        || 'faster_whisper');
     setVal('inp-stt-model',     s.STT_MODEL           || 'small');
@@ -399,6 +370,8 @@ async function loadSettings() {
     setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
     setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
+    // 心情 Prompt
+    [1,2,3,4,5].forEach(n => setVal(`inp-mood-ctx-${n}`, s[`MOOD_CONTEXT_${n}`] || ''));
 
     onSttProviderChange();
     onTtsProviderChange();
@@ -423,6 +396,8 @@ async function saveSettings() {
       VOICE_ASSIST_SYSTEM_PROMPT:    val('inp-voice-prompt-zh'),
       VOICE_ASSIST_SYSTEM_PROMPT_EN: val('inp-voice-prompt-en'),
       AI_PUSH_SYSTEM_PROMPT:         val('inp-push-prompt') === DEFAULT_PUSH_PROMPT ? '' : val('inp-push-prompt'),
+      AI_PUSH_TEXT_MIN:              parseInt(val('inp-push-text-min') || '18', 10),
+      AI_PUSH_TEXT_MAX:              parseInt(val('inp-push-text-max') || '34', 10),
       // STT
       STT_PROVIDER:        val('inp-stt-provider')  || 'faster_whisper',
       STT_MODEL:           val('inp-stt-model')     || 'small',
@@ -435,6 +410,8 @@ async function saveSettings() {
       TTS_API_URL:         val('inp-tts-api-url'),
       TTS_API_KEY:         val('inp-tts-api-key'),
       TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
+      // 心情 Prompt（空白 = 保留系統預設，交由後端 config fallback 處理）
+      ...Object.fromEntries([1,2,3,4,5].map(n => [`MOOD_CONTEXT_${n}`, val(`inp-mood-ctx-${n}`)])),
     };
     const res = await fetch(`${API}/api/settings`, {
       method: 'POST',
