@@ -282,7 +282,58 @@ function renderTable(sessions) {
       tdSource.textContent = '—';
     }
 
-    tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart, tdSource);
+    // 語音對話欄
+    const tdVoice = document.createElement('td');
+    const turns = s.voice_turns || [];
+    if (turns.length) {
+      const badge = document.createElement('button');
+      badge.className = 'voice-badge';
+      const badgeIcon = document.createElement('i');
+      badgeIcon.className = 'fas fa-microphone';
+      const badgeText = document.createTextNode(` ${turns.length} 輪 ▾`);
+      badge.append(badgeIcon, badgeText);
+      badge.addEventListener('click', () => {
+        const next = tr.nextElementSibling;
+        if (next && next.classList.contains('voice-expand-row')) {
+          next.remove();
+          badgeText.textContent = ` ${turns.length} 輪 ▾`;
+        } else {
+          const expandRow = document.createElement('tr');
+          expandRow.className = 'voice-expand-row';
+          const expandTd = document.createElement('td');
+          expandTd.colSpan = 8;
+          const inner = document.createElement('div');
+          inner.className = 'voice-expand-inner';
+          turns.forEach(t => {
+            const turn = document.createElement('div');
+            turn.className = 'voice-turn';
+            if (t.user) {
+              const u = document.createElement('div');
+              u.className = 'voice-bubble-user';
+              u.textContent = t.user;
+              turn.appendChild(u);
+            }
+            if (t.ai) {
+              const a = document.createElement('div');
+              a.className = 'voice-bubble-ai';
+              a.textContent = t.ai;
+              turn.appendChild(a);
+            }
+            inner.appendChild(turn);
+          });
+          expandTd.appendChild(inner);
+          expandRow.appendChild(expandTd);
+          tr.after(expandRow);
+          badgeText.textContent = ` ${turns.length} 輪 ▴`;
+        }
+      });
+      tdVoice.appendChild(badge);
+    } else {
+      tdVoice.style.cssText = 'color:#bbb;font-size:12px';
+      tdVoice.textContent = '—';
+    }
+
+    tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart, tdSource, tdVoice);
 
     // 心情欄
     const tdMood = document.createElement('td');

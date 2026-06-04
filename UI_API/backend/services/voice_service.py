@@ -125,11 +125,22 @@ async def handle_voice(
     if emotion_context:
         system_prompt += "\n若有顧客情緒參考，請據此調整語氣，但不要直接提及你在分析情緒。"
 
+    # 熱門點選 TOP 3（讓 LLM 回答一般推薦問題時有依據）
+    from services.popular_service import get_top_items
+    top_items = await asyncio.to_thread(get_top_items, 3)
+    popular_section = ""
+    if top_items:
+        lines = "\n".join(
+            f"{i+1}. {t['name']}（{t['id']}）" for i, t in enumerate(top_items)
+        )
+        popular_section = f"【熱門點選 TOP 3】\n{lines}\n\n"
+
     input_label = "【本輪語音輸入】" if history_context else "【顧客語音輸入】"
     user_prompt = (
         (f"{history_context}\n\n" if history_context else "")
         + f"{input_label}\n{user_text}\n\n"
         + (f"{emotion_context}\n\n" if emotion_context else "")
+        + popular_section
         + (f"{rag_context}\n\n" if rag_context else "")
         + full_menu_context
     )

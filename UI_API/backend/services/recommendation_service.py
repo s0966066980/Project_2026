@@ -144,7 +144,22 @@ def fallback_cart_actions_from_text(user_text: str, menu_items: list[dict]) -> l
     return actions
 
 
+def _is_recommendation_query(text: str) -> bool:
+    """推薦／問答問句 → 不應觸發 fallback 加購邏輯。"""
+    keywords = [
+        "推薦", "建議", "有什麼好", "什麼好吃", "什麼推薦", "你們有什麼",
+        "有沒有推薦", "幫我推薦", "介紹", "有什麼特別", "什麼比較好",
+        "recommend", "suggest", "what's good", "what do you recommend",
+    ]
+    lowered = text.lower()
+    return any(k in lowered for k in keywords)
+
+
 def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> list[dict]:
+    # 推薦問句最優先：無論 LLM 輸出什麼 cart_actions 都不加購
+    if _is_recommendation_query(user_text):
+        return []
+
     menu_ids = [item.get("id") for item in menu_items if item.get("id")]
     actions = raw_actions if isinstance(raw_actions, list) else []
     cleaned = []
@@ -167,6 +182,9 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
             cleaned.append({"action": "add", "id": menu_id, "quantity": qty})
     if cleaned:
         return cleaned
+    # 推薦／問答問句不走 fallback，避免把推薦品項誤加入購物車
+    if _is_recommendation_query(user_text):
+        return []
     return fallback_cart_actions_from_text(user_text, menu_items)
 
 
@@ -189,6 +207,11 @@ def build_checkout_log_entry(
     emotions_summary = ", ".join(emotions) if emotions else "未知"
     speeches = [h["user_speech"] for h in session_history if h.get("user_speech")][-3:]
     languages = list(set(h["language"] for h in session_history if h.get("language")))
+    voice_turns = [
+        {"user": h.get("user_speech", ""), "ai": h.get("ai_response", "")}
+        for h in session_history
+        if h.get("user_speech") or h.get("ai_response")
+    ]
 
     return {
         "timestamp": datetime.now().isoformat(),
@@ -198,5 +221,6 @@ def build_checkout_log_entry(
         "languages": languages,
         "pushed_ids": unique_pushed,
         "final_cart_ids": cart_ids,
-        "is_success": is_success
+        "is_success": is_success,
+        "voice_turns": voice_turns,
     }

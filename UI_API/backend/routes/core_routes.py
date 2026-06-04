@@ -117,6 +117,7 @@ def create_router(deps: dict) -> APIRouter:
                 "cart_sources": l.get("cart_sources", []),
                 "mood_score": int(l.get("mood_score") or 0),
                 "mood_label": str(l.get("mood_label") or ""),
+                "voice_turns": l.get("voice_turns", []),
             }
             for l in reversed(logs)
         ]

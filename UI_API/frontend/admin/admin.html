@@ -353,6 +353,44 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-del-btn:hover { color: #e84040; background: #feecec; }
 @media (max-width:1000px) { #page-rag { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
 @media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
+/* ── 語音對話展開列 ── */
+.voice-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+  background: #eef2ff; color: #4b5daa; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.voice-badge:hover { background: #dde4ff; }
+.voice-expand-row td {
+  padding: 0 !important;
+  background: #f8f9ff;
+  border-bottom: 2px solid #e8eaf6;
+}
+.voice-expand-inner {
+  padding: 14px 20px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.voice-turn { display: flex; flex-direction: column; gap: 4px; }
+.voice-bubble-user {
+  align-self: flex-start;
+  background: #fff; border: 1px solid #dde4f0;
+  border-radius: 4px 14px 14px 14px;
+  padding: 6px 12px; font-size: 12px; color: #2a3550;
+  max-width: 80%;
+}
+.voice-bubble-user::before {
+  content: "顧客　"; font-weight: 700; color: #8494b0; font-size: 11px;
+}
+.voice-bubble-ai {
+  align-self: flex-end;
+  background: #4b5daa; color: #fff;
+  border-radius: 14px 4px 14px 14px;
+  padding: 6px 12px; font-size: 12px;
+  max-width: 80%;
+}
+.voice-bubble-ai::before {
+  content: "AI　"; font-weight: 700; font-size: 11px; opacity: 0.75;
+}
 </style>
 </head>
 <body>
@@ -486,10 +524,11 @@ tbody tr:hover td { background: #f8fafd; }
                 <th>最終購物車</th>
                 <th>加入方式</th>
                 <th>心情</th>
+                <th>語音對話</th>
               </tr>
             </thead>
             <tbody id="s-tbody">
-              <tr><td colspan="7" class="adm-empty">載入中…</td></tr>
+              <tr><td colspan="8" class="adm-empty">載入中…</td></tr>
             </tbody>
           </table>
         </div>
