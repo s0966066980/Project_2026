@@ -1171,67 +1171,263 @@
     font-weight: 900;
     z-index: 10;
   }
-  /* ── 開始按鈕：純 CSS 對應 image3.png 風格 ── */
+  /* ── 開始按鈕：image3.png 高品質 kiosk 風格 ── */
   #startupOverlay #startSystemBtn {
     position: absolute !important;
-    left: 19.5% !important;
-    bottom: 5% !important;
-    width: 36% !important;
-    height: 14% !important;
-    background: linear-gradient(180deg,#FFE566 0%,#FFC92C 50%,#FFB000 100%) !important;
-    border: 3px solid rgba(255,255,255,0.88) !important;
+    left: 50% !important;
+    bottom: 4.5% !important;
+    transform: translateX(-50%) !important;
+    width: 56% !important;
+    height: 16% !important;
     border-radius: 100px !important;
     cursor: pointer !important;
-    color: #2a1800 !important;
+    color: #3a1c08 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: clamp(8px,1.1vw,18px) !important;
+    gap: 0 !important;
     font-size: inherit !important;
-    box-shadow: 0 4px 20px rgba(160,90,0,0.28), inset 0 1px 0 rgba(255,255,255,0.55) !important;
-    transition: transform 0.12s, box-shadow 0.12s !important;
-    padding: 0 clamp(14px,1.8vw,26px) !important;
-  }
-  #startupOverlay #startSystemBtn:hover {
-    box-shadow: 0 6px 28px rgba(160,90,0,0.38), inset 0 1px 0 rgba(255,255,255,0.55) !important;
-  }
-  #startupOverlay #startSystemBtn:active { transform: scale(0.97) !important; }
+    font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", Arial, sans-serif !important;
+    user-select: none !important;
+    padding: 0 !important;
 
-  .start-btn-icon {
-    font-size: clamp(22px, 3.2vw, 46px);
-    line-height: 1;
-    display: block;
+    /* Two-layer gradient: gloss strip on top of yellow body */
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255,255,255,0.38)  0%,
+        rgba(255,255,255,0.14) 18%,
+        rgba(255,255,255,0.00) 40%
+      ),
+      linear-gradient(
+        180deg,
+        #ffe840  0%,
+        #ffd91a 22%,
+        #ffc400 52%,
+        #f5b000 78%,
+        #e8a000 100%
+      ) !important;
+
+    /* White border */
+    border: clamp(3px, 0.3vw, 5px) solid rgba(255,255,255,0.95) !important;
+
+    /* Layered shadows: ambient + drop + inner gloss + bottom press-edge */
+    box-shadow:
+      0 clamp(8px,1.5vh,20px) clamp(20px,4vh,56px) rgba(120,70,0,0.28),
+      0 clamp(3px,0.6vh, 8px) clamp(8px, 1.5vh,18px) rgba(0,0,0,0.14),
+      inset 0 clamp(2px,0.5vh,5px) clamp(5px,0.9vh,10px) rgba(255,255,255,0.44),
+      inset 0 clamp(-6px,-1.1vh,-10px) 0 rgba(160,90,0,0.24) !important;
+
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease !important;
   }
+
+  /* Inner inset ring for extra depth */
+  #startupOverlay #startSystemBtn::before {
+    content: '';
+    position: absolute;
+    inset: clamp(4px,0.5vw,7px);
+    border-radius: 100px;
+    border: clamp(1px,0.15vw,2px) solid rgba(255,255,255,0.50);
+    pointer-events: none;
+  }
+
+  #startupOverlay #startSystemBtn:hover {
+    filter: brightness(1.04) !important;
+    box-shadow:
+      0 clamp(12px,2vh,28px) clamp(28px,5vh,72px) rgba(120,70,0,0.34),
+      0 clamp(4px, 0.8vh,12px) clamp(10px,2vh,24px) rgba(0,0,0,0.18),
+      inset 0 clamp(2px,0.5vh,5px) clamp(5px,0.9vh,10px) rgba(255,255,255,0.44),
+      inset 0 clamp(-6px,-1.1vh,-10px) 0 rgba(160,90,0,0.24) !important;
+  }
+  #startupOverlay #startSystemBtn:active {
+    transform: translateX(-50%) scale(0.984) translateY(clamp(2px,0.4vh,4px)) !important;
+    filter: brightness(0.97) !important;
+    box-shadow:
+      0 clamp(3px,0.6vh,8px) clamp(10px,2vh,24px) rgba(120,70,0,0.20),
+      inset 0 clamp(2px,0.4vh,4px) clamp(3px,0.6vh,6px) rgba(255,255,255,0.28),
+      inset 0 clamp(-3px,-0.6vh,-5px) 0 rgba(160,90,0,0.16) !important;
+  }
+
+  /* Text block — icon 已移除，直接置中 */
   .start-btn-content {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
   }
   .start-btn-main {
-    font-size: clamp(15px, 1.9vw, 26px);
+    display: block;
+    font-size: clamp(22px, 4vw, 72px);
     font-weight: 900;
-    color: #2a1800;
+    color: #3a1c08;
     line-height: 1;
-    font-family: "Noto Sans TC", "Segoe UI", sans-serif;
+    letter-spacing: clamp(1px, 0.2vw, 4px);
+    font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", Arial, sans-serif;
   }
   .start-btn-sub {
-    font-size: clamp(8px, 0.9vw, 13px);
-    font-weight: 600;
-    color: #5a3800;
-    letter-spacing: 0.5px;
-    margin-top: clamp(1px, 0.2vh, 3px);
+    display: block;
+    font-size: clamp(10px, 1.8vw, 34px);
+    font-weight: 800;
+    color: #3a1c08;
+    letter-spacing: clamp(0.5px, 0.1vw, 2px);
+    margin-top: clamp(4px, 0.8vh, 14px);
+    line-height: 1;
   }
 
-  /* ── Kiosk 心情星星尺寸 & 3D 漸層 ── */
+  /* ══════════════════════════════════════════════════════
+     心情卡 — image4.png 風格
+     ══════════════════════════════════════════════════════ */
+  .mood-card-overlay {
+    position: absolute;
+    left: 7.5%;
+    top: 42%;
+    width: 42%;
+    height: 33%;
+
+    background: linear-gradient(160deg, #fffdf5 0%, #fdf5dc 100%);
+    border-radius: clamp(18px, 2.8vw, 46px);
+    border: 1.5px solid rgba(210, 178, 70, 0.22);
+    box-shadow:
+      0 clamp(6px,1.2vh,16px) clamp(18px,3.5vh,44px) rgba(120,80,0,0.13),
+      0 2px 8px rgba(0,0,0,0.06);
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    padding: clamp(10px,1.8vh,24px) clamp(14px,2.2vw,34px);
+    overflow: hidden;
+  }
+
+
+  /* Corner sparkles */
+  .mood-card-spark {
+    position: absolute;
+    color: #E5A800;
+    opacity: 0.72;
+    pointer-events: none;
+    line-height: 1;
+  }
+  .mood-card-spark.s1 { top: 5%;  left: 4%;  font-size: clamp(12px, 1.3vw, 20px); transform: rotate(-20deg); }
+  .mood-card-spark.s2 { top: 4%;  right: 5%; font-size: clamp(9px,  1.0vw, 16px); transform: rotate(14deg);  }
+  .mood-card-spark.s3 { bottom: 7%; right: 4%; font-size: clamp(10px, 1.1vw, 17px); transform: rotate(-10deg); }
+
+  /* Header — 完全對齊 image4.png 字型設計 */
+  .mood-card-header { text-align: center; }
+
+  /* 大標題：Noto Sans TC Black，深暖棕近黑，尺寸比例 3.3x */
+  .mood-card-title {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: clamp(22px, 3.2vw, 56px);
+    font-weight: 900;
+    color: #1a0f00;
+    line-height: 1.2;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* 副標：Noto Sans TC Bold，稍淺棕，尺寸比例 1.6x */
+  .mood-card-subtitle {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: clamp(12px, 1.5vw, 27px);
+    font-weight: 700;
+    color: #3d2200;
+    margin: clamp(4px, 0.55vh, 9px) 0 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* 英文：Noto Sans TC Regular，中灰色，尺寸比例 1x */
+  .mood-card-en {
+    font-family: "Noto Sans TC", "PingFang TC", Arial, sans-serif;
+    font-size: clamp(9px, 0.95vw, 17px);
+    font-weight: 400;
+    color: #888888;
+    margin: clamp(2px, 0.3vh, 5px) 0 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* Stars zone */
+  .mood-stars-zone {
+    width: 91%;
+    padding: clamp(8px, 1.2vh, 16px) clamp(6px, 1vw, 14px) clamp(6px, 0.9vh, 12px);
+  }
+  .mood-stars-inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .mood-feedback-text {
+    height: clamp(12px, 1.4vh, 18px);
+    text-align: center;
+    font-size: clamp(9px, 0.95vw, 15px);
+    font-weight: 700;
+    color: #8B4513;
+    margin-top: clamp(3px, 0.5vh, 6px);
+  }
+
+  /* Footer */
+  .mood-card-footer { width: 100%; text-align: center; }
+  .mood-card-divider {
+    position: relative;
+    height: 1px;
+    background: rgba(200, 165, 55, 0.28);
+    margin-bottom: clamp(6px, 0.9vh, 12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mood-divider-heart {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(160deg, #fffdf5 0%, #fdf5dc 100%);
+    padding: 0 clamp(6px, 0.8vw, 10px);
+    color: #e05010;
+    font-size: clamp(14px, 1.5vw, 24px);
+    line-height: 1;
+  }
+  .mood-card-tip {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: clamp(9px, 0.95vw, 15px);
+    font-weight: 500;
+    color: #8b6914;
+    margin: 0;
+  }
+
+  /* Skip hint — centred under the start button */
+  .mood-skip-hint {
+    position: absolute;
+    bottom: 1.2%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 56%;
+    text-align: center;
+    font-size: clamp(8px, 0.8vw, 13px);
+    color: #bbb;
+  }
+
+  /* ── Kiosk 心情星星 ── */
   #startupOverlay .mood-star-svg {
-    width: clamp(28px, 4.4vw, 56px) !important;
-    height: clamp(28px, 4.4vw, 56px) !important;
+    width:  clamp(34px, 5.8vw, 96px) !important;
+    height: clamp(34px, 5.8vw, 96px) !important;
+  }
+  /* lit 狀態：放大 + 光暈強調（顏色由全域 starGoldGrad 規則處理） */
+  #startupOverlay .mood-star-item.lit .mood-star-svg {
+    transform: scale(1.22) !important;
+    filter:
+      drop-shadow(0 0 10px rgba(255,210,0,0.85))
+      drop-shadow(0 4px 8px rgba(200,100,0,0.50)) !important;
   }
   #startupOverlay .mood-star-label {
-    font-size: clamp(7px, 0.82vw, 11px) !important;
-    color: #6a4800 !important;
-    margin-top: clamp(2px,0.3vh,5px) !important;
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+    font-size: clamp(10px, 1.2vw, 20px) !important;
+    font-weight: 700 !important;
+    color: #3d2200 !important;
+    margin-top: clamp(3px, 0.4vh, 6px) !important;
     text-align: center !important;
+    letter-spacing: 0.01em !important;
   }
   #startupOverlay .mood-star-item.lit .mood-star-label {
     color: #8B2500 !important;
@@ -1865,12 +2061,12 @@
     background-size: cover !important;
   }
   
-  /* Make the button visible and clickable directly on mobile/portrait */
+  /* Mobile/portrait: keep button visible, preserve the image3 gradient */
   #startupOverlay #startSystemBtn {
     opacity: 1 !important;
-    background: #ffc72c !important;
-    color: #211815 !important;
-    box-shadow: 0 10px 25px rgba(255, 199, 44, 0.4) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 80% !important;
   }
   #startupOverlay .flex {
     bottom: 8% !important;

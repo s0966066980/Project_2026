@@ -1025,7 +1025,8 @@ function applyKioskLanguage() {
   if (startupLangText) startupLangText.textContent = kt('langButton');
   const langText = document.querySelector('#kioskLangBtn span');
   if (langText) langText.textContent = kt('langButton');
-  if (ui.startBtn) ui.startBtn.textContent = kioskLang === 'en' ? 'Start Order' : '開始點餐';
+  const startBtnLabel = document.getElementById('startBtnLabel');
+  if (startBtnLabel) startBtnLabel.textContent = kioskLang === 'en' ? 'Start Order' : '開始點餐';
   if (ui.kioskSearchBtn) {
     const span = ui.kioskSearchBtn.querySelector('span');
     if (span) span.innerHTML = kt('searchFilter');
@@ -1422,7 +1423,7 @@ function renderMoodStars() {
         <svg class="mood-star-svg" viewBox="0 0 52 52">
           <polygon class="star-poly" points="26,4 32,18 47,18 36,28 40,43 26,34 12,43 16,28 5,18 20,18"/>
         </svg>
-        <div class="mood-star-label"><span style="display:block;font-size:0.78em;opacity:0.65">${i}顆星</span>${MOOD_LABELS[i - 1]}</div>
+        <div class="mood-star-label">${MOOD_LABELS[i - 1]}</div>
       `;
       item.addEventListener('click', () => selectMood(i));
       row.appendChild(item);

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart POS Kiosk</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="/static/shared/styles.css">
@@ -143,65 +146,41 @@
       <i class="fas fa-globe"></i><span style="margin:0 4px">中文</span><i class="fas fa-chevron-down"></i>
     </button>
 
-    <!-- 心情卡：純 CSS，對應 image4.png 視覺風格 -->
-    <div style="
-      position:absolute; left:3%; top:27%; width:48%; height:50%;
-      background:linear-gradient(155deg,#fef7e2 0%,#f8e9be 100%);
-      border-radius:22px;
-      box-shadow:0 8px 36px rgba(120,80,0,0.14),0 2px 8px rgba(0,0,0,0.07);
-      display:flex; flex-direction:column; align-items:center; justify-content:space-evenly;
-      padding:clamp(8px,1.4vh,18px) clamp(12px,2vw,28px);
-      overflow:hidden;
-    ">
-      <!-- 角落裝飾 sparkles -->
-      <span style="position:absolute;top:5%;left:4%;color:#E5A800;font-size:clamp(12px,1.3vw,18px);transform:rotate(-20deg);line-height:1">✦</span>
-      <span style="position:absolute;top:4%;right:5%;color:#E5A800;font-size:clamp(9px,1vw,14px);transform:rotate(15deg);line-height:1">✦</span>
-      <span style="position:absolute;bottom:7%;right:4%;color:#E5A800;font-size:clamp(10px,1.1vw,16px);transform:rotate(-10deg);line-height:1">✦</span>
+    <!-- 心情卡 — image4.png 風格 -->
+    <div class="mood-card-overlay" id="moodCard">
+      <span class="mood-card-spark s1" aria-hidden="true">✦</span>
+      <span class="mood-card-spark s2" aria-hidden="true">✦</span>
+      <span class="mood-card-spark s3" aria-hidden="true">✦</span>
 
-      <!-- 標題 -->
-      <div style="text-align:center">
-        <h2 style="font-size:clamp(14px,1.7vw,24px);font-weight:900;color:#1a0f00;margin:0;line-height:1.2">今天心情如何？</h2>
-        <p style="font-size:clamp(9px,0.95vw,13px);font-weight:600;color:#5a3800;margin:clamp(2px,0.4vh,5px) 0 0">請點選星星告訴我們</p>
-        <p style="font-size:clamp(8px,0.78vw,11px);color:#9a7a40;margin:clamp(1px,0.2vh,3px) 0 0">Tap the stars to share your mood</p>
+      <div class="mood-card-header">
+        <h2 class="mood-card-title">今天心情如何？</h2>
+        <p class="mood-card-subtitle">請點選星星告訴我們</p>
+        <p class="mood-card-en">Tap the stars to share your mood</p>
       </div>
 
-      <!-- 星星區（虛線框） -->
-      <div style="
-        width:91%;
-        border:1.5px dashed rgba(160,110,20,0.38);
-        border-radius:14px;
-        padding:clamp(6px,1vh,12px) clamp(4px,0.8vw,10px) clamp(4px,0.6vh,8px);
-      ">
-        <div id="moodStarsRow" style="
-          display:flex; justify-content:space-around; align-items:flex-start; width:100%;
-        "><!-- JS renderMoodStars() 動態產生 --></div>
-        <div id="moodFeedbackText" style="
-          height:13px; text-align:center;
-          font-size:clamp(8px,0.78vw,11px); font-weight:700; color:#8B4513;
-          margin-top:clamp(2px,0.4vh,5px);
-        "></div>
+      <div class="mood-stars-zone">
+        <div id="moodStarsRow" class="mood-stars-inner"><!-- JS renderMoodStars() --></div>
+        <div id="moodFeedbackText" class="mood-feedback-text"></div>
       </div>
 
-      <!-- 說明文字 -->
-      <p style="font-size:clamp(7px,0.72vw,10px);color:#7a5a20;text-align:center;margin:0">
-        ✦ 您的心情將幫助我們提供更適合的餐點
-      </p>
+      <div class="mood-card-footer">
+        <div class="mood-card-divider">
+          <span class="mood-divider-heart" aria-hidden="true">♥</span>
+        </div>
+        <p class="mood-card-tip">✨ 您的心情將幫助我們推薦更適合的餐點</p>
+      </div>
     </div>
 
-    <!-- 開始按鈕：純 CSS，對應 image3.png 視覺風格 -->
+    <!-- 開始按鈕 -->
     <button id="startSystemBtn" type="button">
-      <span class="start-btn-icon">☝</span>
       <span class="start-btn-content">
         <span id="startBtnLabel" class="start-btn-main">開始點餐</span>
         <span class="start-btn-sub">Touch To Start</span>
       </span>
     </button>
 
-    <!-- 跳過提示 -->
-    <p id="moodSkipHint" style="
-      position:absolute; bottom:1.5%; left:19.5%; width:36%;
-      text-align:center; font-size:clamp(8px,0.72vw,10px); color:#bbb;
-    ">或直接按「開始點餐」跳過心情選擇</p>
+    <!-- 跳過提示 — 對齊按鈕寬度 -->
+    <p id="moodSkipHint" class="mood-skip-hint">或直接按「開始點餐」跳過心情選擇</p>
   </div>
 
   <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->
