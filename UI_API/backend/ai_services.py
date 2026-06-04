@@ -179,30 +179,23 @@ def _extract_retry_delay_sec(error_text: str) -> int:
     return int(config.get("GEMINI_COOLDOWN_SEC", 60))
 
 
+def _gemini_error_matches(error_text: str, *patterns: str) -> bool:
+    lowered = str(error_text or "").lower()
+    return any(p in lowered for p in patterns)
+
+
 def _is_gemini_quota_error(error_text: str) -> bool:
     lowered = str(error_text or "").lower()
-    return (
-        "429" in lowered
-        or "resource_exhausted" in lowered
-        or "quota" in lowered
-        or ("rate" in lowered and "limit" in lowered)
-    )
+    return ("429" in lowered or "resource_exhausted" in lowered or "quota" in lowered
+            or ("rate" in lowered and "limit" in lowered))
 
 
 def _is_gemini_internal_error(error_text: str) -> bool:
-    lowered = str(error_text or "").lower()
-    return "500" in lowered or "internal" in lowered or "internal error" in lowered
+    return _gemini_error_matches(error_text, "500", "internal")
 
 
 def _is_gemini_unavailable_error(error_text: str) -> bool:
-    lowered = str(error_text or "").lower()
-    return (
-        "503" in lowered
-        or "unavailable" in lowered
-        or "high demand" in lowered
-        or "overloaded" in lowered
-        or "try again later" in lowered
-    )
+    return _gemini_error_matches(error_text, "503", "unavailable", "high demand", "overloaded", "try again later")
 
 
 def _gemini_cooldown_remaining() -> int:
@@ -240,7 +233,7 @@ def _should_use_gemini_json_mime(model: str) -> bool:
     return bool(config.get("GEMINI_USE_JSON_MIME", False))
 
 
-def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float | None = None) -> dict:
+def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float | None = None, num_predict: int | None = None) -> dict:
     """呼叫本機 Ollama 並強制擷取 JSON。"""
     enforced_system = (
         _enforced_json_system_prompt(system_prompt)
@@ -253,7 +246,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         "think": False,          # disable thinking mode for qwen3/thinking models (Ollama ≥0.5.1)
         "options": {
             "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)) if temperature is None else float(temperature),
-            "num_predict": int(config.get("OLLAMA_NUM_PREDICT", 220))
+            "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220))
         }
     }
     try:
@@ -328,9 +321,9 @@ def ask_gemini(system_prompt: str, user_prompt: str, response_tag: str = "", mod
         return {"error": error_text, "raw_content": "無法連線至 Gemini API", "_provider_error": "gemini_failed"}
 
 
-def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "") -> dict:
+def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None) -> dict:
     """本地 Ollama 專用入口。語音、AI 推播、介入分析一律使用這條路徑。"""
-    return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=None)
+    return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=None, num_predict=num_predict)
 
 
 def init_gemini_client():

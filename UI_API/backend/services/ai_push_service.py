@@ -86,7 +86,14 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         f"{_menu_context(items)}\n\n"
         f"【本次排除 ID】{', '.join(exclude) or '無'}\n"
         "請挑 1 個適合現在推播的餐點。"
-        f"push_text：繁體中文、{config.get('AI_PUSH_TEXT_MIN', 18)}–{config.get('AI_PUSH_TEXT_MAX', 34)} 字、自然熱情促購語氣，不要出現 JSON 以外的文字。"
+        f"push_text 必須是繁體中文，字數至少 {config.get('AI_PUSH_TEXT_MIN', 18)} 字、最多 {config.get('AI_PUSH_TEXT_MAX', 34)} 字，"
+        f"不足 {config.get('AI_PUSH_TEXT_MIN', 18)} 字視為無效，請自然熱情地促購，不要出現 JSON 以外的文字。"
+    )
+
+    # push 獨立 token 預算：max 字數 × 4（中文 token 比 + JSON 結構 + 安全餘裕）
+    _push_num_predict = max(
+        int(config.get("OLLAMA_NUM_PREDICT", 220)),
+        int(config.get("AI_PUSH_TEXT_MAX", 34)) * 4
     )
 
     try:
@@ -95,6 +102,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
                 ai_services.ask_ollama,
                 system, user, "AI_PUSH",
                 config.get("MODEL_NAME", "qwen3.5:4b"),
+                _push_num_predict,
             )
     except Exception as exc:
         raw = {"error": str(exc)}
