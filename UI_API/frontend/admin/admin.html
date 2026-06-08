@@ -680,6 +680,19 @@ tbody tr:hover td { background: #f8fafd; }
 
           <hr style="border:none;border-top:1px solid #edf0f7">
 
+          <!-- 付款逾時協助 Prompt -->
+          <section>
+            <div class="section-title">付款逾時協助 Prompt</div>
+            <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
+              付款倒數逾時後，Ollama 根據 Emotion-LLaMA 分析結果與此 Prompt 生成協助語，顯示於「人員協助付款」通知畫面。空白則使用系統預設。
+            </p>
+            <div>
+              <textarea id="inp-payment-assist-prompt" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
+            </div>
+          </section>
+
+          <hr style="border:none;border-top:1px solid #edf0f7">
+
           <!-- 心情 Prompt -->
           <section>
             <div class="section-title">心情評分 Prompt 注入</div>

@@ -191,12 +191,13 @@ async def _extract_emotion_via_ollama(description: str) -> dict:
 
 async def _generate_payment_assist(entry: dict) -> str:
     """付款逾時：依情緒分析生成一句溫暖協助語（供前端「人員協助付款」顯示）。"""
-    system = (
+    system = config.get(
+        "PAYMENT_ASSIST_PROMPT",
         "你是麥當勞自助點餐機的智能協助員。"
         "根據顧客的情緒分析，生成一句溫暖友善的協助語（繁體中文，20–40 字）。"
         "不要提及你在分析情緒或任何系統流程，用自然口語安慰付款遇到困難的顧客，"
         "並表示店員即將前來協助。"
-        '只輸出 JSON：{"assist_message":"..."}'
+        '只輸出 JSON：{"assist_message":"..."}',
     )
     user = (
         f"顧客情緒：{entry.get('emotion','')}（強度：{entry.get('intensity','')}）\n"

@@ -2249,6 +2249,7 @@ ui.paymentCdAssistBtn?.addEventListener('click', () => {
     ui.paymentCdNotifyMsg.textContent = _pendingPaymentAssist || '已通知店員，請稍候';
   }
   _showPaymentCdSection('notified');
+  setTimeout(() => { closePaymentCountdown(); }, 2000);
 });
 ui.kioskCounterPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();

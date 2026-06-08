@@ -421,6 +421,8 @@ async function loadSettings() {
     setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
     setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
+    // 付款逾時協助 Prompt
+    setVal('inp-payment-assist-prompt', s.PAYMENT_ASSIST_PROMPT || '');
     // 心情 Prompt
     [1,2,3,4,5].forEach(n => setVal(`inp-mood-ctx-${n}`, s[`MOOD_CONTEXT_${n}`] || ''));
 
@@ -447,6 +449,7 @@ async function saveSettings() {
       VOICE_ASSIST_SYSTEM_PROMPT:    val('inp-voice-prompt-zh'),
       VOICE_ASSIST_SYSTEM_PROMPT_EN: val('inp-voice-prompt-en'),
       AI_PUSH_SYSTEM_PROMPT:         val('inp-push-prompt') === DEFAULT_PUSH_PROMPT ? '' : val('inp-push-prompt'),
+      PAYMENT_ASSIST_PROMPT:         val('inp-payment-assist-prompt'),
       AI_PUSH_TEXT_MIN:              parseInt(val('inp-push-text-min') || '18', 10),
       AI_PUSH_TEXT_MAX:              parseInt(val('inp-push-text-max') || '34', 10),
       // STT
