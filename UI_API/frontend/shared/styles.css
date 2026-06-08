@@ -3285,3 +3285,167 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
   color: #8a7f72;
   font-weight: 600;
 }
+
+/* ============ Assist Modal (協助選擇) ============ */
+.assist-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.assist-modal.hidden { display: none; }
+.assist-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(5px);
+}
+.assist-card {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 480px);
+  border-radius: 28px;
+  background: #fff;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.42);
+  animation: assistCardIn 0.22s ease-out;
+}
+@keyframes assistCardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.assist-panel { display: flex; flex-direction: column; gap: 16px; }
+.assist-panel.hidden { display: none; }
+.assist-title {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  color: #2a2119;
+}
+.assist-buttons { display: flex; flex-direction: column; gap: 12px; }
+.assist-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: #f5f1ea;
+  border: 2px solid transparent;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #2a2119;
+  transition: background 0.15s, border-color 0.15s;
+}
+.assist-option-btn:hover { background: #ffecd0; border-color: #ffc72c; }
+.assist-option-btn i { font-size: 20px; color: #c8102e; width: 28px; text-align: center; flex-shrink: 0; }
+.assist-close-link {
+  text-align: center;
+  color: #8494b0;
+  font-size: 13px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+.assist-close-link:hover { color: #4a3b30; }
+.assist-panel-header { display: flex; align-items: center; gap: 10px; }
+.assist-back-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #4a3b30;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  line-height: 1;
+}
+.assist-back-btn:hover { background: #f0ece4; }
+.assist-panel-title { font-size: 17px; font-weight: 800; color: #2a2119; }
+.assist-recommend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+.assist-recommend-loading {
+  text-align: center;
+  color: #8494b0;
+  padding: 24px 0;
+  font-size: 14px;
+}
+.assist-item-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f9f7f3;
+  border: 1.5px solid #ede7da;
+}
+.assist-item-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #ede7da;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.assist-item-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.assist-item-emoji { font-size: 28px; line-height: 1; }
+.assist-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.assist-item-name { font-size: 14px; font-weight: 800; color: #2a2119; }
+.assist-item-push { font-size: 12px; color: #8494b0; margin: 0; line-height: 1.4; }
+.assist-item-price { font-size: 13px; font-weight: 700; color: #c8102e; }
+.assist-item-add-btn {
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: #ffc72c;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: #1a1a1a;
+}
+.assist-item-add-btn:hover { background: #ffb300; }
+.assist-tutorial-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.assist-tutorial-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #2a2119;
+}
+.assist-tutorial-steps li i {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f5f1ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  color: #c8102e;
+}
