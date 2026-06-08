@@ -1886,53 +1886,6 @@ window.addEventListener('beforeunload', () => {
   aiPush.stop();
 });
 
-// =========================================================
-// 無效點擊偵測（需連續 N 次才觸發教學提示）
-// =========================================================
-const INVALID_CLICK_THRESHOLD = 3;
-const INVALID_CLICK_WINDOW_MS = 4000;
-const INVALID_CLICK_MIN_DWELL_MS = 7000;
-const INVALID_CLICK_RECENT_ACTION_GRACE_MS = 3000;
-let invalidClickTimestamps = [];
-
-function shouldTrackInvalidClick(target) {
-  if (!isSystemRunning || !isPosActive() || orderCompleted) return false;
-  if (!target?.closest) return false;
-  const interactive = target.closest(
-    'button,a,input,textarea,select,[onclick],[data-fulfillment],[data-payment],.menu-card,.cart-item,#voiceReplyBubble'
-  );
-  if (interactive) return false;
-  if (target.closest('#startupOverlay,#tutorialPopup,#choiceHesitationModal,#cancelGuidePopup,#voiceAssistOverlay,#voiceReplyBubble,#aiOverlayStack')) {
-    return false;
-  }
-  if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return false;
-  if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return false;
-  if (!['menu_page', 'checkout_page'].includes(interactionState.pageId)) return false;
-
-  const now = Date.now();
-  if (now - interactionState.pageEnteredAt < INVALID_CLICK_MIN_DWELL_MS) return false;
-  if (now - lastValidOrderActionAt < INVALID_CLICK_RECENT_ACTION_GRACE_MS) return false;
-  return true;
-}
-
-document.addEventListener('pointerdown', (event) => {
-  const target = event.target;
-  if (shouldTrackInvalidClick(target)) {
-    trackInteractionEvent({
-      event_type: 'invalid_touch',
-      button_id: 'document',
-      metadata: { tag: target?.tagName || '' }
-    });
-    const _now = Date.now();
-    invalidClickTimestamps = invalidClickTimestamps.filter(t => _now - t < INVALID_CLICK_WINDOW_MS);
-    invalidClickTimestamps.push(_now);
-    if (invalidClickTimestamps.length >= INVALID_CLICK_THRESHOLD) {
-      invalidClickTimestamps = [];
-      showTutorialPopup();
-    }
-  }
-});
-
 
 // =========================================================
 // 結帳
@@ -2401,6 +2354,103 @@ document.getElementById('choiceHesitationVoice')?.addEventListener('click', () =
 });
 document.getElementById('voiceReplyBubbleClose')?.addEventListener('click', () => closeVoiceBubble());
 document.getElementById('tutorialPopupClose')?.addEventListener('click', hideTutorialPopup);
+
+// =========================================================
+// 協助 Modal (需要協助嗎？)
+// =========================================================
+function showAssistModal() {
+  document.getElementById('assistModal')?.classList.remove('hidden');
+  _showAssistPanel('main');
+  trackInteractionEvent({ event_type: 'assist_modal_open', button_id: '' });
+}
+
+function hideAssistModal() {
+  document.getElementById('assistModal')?.classList.add('hidden');
+  trackInteractionEvent({ event_type: 'assist_modal_close', button_id: '' });
+}
+
+function _showAssistPanel(name) {
+  const panels = { main: 'assistMain', recommend: 'assistRecommend', tutorial: 'assistTutorial' };
+  Object.entries(panels).forEach(([key, id]) => {
+    document.getElementById(id)?.classList.toggle('hidden', key !== name);
+  });
+}
+
+async function _loadAssistRecommendations() {
+  _showAssistPanel('recommend');
+  trackInteractionEvent({ event_type: 'assist_recommend_open', button_id: 'assistBtnRecommend' });
+  const listEl = document.getElementById('assistRecommendItems');
+  const loadingEl = document.getElementById('assistRecommendLoading');
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  [...(listEl?.children || [])].forEach(c => { if (c !== loadingEl) c.remove(); });
+
+  try {
+    const items = await api.assistRecommend(sessionId);
+    if (loadingEl) loadingEl.classList.add('hidden');
+    (Array.isArray(items) ? items : []).forEach(item => {
+      listEl?.appendChild(_buildAssistItemCard(item));
+    });
+  } catch (e) {
+    if (loadingEl) loadingEl.textContent = '推薦載入失敗，請重試';
+  }
+}
+
+function _buildAssistItemCard(item) {
+  const visual = getMenuVisual(item);
+  const card = document.createElement('div');
+  card.className = 'assist-item-card';
+  const hasImg = Boolean(visual.image);
+  card.innerHTML = `
+    <div class="assist-item-photo">
+      ${hasImg ? `<img src="${visual.image}" alt="${item.name || ''}"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+      <span class="assist-item-emoji"${hasImg ? ' style="display:none"' : ''}>${visual.emoji || '🍔'}</span>
+    </div>
+    <div class="assist-item-info">
+      <span class="assist-item-name">${item.name || '推薦餐點'}</span>
+      <p class="assist-item-push">${item.push_text || ''}</p>
+      <span class="assist-item-price">${formatItemPrice(item)}</span>
+    </div>
+    <button class="assist-item-add-btn" type="button">加入購物車</button>
+  `;
+  card.querySelector('.assist-item-add-btn').addEventListener('click', () => {
+    hideAssistModal();
+    showItemConfirmModal(item, 'assist_recommend');
+  });
+  return card;
+}
+
+document.getElementById('assistBackdrop')?.addEventListener('click', hideAssistModal);
+document.getElementById('assistClose')?.addEventListener('click', hideAssistModal);
+document.getElementById('assistBtnRecommend')?.addEventListener('click', _loadAssistRecommendations);
+document.getElementById('assistBtnVoice')?.addEventListener('click', () => {
+  hideAssistModal();
+  trackInteractionEvent({ event_type: 'assist_voice_open', button_id: 'assistBtnVoice' });
+  startAskRecording(document.getElementById('voiceAssistBtn'));
+});
+document.getElementById('assistBtnTutorial')?.addEventListener('click', () => {
+  _showAssistPanel('tutorial');
+  trackInteractionEvent({ event_type: 'assist_tutorial_open', button_id: 'assistBtnTutorial' });
+});
+document.getElementById('assistRecommendBack')?.addEventListener('click', () => _showAssistPanel('main'));
+document.getElementById('assistRecommendCancel')?.addEventListener('click', hideAssistModal);
+document.getElementById('assistTutorialBack')?.addEventListener('click', () => _showAssistPanel('main'));
+document.getElementById('assistTutorialClose')?.addEventListener('click', hideAssistModal);
+
+// =========================================================
+// 協助 Modal 點擊計數（任意點擊累積 50 次觸發）
+// =========================================================
+let totalClickCount = 0;
+const ASSIST_CLICK_THRESHOLD = 50;
+
+document.addEventListener('pointerdown', () => {
+  if (document.getElementById('assistModal')?.classList.contains('hidden') === false) return;
+  totalClickCount++;
+  if (totalClickCount >= ASSIST_CLICK_THRESHOLD) {
+    totalClickCount = 0;
+    showAssistModal();
+  }
+});
 
 // =========================================================
 // 2-3: Cancel order popup after CANCEL_POPUP_THRESHOLD clicks
