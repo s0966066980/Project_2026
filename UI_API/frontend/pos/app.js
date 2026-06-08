@@ -57,6 +57,7 @@ let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let posRealtime = null;
 let askRecordingStartedAt = 0;
+let _voiceProcessing = false; // onstop async 執行期間鎖定，防止重複啟動
 let lastValidOrderActionAt = 0;
 let lastCartAddAt = Date.now();
 let choiceHesitationTimer = null;
@@ -114,7 +115,6 @@ const KIOSK_TEXT = {
     paymentTitle: '請選擇付款方式',
     menuFallback: '目前沒有選擇任何餐點。',
     langButton: '中文',
-    friendlyMode: '友善模式',
     total: '總計',
     subtotal: '小計',
     secureCheckout: '安全交易 · 安心結帳',
@@ -172,7 +172,6 @@ const KIOSK_TEXT = {
     paymentTitle: 'Choose Payment Method',
     menuFallback: 'No items selected.',
     langButton: 'EN',
-    friendlyMode: 'Accessibility Mode',
     total: 'Total',
     subtotal: 'Subtotal',
     secureCheckout: 'Secure Checkout',
@@ -1048,8 +1047,6 @@ function applyKioskLanguage() {
   if (ui.kioskCounterPayBtn) ui.kioskCounterPayBtn.textContent = kt('counterPay');
   if (ui.kioskPaymentBackBtn) ui.kioskPaymentBackBtn.textContent = kt('backCart');
   if (ui.kioskCancelOrderBtn) ui.kioskCancelOrderBtn.textContent = kt('cancelOrder');
-  const friendlyBtn = document.querySelector('.kiosk-payment-footer button:nth-child(2)');
-  if (friendlyBtn) friendlyBtn.textContent = kt('friendlyMode');
   const paymentTitle = document.querySelector('.kiosk-payment-inner h1');
   if (paymentTitle) paymentTitle.textContent = kt('paymentTitle');
   const totalLabels = document.querySelectorAll('.cart-card .font-semibold.text-lg, .order-summary-total .grand span');
@@ -1635,15 +1632,26 @@ function setupAskRecorder() {
   if (askRecorder) return; // 避免重複設定
   if (!stream || !stream.getAudioTracks().length) return;
 
-  // 改用 video recorder：同步捕捉音訊+影像，供後端 Whisper + Emotion-LLaMA 並行使用
-  askRecorder = createVideoRecorder(stream);
+  // clone stream：讓 askRecorder 有獨立的 encoded track pipeline，
+  // 避免與 _rollingRecorder 共用 encoder 導致 rolling buffer 被餓死（Bug 2）
+  askRecorder = createVideoRecorder(stream.clone());
   let chunks = [];
   askRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   askRecorder.onstop = async () => {
+    if (_voiceProcessing) return; // 上一次 onstop 還在跑，放棄本次（正常情況不應發生）
+    _voiceProcessing = true;
+    try {
     const blob = new Blob(chunks, { type: 'video/webm' });
     const durationMs = askRecordingStartedAt ? Date.now() - askRecordingStartedAt : 0;
     askRecordingStartedAt = 0;
     chunks = [];
+    if (runtimeSettings.EMOTION_LLAMA_EVENT_VOICE) {
+      if (runtimeSettings.EMOTION_LLAMA_VOICE_WAIT_MODE === 'analysis') {
+        await _triggerEmotionCaptureAndWait('voice_mode'); // 等分析完才繼續
+      } else {
+        _triggerEmotionCapture('voice_mode');              // 背景執行
+      }
+    }
     if (blob.size < 1500 || durationMs < 650) {
       hideVoiceAssistOverlay();
       trackInteractionEvent({
@@ -1654,19 +1662,46 @@ function setupAskRecorder() {
       showVoiceAssistMessage(kt('voiceTooShort'));
       return;
     }
-    showVoiceAssistOverlay('thinking');
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('media', blob, 'voice_ask.webm');
     fd.append('multi_lang', String(getFeatures().multiLang));
-    try {
-      const data = await api.ask(fd);
-      if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
-        hideVoiceAssistOverlay();
-        return;
+
+    // ── 串流版：邊生成邊播音 ─────────────────────────────────────────
+    const _streamQueue = [];
+    let   _streamPlaying = false;
+
+    async function _playStreamQueue() {
+      _streamPlaying = true;
+      while (_streamQueue.length) {
+        const { b64, fmt } = _streamQueue.shift();
+        await new Promise(resolve => {
+          const a = new Audio(`data:audio/${fmt};base64,${b64}`);
+          a.onended = resolve;
+          a.onerror = resolve;
+          a.play().catch(resolve);
+        });
       }
-      if (data.status === 'success') {
-        if (data.audio_base64) playVoice(data.audio_base64, data.audio_format || 'wav');
+      _streamPlaying = false;
+    }
+
+    let firstAudioReceived = false;
+
+    await api.askStream(fd, {
+      onAudio(b64, fmt) {
+        if (!firstAudioReceived) {
+          firstAudioReceived = true;
+          hideVoiceAssistOverlay();   // 第一句音訊到就隱藏等待動畫
+        }
+        _streamQueue.push({ b64, fmt });
+        if (!_streamPlaying) _playStreamQueue();
+      },
+      onDone(data) {
+        if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
+        if (data.status !== 'success') {
+          showVoiceAssistMessage(data.ai_response || data.message || kt('voiceOrderFailed'), data.detected_lang || kioskLang);
+          return;
+        }
         showVoiceBubble(data);
         const appliedOrders = cartManager.applyCartActions(data.cart_actions || []);
         (data.cart_actions || []).forEach(action => {
@@ -1688,23 +1723,25 @@ function setupAskRecorder() {
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         }
         if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
-      } else {
-        showVoiceAssistMessage(data.ai_response || data.message || kt('voiceOrderFailed'), data.detected_lang || kioskLang);
-        if (data.audio_base64) playVoice(data.audio_base64, data.audio_format || 'wav');
-      }
-    } catch {
-      trackInteractionEvent({ event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn', metadata: { reason: 'api_error' } });
-      showVoiceAssistMessage(kt('voiceOrderFailed'));
-    }
+      },
+      onError() {
+        hideVoiceAssistOverlay();
+        trackInteractionEvent({ event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn', metadata: { reason: 'api_error' } });
+        showVoiceAssistMessage(kt('voiceOrderFailed'));
+      },
+    });
     const _doneText = document.getElementById('voiceAssistBtnText');
     if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
+    } finally {
+      _voiceProcessing = false;
+    }
   };
 }
 
 function startAskRecording(sourceBtn) {
   if (!askRecorder) setupAskRecorder();
-  if (!askRecorder || askRecorder.state !== 'inactive') {
+  if (!askRecorder || askRecorder.state !== 'inactive' || _voiceProcessing) {
     showVoiceAssistMessage(kt('voiceMicNotReady'));
     return;
   }
@@ -1729,7 +1766,7 @@ function stopAskRecording() {
   if (askRecorder && askRecorder.state === 'recording') {
     askRecorder.stop();
     document.getElementById('voiceAssistBtn')?.classList.remove('recording');
-    showVoiceAssistOverlay('thinking');
+    hideVoiceAssistOverlay(); // 立刻關閉；語音背景處理後以 voice bubble 顯示結果
   }
 }
 const _vaFabBtn = document.getElementById('voiceAssistBtn');
@@ -1748,9 +1785,10 @@ function stopOrHideVoiceAssistOverlay(event) {
   }
 }
 
-// X 按鈕：按住即停止收音；click 保留給桌面瀏覽器與舊行為。
+// X 按鈕：pointerdown 覆蓋 desktop mouse + touch，不再重複監聽 click
+// （click 在 touch 設備上會在 pointerdown 之後再觸發，導致 hideVoiceAssistOverlay
+//   在 onstop 尚未執行前就把 thinking overlay 收起，造成「開→關→開→關」閃爍）
 ui.voiceAssistStopBtn?.addEventListener('pointerdown', stopOrHideVoiceAssistOverlay);
-ui.voiceAssistStopBtn?.addEventListener('click', stopOrHideVoiceAssistOverlay);
 
 window.addEventListener('beforeunload', () => {
   try {
@@ -2180,21 +2218,28 @@ const TUTORIAL_COOLDOWN_MS = 8000;
 const tutorialPopupEl = document.getElementById('tutorialPopup');
 const tutorialTimerBar = document.getElementById('tutorialPopupTimerBar');
 
-async function _triggerEmotionCapture(eventType) {
+function _triggerEmotionCapture(eventType) {
   if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
+  const blob = capturePreEventClip(); // 同步，不再 await
+  if (!blob) return;
+  api.analyzeEmotionEvent(sessionId, eventType, blob).catch(e => {
+    console.warn('[emotion] analyze_event failed:', e);
+  });
+}
+
+async function _triggerEmotionCaptureAndWait(eventType) {
+  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
+  const blob = capturePreEventClip(); // 同步
+  if (!blob) return;
   try {
-    const blob = await capturePreEventClip();
-    if (!blob) return;
-    api.analyzeEmotionEvent(sessionId, eventType, blob).catch(e => {
-      console.warn('[emotion] analyze_event failed:', e);
-    });
+    await api.analyzeEmotionEvent(sessionId, eventType, blob);
   } catch (e) {
-    console.warn('[emotion] capture failed:', e);
+    console.warn('[emotion] analyze_event (analysis mode) failed:', e);
   }
 }
 
 function showTutorialPopup() {
-  _triggerEmotionCapture('tutorial_popup');
+  if (runtimeSettings.EMOTION_LLAMA_EVENT_TUTORIAL !== false) _triggerEmotionCapture('tutorial_popup');
   const now = Date.now();
   if (now - lastTutorialShowAt < TUTORIAL_COOLDOWN_MS) return;
   if (!tutorialPopupEl) return;
@@ -2244,7 +2289,10 @@ let cancelClickCount = 0;
 const CANCEL_POPUP_THRESHOLD = 2;
 const cancelGuideEl = document.getElementById('cancelGuidePopup');
 
-function showCancelGuide() { cancelGuideEl?.classList.remove('hidden'); }
+function showCancelGuide() {
+  if (runtimeSettings.EMOTION_LLAMA_EVENT_CANCEL_GUIDE) _triggerEmotionCapture('cancel_guide');
+  cancelGuideEl?.classList.remove('hidden');
+}
 function hideCancelGuide() { cancelGuideEl?.classList.add('hidden'); }
 
 document.getElementById('cancelGuideClose')?.addEventListener('click', hideCancelGuide);

@@ -1992,10 +1992,9 @@
     margin-bottom: clamp(20px, 3vh, 32px) !important;
   }
   .kiosk-payment-footer {
-    width: min(720px, 48vw) !important;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: clamp(18px, 2vw, 28px) !important;
+    width: min(360px, 28vw) !important;
+    display: flex;
+    justify-content: center;
     margin-top: auto;
   }
   .kiosk-payment-footer button {
