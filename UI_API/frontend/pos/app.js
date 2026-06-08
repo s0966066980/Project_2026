@@ -2116,6 +2116,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   if (orderCompleted) return;
   isSystemRunning = false;
   orderCompleted = false;
+  totalClickCount = 0;
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
   aiPush.stop();
@@ -2365,6 +2366,7 @@ function showAssistModal() {
 }
 
 function hideAssistModal() {
+  _assistRecommendLoading = false;
   document.getElementById('assistModal')?.classList.add('hidden');
   trackInteractionEvent({ event_type: 'assist_modal_close', button_id: '' });
 }
@@ -2376,7 +2378,11 @@ function _showAssistPanel(name) {
   });
 }
 
+let _assistRecommendLoading = false;
+
 async function _loadAssistRecommendations() {
+  if (_assistRecommendLoading) return;
+  _assistRecommendLoading = true;
   _showAssistPanel('recommend');
   trackInteractionEvent({ event_type: 'assist_recommend_open', button_id: 'assistBtnRecommend' });
   const listEl = document.getElementById('assistRecommendItems');
@@ -2390,8 +2396,10 @@ async function _loadAssistRecommendations() {
     (Array.isArray(items) ? items : []).forEach(item => {
       listEl?.appendChild(_buildAssistItemCard(item));
     });
+    _assistRecommendLoading = false;
   } catch (e) {
     if (loadingEl) loadingEl.textContent = '推薦載入失敗，請重試';
+    _assistRecommendLoading = false;
   }
 }
 
@@ -2474,6 +2482,7 @@ let totalClickCount = 0;
 const ASSIST_CLICK_THRESHOLD = 50;
 
 document.addEventListener('pointerdown', () => {
+  if (!isPosActive() || orderCompleted) return;
   if (document.getElementById('assistModal')?.classList.contains('hidden') === false) return;
   totalClickCount++;
   if (totalClickCount >= ASSIST_CLICK_THRESHOLD) {
@@ -2500,11 +2509,13 @@ document.getElementById('cancelGuideClose')?.addEventListener('click', hideCance
 document.getElementById('cancelGuideFastPay')?.addEventListener('click', () => {
   hideCancelGuide();
   cancelClickCount = 0;
+  totalClickCount = 0;
 });
 
 document.getElementById('cancelGuideCounter')?.addEventListener('click', () => {
   hideCancelGuide();
   cancelClickCount = 0;
+  totalClickCount = 0;
   const cartIds = cartManager.getCartIds();
   if (!cartIds.length) return;
   finishOrder(cartIds, null, kt('counterPayCreating'));
@@ -2513,6 +2524,7 @@ document.getElementById('cancelGuideCounter')?.addEventListener('click', () => {
 document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', () => {
   hideCancelGuide();
   cancelClickCount = 0;
+  totalClickCount = 0;
   cartManager.clearCart();
   sessionCartSources = [];
   hidePaymentScreen();
