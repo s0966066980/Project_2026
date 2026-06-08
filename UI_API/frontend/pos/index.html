@@ -117,6 +117,66 @@
   </div>
 </div>
 
+<!-- ============ Assist Modal (協助選擇) ============ -->
+<div id="assistModal" class="assist-modal hidden" role="dialog"
+     aria-modal="true" aria-label="需要協助嗎">
+  <div class="assist-backdrop" id="assistBackdrop"></div>
+  <div class="assist-card">
+
+    <!-- Panel: main -->
+    <div id="assistMain" class="assist-panel">
+      <div class="assist-title">需要協助嗎？</div>
+      <div class="assist-buttons">
+        <button id="assistBtnRecommend" class="assist-option-btn" type="button">
+          <i class="fas fa-utensils"></i>
+          <span>推薦餐點</span>
+        </button>
+        <button id="assistBtnVoice" class="assist-option-btn" type="button">
+          <i class="fas fa-microphone"></i>
+          <span>語音模式</span>
+        </button>
+        <button id="assistBtnTutorial" class="assist-option-btn" type="button">
+          <i class="fas fa-info-circle"></i>
+          <span>操作教學</span>
+        </button>
+      </div>
+      <button id="assistClose" class="assist-close-link" type="button">不需要，繼續點餐</button>
+    </div>
+
+    <!-- Panel: recommend -->
+    <div id="assistRecommend" class="assist-panel hidden">
+      <div class="assist-panel-header">
+        <button id="assistRecommendBack" class="assist-back-btn" type="button">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span class="assist-panel-title">為您推薦</span>
+      </div>
+      <div id="assistRecommendItems" class="assist-recommend-list">
+        <div id="assistRecommendLoading" class="assist-recommend-loading">
+          <i class="fas fa-circle-notch fa-spin"></i> 推薦中...
+        </div>
+      </div>
+      <button id="assistRecommendCancel" class="assist-close-link" type="button">取消</button>
+    </div>
+
+    <!-- Panel: tutorial -->
+    <div id="assistTutorial" class="assist-panel hidden">
+      <div class="assist-panel-header">
+        <button id="assistTutorialBack" class="assist-back-btn" type="button">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span class="assist-panel-title">如何點餐</span>
+      </div>
+      <ol class="assist-tutorial-steps">
+        <li><i class="fas fa-th-large"></i> 選擇想吃的餐點分類</li>
+        <li><i class="fas fa-plus-circle"></i> 點擊「<b>+</b>」加入購物車</li>
+        <li><i class="fas fa-shopping-cart"></i> 點「結帳去」完成付款</li>
+      </ol>
+      <button id="assistTutorialClose" class="assist-close-link" type="button">關閉</button>
+    </div>
+
+  </div>
+</div>
 
 <!-- ============ POS 視圖 ============ -->
 <div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
