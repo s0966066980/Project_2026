@@ -49,7 +49,7 @@ def _fallback_item(items: list[dict], exclude: set) -> dict:
     return candidates[0] if candidates else (items[0] if items else {})
 
 
-async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | None = None) -> dict:
+async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | None = None, num_predict_override: int | None = None) -> dict:
     """
     呼叫 Ollama 選出 1 個推薦餐點並生成促購短句。
     回傳 {"recommendation_id": "MCDxxx", "push_text": "...", "status": "success|fallback"}
@@ -91,7 +91,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
     )
 
     # push 獨立 token 預算：max 字數 × 4（中文 token 比 + JSON 結構 + 安全餘裕）
-    _push_num_predict = max(
+    _push_num_predict = num_predict_override if num_predict_override is not None else max(
         int(config.get("OLLAMA_NUM_PREDICT", 220)),
         int(config.get("AI_PUSH_TEXT_MAX", 34)) * 4
     )
@@ -143,7 +143,7 @@ async def generate_three(session_id: str, ollama_semaphore) -> list[dict]:
     results = []
     exclude: list[str] = []
     for _ in range(3):
-        rec = await generate(session_id, ollama_semaphore, exclude_ids=exclude)
+        rec = await generate(session_id, ollama_semaphore, exclude_ids=exclude, num_predict_override=80)
         rec_id = rec.get("recommendation_id", "")
         if rec_id:
             exclude.append(rec_id)
