@@ -5,16 +5,21 @@
 """
 import asyncio
 import json
+import re
 import threading
 from datetime import datetime
 
 import httpx
 
+import ai_services
 import config
 from repositories import emotion_log_repository
 
 EVENT_TYPE_LABELS = {
     "tutorial_popup": "如何點餐彈跳視窗",
+    "voice_mode": "語音模式",
+    "cancel_guide": "需要幫助彈跳視窗",
+    "payment_timeout": "付款逾時協助",
 }
 
 _voice_cache: dict[str, dict] = {}
@@ -53,7 +58,13 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
 
     skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
     prompt_template = config.get("EMOTION_LLAMA_PROMPT", "")
-    question = prompt_template.replace("{speech_text}", speech_text)
+    if speech_text and speech_text.strip():
+        question = prompt_template.replace("{speech_text}", speech_text)
+    else:
+        # 無語音時移除含 {speech_text} 的整行，避免模型看到空白語句
+        question = re.sub(r"[^\n]*\{speech_text\}[^\n]*\n?", "", prompt_template).strip()
+        if not question:
+            question = prompt_template.replace("{speech_text}", "(no speech)")
 
     try:
         raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
@@ -72,6 +83,21 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
     else:
         result = raw
 
+    # Emotion-LLaMA 常輸出自然語言而非結構化欄位；同步呼叫 Ollama 補全
+    # （frontend 對 analyze_event 是 fire-and-forget，此處等待不影響 UI）
+    if (not quality_skipped and not error
+            and not result.get("emotion")
+            and result.get("description")):
+        try:
+            ollama_fields = await _extract_emotion_via_ollama(result["description"])
+            if ollama_fields.get("emotion"):
+                result["emotion"]   = ollama_fields.get("emotion",   "")
+                result["intensity"] = ollama_fields.get("intensity", "") or result.get("intensity", "")
+                result["facial"]    = ollama_fields.get("facial",    "") or result.get("facial",    "")
+                result["vocal"]     = ollama_fields.get("vocal",     "") or result.get("vocal",     "")
+        except Exception as e:
+            print(f"⚠️ Emotion Ollama 提取失敗: {e}")
+
     entry = {
         "timestamp": datetime.now().isoformat(),
         "session_id": session_id,
@@ -88,6 +114,7 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
     }
 
     emotion_log_repository.append_log(entry)
+    _print_entry(entry)
 
     if not quality_skipped and not error and entry.get("emotion"):
         with _cache_lock:
@@ -99,6 +126,58 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
                 pass
 
     return entry
+
+
+def _print_entry(entry: dict) -> None:
+    sid   = entry.get("session_id", "?")[:8]
+    evt   = entry.get("event_type_label") or entry.get("event_type", "")
+    st    = entry.get("status", "")
+    if st == "skipped":
+        print(f"[Emotion] {sid} | {evt} | 品質快篩跳過")
+        return
+    if st == "error":
+        print(f"[Emotion] {sid} | {evt} | ⚠️ 分析失敗")
+        return
+    emo   = entry.get("emotion", "—")
+    intens = entry.get("intensity", "")
+    facial = entry.get("facial", "")
+    vocal  = entry.get("vocal", "")
+    desc   = entry.get("description", "")
+    parts = [f"情緒={emo}"]
+    if intens:
+        parts.append(f"強度={intens}")
+    if facial:
+        parts.append(f"表情={facial}")
+    if vocal:
+        parts.append(f"聲音={vocal}")
+    if desc:
+        desc_display = desc[:120] + ("…" if len(desc) > 120 else "")
+        parts.append(f"描述={desc_display}")
+    print(f"[Emotion] {sid} | {evt} | " + " | ".join(parts))
+
+
+
+async def _extract_emotion_via_ollama(description: str) -> dict:
+    """Emotion-LLaMA 自然語言描述 → Ollama → 結構化情緒欄位。"""
+    system = (
+        "You are an emotion extraction assistant. "
+        "Given a video analysis description, extract the structured emotion data. "
+        "Reply ONLY with valid JSON, no extra text."
+    )
+    user = (
+        f"Analysis description:\n{description}\n\n"
+        "Return ONLY this JSON (fill in values based on the description):\n"
+        '{"emotion":"<primary emotion label, e.g. neutral/happy/frustrated/anxious/sad>",'
+        '"intensity":"low|medium|high",'
+        '"facial":"<brief facial cues>",'
+        '"vocal":"<brief vocal cues or silent>"}'
+    )
+    result = await asyncio.to_thread(
+        ai_services.ask_ollama, system, user, "EMOTION_EXTRACT",
+        config.get("MODEL_NAME", "qwen3.5:4b"),
+        120,
+    )
+    return result if isinstance(result, dict) else {}
 
 
 async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:

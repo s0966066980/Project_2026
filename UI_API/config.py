@@ -96,6 +96,12 @@ DEFAULT_SETTINGS = {
         "雞快 → 雞塊；喝樂 → 可樂；"
         "麥（賣）系列開頭的品項名稱若不確定，優先對應菜單白名單中最接近的品項。\n"
         "\n"
+        "【多輪對話記憶】：若【對話歷史（最近幾輪）】中存在，必須主動利用。"
+        "當顧客說「加入購物車」「幫我加」「我要那個」「就那個」「幫我點剛才的」等，"
+        "且沒有指定新品項時，從對話歷史中找出最近一次系統推薦的品項 ID，直接輸出對應的 cart_actions，"
+        "不得回問「請問要加什麼」。"
+        "若歷史中有「推薦品項 ID：MCD001」字樣，直接使用該 ID。\n"
+        "\n"
         "只輸出合法 JSON：\n"
         '{"ai_response":"繁體中文或英文回答","mentioned_ids":["MCD001"],'
         '"cart_actions":[{"action":"add","id":"MCD001","quantity":1}]}'
@@ -151,15 +157,25 @@ DEFAULT_SETTINGS = {
     "EMOTION_LLAMA_QUALITY_CHECK": True,
     "EMOTION_LLAMA_AFFECT_VOICE": False,
     "EMOTION_LLAMA_AFFECT_BARRIER": False,
+    "EMOTION_LLAMA_EVENT_TUTORIAL":     True,    # 「如何點餐」彈跳視窗觸發分析
+    "EMOTION_LLAMA_EVENT_VOICE":        False,   # 語音模式結束後觸發分析
+    "EMOTION_LLAMA_EVENT_CANCEL_GUIDE": False,   # 「需要幫助嗎？」彈跳視窗觸發分析
+    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT": True,  # 付款倒數逾時觸發分析（預設開啟）
+    "EMOTION_LLAMA_VOICE_WAIT_MODE":    "speed", # "speed"=速度優先 / "analysis"=分析模式
     "EMOTION_LLAMA_PROMPT": (
-        "The person in video says: {speech_text}\n"
-        "[reason] What are the facial expressions, body language, gestures, and vocal tone "
-        "used in the video? What is the intended meaning behind the words? Which emotion does "
-        "this reflect? If the audio is quiet or there are few words, do not answer unable only "
-        "because speech is limited; use visible facial expressions, subtle gestures, posture, "
-        "and body language. If a person is visible but emotional cues are subtle, describe the "
-        "most likely low-intensity emotional state and the evidence."
+        "Speech: {speech_text}\n\n"
+        "Analyze the emotion conveyed in this video clip. "
+        "Examine facial expressions, eye contact, micro-expressions, head movements, "
+        "body posture, gestures, and vocal tone/pace/pitch if audible. "
+        "If speech is minimal or absent, rely on visual cues only. "
+        "If a person is visible but cues are subtle, describe the most likely "
+        "low-intensity emotional state and the supporting evidence.\n\n"
+        "Reply with ONLY a JSON object — no extra text:\n"
+        '{"emotion":"<label>","intensity":"low|medium|high",'
+        '"facial":"<facial cues>","vocal":"<vocal cues or silent>",'
+        '"description":"<1-2 sentence summary>"}'
     ),
+    "EMOTION_LLAMA_PROMPT_MAX_CHARS": 800,
     # ── 互動障礙偵測閾值 ──────────────────────
     "BARRIER_DWELL_TIMEOUT_SEC": 40,        # 選單頁停留超過此秒數視為 menu_hesitation
     "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
@@ -192,6 +208,11 @@ PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EMOTION_LLAMA_ENABLED",
     "EMOTION_LLAMA_CLIP_SEC",
+    "EMOTION_LLAMA_EVENT_VOICE",        # POS 需要：控制語音模式結束後是否觸發分析
+    "EMOTION_LLAMA_VOICE_WAIT_MODE",    # POS 需要：speed / analysis 兩種等待模式
+    "EMOTION_LLAMA_EVENT_TUTORIAL",     # POS 需要：控制「如何點餐」彈窗是否觸發分析
+    "EMOTION_LLAMA_EVENT_CANCEL_GUIDE", # POS 需要：控制「需要幫助嗎？」彈窗是否觸發分析
+    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT",  # POS 需要：控制付款倒數逾時是否觸發分析
     "AI_PUSH_REFRESH_SEC",
     "CHOICE_HESITATION_IDLE_SEC",
 }
