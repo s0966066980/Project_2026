@@ -63,6 +63,45 @@ export async function ask(formData) {
   return asJson(await fetch(`${API_BASE}/api/ask`, { method: 'POST', body: formData }));
 }
 
+/**
+ * 串流版語音請求。每個 NDJSON chunk 以 callback 回調：
+ *   onAudio(base64: string, format: string) — 每段語音
+ *   onDone(data: object)                    — 最終結果（含 cart_actions）
+ *   onError(msg: string)                    — 發生錯誤
+ */
+export async function askStream(formData, { onAudio, onDone, onError }) {
+  let resp;
+  try {
+    resp = await fetch(`${API_BASE}/api/ask/stream`, { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  } catch (e) {
+    onError(String(e));
+    return;
+  }
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let leftover  = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text  = leftover + decoder.decode(value, { stream: true });
+      const lines = text.split('\n');
+      leftover    = lines.pop();          // 可能不完整的最後一行
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const chunk = JSON.parse(line);
+          if (chunk.type === 'audio') onAudio(chunk.data, chunk.format || 'wav');
+          else if (chunk.type === 'done') onDone(chunk);
+        } catch { /* 忽略格式異常的行 */ }
+      }
+    }
+  } catch (e) {
+    onError(String(e));
+  }
+}
+
 export async function checkout(formData, signal) {
   return fetch(`${API_BASE}/api/checkout`, { method: 'POST', body: formData, signal });
 }
@@ -149,4 +188,8 @@ export async function analyzeEmotionEvent(sessionId, eventType, mediaBlob) {
 
 export async function getEmotionInterventionLogs(limit = 200) {
   return asJson(await fetch(`${API_BASE}/api/emotion/intervention_logs?limit=${limit}`, { headers: adminHeaders() }));
+}
+
+export async function assistRecommend(sessionId) {
+  return asJson(await fetch(`${API_BASE}/api/assist_recommend?session_id=${encodeURIComponent(sessionId)}`));
 }
