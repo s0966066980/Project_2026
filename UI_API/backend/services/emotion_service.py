@@ -113,6 +113,15 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         "status": "skipped" if quality_skipped else ("error" if error else "ok"),
     }
 
+    # 付款逾時事件：情緒分析成功後，用 Ollama 生成協助語供前端「人員協助付款」顯示
+    if (event_type == "payment_timeout"
+            and not quality_skipped and not error
+            and entry.get("emotion")):
+        try:
+            entry["assist_response"] = await _generate_payment_assist(entry)
+        except Exception as e:
+            print(f"⚠️ Payment assist Ollama 生成失敗: {e}")
+
     emotion_log_repository.append_log(entry)
     _print_entry(entry)
 
@@ -178,6 +187,28 @@ async def _extract_emotion_via_ollama(description: str) -> dict:
         120,
     )
     return result if isinstance(result, dict) else {}
+
+
+async def _generate_payment_assist(entry: dict) -> str:
+    """付款逾時：依情緒分析生成一句溫暖協助語（供前端「人員協助付款」顯示）。"""
+    system = (
+        "你是麥當勞自助點餐機的智能協助員。"
+        "根據顧客的情緒分析，生成一句溫暖友善的協助語（繁體中文，20–40 字）。"
+        "不要提及你在分析情緒或任何系統流程，用自然口語安慰付款遇到困難的顧客，"
+        "並表示店員即將前來協助。"
+        '只輸出 JSON：{"assist_message":"..."}'
+    )
+    user = (
+        f"顧客情緒：{entry.get('emotion','')}（強度：{entry.get('intensity','')}）\n"
+        f"表情：{entry.get('facial','')}\n"
+        f"描述：{(entry.get('description','') or '')[:150]}\n"
+        "請生成一句友善協助語。"
+    )
+    result = await asyncio.to_thread(
+        ai_services.ask_ollama, system, user, "PAYMENT_ASSIST",
+        config.get("MODEL_NAME", "qwen3.5:4b"), 80,
+    )
+    return str(result.get("assist_message") or "") if isinstance(result, dict) else ""
 
 
 async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
