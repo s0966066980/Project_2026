@@ -2399,24 +2399,54 @@ function _buildAssistItemCard(item) {
   const visual = getMenuVisual(item);
   const card = document.createElement('div');
   card.className = 'assist-item-card';
+
+  const photoDiv = document.createElement('div');
+  photoDiv.className = 'assist-item-photo';
+
   const hasImg = Boolean(visual.image);
-  card.innerHTML = `
-    <div class="assist-item-photo">
-      ${hasImg ? `<img src="${visual.image}" alt="${item.name || ''}"
-        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
-      <span class="assist-item-emoji"${hasImg ? ' style="display:none"' : ''}>${visual.emoji || '🍔'}</span>
-    </div>
-    <div class="assist-item-info">
-      <span class="assist-item-name">${item.name || '推薦餐點'}</span>
-      <p class="assist-item-push">${item.push_text || ''}</p>
-      <span class="assist-item-price">${formatItemPrice(item)}</span>
-    </div>
-    <button class="assist-item-add-btn" type="button">加入購物車</button>
-  `;
-  card.querySelector('.assist-item-add-btn').addEventListener('click', () => {
+  const emojiSpan = document.createElement('span');
+  emojiSpan.className = 'assist-item-emoji';
+  emojiSpan.textContent = visual.emoji || '🍔';
+  if (hasImg) {
+    const img = document.createElement('img');
+    img.src = visual.image;
+    img.alt = item.name || '';
+    emojiSpan.style.display = 'none';
+    img.addEventListener('error', () => {
+      img.style.display = 'none';
+      emojiSpan.style.display = 'flex';
+    });
+    photoDiv.appendChild(img);
+  }
+  photoDiv.appendChild(emojiSpan);
+
+  const infoDiv = document.createElement('div');
+  infoDiv.className = 'assist-item-info';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'assist-item-name';
+  nameSpan.textContent = item.name || '推薦餐點';
+
+  const pushP = document.createElement('p');
+  pushP.className = 'assist-item-push';
+  pushP.textContent = item.push_text || '';
+
+  const priceSpan = document.createElement('span');
+  priceSpan.className = 'assist-item-price';
+  priceSpan.textContent = formatItemPrice(item);
+
+  infoDiv.append(nameSpan, pushP, priceSpan);
+
+  const btn = document.createElement('button');
+  btn.className = 'assist-item-add-btn';
+  btn.type = 'button';
+  btn.textContent = '加入購物車';
+  btn.addEventListener('click', () => {
     hideAssistModal();
     showItemConfirmModal(item, 'assist_recommend');
   });
+
+  card.append(photoDiv, infoDiv, btn);
   return card;
 }
 
