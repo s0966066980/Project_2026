@@ -58,6 +58,9 @@ let pageDwellTimer = null;
 let posRealtime = null;
 let askRecordingStartedAt = 0;
 let _voiceProcessing = false; // onstop async 執行期間鎖定，防止重複啟動
+let _paymentCdTimer = null;       // 倒數 setInterval handle
+let _pendingPaymentAssist = '';   // Emotion-LLaMA → Ollama 協助語
+let _paymentCdCartIds = [];       // 本次付款的購物車快照
 let lastValidOrderActionAt = 0;
 let lastCartAddAt = Date.now();
 let choiceHesitationTimer = null;
@@ -1117,6 +1120,90 @@ function hidePaymentScreen() {
   updateVoiceAssistVisibility();
 }
 
+const PAYMENT_CD_TOTAL = 15;        // 倒數總秒數
+const PAYMENT_CD_CIRCUMFERENCE = 314.16;  // 2πr, r=50
+
+function _showPaymentCdSection(name) {
+  // name: 'counting' | 'failed' | 'notified'
+  ui.paymentCdCounting?.classList.toggle('hidden', name !== 'counting');
+  ui.paymentCdFailed?.classList.toggle('hidden', name !== 'failed');
+  ui.paymentCdNotified?.classList.toggle('hidden', name !== 'notified');
+}
+
+function openPaymentCountdown(cartIds) {
+  _paymentCdCartIds = cartIds.slice();
+  _pendingPaymentAssist = '';
+  ui.paymentCdBackdrop?.classList.remove('hidden');
+  ui.paymentCdModal?.classList.remove('hidden');
+  _showPaymentCdSection('counting');
+  _startPaymentCountdown();
+}
+
+function closePaymentCountdown() {
+  if (_paymentCdTimer) { clearInterval(_paymentCdTimer); _paymentCdTimer = null; }
+  ui.paymentCdBackdrop?.classList.add('hidden');
+  ui.paymentCdModal?.classList.add('hidden');
+  _pendingPaymentAssist = '';
+  _paymentCdCartIds = [];
+}
+
+function _startPaymentCountdown() {
+  if (_paymentCdTimer) clearInterval(_paymentCdTimer);
+  let secondsLeft = PAYMENT_CD_TOTAL;
+
+  // clip_sec 計入後觸發：剩餘 = TOTAL - clip_sec
+  const clipSec = Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0;
+  const captureAtRemaining = Math.max(1, Math.round(PAYMENT_CD_TOTAL - clipSec));
+  let captured = false;
+
+  const updateUI = () => {
+    if (ui.paymentCdNumber) ui.paymentCdNumber.textContent = String(secondsLeft);
+    if (ui.paymentCdArc) {
+      const elapsed = PAYMENT_CD_TOTAL - secondsLeft;
+      ui.paymentCdArc.style.strokeDashoffset =
+        String(PAYMENT_CD_CIRCUMFERENCE * (elapsed / PAYMENT_CD_TOTAL));
+      const color = secondsLeft > 8 ? '#1db87a' : (secondsLeft > 3 ? '#f5871f' : '#e84040');
+      ui.paymentCdArc.style.stroke = color;
+    }
+  };
+  updateUI();
+
+  _paymentCdTimer = setInterval(() => {
+    secondsLeft -= 1;
+    updateUI();
+
+    if (!captured && secondsLeft === captureAtRemaining
+        && runtimeSettings.EMOTION_LLAMA_ENABLED
+        && runtimeSettings.EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT !== false) {
+      captured = true;
+      _triggerPaymentEmotionCapture();
+    }
+
+    if (secondsLeft <= 0) {
+      clearInterval(_paymentCdTimer);
+      _paymentCdTimer = null;
+      trackInteractionEvent({
+        page_id: 'payment_page',
+        event_type: 'payment_timeout',
+        button_id: 'paymentCountdownModal',
+        metadata: { cart_ids: _paymentCdCartIds }
+      });
+      _showPaymentCdSection('failed');
+    }
+  }, 1000);
+}
+
+function _triggerPaymentEmotionCapture() {
+  if (!isPosMode()) return;
+  const blob = capturePreEventClip();
+  if (!blob) return;
+  api.analyzeEmotionEvent(sessionId, 'payment_timeout', blob)
+    .then(data => {
+      if (data && data.assist_response) _pendingPaymentAssist = data.assist_response;
+    })
+    .catch(e => console.warn('[payment] emotion capture failed:', e));
+}
+
 // =========================================================
 // POS 互動障礙事件追蹤
 // =========================================================
@@ -2125,11 +2212,43 @@ ui.kioskFastPayBtn?.addEventListener('click', () => {
   selectedPayment = 'credit-card';
   trackInteractionEvent({
     page_id: 'payment_page',
-    event_type: 'payment_attempt',
+    event_type: 'payment_countdown_start',
     button_id: 'kioskFastPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskFastPayBtn, kt('checkoutProcessing'));
+  openPaymentCountdown(cartIds);
+});
+ui.paymentCdCancelBtn?.addEventListener('click', () => {
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_countdown_cancel',
+    button_id: 'paymentCdCancelBtn',
+    metadata: {}
+  });
+  closePaymentCountdown();
+});
+
+ui.paymentCdBackBtn?.addEventListener('click', () => {
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_cd_back',
+    button_id: 'paymentCdBackBtn',
+    metadata: {}
+  });
+  closePaymentCountdown();
+});
+
+ui.paymentCdAssistBtn?.addEventListener('click', () => {
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_staff_requested',
+    button_id: 'paymentCdAssistBtn',
+    metadata: { has_assist: Boolean(_pendingPaymentAssist) }
+  });
+  if (ui.paymentCdNotifyMsg) {
+    ui.paymentCdNotifyMsg.textContent = _pendingPaymentAssist || '已通知店員，請稍候';
+  }
+  _showPaymentCdSection('notified');
 });
 ui.kioskCounterPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
