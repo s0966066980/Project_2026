@@ -499,10 +499,31 @@ async function loadEmotionSettings() {
     g('inp-emotion-quality-check').checked  = s.EMOTION_LLAMA_QUALITY_CHECK !== false;
     g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_LLAMA_AFFECT_VOICE);
     g('inp-emotion-affect-barrier').checked = Boolean(s.EMOTION_LLAMA_AFFECT_BARRIER);
+    g('inp-emotion-event-tutorial').checked     = s.EMOTION_LLAMA_EVENT_TUTORIAL !== false;
+    g('inp-emotion-event-voice').checked        = Boolean(s.EMOTION_LLAMA_EVENT_VOICE);
+    g('inp-emotion-event-cancel-guide').checked = Boolean(s.EMOTION_LLAMA_EVENT_CANCEL_GUIDE);
+    g('inp-emotion-event-payment-timeout').checked = s.EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT !== false;
+    const waitMode = s.EMOTION_LLAMA_VOICE_WAIT_MODE || 'speed';
+    const modeEl = g(waitMode === 'analysis' ? 'inp-emotion-voice-analysis' : 'inp-emotion-voice-speed');
+    if (modeEl) modeEl.checked = true;
+    toggleVoiceWaitMode();
     setVal('inp-emotion-prompt',              s.EMOTION_LLAMA_PROMPT || '');
+    updateEmotionPromptCounter();
   } catch (e) {
     console.error('loadEmotionSettings failed', e);
   }
+}
+
+function updateEmotionPromptCounter() {
+  const ta      = g('inp-emotion-prompt');
+  const counter = g('emotion-prompt-counter');
+  const warn    = g('emotion-prompt-warn');
+  if (!ta || !counter) return;
+  const len = (ta.value || '').length;
+  counter.textContent = `${len} 字`;
+  const over = len > 800;
+  counter.style.color = over ? 'var(--danger)' : 'var(--text2)';
+  if (warn) warn.style.display = over ? 'inline' : 'none';
 }
 
 async function saveEmotionSettings() {
@@ -515,6 +536,11 @@ async function saveEmotionSettings() {
       EMOTION_LLAMA_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
       EMOTION_LLAMA_AFFECT_VOICE:   g('inp-emotion-affect-voice').checked,
       EMOTION_LLAMA_AFFECT_BARRIER: g('inp-emotion-affect-barrier').checked,
+      EMOTION_LLAMA_EVENT_TUTORIAL:     g('inp-emotion-event-tutorial').checked,
+      EMOTION_LLAMA_EVENT_VOICE:        g('inp-emotion-event-voice').checked,
+      EMOTION_LLAMA_EVENT_CANCEL_GUIDE: g('inp-emotion-event-cancel-guide').checked,
+      EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT: g('inp-emotion-event-payment-timeout').checked,
+      EMOTION_LLAMA_VOICE_WAIT_MODE:    g('inp-emotion-voice-analysis')?.checked ? 'analysis' : 'speed',
       EMOTION_LLAMA_PROMPT:         val('inp-emotion-prompt'),
     };
     const res = await fetch(`${API}/api/settings`, {
@@ -547,47 +573,55 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-const EMOTION_EVENT_LABELS = {
-  tutorial_popup: '如何點餐彈跳視窗',
-};
-
 async function loadEmotionLogs() {
   const tbody = g('emotion-logs-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>';
+  const EMPTY_CELL = '<span style="color:var(--text2)">—</span>';
+  tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>`;
   try {
     const res = await fetch(`${API}/api/emotion/intervention_logs?limit=200`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const logs = (data.logs || []).slice().reverse();
     if (!logs.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>`;
       return;
     }
     tbody.innerHTML = logs.map(r => {
-      const time = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
-      const sid  = escHtml(r.session_id || '—');
-      const evt  = escHtml(EMOTION_EVENT_LABELS[r.event_type] || r.event_type || '—');
-      let emo;
+      const time  = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
+      // 優先使用後端已計算的 event_type_label，避免前後端 label 不同步
+      const evt   = escHtml(r.event_type_label || r.event_type || '—');
+
+      let emoCell, facialCell, vocalCell, descCell;
       if (r.quality_skipped) {
-        emo = '<span style="color:var(--text2)">品質快篩跳過</span>';
+        emoCell    = `<span style="color:var(--text2)">品質快篩跳過</span>`;
+        facialCell = EMPTY_CELL;
+        vocalCell  = EMPTY_CELL;
+        descCell   = EMPTY_CELL;
       } else if (r.status === 'error') {
-        emo = '<span style="color:var(--danger)">分析失敗</span>';
+        emoCell    = `<span style="color:var(--danger)">分析失敗</span>`;
+        facialCell = EMPTY_CELL;
+        vocalCell  = EMPTY_CELL;
+        descCell   = EMPTY_CELL;
       } else {
-        emo = escHtml(
-          [r.emotion, r.intensity ? `（${r.intensity}）` : '', r.description]
-            .filter(Boolean).join(' ')
-        );
+        const intens = r.intensity ? ` <span style="font-size:11px;color:var(--text2)">(${escHtml(r.intensity)})</span>` : '';
+        emoCell    = r.emotion  ? `<strong>${escHtml(r.emotion)}</strong>${intens}` : EMPTY_CELL;
+        facialCell = r.facial   ? escHtml(r.facial)   : EMPTY_CELL;
+        vocalCell  = r.vocal    ? escHtml(r.vocal)    : EMPTY_CELL;
+        descCell   = r.description ? escHtml(r.description) : EMPTY_CELL;
       }
+
       return `<tr style="border-top:1px solid var(--border)">
-        <td style="padding:7px 10px;white-space:nowrap">${time}</td>
-        <td style="padding:7px 10px;font-family:monospace;font-size:11px">${sid}</td>
-        <td style="padding:7px 10px">${evt}</td>
-        <td style="padding:7px 10px;max-width:320px;overflow-wrap:break-word">${emo}</td>
+        <td style="padding:7px 10px;white-space:nowrap;font-size:12px">${time}</td>
+        <td style="padding:7px 10px;white-space:nowrap">${evt}</td>
+        <td style="padding:7px 10px;white-space:nowrap">${emoCell}</td>
+        <td style="padding:7px 10px;max-width:180px;overflow-wrap:break-word;font-size:12px">${facialCell}</td>
+        <td style="padding:7px 10px;max-width:160px;overflow-wrap:break-word;font-size:12px">${vocalCell}</td>
+        <td style="padding:7px 10px;max-width:240px;overflow-wrap:break-word;font-size:12px">${descCell}</td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -771,8 +805,9 @@ window.loadRagDocs     = loadRagDocs;
 window.addRagDoc       = addRagDoc;
 window.deleteRagDoc    = deleteRagDoc;
 window.clearRagDocs    = clearRagDocs;
-window.saveEmotionSettings = saveEmotionSettings;
-window.clearEmotionLogs    = clearEmotionLogs;
+window.saveEmotionSettings        = saveEmotionSettings;
+window.clearEmotionLogs           = clearEmotionLogs;
+window.updateEmotionPromptCounter = updateEmotionPromptCounter;
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
@@ -785,3 +820,11 @@ setInterval(() => {
   const statsPage = document.getElementById('page-stats');
   if (statsPage && statsPage.style.display !== 'none') loadStats();
 }, 15000);
+
+function toggleVoiceWaitMode() {
+  const row = document.getElementById('voice-wait-mode-row');
+  if (!row) return;
+  const checked = g('inp-emotion-event-voice')?.checked;
+  row.style.display = checked ? 'flex' : 'none';
+}
+window.toggleVoiceWaitMode = toggleVoiceWaitMode;

@@ -523,8 +523,8 @@ tbody tr:hover td { background: #f8fafd; }
                 <th>推播結果</th>
                 <th>最終購物車</th>
                 <th>加入方式</th>
-                <th>心情</th>
                 <th>語音對話</th>
+                <th>心情</th>
               </tr>
             </thead>
             <tbody id="s-tbody">
@@ -824,9 +824,46 @@ tbody tr:hover td { background: #f8fafd; }
           <input type="checkbox" id="inp-emotion-affect-barrier">
         </div>
 
+        <div style="border-top:1px solid #edf0f7;padding-top:12px;margin-top:2px">
+          <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">觸發事件</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">「如何點餐」彈跳視窗</label>
+              <input type="checkbox" id="inp-emotion-event-tutorial">
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">語音模式結束後</label>
+              <input type="checkbox" id="inp-emotion-event-voice" onchange="toggleVoiceWaitMode()">
+            </div>
+            <div id="voice-wait-mode-row" style="display:none;margin-left:212px;gap:16px;align-items:center;flex-wrap:wrap">
+              <label style="font-size:12px;font-weight:600;color:#8494b0">語音分析時機</label>
+              <label style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="emotion-voice-wait" value="speed" id="inp-emotion-voice-speed"> 速度優先模式（背景分析，影響下一輪）
+              </label>
+              <label style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="emotion-voice-wait" value="analysis" id="inp-emotion-voice-analysis"> 分析模式（等待分析完成，影響當下回覆）
+              </label>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">「需要幫助嗎？」彈跳視窗</label>
+              <input type="checkbox" id="inp-emotion-event-cancel-guide">
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">付款倒數逾時分析（預設開啟）</label>
+              <input type="checkbox" id="inp-emotion-event-payment-timeout">
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex;flex-direction:column;gap:6px">
-          <label style="font-size:13px;color:var(--text2)">分析 Prompt 模板（{speech_text} 為語音文字佔位）</label>
-          <textarea id="inp-emotion-prompt" class="setting-input" rows="5" style="resize:vertical;font-size:12px;line-height:1.5"></textarea>
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <label style="font-size:13px;color:var(--text2)">分析 Prompt 模板（{speech_text} 為語音文字佔位，無語音時該行自動省略）</label>
+            <span id="emotion-prompt-counter" style="font-size:11px;color:var(--text2);white-space:nowrap;margin-left:12px">0 字</span>
+          </div>
+          <textarea id="inp-emotion-prompt" class="setting-input" rows="6"
+            style="resize:vertical;font-size:12px;line-height:1.5"
+            oninput="updateEmotionPromptCounter()"></textarea>
+          <span id="emotion-prompt-warn" style="font-size:11px;color:var(--danger);display:none">⚠️ Prompt 過長，建議控制在 800 字以內</span>
         </div>
 
         <div style="display:flex;align-items:center;gap:10px">
@@ -848,14 +885,16 @@ tbody tr:hover td { background: #f8fafd; }
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="background:var(--surface2);text-align:left">
-              <th style="padding:8px 10px">時間</th>
-              <th style="padding:8px 10px">Session ID</th>
-              <th style="padding:8px 10px">事件類型</th>
-              <th style="padding:8px 10px">分析結果</th>
+              <th style="padding:8px 10px;white-space:nowrap">時間</th>
+              <th style="padding:8px 10px;white-space:nowrap">事件類型</th>
+              <th style="padding:8px 10px;white-space:nowrap">情緒 / 強度</th>
+              <th style="padding:8px 10px">表情</th>
+              <th style="padding:8px 10px">聲音</th>
+              <th style="padding:8px 10px">描述</th>
             </tr>
           </thead>
           <tbody id="emotion-logs-tbody">
-            <tr><td colspan="4" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
+            <tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
           </tbody>
         </table>
       </div>
