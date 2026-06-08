@@ -28,4 +28,11 @@ def create_router(deps: dict) -> APIRouter:
             exclude_ids=_parse_ids(exclude_ids),
         )
 
+    @router.get("/assist_recommend")
+    async def handle_assist_recommend(session_id: str):
+        return await ai_push_service.generate_three(
+            session_id=session_id,
+            ollama_semaphore=deps["ollama_semaphore"],
+        )
+
     return router

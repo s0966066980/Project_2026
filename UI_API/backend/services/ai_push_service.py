@@ -135,3 +135,25 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         "recommendation_id": sel_id,
         "push_text": push_text,
     }
+
+
+async def generate_three(session_id: str, ollama_semaphore) -> list[dict]:
+    """呼叫 generate() 三次，累積 exclude_ids 確保不重複，回傳含 name/price/image 的完整項目清單。"""
+    items_map = {i["id"]: i for i in await _get_menu_cached() if i.get("id")}
+    results = []
+    exclude: list[str] = []
+    for _ in range(3):
+        rec = await generate(session_id, ollama_semaphore, exclude_ids=exclude)
+        rec_id = rec.get("recommendation_id", "")
+        if rec_id:
+            exclude.append(rec_id)
+        menu_item = items_map.get(rec_id, {})
+        results.append({
+            "id": rec_id,
+            "name": menu_item.get("name", ""),
+            "price": menu_item.get("price", 0),
+            "image": menu_item.get("official_image_url") or menu_item.get("image", ""),
+            "push_text": rec.get("push_text", ""),
+            "category": menu_item.get("category", ""),
+        })
+    return results
