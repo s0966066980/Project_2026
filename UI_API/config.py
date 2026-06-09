@@ -126,7 +126,8 @@ DEFAULT_SETTINGS = {
     "AI_PUSH_TEXT_MIN": 18,                 # push_text 最少字數
     "AI_PUSH_TEXT_MAX": 34,                 # push_text 最多字數
     "AI_PUSH_REFRESH_SEC": 15,              # 推播欄刷新間隔（秒）
-    "CHOICE_HESITATION_IDLE_SEC": 60,       # 無操作多少秒後顯示猶豫彈窗
+    "PASSIVE_VOICE_KEYWORDS": ["找不到", "在哪裡", "哪邊有", "哪裡有", "哪裡可以"],
+    "PASSIVE_VOICE_ALIASES": {},   # {"MCDxxx": ["別名1", "別名2"]}
     "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效
         "超值全餐", "極選系列", "點心", "飲料", "麥當勞分享盒"
     ],
@@ -153,13 +154,12 @@ DEFAULT_SETTINGS = {
     # ── Emotion-LLaMA ─────────────────────────────────────────────
     "EMOTION_LLAMA_ENABLED": False,
     "EMOTION_LLAMA_CLIP_SEC": 2.0,
+    "PAYMENT_EMOTION_CLIP_SEC": 5.0,   # 付款倒數逾時擷取秒數（觸發點 = 15 - 此值）
     "EMOTION_LLAMA_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
     "EMOTION_LLAMA_QUALITY_CHECK": True,
     "EMOTION_LLAMA_AFFECT_VOICE": False,
     "EMOTION_LLAMA_AFFECT_BARRIER": False,
-    "EMOTION_LLAMA_EVENT_TUTORIAL":     True,    # 「如何點餐」彈跳視窗觸發分析
     "EMOTION_LLAMA_EVENT_VOICE":        False,   # 語音模式結束後觸發分析
-    "EMOTION_LLAMA_EVENT_CANCEL_GUIDE": False,   # 「需要幫助嗎？」彈跳視窗觸發分析
     "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT": True,  # 付款倒數逾時觸發分析（預設開啟）
     "EMOTION_LLAMA_VOICE_WAIT_MODE":    "speed", # "speed"=速度優先 / "analysis"=分析模式
     "EMOTION_LLAMA_PROMPT": (
@@ -202,12 +202,14 @@ DEFAULT_SETTINGS = {
         "顧客今天心情超棒（5星）。推薦限定款、高價位或雙份餐；"
         "語氣活潑慶祝，例如「心情超好！來份大麥克犒賞自己！」。"
     ),
+    # ── 機台識別 ─────────────────────────────────────────────────
+    "KIOSK_NAME": "機台01",
     # ── 付款逾時協助 Prompt ───────────────────────────────────────
     "PAYMENT_ASSIST_PROMPT": (
-        "你是麥當勞自助點餐機的智能協助員。"
-        "根據顧客的情緒分析，生成一句溫暖友善的協助語（繁體中文，20–40 字）。"
-        "不要提及你在分析情緒或任何系統流程，用自然口語安慰付款遇到困難的顧客，"
-        "並表示店員即將前來協助。"
+        "你是麥當勞門市的員工輔助系統。"
+        "根據以下顧客情緒分析結果，用繁體中文寫一段給現場員工閱讀的情緒摘要（30–60 字）。"
+        "內容包含：顧客目前的情緒狀態、可能原因、以及建議員工如何應對。"
+        "語氣簡潔、務實，直接告訴員工該怎麼做，不要解釋你是 AI 或分析流程。"
         '只輸出 JSON：{"assist_message":"..."}'
     ),
 }
@@ -218,11 +220,10 @@ PUBLIC_SETTINGS_KEYS = {
     "EMOTION_LLAMA_CLIP_SEC",
     "EMOTION_LLAMA_EVENT_VOICE",        # POS 需要：控制語音模式結束後是否觸發分析
     "EMOTION_LLAMA_VOICE_WAIT_MODE",    # POS 需要：speed / analysis 兩種等待模式
-    "EMOTION_LLAMA_EVENT_TUTORIAL",     # POS 需要：控制「如何點餐」彈窗是否觸發分析
-    "EMOTION_LLAMA_EVENT_CANCEL_GUIDE", # POS 需要：控制「需要幫助嗎？」彈窗是否觸發分析
     "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT",  # POS 需要：控制付款倒數逾時是否觸發分析
     "AI_PUSH_REFRESH_SEC",
-    "CHOICE_HESITATION_IDLE_SEC",
+    "PAYMENT_EMOTION_CLIP_SEC",
+    "PASSIVE_VOICE_KEYWORDS",
 }
 
 

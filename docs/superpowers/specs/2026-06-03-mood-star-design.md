@@ -217,7 +217,8 @@ async function startOrdering() {
   backend/routes/core_routes.py
   frontend/pos/index.html
   frontend/pos/app.js
-  frontend/admin/admin.html  (+ admin.js)
+  frontend/admin/admin.html
+  frontend/admin/admin.js
 ```
 
 ---

@@ -111,7 +111,7 @@ class OpenAICompatibleTTS(TTSProvider):
         model = config.get("TTS_MODEL", "tts-1")
         voice = config.get("TTS_VOICE", "alloy")
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=float(config.get("TTS_HTTP_TIMEOUT_SEC", 30))) as client:
             r = await client.post(
                 f"{url}/v1/audio/speech",
                 headers={"Authorization": f"Bearer {api_key}"},

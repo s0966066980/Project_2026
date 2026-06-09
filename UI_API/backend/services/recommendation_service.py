@@ -78,7 +78,7 @@ def menu_aliases(item: dict) -> list[str]:
         "早餐": ["早餐"],
         "飲料": ["飲料", "喝的"],
         "McCafé": ["咖啡", "mcafe", "mccafe"],
-        "McCafé®": ["咖啡", "mcafe", "mccafe"],
+        "McCafé": ["咖啡", "mcafe", "mccafe"],
         "點心": ["點心", "小點"],
     }
     for alias in category_aliases.get(category, []):
@@ -145,13 +145,22 @@ def fallback_cart_actions_from_text(user_text: str, menu_items: list[dict]) -> l
 
 
 def _is_recommendation_query(text: str) -> bool:
-    """推薦／問答問句 → 不應觸發 fallback 加購邏輯。"""
+    """推薦／問答問句 → 不應觸發 fallback 加購邏輯。
+    但若同時含加購意圖（「把推薦的加入購物車」「幫我加你推薦的」），則不視為推薦問句。
+    """
+    _add_intent = [
+        "加入購物車", "幫我加", "我要那個", "加進去", "加購", "來一份",
+        "點那個", "幫我點", "幫我來", "add to cart", "add it", "add the",
+    ]
+    lowered = text.lower()
+    # 有明確加購意圖 → 優先視為加購請求，不攔截
+    if any(k in lowered for k in _add_intent):
+        return False
     keywords = [
         "推薦", "建議", "有什麼好", "什麼好吃", "什麼推薦", "你們有什麼",
         "有沒有推薦", "幫我推薦", "介紹", "有什麼特別", "什麼比較好",
         "recommend", "suggest", "what's good", "what do you recommend",
     ]
-    lowered = text.lower()
     return any(k in lowered for k in keywords)
 
 

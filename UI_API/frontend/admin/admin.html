@@ -682,12 +682,12 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- 付款逾時協助 Prompt -->
           <section>
-            <div class="section-title">付款逾時協助 Prompt</div>
+            <div class="section-title">付款逾時情緒摘要 Prompt（員工用）</div>
             <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
-              付款倒數逾時後，Ollama 根據 Emotion-LLaMA 分析結果與此 Prompt 生成協助語，顯示於「人員協助付款」通知畫面。空白則使用系統預設。
+              付款倒數逾時後，Ollama 根據 Emotion-LLaMA 分析結果產生一段<b>給員工閱讀</b>的中文情緒摘要，說明顧客目前狀態與建議應對方式，顯示於後台「人員協助付款」彈窗。輸出請使用 JSON 格式：<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">{"assist_message":"..."}</code>
             </p>
             <div>
-              <textarea id="inp-payment-assist-prompt" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
+              <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
             </div>
           </section>
 
@@ -721,6 +721,37 @@ tbody tr:hover td { background: #f8fafd; }
                 <textarea id="inp-mood-ctx-5" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
               </div>
             </div>
+          </section>
+
+          <hr style="border:none;border-top:1px solid #edf0f7">
+
+          <!-- 被動語音監聽關鍵詞 -->
+          <section>
+            <div class="section-title">被動語音監聽關鍵詞</div>
+            <div class="setting-row" style="align-items:flex-start">
+              <label class="setting-label" style="padding-top:6px">觸發關鍵詞</label>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <textarea id="inp-passive-keywords" class="setting-input" rows="4"
+                  style="resize:vertical;font-size:13px;line-height:1.6"
+                  placeholder="每行一個關鍵詞，例如：&#10;找不到&#10;在哪裡&#10;哪邊有"></textarea>
+                <span style="font-size:11px;color:#8494b0">顧客說出關鍵詞且提到菜單品項名稱時，自動顯示猶豫彈窗</span>
+              </div>
+            </div>
+          </section>
+
+          <hr style="border:none;border-top:1px solid #edf0f7">
+
+          <!-- 品項口語別名 -->
+          <section>
+            <div class="section-title">品項口語別名</div>
+            <p style="font-size:11px;color:#8494b0;margin-bottom:12px;line-height:1.6">
+              顧客可能說「魚堡」而非完整名稱「麥香魚堡」，在此設定別名讓系統仍能比對。<br>
+              格式：每行 <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">品項ID = 別名1, 別名2</code>，例如：<br>
+              <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">MCD003 = 魚堡, 魚排堡</code>
+            </p>
+            <textarea id="inp-passive-aliases" class="setting-input" rows="6"
+              style="resize:vertical;font-size:12px;line-height:1.7;font-family:monospace;width:100%"
+              placeholder="MCD003 = 魚堡, 魚排堡&#10;MCD001 = 大麥, 大M&#10;MCD010 = 雞塊, 麥克雞"></textarea>
           </section>
 
         </div>
@@ -823,6 +854,12 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
 
         <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">付款倒數擷取秒數</label>
+          <input type="number" id="inp-payment-emotion-clip-sec" class="setting-input" style="width:100px" min="1" max="14" step="0.5">
+          <span style="font-size:12px;color:#8494b0">觸發點 = 15 − 此值（秒）</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
           <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用品質快篩</label>
           <input type="checkbox" id="inp-emotion-quality-check">
         </div>
@@ -841,10 +878,6 @@ tbody tr:hover td { background: #f8fafd; }
           <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">觸發事件</div>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="display:flex;align-items:center;gap:12px">
-              <label style="min-width:200px;font-size:13px;color:var(--text2)">「如何點餐」彈跳視窗</label>
-              <input type="checkbox" id="inp-emotion-event-tutorial">
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
               <label style="min-width:200px;font-size:13px;color:var(--text2)">語音模式結束後</label>
               <input type="checkbox" id="inp-emotion-event-voice" onchange="toggleVoiceWaitMode()">
             </div>
@@ -856,10 +889,6 @@ tbody tr:hover td { background: #f8fafd; }
               <label style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
                 <input type="radio" name="emotion-voice-wait" value="analysis" id="inp-emotion-voice-analysis"> 分析模式（等待分析完成，影響當下回覆）
               </label>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <label style="min-width:200px;font-size:13px;color:var(--text2)">「需要幫助嗎？」彈跳視窗</label>
-              <input type="checkbox" id="inp-emotion-event-cancel-guide">
             </div>
             <div style="display:flex;align-items:center;gap:12px">
               <label style="min-width:200px;font-size:13px;color:var(--text2)">付款倒數逾時分析（預設開啟）</label>
@@ -915,6 +944,21 @@ tbody tr:hover td { background: #f8fafd; }
   </div>
 
 </div><!-- /.main -->
+
+<!-- 人員協助付款通知 -->
+<div id="staffNotifyBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;align-items:center;justify-content:center">
+  <div id="staffNotifyModal" style="background:#fff;border-radius:20px;padding:36px 40px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.22);min-width:280px;max-width:380px">
+    <div style="font-size:48px;margin-bottom:12px">🔔</div>
+    <div id="staffNotifyKiosk" style="font-size:15px;font-weight:700;color:#3b7aee;margin-bottom:6px;letter-spacing:0.04em"></div>
+    <div id="staffNotifyReason" style="font-size:22px;font-weight:800;color:#1a2233;margin-bottom:16px"></div>
+    <div id="staffNotifyEmotion" style="display:none;background:#f4f6fa;border-radius:10px;padding:12px 16px;margin-bottom:20px;text-align:left">
+      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:0.06em;margin-bottom:6px">情緒分析</div>
+      <div id="staffNotifyEmotionLabel" style="font-size:15px;font-weight:700;color:#1a2233;margin-bottom:4px"></div>
+      <div id="staffNotifyEmotionDesc" style="font-size:12px;color:#555;line-height:1.5"></div>
+    </div>
+    <button onclick="dismissStaffNotify()" style="background:#3b7aee;color:#fff;border:none;border-radius:10px;padding:12px 36px;font-size:16px;font-weight:700;cursor:pointer;width:100%">確認</button>
+  </div>
+</div>
 
 <script type="module" src="/static/admin/admin.js"></script>
 </body>

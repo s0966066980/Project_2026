@@ -193,3 +193,10 @@ export async function getEmotionInterventionLogs(limit = 200) {
 export async function assistRecommend(sessionId) {
   return asJson(await fetch(`${API_BASE}/api/assist_recommend?session_id=${encodeURIComponent(sessionId)}`));
 }
+
+export async function passiveCheck(sessionId, audioBlob) {
+  const fd = new FormData();
+  fd.append('session_id', sessionId);
+  fd.append('media', audioBlob, 'passive.webm');
+  return asJson(await fetch(`${API_BASE}/api/passive_check`, { method: 'POST', body: fd }));
+}

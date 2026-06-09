@@ -16,9 +16,7 @@ import config
 from repositories import emotion_log_repository
 
 EVENT_TYPE_LABELS = {
-    "tutorial_popup": "如何點餐彈跳視窗",
     "voice_mode": "語音模式",
-    "cancel_guide": "需要幫助彈跳視窗",
     "payment_timeout": "付款逾時協助",
 }
 
@@ -54,18 +52,6 @@ async def analyze(session_id: str, media_path: str) -> dict:
 async def analyze_event(session_id: str, media_path: str, event_type: str, speech_text: str = "") -> dict:
     """事件驅動分析主入口。非同步執行，結果寫 log + 更新語音快取。"""
     if not is_enabled():
-        # Emotion-LLaMA 停用時，payment_timeout 仍需 Ollama 生成協助語
-        if event_type == "payment_timeout":
-            entry = {
-                "status": "disabled", "session_id": session_id,
-                "event_type": event_type, "emotion": "", "intensity": "",
-                "facial": "", "vocal": "", "description": "",
-            }
-            try:
-                entry["assist_response"] = await _generate_payment_assist(entry)
-            except Exception as e:
-                print(f"⚠️ Payment assist Ollama 生成失敗（disabled）: {e}")
-            return entry
         return {"status": "disabled"}
 
     skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
@@ -125,15 +111,17 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         "vocal": result.get("vocal", ""),
         "description": result.get("description", ""),
         "status": "skipped" if quality_skipped else ("error" if error else "ok"),
+        "assist_response": "",
     }
 
-    # 付款逾時事件：無論 Emotion-LLaMA 是否成功，都呼叫 Ollama 生成協助語。
-    # 有情緒資料時提供個人化回覆；無資料時 Ollama 根據 prompt 生成通用安慰語。
-    if event_type == "payment_timeout" and not quality_skipped:
+    # payment_timeout：用 Ollama + PAYMENT_ASSIST_PROMPT 生成員工可讀的中文情緒摘要
+    if event_type == "payment_timeout" and not quality_skipped and not error:
         try:
-            entry["assist_response"] = await _generate_payment_assist(entry)
+            assist = await _generate_payment_assist(entry)
+            if assist:
+                entry["assist_response"] = assist
         except Exception as e:
-            print(f"⚠️ Payment assist Ollama 生成失敗: {e}")
+            print(f"⚠️ payment assist_response 生成失敗: {e}")
 
     emotion_log_repository.append_log(entry)
     _print_entry(entry)
@@ -179,6 +167,43 @@ def _print_entry(entry: dict) -> None:
 
 
 
+async def _generate_payment_assist(entry: dict) -> str:
+    """根據情緒分析結果，用 PAYMENT_ASSIST_PROMPT 生成員工可讀的中文情緒摘要。"""
+    prompt_template = config.get("PAYMENT_ASSIST_PROMPT", "")
+    if not prompt_template:
+        return ""
+
+    emotion     = entry.get("emotion", "")
+    intensity   = entry.get("intensity", "")
+    facial      = entry.get("facial", "")
+    vocal       = entry.get("vocal", "")
+    description = entry.get("description", "")
+
+    # 組成情緒資訊供 prompt 使用
+    emotion_summary = (
+        f"情緒：{emotion or '未知'}\n"
+        f"強度：{intensity or '未知'}\n"
+        + (f"表情：{facial}\n" if facial else "")
+        + (f"聲音：{vocal}\n" if vocal else "")
+        + (f"描述：{description}\n" if description else "")
+    ).strip()
+
+    system = prompt_template
+    user = f"顧客情緒分析結果：\n{emotion_summary}"
+
+    raw = await asyncio.to_thread(
+        ai_services.ask_ollama, system, user, "PAYMENT_ASSIST",
+        config.get("MODEL_NAME", "qwen3.5:4b"),
+        80,
+    )
+    if isinstance(raw, dict):
+        msg = raw.get("assist_message") or raw.get("message") or raw.get("response") or ""
+        return str(msg).strip()
+    if isinstance(raw, str):
+        return raw.strip()
+    return ""
+
+
 async def _extract_emotion_via_ollama(description: str) -> dict:
     """Emotion-LLaMA 自然語言描述 → Ollama → 結構化情緒欄位。"""
     system = (
@@ -200,29 +225,6 @@ async def _extract_emotion_via_ollama(description: str) -> dict:
         120,
     )
     return result if isinstance(result, dict) else {}
-
-
-async def _generate_payment_assist(entry: dict) -> str:
-    """付款逾時：依情緒分析生成一句溫暖協助語（供前端「人員協助付款」顯示）。"""
-    system = config.get(
-        "PAYMENT_ASSIST_PROMPT",
-        "你是麥當勞自助點餐機的智能協助員。"
-        "根據顧客的情緒分析，生成一句溫暖友善的協助語（繁體中文，20–40 字）。"
-        "不要提及你在分析情緒或任何系統流程，用自然口語安慰付款遇到困難的顧客，"
-        "並表示店員即將前來協助。"
-        '只輸出 JSON：{"assist_message":"..."}',
-    )
-    user = (
-        f"顧客情緒：{entry.get('emotion','')}（強度：{entry.get('intensity','')}）\n"
-        f"表情：{entry.get('facial','')}\n"
-        f"描述：{(entry.get('description','') or '')[:150]}\n"
-        "請生成一句友善協助語。"
-    )
-    result = await asyncio.to_thread(
-        ai_services.ask_ollama, system, user, "PAYMENT_ASSIST",
-        config.get("MODEL_NAME", "qwen3.5:4b"), 80,
-    )
-    return str(result.get("assist_message") or "") if isinstance(result, dict) else ""
 
 
 async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:

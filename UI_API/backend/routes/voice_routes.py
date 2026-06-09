@@ -4,6 +4,7 @@ import os
 import tempfile
 
 from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import StreamingResponse
 
 from services import voice_service
 from utils.file_utils import write_binary_file
@@ -36,5 +37,35 @@ def create_router(deps: dict) -> APIRouter:
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)
+
+    @router.post("/ask/stream")
+    async def process_voice_stream(
+        session_id: str = Form(...),
+        media: UploadFile = File(...),
+        multi_lang: str = Form(default="true"),
+    ):
+        suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            temp_path = tmp.name
+        media_bytes = await media.read()
+        await asyncio.to_thread(write_binary_file, temp_path, media_bytes)
+
+        async def _stream_with_cleanup():
+            try:
+                async for chunk in voice_service.handle_voice_stream(
+                    session_id=session_id,
+                    audio_path=temp_path,
+                    ollama_semaphore=deps["ollama_semaphore"],
+                    multi_lang=multi_lang.lower() == "true",
+                ):
+                    yield chunk
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+        return StreamingResponse(
+            _stream_with_cleanup(),
+            media_type="application/x-ndjson",
+        )
 
     return router

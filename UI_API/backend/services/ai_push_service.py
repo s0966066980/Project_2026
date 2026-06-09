@@ -9,6 +9,7 @@ import config
 from repositories import menu_repository
 from services.recommendation_service import clean_menu_id
 from services.mood_service import get_mood_context
+from services.popular_service import get_top_items
 
 _menu_cache: dict = {"items": None, "ts": 0.0}
 
@@ -40,6 +41,18 @@ def _menu_context(items: list[dict], limit: int = 80) -> str:
     return "\n".join(rows)
 
 
+def _weighted_pick(items: list[dict], exclude: set, top_weight: int = 3) -> dict | None:
+    """加權隨機選品：TOP3 品項權重 top_weight 倍，其他品項等機率（1）。"""
+    candidates = [i for i in items if i.get("id") and i["id"] not in exclude and _price(i) > 0]
+    if not candidates:
+        return None
+    top_ids = {t["id"] for t in get_top_items(3)}
+    pool = []
+    for item in candidates:
+        pool.extend([item] * (top_weight if item["id"] in top_ids else 1))
+    return random.choice(pool)
+
+
 def _fallback_item(items: list[dict], exclude: set) -> dict:
     priority_cats = config.get("AI_PUSH_PRIORITY_CATS", [])
     candidates = [i for i in items if i.get("id") and i["id"] not in exclude and _price(i) > 0]
@@ -66,6 +79,13 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
     if not ids:
         return {"status": "error", "message": "menu is empty"}
 
+    # 加權隨機選品：TOP3 品項機率提高，其他等機率
+    picked = await asyncio.to_thread(_weighted_pick, items, exclude)
+    if not picked:
+        picked = fallback
+    sel_id   = picked.get("id") or fb_id
+    sel_name = picked.get("name") or fb_name
+
     # RAG context（活動/特惠/主打資訊）
     rag_section = ""
     if config.get("RAG_ENABLED", False):
@@ -83,15 +103,13 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
     user = (
         f"{mood_section}"
         f"{rag_section}"
-        "【菜單白名單】\n"
-        f"{_menu_context(items)}\n\n"
-        f"【本次排除 ID】{', '.join(exclude) or '無'}\n"
-        "請挑 1 個適合現在推播的餐點。"
+        f"【指定推播餐點】{sel_id}｜{sel_name}\n\n"
         f"push_text 必須是繁體中文，字數至少 {config.get('AI_PUSH_TEXT_MIN', 18)} 字、最多 {config.get('AI_PUSH_TEXT_MAX', 34)} 字，"
-        f"不足 {config.get('AI_PUSH_TEXT_MIN', 18)} 字視為無效，請自然熱情地促購，不要出現 JSON 以外的文字。"
+        f"自然熱情地促購此餐點，不要出現 JSON 以外的文字。"
+        f'直接輸出：{{"recommendation_id":"{sel_id}","push_text":"..."}}'
     )
 
-    # push 獨立 token 預算：max 字數 × 4（中文 token 比 + JSON 結構 + 安全餘裕）
+    # push 獨立 token 預算
     _push_num_predict = num_predict_override if num_predict_override is not None else max(
         int(config.get("OLLAMA_NUM_PREDICT", 220)),
         int(config.get("AI_PUSH_TEXT_MAX", 34)) * 4
@@ -110,28 +128,19 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
 
     if isinstance(raw, list):
         raw = next((r for r in raw if isinstance(r, dict)), {})
+
+    _hard_cap = int(config.get("AI_PUSH_TEXT_MAX", 34)) * 2
     if not isinstance(raw, dict) or "error" in raw:
-        return {
-            "status": "fallback",
-            "session_id": session_id,
-            "recommendation_id": fb_id,
-            "push_text": f"{fb_name}現在很適合來一份，搭配點餐超值！",
-        }
-
-    sel_id = clean_menu_id(
-        raw.get("recommendation_id") or raw.get("id") or raw.get("menu_id"), ids
-    )
-    if not sel_id or sel_id in exclude:
-        sel_id = fb_id
-
-    selected  = by_id.get(sel_id) or fallback
-    _hard_cap = int(config.get("AI_PUSH_TEXT_MAX", 34)) * 2  # 給 LLM 一倍餘裕，仍有上限
-    push_text = re.sub(r"\s+", " ", str(raw.get("push_text") or "")).strip()[:_hard_cap]
-    if not push_text:
-        push_text = f"{selected.get('name') or fb_name}現在很適合來一份！"
+        push_text = f"{sel_name}現在很適合來一份，搭配點餐超值！"
+        status = "fallback"
+    else:
+        push_text = re.sub(r"\s+", " ", str(raw.get("push_text") or "")).strip()[:_hard_cap]
+        if not push_text:
+            push_text = f"{sel_name}現在很適合來一份！"
+        status = "success"
 
     return {
-        "status": "success",
+        "status": status,
         "session_id": session_id,
         "recommendation_id": sel_id,
         "push_text": push_text,

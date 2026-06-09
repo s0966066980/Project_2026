@@ -27,25 +27,37 @@ class FasterWhisperSTT(STTProvider):
         if FasterWhisperSTT._model is None:
             from faster_whisper import WhisperModel
             model_size = config.get("STT_MODEL", "small")
-            print(f"載入 faster-whisper ({model_size}, int8, CPU)...")
-            FasterWhisperSTT._model = WhisperModel(
-                model_size,
-                device="cpu",
-                compute_type="int8",
-                num_workers=2,
-            )
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            compute_type = "float16" if device == "cuda" else "int8"
+            print(f"載入 faster-whisper ({model_size}, {compute_type}, {device})...")
+            try:
+                FasterWhisperSTT._model = WhisperModel(
+                    model_size,
+                    device=device,
+                    compute_type=compute_type,
+                    num_workers=2,
+                )
+            except Exception as e:
+                print(f"⚠️  GPU 載入失敗（{e}），退回 CPU int8")
+                FasterWhisperSTT._model = WhisperModel(
+                    model_size,
+                    device="cpu",
+                    compute_type="int8",
+                    num_workers=2,
+                )
 
-    async def transcribe(self, audio_path: str) -> dict:
+    async def transcribe(self, audio_path: str, initial_prompt: str | None = None) -> dict:
         self._init()
         language = config.get("STT_LANGUAGE", "zh") or None
-        initial_prompt = config.get("STT_INITIAL_PROMPT", "")
+        prompt = initial_prompt if initial_prompt is not None else config.get("STT_INITIAL_PROMPT", "")
 
         def _run():
             with FasterWhisperSTT._lock:
                 segments, info = FasterWhisperSTT._model.transcribe(
                     audio_path,
                     language=language,
-                    initial_prompt=initial_prompt or None,
+                    initial_prompt=prompt or None,
                     vad_filter=True,
                     vad_parameters={"min_silence_duration_ms": 300},
                 )
@@ -76,7 +88,7 @@ class OpenAICompatibleSTT(STTProvider):
         language = config.get("STT_LANGUAGE", "zh")
         model = config.get("STT_MODEL", "whisper-1")
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=float(config.get("STT_HTTP_TIMEOUT_SEC", 30))) as client:
             with open(audio_path, "rb") as f:
                 r = await client.post(
                     f"{url}/v1/audio/transcriptions",

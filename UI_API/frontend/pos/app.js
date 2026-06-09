@@ -58,14 +58,22 @@ let pageDwellTimer = null;
 let posRealtime = null;
 let askRecordingStartedAt = 0;
 let _voiceProcessing = false; // onstop async 執行期間鎖定，防止重複啟動
-let _paymentCdTimer = null;       // 倒數 setInterval handle
-let _pendingPaymentAssist = '';   // Emotion-LLaMA → Ollama 協助語
-let _paymentCdCartIds = [];       // 本次付款的購物車快照
+let _paymentCdTimer = null;         // 倒數 setInterval handle
+let _pendingPaymentEmotion = null;  // Emotion-LLaMA 分析結果，供 admin 通知使用
+let _paymentEmotionPromise = null;  // in-flight emotion API promise
+let _paymentCdCartIds = [];         // 本次付款的購物車快照
 let lastValidOrderActionAt = 0;
 let lastCartAddAt = Date.now();
-let choiceHesitationTimer = null;
 let currentChoiceHesitationItem = null;
-const CHOICE_HESITATION_IDLE_MS = 60_000;
+let _passiveStream = null;
+let _passiveRecorder = null;
+let _passiveRecTimer = null;
+let _passiveListening = false;
+let _passivePaused = false;
+let _passiveInFlight = false;
+let _passiveLastTriggerAt = 0;
+const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
+const PASSIVE_CHUNK_MS = 5000;
 let kioskScreen = 'categories';
 let kioskActiveGroup = '';
 let kioskActiveFilter = '全部';
@@ -91,9 +99,9 @@ const KIOSK_GROUPS = [
   { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/mcd_categories/single.jpg', categories: ['超值全餐配餐'] },
   { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/mcd_categories/value.jpg', categories: ['1+1星級點'] },
   { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/mcd_categories/recommended.jpg', categories: ['麥當勞分享盒'] },
-  { id: 'happymeal', label: 'Happy Meal®', labelEn: 'Happy Meal®', image: '/static/mcd_categories/kids.jpg', categories: ['Happy Meal®'] },
+  { id: 'happymeal', label: 'Happy Meal', labelEn: 'Happy Meal', image: '/static/mcd_categories/kids.jpg', categories: ['Happy Meal'] },
   { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/deals.jpg', categories: ['點心'] },
-  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé®', 'McCafé'] },
+  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé', 'McCafé'] },
   { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
 ];
 
@@ -422,7 +430,6 @@ function trackedAddToCart(item, metadata = {}) {
   if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
   if (item?.id) sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
   hideChoiceHesitationModal();
-  restartChoiceHesitationTimer();
   cartManager.addToCart(item);
   trackInteractionEvent({
     event_type: 'cart_edit',
@@ -446,7 +453,6 @@ function trackedUpdateCartQty(id, delta) {
   });
   if (cartManager.getCartIds().length === 0) {
     lastCartAddAt = Date.now();
-    restartChoiceHesitationTimer();
   }
 }
 
@@ -464,7 +470,6 @@ function trackedDeleteCartItem(id) {
   });
   if (cartManager.getCartIds().length === 0) {
     lastCartAddAt = Date.now();
-    restartChoiceHesitationTimer();
   }
 }
 
@@ -739,9 +744,9 @@ function hideChoiceHesitationModal(resetIdle = false) {
   modal?.classList.add('hidden');
   modal?.setAttribute('aria-hidden', 'true');
   currentChoiceHesitationItem = null;
+  _passiveLastTriggerAt = 0;  // modal 關閉後立即允許下一次被動語音觸發
   if (resetIdle) {
     lastCartAddAt = Date.now();
-    restartChoiceHesitationTimer();
   }
 }
 
@@ -823,25 +828,7 @@ function showChoiceHesitationModal() {
   modal?.setAttribute('aria-hidden', 'false');
 }
 
-function restartChoiceHesitationTimer() {
-  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
-  choiceHesitationTimer = null;
-  if (!isPosMode() || !isSystemRunning || orderCompleted || getFeatures().choiceHesitation === false) return;
-  const elapsed = Date.now() - lastCartAddAt;
-  const delay = Math.max(1000, CHOICE_HESITATION_IDLE_MS - elapsed);
-  choiceHesitationTimer = setTimeout(() => {
-    choiceHesitationTimer = null;
-    if (Date.now() - lastCartAddAt >= CHOICE_HESITATION_IDLE_MS && isChoiceHesitationEligible()) {
-      showChoiceHesitationModal();
-      return;
-    }
-    restartChoiceHesitationTimer();
-  }, delay);
-}
-
 function stopChoiceHesitationTimer() {
-  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
-  choiceHesitationTimer = null;
   hideChoiceHesitationModal();
 }
 
@@ -1132,7 +1119,8 @@ function _showPaymentCdSection(name) {
 
 function openPaymentCountdown(cartIds) {
   _paymentCdCartIds = cartIds.slice();
-  _pendingPaymentAssist = '';
+  _pendingPaymentEmotion = null;
+  _paymentEmotionPromise = null;
   ui.paymentCdBackdrop?.classList.remove('hidden');
   ui.paymentCdModal?.classList.remove('hidden');
   _showPaymentCdSection('counting');
@@ -1143,7 +1131,8 @@ function closePaymentCountdown() {
   if (_paymentCdTimer) { clearInterval(_paymentCdTimer); _paymentCdTimer = null; }
   ui.paymentCdBackdrop?.classList.add('hidden');
   ui.paymentCdModal?.classList.add('hidden');
-  _pendingPaymentAssist = '';
+  _pendingPaymentEmotion = null;
+  _paymentEmotionPromise = null;
   _paymentCdCartIds = [];
 }
 
@@ -1151,9 +1140,9 @@ function _startPaymentCountdown() {
   if (_paymentCdTimer) clearInterval(_paymentCdTimer);
   let secondsLeft = PAYMENT_CD_TOTAL;
 
-  // clip_sec 計入後觸發：剩餘 = TOTAL - clip_sec
-  const clipSec = Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0;
-  const captureAtRemaining = Math.max(1, Math.round(PAYMENT_CD_TOTAL - clipSec));
+  // 付款倒數擷取：在第 (TOTAL - paymentClipSec) 秒觸發，確保 buffer 有 paymentClipSec 秒的影像
+  const paymentClipSec = Number(runtimeSettings.PAYMENT_EMOTION_CLIP_SEC) || 5.0;
+  const captureAtRemaining = Math.max(1, Math.round(PAYMENT_CD_TOTAL - paymentClipSec));
   let captured = false;
 
   const updateUI = () => {
@@ -1197,9 +1186,16 @@ function _triggerPaymentEmotionCapture() {
   if (!isPosMode()) return;
   const blob = capturePreEventClip();
   if (!blob) return;
-  api.analyzeEmotionEvent(sessionId, 'payment_timeout', blob)
+  _paymentEmotionPromise = api.analyzeEmotionEvent(sessionId, 'payment_timeout', blob)
     .then(data => {
-      if (data && data.assist_response) _pendingPaymentAssist = data.assist_response;
+      if (data) {
+        _pendingPaymentEmotion = {
+          emotion:        data.emotion        || '',
+          intensity:      data.intensity      || '',
+          description:    data.description    || '',
+          assist_response: data.assist_response || '',
+        };
+      }
     })
     .catch(e => console.warn('[payment] emotion capture failed:', e));
 }
@@ -1339,10 +1335,6 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
 
   const modalName = intervention.ui_patch?.show_modal || '';
   if (!modalName) return;
-  if (modalName === 'operation_hint') {
-    showTutorialPopup();
-    return;
-  }
   if (modalName === 'recommendation_card') {
     return;
   }
@@ -1449,11 +1441,11 @@ function getMenuVisual(item) {
     '極選系列': { tag: '推薦套餐', icon: 'fas fa-star', emoji: '🍔' },
     '1+1星級點': { tag: '1+1', icon: 'fas fa-plus', emoji: '✨' },
     '麥當勞分享盒': { tag: '分享盒', icon: 'fas fa-box', emoji: '📦' },
-    'Happy Meal®': { tag: 'Happy Meal', icon: 'fas fa-child-reaching', emoji: '🧒' },
+    'Happy Meal': { tag: 'Happy Meal', icon: 'fas fa-child-reaching', emoji: '🧒' },
     '早餐': { tag: '早餐', icon: 'fas fa-sun', emoji: '🥞' },
     '飲料': { tag: '飲料甜點', icon: 'fas fa-glass-water', emoji: '🥤' },
     'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
-    'McCafé®': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
+    'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
     '點心': { tag: '單點餐品', icon: 'fas fa-cookie-bite', emoji: '🍟' },
   };
   let fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
@@ -1579,13 +1571,18 @@ ui.startBtn.onclick = async () => {
     lastCartAddAt = Date.now();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
-    restartChoiceHesitationTimer();
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
     if (f.voiceAssist) setupAskRecorder();
     if (runtimeSettings.EMOTION_LLAMA_ENABLED && stream) {
-      startRollingBuffer(stream, Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0);
+      const bufferSec = Math.max(
+        Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0,
+        Number(runtimeSettings.PAYMENT_EMOTION_CLIP_SEC) || 5.0,
+      );
+      startRollingBuffer(stream, bufferSec);
     }
   } catch { alert("無法存取攝影機與麥克風。"); }
+  // 被動語音監聽在 try/catch 之外啟動，確保即使媒體權限失敗也能運行
+  startPassiveListener();
 };
 
 // 閒置偵測：任何觸控 / 點擊都重設計時（全域，只需註冊一次）
@@ -1801,7 +1798,6 @@ function setupAskRecorder() {
         if (appliedOrders.length) {
           lastValidOrderActionAt = Date.now();
           lastCartAddAt = Date.now();
-          restartChoiceHesitationTimer();
           trackInteractionEvent({
             event_type: 'cart_edit', button_id: 'askBtn',
             cart_edit_count: appliedOrders.length,
@@ -1822,6 +1818,7 @@ function setupAskRecorder() {
     hideVoiceAssistOverlay();
     } finally {
       _voiceProcessing = false;
+      _resumePassiveListener();
     }
   };
 }
@@ -1841,6 +1838,7 @@ function startAskRecording(sourceBtn) {
       button_id: sourceBtn?.id || 'voiceAssistBtn',
       metadata: {}
     });
+    _pausePassiveListener();
     askRecordingStartedAt = Date.now();
     askRecorder.start();
     document.getElementById('voiceAssistBtn')?.classList.add('recording');
@@ -1882,7 +1880,6 @@ window.addEventListener('beforeunload', () => {
     if (askRecorder?.state === 'recording') askRecorder.stop();
   } catch { }
   if (pageDwellTimer) clearInterval(pageDwellTimer);
-  if (choiceHesitationTimer) clearTimeout(choiceHesitationTimer);
   aiPush.stop();
 });
 
@@ -2119,6 +2116,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   totalClickCount = 0;
   clearPOSFloatingUI();
   stopChoiceHesitationTimer();
+  stopPassiveListener();
   aiPush.stop();
   cartManager.clearCart();
   sessionCartSources = [];
@@ -2140,7 +2138,6 @@ ui.clearCartBtn?.addEventListener('click', () => {
   hideCartScreen();
   renderKioskCategories();
   lastCartAddAt = Date.now();
-  restartChoiceHesitationTimer();
 });
 ui.kioskPaymentBackBtn?.addEventListener('click', () => {
   hidePaymentScreen();
@@ -2158,7 +2155,6 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
   renderKioskCategories();
   aiPush.start();
   lastCartAddAt = Date.now();
-  restartChoiceHesitationTimer();
 });
 ui.kioskFastPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -2192,18 +2188,25 @@ ui.paymentCdBackBtn?.addEventListener('click', () => {
   closePaymentCountdown();
 });
 
-ui.paymentCdAssistBtn?.addEventListener('click', () => {
+ui.paymentCdAssistBtn?.addEventListener('click', async () => {
+  // 防止重複點擊：立即禁用按鈕，避免 async await 期間多次觸發
+  if (ui.paymentCdAssistBtn.disabled) return;
+  ui.paymentCdAssistBtn.disabled = true;
+
+  // 立刻切換到 notified 畫面，讓使用者知道已收到點擊
+  _showPaymentCdSection('notified');
+
+  // 背景等待情緒分析（最長 12 秒），完成後更新 admin 通知
+  if (!_pendingPaymentEmotion && _paymentEmotionPromise) {
+    await Promise.race([_paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
+  }
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_staff_requested',
     button_id: 'paymentCdAssistBtn',
-    metadata: { has_assist: Boolean(_pendingPaymentAssist) }
+    metadata: { emotion: _pendingPaymentEmotion }
   });
-  if (ui.paymentCdNotifyMsg) {
-    ui.paymentCdNotifyMsg.textContent = _pendingPaymentAssist || '已通知店員，請稍候';
-  }
-  _showPaymentCdSection('notified');
-  setTimeout(() => { closePaymentCountdown(); }, 2000);
+  setTimeout(() => { closePaymentCountdown(); }, 3000);
 });
 ui.kioskCounterPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -2284,13 +2287,8 @@ document.addEventListener('pointerdown', (e) => {
 }, true);
 
 // =========================================================
-// 2-2: Tutorial popup for invalid clicks
+// 2-2: Emotion capture helpers
 // =========================================================
-let tutorialPopupTimer = null;
-let lastTutorialShowAt = 0;
-const TUTORIAL_COOLDOWN_MS = 8000;
-const tutorialPopupEl = document.getElementById('tutorialPopup');
-const tutorialTimerBar = document.getElementById('tutorialPopupTimerBar');
 
 function _triggerEmotionCapture(eventType) {
   if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
@@ -2312,29 +2310,6 @@ async function _triggerEmotionCaptureAndWait(eventType) {
   }
 }
 
-function showTutorialPopup() {
-  if (runtimeSettings.EMOTION_LLAMA_EVENT_TUTORIAL !== false) _triggerEmotionCapture('tutorial_popup');
-  const now = Date.now();
-  if (now - lastTutorialShowAt < TUTORIAL_COOLDOWN_MS) return;
-  if (!tutorialPopupEl) return;
-  lastTutorialShowAt = now;
-  if (tutorialPopupTimer) clearTimeout(tutorialPopupTimer);
-  tutorialPopupEl.classList.remove('hidden');
-  if (tutorialTimerBar) {
-    tutorialTimerBar.style.transition = 'none';
-    tutorialTimerBar.style.width = '100%';
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      tutorialTimerBar.style.transition = 'width 5s linear';
-      tutorialTimerBar.style.width = '0%';
-    }));
-  }
-  tutorialPopupTimer = setTimeout(hideTutorialPopup, 5000);
-}
-function hideTutorialPopup() {
-  if (tutorialPopupTimer) { clearTimeout(tutorialPopupTimer); tutorialPopupTimer = null; }
-  tutorialPopupEl?.classList.add('hidden');
-}
-
 document.getElementById('choiceHesitationClose')?.addEventListener('click', () => hideChoiceHesitationModal(true));
 document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => hideChoiceHesitationModal(true));
 document.getElementById('choiceHesitationPick')?.addEventListener('click', () => {
@@ -2354,7 +2329,6 @@ document.getElementById('choiceHesitationVoice')?.addEventListener('click', () =
   startAskRecording(document.getElementById('voiceAssistBtn'));
 });
 document.getElementById('voiceReplyBubbleClose')?.addEventListener('click', () => closeVoiceBubble());
-document.getElementById('tutorialPopupClose')?.addEventListener('click', hideTutorialPopup);
 
 // =========================================================
 // 協助 Modal (需要協助嗎？)
@@ -2500,7 +2474,6 @@ const CANCEL_POPUP_THRESHOLD = 2;
 const cancelGuideEl = document.getElementById('cancelGuidePopup');
 
 function showCancelGuide() {
-  if (runtimeSettings.EMOTION_LLAMA_EVENT_CANCEL_GUIDE) _triggerEmotionCapture('cancel_guide');
   cancelGuideEl?.classList.remove('hidden');
 }
 function hideCancelGuide() { cancelGuideEl?.classList.add('hidden'); }
@@ -2532,9 +2505,98 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   renderKioskCategories();
   aiPush.start();
   lastCartAddAt = Date.now();
-  restartChoiceHesitationTimer();
 });
 
+
+// =========================================================
+// 被動語音監聽（MediaRecorder + 服務端 Whisper STT）
+// =========================================================
+
+function startPassiveListener() {
+  if (_passiveListening) return;
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      _passiveStream = stream;
+      _passiveListening = true;
+      _passivePaused = false;
+      console.log('[PassiveVoice] ✅ 被動語音監聽已啟動');
+      _schedulePassiveChunk();
+    })
+    .catch(e => console.warn('[PassiveVoice] 麥克風失敗:', e.message));
+}
+
+function _schedulePassiveChunk() {
+  if (!_passiveListening || !_passiveStream) return;
+  const chunks = [];
+  try {
+    _passiveRecorder = new MediaRecorder(_passiveStream, { mimeType: 'audio/webm' });
+  } catch {
+    _passiveRecorder = new MediaRecorder(_passiveStream);
+  }
+  _passiveRecorder.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
+  _passiveRecorder.onstop = () => {
+    if (!_passiveListening) return;
+    _schedulePassiveChunk();
+    if (_passivePaused || _passiveInFlight) return;
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    if (blob.size < 500) return;
+    _passiveInFlight = true;
+    api.passiveCheck(sessionId, blob)
+      .then(result => { if (result?.status === 'hit') _handlePassiveHit(result); })
+      .catch(e => console.warn('[PassiveVoice] API 錯誤:', e))
+      .finally(() => { _passiveInFlight = false; });
+  };
+  _passiveRecorder.start();
+  _passiveRecTimer = setTimeout(() => {
+    if (_passiveRecorder?.state === 'recording') _passiveRecorder.stop();
+  }, PASSIVE_CHUNK_MS);
+}
+
+function stopPassiveListener() {
+  _passiveListening = false;
+  _passivePaused = false;
+  clearTimeout(_passiveRecTimer);
+  try { _passiveRecorder?.stop(); } catch {}
+  _passiveStream?.getTracks().forEach(t => t.stop());
+  _passiveStream = null;
+  _passiveRecorder = null;
+}
+
+function _pausePassiveListener() {
+  _passivePaused = true;
+}
+
+function _resumePassiveListener() {
+  _passivePaused = false;
+}
+
+function _handlePassiveHit(result) {
+  if (!isPosActive() || orderCompleted || _isVoiceActive()) return;
+  if (Date.now() - _passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
+  const item = menuData.find(m => m.id === result.item?.id) || result.item;
+  if (!item) return;
+  _passiveLastTriggerAt = Date.now();
+  console.log(`[PassiveVoice] ✅ 命中「${item.name}」（${result.matched_label}）→ 顯示猶豫彈跳視窗`);
+  _showHesitationForItem(item);
+}
+
+function _showHesitationForItem(item) {
+  if (isChoiceHesitationVisible()) {
+    console.log('[PassiveVoice] 猶豫彈跳視窗已顯示，略過');
+    return;
+  }
+  if (!isSystemRunning || orderCompleted || !isPosActive()) {
+    console.log('[PassiveVoice] _showHesitationForItem 被系統狀態攔截');
+    return;
+  }
+  currentChoiceHesitationItem = item;
+  renderChoiceHesitationItem(item);
+  const modal = getChoiceHesitationModal();
+  modal?.classList.remove('hidden');
+  modal?.setAttribute('aria-hidden', 'false');
+  console.log(`[PassiveVoice] 🎯 猶豫彈跳視窗已顯示（${item.name}）`);
+}
 
 Object.assign(window, {
   closeVoiceBubble,

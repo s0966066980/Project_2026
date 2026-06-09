@@ -9,8 +9,10 @@ def record_session_state(
     user_speech: str = "",
     ai_response: str = "",
     language: str = "",
+    mentioned_ids: list | None = None,
+    cart_actions: list | None = None,
 ):
-    """記錄語音對話紀錄"""
+    """記錄語音對話紀錄（含推薦 ID，供下一輪多輪記憶使用）"""
     if session_id not in session_db:
         session_db[session_id] = []
 
@@ -19,6 +21,8 @@ def record_session_state(
         "user_speech": user_speech,
         "ai_response": ai_response,
         "language": language,
+        "mentioned_ids": mentioned_ids or [],
+        "cart_actions": cart_actions or [],
     }
     session_db[session_id].append(record)
     max_records = 80

@@ -374,7 +374,7 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
                 conv=chat_state,
                 img_list=img_list,
                 temperature=float(os.getenv("EMOTION_LLAMA_TEMPERATURE", "0.2")),
-                max_new_tokens=int(os.getenv("EMOTION_LLAMA_MAX_NEW_TOKENS", "50")),
+                max_new_tokens=int(os.getenv("EMOTION_LLAMA_MAX_NEW_TOKENS", "200")),
                 max_length=int(os.getenv("EMOTION_LLAMA_MAX_LENGTH", "1600")),
                 num_beams=int(os.getenv("EMOTION_LLAMA_NUM_BEAMS", "1")),
             )

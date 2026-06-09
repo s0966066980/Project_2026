@@ -1,3 +1,5 @@
+import { connectRealtime } from '../shared/realtime_client.js';
+
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
 
@@ -425,6 +427,13 @@ async function loadSettings() {
     setVal('inp-payment-assist-prompt', s.PAYMENT_ASSIST_PROMPT || '');
     // 心情 Prompt
     [1,2,3,4,5].forEach(n => setVal(`inp-mood-ctx-${n}`, s[`MOOD_CONTEXT_${n}`] || ''));
+    const kws = Array.isArray(s.PASSIVE_VOICE_KEYWORDS) ? s.PASSIVE_VOICE_KEYWORDS : [];
+    setVal('inp-passive-keywords', kws.join('\n'));
+    // 別名：{"MCDxxx": ["別名1","別名2"]} → "MCDxxx = 別名1, 別名2\n..."
+    const aliasObj = (s.PASSIVE_VOICE_ALIASES && typeof s.PASSIVE_VOICE_ALIASES === 'object') ? s.PASSIVE_VOICE_ALIASES : {};
+    setVal('inp-passive-aliases', Object.entries(aliasObj)
+      .map(([id, arr]) => `${id} = ${Array.isArray(arr) ? arr.join(', ') : arr}`)
+      .join('\n'));
 
     onSttProviderChange();
     onTtsProviderChange();
@@ -466,6 +475,16 @@ async function saveSettings() {
       TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
       // 心情 Prompt（空白 = 保留系統預設，交由後端 config fallback 處理）
       ...Object.fromEntries([1,2,3,4,5].map(n => [`MOOD_CONTEXT_${n}`, val(`inp-mood-ctx-${n}`)])),
+      PASSIVE_VOICE_KEYWORDS: (val('inp-passive-keywords') || '')
+        .split('\n').map(s => s.trim()).filter(Boolean),
+      PASSIVE_VOICE_ALIASES: Object.fromEntries(
+        (val('inp-passive-aliases') || '').split('\n')
+          .map(l => l.trim()).filter(l => l.includes('='))
+          .map(l => {
+            const [id, rest] = l.split('=').map(p => p.trim());
+            return [id, rest.split(',').map(a => a.trim()).filter(Boolean)];
+          })
+      ),
     };
     const res = await fetch(`${API}/api/settings`, {
       method: 'POST',
@@ -498,13 +517,12 @@ async function loadEmotionSettings() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
     g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_LLAMA_ENABLED);
-    setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC    ?? 2.0);
+    setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC       ?? 2.0);
+    setVal('inp-payment-emotion-clip-sec',    s.PAYMENT_EMOTION_CLIP_SEC     ?? 5.0);
     g('inp-emotion-quality-check').checked  = s.EMOTION_LLAMA_QUALITY_CHECK !== false;
     g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_LLAMA_AFFECT_VOICE);
     g('inp-emotion-affect-barrier').checked = Boolean(s.EMOTION_LLAMA_AFFECT_BARRIER);
-    g('inp-emotion-event-tutorial').checked     = s.EMOTION_LLAMA_EVENT_TUTORIAL !== false;
     g('inp-emotion-event-voice').checked        = Boolean(s.EMOTION_LLAMA_EVENT_VOICE);
-    g('inp-emotion-event-cancel-guide').checked = Boolean(s.EMOTION_LLAMA_EVENT_CANCEL_GUIDE);
     g('inp-emotion-event-payment-timeout').checked = s.EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT !== false;
     const waitMode = s.EMOTION_LLAMA_VOICE_WAIT_MODE || 'speed';
     const modeEl = g(waitMode === 'analysis' ? 'inp-emotion-voice-analysis' : 'inp-emotion-voice-speed');
@@ -536,12 +554,11 @@ async function saveEmotionSettings() {
     const body = {
       EMOTION_LLAMA_ENABLED:        g('inp-emotion-enabled').checked,
       EMOTION_LLAMA_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
+      PAYMENT_EMOTION_CLIP_SEC:     parseFloat(val('inp-payment-emotion-clip-sec') || '5.0'),
       EMOTION_LLAMA_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
       EMOTION_LLAMA_AFFECT_VOICE:   g('inp-emotion-affect-voice').checked,
       EMOTION_LLAMA_AFFECT_BARRIER: g('inp-emotion-affect-barrier').checked,
-      EMOTION_LLAMA_EVENT_TUTORIAL:     g('inp-emotion-event-tutorial').checked,
       EMOTION_LLAMA_EVENT_VOICE:        g('inp-emotion-event-voice').checked,
-      EMOTION_LLAMA_EVENT_CANCEL_GUIDE: g('inp-emotion-event-cancel-guide').checked,
       EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT: g('inp-emotion-event-payment-timeout').checked,
       EMOTION_LLAMA_VOICE_WAIT_MODE:    g('inp-emotion-voice-analysis')?.checked ? 'analysis' : 'speed',
       EMOTION_LLAMA_PROMPT:         val('inp-emotion-prompt'),
@@ -831,3 +848,49 @@ function toggleVoiceWaitMode() {
   row.style.display = checked ? 'flex' : 'none';
 }
 window.toggleVoiceWaitMode = toggleVoiceWaitMode;
+
+// ── Admin WebSocket（接收 POS 通知）──────────────────────────────
+function handleStaffNotify(event) {
+  const p = event.payload || {};
+  const kiosk          = p.kiosk_name     || '';
+  const assist_response = p.assist_response || '';
+  const emotion        = p.emotion && typeof p.emotion === 'object' ? p.emotion : null;
+
+  const kioskEl   = document.getElementById('staffNotifyKiosk');
+  const reasonEl  = document.getElementById('staffNotifyReason');
+  const emotionEl = document.getElementById('staffNotifyEmotion');
+  const labelEl   = document.getElementById('staffNotifyEmotionLabel');
+  const descEl    = document.getElementById('staffNotifyEmotionDesc');
+  const backdrop  = document.getElementById('staffNotifyBackdrop');
+
+  if (kioskEl)  kioskEl.textContent  = kiosk;
+  if (reasonEl) reasonEl.textContent = '人員協助付款';
+
+  if (emotionEl && labelEl && descEl) {
+    if (assist_response) {
+      // Ollama 生成的中文情緒摘要：給員工直接閱讀
+      labelEl.textContent = assist_response;
+      descEl.textContent  = emotion?.emotion
+        ? `情緒：${emotion.emotion}${emotion.intensity ? '（' + emotion.intensity + '）' : ''}`
+        : '';
+    } else if (emotion && emotion.emotion) {
+      // fallback：沒有 assist_response 時顯示原始情緒欄位
+      const intensity = emotion.intensity ? `（${emotion.intensity}）` : '';
+      labelEl.textContent = `${emotion.emotion}${intensity}`;
+      descEl.textContent  = emotion.description || '';
+    } else {
+      labelEl.textContent = '情緒分析尚未完成';
+      descEl.textContent  = '';
+    }
+    emotionEl.style.display = 'block';
+  }
+
+  if (backdrop) backdrop.style.display = 'flex';
+}
+
+window.dismissStaffNotify = function () {
+  const backdrop = document.getElementById('staffNotifyBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
+};
+
+connectRealtime('admin', 'admin', { staff_notify: handleStaffNotify });

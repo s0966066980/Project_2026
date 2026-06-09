@@ -25,6 +25,24 @@ def build_full_menu_context() -> str:
     return "\n\n".join(lines)
 
 
+def build_compact_menu_context() -> str:
+    """精簡版菜單 context（語音模式專用）。
+    格式：ID｜名稱｜分類｜價格  一行一道菜，token 數約為完整版的 1/10。
+    LLM 仍可依 ID 加購、回答名稱與價格，製作時間等細節移除。
+    """
+    menu_items = menu_repository.get_menu()
+    if not menu_items:
+        return "【菜單白名單】目前沒有菜單資料。"
+    rows = ["【菜單白名單】ID｜名稱｜分類｜價格"]
+    for item in menu_items:
+        iid   = item.get("id", "")
+        name  = item.get("name", "")
+        cat   = item.get("category", "")
+        price = item.get("price", "")
+        rows.append(f"{iid}｜{name}｜{cat}｜${price}")
+    return "\n".join(rows)
+
+
 def update_menu(new_menu_data: list) -> None:
     menu_repository.save_menu(new_menu_data)
     # TODO: trigger RAG rebuild when RAG is implemented

@@ -1,7 +1,9 @@
 import os
 import asyncio
+import threading
 import requests
 from requests.adapters import HTTPAdapter
+from typing import Iterator
 import json
 import re
 import time
@@ -324,6 +326,48 @@ def ask_gemini(system_prompt: str, user_prompt: str, response_tag: str = "", mod
 def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None) -> dict:
     """本地 Ollama 專用入口。語音、AI 推播、介入分析一律使用這條路徑。"""
     return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=None, num_predict=num_predict)
+
+
+def stream_ollama_tokens(
+    system_prompt: str,
+    user_prompt: str,
+    model_name: str = "",
+    num_predict: int | None = None,
+) -> Iterator[str]:
+    """同步 generator：從 Ollama 串流 API 逐 token yield 字串。"""
+    enforced_system = _enforced_json_system_prompt(system_prompt)
+    payload = {
+        "model": model_name or config.get("MODEL_NAME", "llama3.2"),
+        "prompt": f"【系統指令】\n{enforced_system}\n\n{user_prompt}",
+        "stream": True,
+        "format": "json",
+        "think": False,
+        "options": {
+            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
+            "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220)),
+        },
+    }
+    try:
+        response = _get_ollama_session().post(
+            config.OLLAMA_API_URL, json=payload, stream=True,
+            timeout=int(config.get("OLLAMA_TIMEOUT", 120)),
+        )
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if line:
+                data = json.loads(line)
+                token = data.get("response", "")
+                if token:
+                    yield token
+                if data.get("done"):
+                    break
+    except Exception as e:
+        print(f"❌ Ollama 串流失敗: {e}")
+
+
+def parse_llm_json(content: str, tag: str = "") -> dict:
+    """公開版 JSON 解析，供串流語音等模組直接使用。"""
+    return _parse_llm_json_response(content, tag)
 
 
 def init_gemini_client():
