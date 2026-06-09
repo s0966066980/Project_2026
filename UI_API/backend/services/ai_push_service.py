@@ -1,5 +1,6 @@
 """AI 推播服務 — 透過 Ollama 生成底部欄推播餐點與理由。"""
 import asyncio
+import random
 import re
 import time
 
@@ -138,15 +139,31 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
 
 
 async def generate_three(session_id: str, ollama_semaphore) -> list[dict]:
-    """呼叫 generate() 三次，累積 exclude_ids 確保不重複，回傳含 name/price/image 的完整項目清單。"""
+    """呼叫 generate() 三次，累積 exclude_ids 確保不重複，回傳含 name/price/image 的完整項目清單。
+    generate() 依賴 prompt 告知 Ollama 排除清單，但模型不保證遵守；
+    此層作為最後防線：若拿到重複或空 ID，直接從剩餘白名單隨機補一品。
+    """
     items_map = {i["id"]: i for i in await _get_menu_cached() if i.get("id")}
+    all_ids = [i for i in items_map if items_map[i].get("price", 0) > 0]
     results = []
+    used_ids: set[str] = set()
     exclude: list[str] = []
+
     for _ in range(3):
         rec = await generate(session_id, ollama_semaphore, exclude_ids=exclude, num_predict_override=80)
         rec_id = rec.get("recommendation_id", "")
+
+        # 後置去重：若 ID 無效或已出現，從剩餘可用品項隨機補取
+        if not rec_id or rec_id not in items_map or rec_id in used_ids:
+            available = [i for i in all_ids if i not in used_ids]
+            if available:
+                rec_id = random.choice(available)
+                rec["push_text"] = f"{items_map[rec_id].get('name', '推薦餐點')}現在很適合來一份！"
+
         if rec_id:
+            used_ids.add(rec_id)
             exclude.append(rec_id)
+
         menu_item = items_map.get(rec_id, {})
         results.append({
             "id": rec_id,
