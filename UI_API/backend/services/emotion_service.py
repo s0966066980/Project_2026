@@ -54,6 +54,18 @@ async def analyze(session_id: str, media_path: str) -> dict:
 async def analyze_event(session_id: str, media_path: str, event_type: str, speech_text: str = "") -> dict:
     """事件驅動分析主入口。非同步執行，結果寫 log + 更新語音快取。"""
     if not is_enabled():
+        # Emotion-LLaMA 停用時，payment_timeout 仍需 Ollama 生成協助語
+        if event_type == "payment_timeout":
+            entry = {
+                "status": "disabled", "session_id": session_id,
+                "event_type": event_type, "emotion": "", "intensity": "",
+                "facial": "", "vocal": "", "description": "",
+            }
+            try:
+                entry["assist_response"] = await _generate_payment_assist(entry)
+            except Exception as e:
+                print(f"⚠️ Payment assist Ollama 生成失敗（disabled）: {e}")
+            return entry
         return {"status": "disabled"}
 
     skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
@@ -66,11 +78,13 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         if not question:
             question = prompt_template.replace("{speech_text}", "(no speech)")
 
+    llama_error: str = ""
     try:
         raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
     except Exception as e:
         print(f"⚠️ Emotion-LLaMA analyze_event 失敗: {e}")
-        return {"status": "error", "message": str(e)}
+        llama_error = str(e)
+        raw = "[EMOTION_LLAMA_ERROR]"
 
     quality_skipped = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_SKIP]")
     error = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_ERROR]")
@@ -113,10 +127,9 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         "status": "skipped" if quality_skipped else ("error" if error else "ok"),
     }
 
-    # 付款逾時事件：情緒分析成功後，用 Ollama 生成協助語供前端「人員協助付款」顯示
-    if (event_type == "payment_timeout"
-            and not quality_skipped and not error
-            and entry.get("emotion")):
+    # 付款逾時事件：無論 Emotion-LLaMA 是否成功，都呼叫 Ollama 生成協助語。
+    # 有情緒資料時提供個人化回覆；無資料時 Ollama 根據 prompt 生成通用安慰語。
+    if event_type == "payment_timeout" and not quality_skipped:
         try:
             entry["assist_response"] = await _generate_payment_assist(entry)
         except Exception as e:
