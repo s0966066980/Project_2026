@@ -2472,6 +2472,7 @@ document.getElementById('assistBtnTutorial')?.addEventListener('click', () => {
 });
 document.getElementById('assistRecommendBack')?.addEventListener('click', () => _showAssistPanel('main'));
 document.getElementById('assistRecommendCancel')?.addEventListener('click', hideAssistModal);
+document.getElementById('assistRecommendRefresh')?.addEventListener('click', _loadAssistRecommendations);
 document.getElementById('assistTutorialBack')?.addEventListener('click', () => _showAssistPanel('main'));
 document.getElementById('assistTutorialClose')?.addEventListener('click', hideAssistModal);
 

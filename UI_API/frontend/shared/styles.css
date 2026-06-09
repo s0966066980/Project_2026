@@ -3306,7 +3306,7 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
 .assist-card {
   position: relative;
   z-index: 1;
-  width: min(92vw, 480px);
+  width: min(96vw, 580px);
   border-radius: 28px;
   background: #fff;
   padding: 32px 28px 24px;
