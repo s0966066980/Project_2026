@@ -22,4 +22,9 @@ export const state = {
   _voiceProcessing: false,
   askRecordingStartedAt: 0,
   voiceBubbleTimer: null,
+  // session 累計 + UI 計時器（跨模組共享）
+  sessionPushedIds: new Set(),
+  sessionCartSources: [],   // [{id, source}] 記錄每筆加入來源
+  interactionModalTimer: null,
+  lastValidOrderActionAt: 0,
 };

@@ -50,15 +50,11 @@ export const sessionId = buildSessionId();
 let stream, askRecorder;
 let isSystemRunning = false;
 let orderCompleted = false;
-let sessionPushedIds = new Set();
 let sessionAiPushCartCount = 0;
-let sessionCartSources = []; // [{id, source}] 記錄每筆加入來源
 let lastInterventionEventAt = 0;
-let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let posRealtime = null;
-let lastValidOrderActionAt = 0;
 let _passiveStream = null;
 let _passiveRecorder = null;
 let _passiveRecTimer = null;
@@ -412,10 +408,10 @@ function findMenuItems(ids = []) {
 export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang });
 
 function trackedAddToCart(item, metadata = {}) {
-  lastValidOrderActionAt = Date.now();
+  state.lastValidOrderActionAt = Date.now();
   state.lastCartAddAt = Date.now();
   if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
-  if (item?.id) sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
+  if (item?.id) state.sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
   hideChoiceHesitationModal();
   cartManager.addToCart(item);
   trackInteractionEvent({
@@ -427,10 +423,10 @@ function trackedAddToCart(item, metadata = {}) {
 }
 
 function trackedUpdateCartQty(id, delta) {
-  lastValidOrderActionAt = Date.now();
+  state.lastValidOrderActionAt = Date.now();
   cartManager.updateCartQty(id, delta);
   if (!cartManager.getCartIds().includes(id)) {
-    sessionCartSources = sessionCartSources.filter(e => e.id !== id);
+    state.sessionCartSources = state.sessionCartSources.filter(e => e.id !== id);
   }
   trackInteractionEvent({
     event_type: 'cart_edit',
@@ -444,10 +440,10 @@ function trackedUpdateCartQty(id, delta) {
 }
 
 function trackedDeleteCartItem(id) {
-  lastValidOrderActionAt = Date.now();
+  state.lastValidOrderActionAt = Date.now();
   interactionState.cartRemoveCount += 1;
   cartManager.deleteCartItem(id);
-  sessionCartSources = sessionCartSources.filter(e => e.id !== id);
+  state.sessionCartSources = state.sessionCartSources.filter(e => e.id !== id);
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: `cart_delete_${id}`,
@@ -1174,8 +1170,8 @@ function applyIntervention(intervention = {}, barrierResult = {}) {
     + '</div>'
   );
   box.querySelector('[data-close-intervention]').onclick = () => box.remove();
-  if (interactionModalTimer) clearTimeout(interactionModalTimer);
-  interactionModalTimer = setTimeout(() => box.remove(), 10000);
+  if (state.interactionModalTimer) clearTimeout(state.interactionModalTimer);
+  state.interactionModalTimer = setTimeout(() => box.remove(), 10000);
 }
 
 
@@ -1473,12 +1469,12 @@ function setupAskRecorder() {
         (data.cart_actions || []).forEach(action => {
           if (action.action === 'add' && action.id) {
             for (let i = 0; i < (Number(action.quantity) || 1); i++) {
-              sessionCartSources.push({ id: action.id, source: 'voice_assist' });
+              state.sessionCartSources.push({ id: action.id, source: 'voice_assist' });
             }
           }
         });
         if (appliedOrders.length) {
-          lastValidOrderActionAt = Date.now();
+          state.lastValidOrderActionAt = Date.now();
           state.lastCartAddAt = Date.now();
           trackInteractionEvent({
             event_type: 'cart_edit', button_id: 'askBtn',
@@ -1487,7 +1483,7 @@ function setupAskRecorder() {
           });
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         }
-        if (data.mentioned_ids) data.mentioned_ids.forEach(id => sessionPushedIds.add(id));
+        if (data.mentioned_ids) data.mentioned_ids.forEach(id => state.sessionPushedIds.add(id));
       },
       onError() {
         hideVoiceAssistOverlay();
@@ -1513,7 +1509,7 @@ function startAskRecording(sourceBtn) {
   }
   if (askRecorder && askRecorder.state === 'inactive') {
     // 開始錄音前先清除推播卡與殘留計時器，避免語音模式與推播卡重疊
-    if (interactionModalTimer) { clearTimeout(interactionModalTimer); interactionModalTimer = null; }
+    if (state.interactionModalTimer) { clearTimeout(state.interactionModalTimer); state.interactionModalTimer = null; }
     clearAllPushCards();
     trackInteractionEvent({
       event_type: 'voice_assist_started',
@@ -1640,10 +1636,10 @@ function renderOrderConfirm() {
 async function writeCheckoutLog(cartIds = []) {
   const fd = new FormData();
   fd.append('session_id', sessionId);
-  fd.append('pushed_ids', JSON.stringify(Array.from(sessionPushedIds)));
+  fd.append('pushed_ids', JSON.stringify(Array.from(state.sessionPushedIds)));
   fd.append('cart_ids', JSON.stringify(cartIds));
   fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
-  fd.append('cart_sources', JSON.stringify(sessionCartSources));
+  fd.append('cart_sources', JSON.stringify(state.sessionCartSources));
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
@@ -1801,7 +1797,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   stopPassiveListener();
   aiPush.stop();
   cartManager.clearCart();
-  sessionCartSources = [];
+  state.sessionCartSources = [];
   ui.overlay.classList.remove('hidden');
   ui.overlay.style.opacity = '1';
   state.kioskScreen = 'categories';
@@ -1816,7 +1812,7 @@ ui.continueOrderBtn?.addEventListener('click', () => {
 });
 ui.clearCartBtn?.addEventListener('click', () => {
   cartManager.clearCart();
-  sessionCartSources = [];
+  state.sessionCartSources = [];
   hideCartScreen();
   renderKioskCategories();
   state.lastCartAddAt = Date.now();
@@ -1832,7 +1828,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
     return;
   }
   cartManager.clearCart();
-  sessionCartSources = [];
+  state.sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
@@ -2182,7 +2178,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   cancelClickCount = 0;
   totalClickCount = 0;
   cartManager.clearCart();
-  sessionCartSources = [];
+  state.sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
