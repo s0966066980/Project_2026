@@ -15,6 +15,7 @@ import {
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
+import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -520,7 +521,7 @@ const aiPush = (() => {
 
     if (nameEl) nameEl.textContent = item.name || '';
     const prEl = $('aiPushItemPrice');
-    if (prEl) prEl.textContent = formatItemPrice(item);
+    if (prEl) prEl.textContent = formatItemPrice(item, kioskLang);
     if (textEl) textEl.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
 
     if (imgEl) {
@@ -684,7 +685,7 @@ function showItemConfirmModal(item, source = 'menu_card') {
   const descEl  = document.getElementById('itemConfirmDesc');
   const qtyEl   = document.getElementById('itemConfirmQtyDisplay');
   if (nameEl)  nameEl.textContent  = item.name || '';
-  if (priceEl) priceEl.textContent = formatItemPrice(item);
+  if (priceEl) priceEl.textContent = formatItemPrice(item, kioskLang);
   if (descEl)  descEl.textContent  = item.description || '';
   if (qtyEl)   qtyEl.textContent   = '1';
 
@@ -796,7 +797,7 @@ function renderChoiceHesitationItem(item) {
   const imageEl = document.getElementById('choiceHesitationImage');
   const fallbackEl = document.getElementById('choiceHesitationFallback');
   if (nameEl) nameEl.textContent = item.name || '推薦餐點';
-  if (priceEl) priceEl.textContent = formatItemPrice(item);
+  if (priceEl) priceEl.textContent = formatItemPrice(item, kioskLang);
   if (reasonEl) reasonEl.textContent = item.description || '先試試這份熱門餐點。';
   if (fallbackEl) {
     fallbackEl.textContent = visual.emoji || '🍔';
@@ -979,7 +980,7 @@ function renderKioskMenuItems() {
       </div>
       <div class="kiosk-menu-copy">
         <h3>${escapeHTML(item.name)}</h3>
-        <strong>${escapeHTML(formatItemPrice(item))}</strong>
+        <strong>${escapeHTML(formatItemPrice(item, kioskLang))}</strong>
       </div>
       <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(kt('addToCart'))}"><i class="fas fa-plus"></i></button>`;
     row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
@@ -1426,46 +1427,6 @@ function startPageDwellWatcher() {
     }
   }, 5000);
 }
-
-function getMenuVisual(item) {
-  const id = String(item.id || '').toUpperCase();
-  const category = String(item.category || '');
-  const name = String(item.name || '');
-  const categoryVisuals = {
-    '超值全餐': { tag: '超值全餐', icon: 'fas fa-burger', emoji: '🍔' },
-    '超值全餐配餐': { tag: '配餐', icon: 'fas fa-cubes-stacked', emoji: '🍟' },
-    '極選系列': { tag: '推薦套餐', icon: 'fas fa-star', emoji: '🍔' },
-    '1+1星級點': { tag: '1+1', icon: 'fas fa-plus', emoji: '✨' },
-    '麥當勞分享盒': { tag: '分享盒', icon: 'fas fa-box', emoji: '📦' },
-    'Happy Meal': { tag: 'Happy Meal', icon: 'fas fa-child-reaching', emoji: '🧒' },
-    '早餐': { tag: '早餐', icon: 'fas fa-sun', emoji: '🥞' },
-    '飲料': { tag: '飲料甜點', icon: 'fas fa-glass-water', emoji: '🥤' },
-    'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
-    'McCafé': { tag: 'McCafé', icon: 'fas fa-mug-hot', emoji: '☕' },
-    '點心': { tag: '單點餐品', icon: 'fas fa-cookie-bite', emoji: '🍟' },
-  };
-  let fallback = categoryVisuals[category] || { tag: category || '精選餐點', icon: 'fas fa-utensils', emoji: '🍽️' };
-  // 細項表情：依品名再校正一次預設 emoji，避免分享盒/1+1 全部變相同圖示。
-  if (/薯條|薯餅/.test(name)) fallback = { ...fallback, emoji: '🍟' };
-  else if (/雞翅|鷄翅|鷄塊|雞塊|麥脆/.test(name)) fallback = { ...fallback, emoji: '🍗' };
-  else if (/咖啡|拿鐵|那堤|拿提|美式/.test(name)) fallback = { ...fallback, emoji: '☕' };
-  else if (/可樂|雪碧|汽水/.test(name)) fallback = { ...fallback, emoji: '🥤' };
-  else if (/茶/.test(name)) fallback = { ...fallback, emoji: '🍵' };
-  else if (/沙拉|藜麥/.test(name)) fallback = { ...fallback, emoji: '🥗' };
-  else if (/魚/.test(name)) fallback = { ...fallback, emoji: '🐟' };
-  else if (/派/.test(name)) fallback = { ...fallback, emoji: '🥧' };
-  else if (/玉米|湯/.test(name)) fallback = { ...fallback, emoji: '🌽' };
-  else if (/鬆餅|滿福|焙果/.test(name)) fallback = { ...fallback, emoji: '🥞' };
-  else if (/Happy Meal|快樂兒童餐/.test(name)) fallback = { ...fallback, emoji: '🧒' };
-  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : '') };
-}
-
-function formatItemPrice(item) {
-  const price = Number(item.price || 0);
-  if (price > 0) return `$${price}`;
-  return kioskLang === 'en' ? 'Store Price' : '依店價';
-}
-
 
 async function ensureMediaTracks({ video = false, audio = false } = {}) {
   try {
@@ -2341,7 +2302,7 @@ function _buildAssistItemCard(item) {
 
   const priceSpan = document.createElement('span');
   priceSpan.className = 'assist-item-price';
-  priceSpan.textContent = formatItemPrice(item);
+  priceSpan.textContent = formatItemPrice(item, kioskLang);
 
   infoDiv.append(nameSpan, pushP, priceSpan);
 
