@@ -1,13 +1,9 @@
 // =========================================================
-// 猶豫彈窗：購物車空且閒置時推薦單品。
+// 猶豫彈窗：被動語音命中關鍵詞時推薦單品（由 app.js 的被動語音流程驅動）。
 // =========================================================
-import { ui } from '../shared/ui.js';
 import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
 import { state } from './state.js';
-import {
-  getFeatures, isPosActive, _isVoiceActive, isCartScreenOpen,
-  itemMatchesSubFilter, KIOSK_GROUPS, cartManager, getKioskLang,
-} from './app.js';
+import { itemMatchesSubFilter, KIOSK_GROUPS, getKioskLang } from './app.js';
 
 export function getChoiceHesitationModal() {
   return document.getElementById('choiceHesitationModal');
@@ -26,20 +22,6 @@ export function hideChoiceHesitationModal(resetIdle = false) {
   if (resetIdle) {
     state.lastCartAddAt = Date.now();
   }
-}
-
-export function isChoiceHesitationEligible() {
-  const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
-  return Boolean(
-    getFeatures().choiceHesitation !== false
-    && isPosActive()
-    && !document.hidden
-    && !_isVoiceActive()
-    && !paymentOpen
-    && !isCartScreenOpen()
-    && cartManager.getCartIds().length === 0
-    && state.menuData.length
-  );
 }
 
 export function getChoiceHesitationCandidates() {
@@ -93,19 +75,4 @@ export function renderChoiceHesitationItem(item) {
       if (fallbackEl) fallbackEl.style.display = 'block';
     };
   }
-}
-
-export function showChoiceHesitationModal() {
-  if (!isChoiceHesitationEligible() || isChoiceHesitationVisible()) return;
-  const item = pickChoiceHesitationItem();
-  if (!item) return;
-  state.currentChoiceHesitationItem = item;
-  renderChoiceHesitationItem(item);
-  const modal = getChoiceHesitationModal();
-  modal?.classList.remove('hidden');
-  modal?.setAttribute('aria-hidden', 'false');
-}
-
-export function stopChoiceHesitationTimer() {
-  hideChoiceHesitationModal();
 }

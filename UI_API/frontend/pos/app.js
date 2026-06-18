@@ -18,7 +18,7 @@ import { connectRealtime } from '../shared/realtime_client.js';
 import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
 import { state } from './state.js';
 import {
-  showChoiceHesitationModal, hideChoiceHesitationModal, stopChoiceHesitationTimer,
+  hideChoiceHesitationModal,
   isChoiceHesitationVisible, pickChoiceHesitationItem, renderChoiceHesitationItem,
   getChoiceHesitationModal,
 } from './choice_hesitation.js';
@@ -251,7 +251,6 @@ const FEAT_DEFAULTS = {
   emotion: true,
   voiceAssist: true,
   recommend: true,
-  choiceHesitation: true,
   eventTriggeredMultimodal: true,
   multiLang: true
 };
@@ -332,7 +331,6 @@ export function getFeatures() {
       if (shouldApplyDemoDefaults) {
         features.voiceAssist = true;
         features.recommend = true;
-        features.choiceHesitation = true;
         features.eventTriggeredMultimodal = true;
       }
       localStorage.setItem('kiosk_feat', JSON.stringify(features));
@@ -345,7 +343,6 @@ export function getFeatures() {
     if (isDemoPublicMode()) {
       features.voiceAssist = true;
       features.recommend = true;
-      features.choiceHesitation = true;
       features.eventTriggeredMultimodal = true;
     }
     return features;
@@ -983,7 +980,7 @@ function showPaymentScreen() {
   ui.kioskPaymentScreen?.classList.remove('hidden');
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
-  stopChoiceHesitationTimer();
+  hideChoiceHesitationModal();
   aiPush.stop();
   clearPOSFloatingUI();
   updateVoiceAssistVisibility();
@@ -1836,7 +1833,7 @@ async function finishOrder(cartIds, button, loadingText) {
   orderCompleted = true;
   updateVoiceAssistVisibility();
   clearPOSFloatingUI();
-  stopChoiceHesitationTimer();
+  hideChoiceHesitationModal();
   aiPush.stop();
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
@@ -1893,7 +1890,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   orderCompleted = false;
   totalClickCount = 0;
   clearPOSFloatingUI();
-  stopChoiceHesitationTimer();
+  hideChoiceHesitationModal();
   stopPassiveListener();
   aiPush.stop();
   cartManager.clearCart();
