@@ -20,6 +20,7 @@ import { state } from './state.js';
 import {
   showChoiceHesitationModal, hideChoiceHesitationModal, stopChoiceHesitationTimer,
   isChoiceHesitationVisible, pickChoiceHesitationItem, renderChoiceHesitationItem,
+  getChoiceHesitationModal,
 } from './choice_hesitation.js';
 
 const APP_MODE = (() => {
