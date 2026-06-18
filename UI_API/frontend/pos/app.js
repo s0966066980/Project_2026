@@ -16,6 +16,7 @@ import {
 import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
 import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
+import { state } from './state.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -43,37 +44,23 @@ const sessionId = buildSessionId();
 let stream, askRecorder;
 let isSystemRunning = false;
 let orderCompleted = false;
-let menuData = [];
 let sessionPushedIds = new Set();
 let sessionAiPushCartCount = 0;
 let sessionCartSources = []; // [{id, source}] 記錄每筆加入來源
-let voiceBubbleTimer = null;
 let lastInterventionEventAt = 0;
 let interactionModalTimer = null;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let posRealtime = null;
-let askRecordingStartedAt = 0;
-let _voiceProcessing = false; // onstop async 執行期間鎖定，防止重複啟動
-let _paymentCdTimer = null;         // 倒數 setInterval handle
-let _pendingPaymentEmotion = null;  // Emotion-LLaMA 分析結果，供 admin 通知使用
-let _paymentEmotionPromise = null;  // in-flight emotion API promise
-let _paymentCdCartIds = [];         // 本次付款的購物車快照
 let lastValidOrderActionAt = 0;
-let lastCartAddAt = Date.now();
-let currentChoiceHesitationItem = null;
 let _passiveStream = null;
 let _passiveRecorder = null;
 let _passiveRecTimer = null;
 let _passiveListening = false;
 let _passivePaused = false;
 let _passiveInFlight = false;
-let _passiveLastTriggerAt = 0;
 const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
 const PASSIVE_CHUNK_MS = 5000;
-let kioskScreen = 'categories';
-let kioskActiveGroup = '';
-let kioskActiveFilter = '全部';
 let kioskLang = localStorage.getItem('kiosk_lang') === 'en' ? 'en' : 'zh';
 const interactionState = {
   pageId: 'startup',
@@ -415,7 +402,7 @@ function switchMainView(view) {
 function findMenuItems(ids = []) {
   return ids
     .map(id => String(id || '').replace(/[^a-zA-Z0-9]/g, ''))
-    .map(cleanId => menuData.find(m => m.id === cleanId || m.id.includes(cleanId)))
+    .map(cleanId => state.menuData.find(m => m.id === cleanId || m.id.includes(cleanId)))
     .filter(Boolean);
 }
 
@@ -423,7 +410,7 @@ const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartCha
 
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
-  lastCartAddAt = Date.now();
+  state.lastCartAddAt = Date.now();
   if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
   if (item?.id) sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
   hideChoiceHesitationModal();
@@ -449,7 +436,7 @@ function trackedUpdateCartQty(id, delta) {
     metadata: { action: 'qty', item_id: id, delta }
   });
   if (cartManager.getCartIds().length === 0) {
-    lastCartAddAt = Date.now();
+    state.lastCartAddAt = Date.now();
   }
 }
 
@@ -466,7 +453,7 @@ function trackedDeleteCartItem(id) {
     metadata: { action: 'delete', item_id: id }
   });
   if (cartManager.getCartIds().length === 0) {
-    lastCartAddAt = Date.now();
+    state.lastCartAddAt = Date.now();
   }
 }
 
@@ -506,7 +493,7 @@ const aiPush = (() => {
     if (!$('aiPushBar')) return false;
     const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
     const cartOpen    = Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
-    return Boolean(isPosActive() && !document.hidden && !_isVoiceActive() && !paymentOpen && !cartOpen && menuData.length);
+    return Boolean(isPosActive() && !document.hidden && !_isVoiceActive() && !paymentOpen && !cartOpen && state.menuData.length);
   }
 
   function _render(item, pushText) {
@@ -549,15 +536,15 @@ const aiPush = (() => {
   function _pickDefault() {
     const priority = ['超值全餐', '極選系列', '點心'];
     for (const cat of priority) {
-      const hit = menuData.find(m => m.category === cat && m.id);
+      const hit = state.menuData.find(m => m.category === cat && m.id);
       if (hit) return hit;
     }
-    return menuData[0] || null;
+    return state.menuData[0] || null;
   }
 
   // 本地隨機備選（Ollama 失敗時使用），excludeCurrent=true 排除目前品項
   function _pickRandom(excludeCurrent = true) {
-    const priced = menuData.filter(m => m && m.id && Number(m.price || 0) > 0);
+    const priced = state.menuData.filter(m => m && m.id && Number(m.price || 0) > 0);
     if (!priced.length) return _pickDefault();
     const pool = excludeCurrent && _item?.id
       ? priced.filter(m => m.id !== _item.id)
@@ -578,7 +565,7 @@ const aiPush = (() => {
     try {
       const data = await api.aiPush(fd);
       const id     = data?.recommendation_id || '';
-      const aiItem = id ? menuData.find(m => m.id === id) : null;
+      const aiItem = id ? state.menuData.find(m => m.id === id) : null;
       // AI 推薦有效且與目前不同 → 採用；否則本地隨機備選
       const item = (aiItem && aiItem.id !== _item?.id)
         ? aiItem
@@ -740,10 +727,10 @@ function hideChoiceHesitationModal(resetIdle = false) {
   const modal = getChoiceHesitationModal();
   modal?.classList.add('hidden');
   modal?.setAttribute('aria-hidden', 'true');
-  currentChoiceHesitationItem = null;
-  _passiveLastTriggerAt = 0;  // modal 關閉後立即允許下一次被動語音觸發
+  state.currentChoiceHesitationItem = null;
+  state._passiveLastTriggerAt = 0;  // modal 關閉後立即允許下一次被動語音觸發
   if (resetIdle) {
-    lastCartAddAt = Date.now();
+    state.lastCartAddAt = Date.now();
   }
 }
 
@@ -757,19 +744,19 @@ function isChoiceHesitationEligible() {
     && !paymentOpen
     && !isCartScreenOpen()
     && cartManager.getCartIds().length === 0
-    && menuData.length
+    && state.menuData.length
   );
 }
 
 function getChoiceHesitationCandidates() {
-  const pricedItems = menuData.filter(item => item && item.id && Number(item.price || 0) > 0);
+  const pricedItems = state.menuData.filter(item => item && item.id && Number(item.price || 0) > 0);
   if (!pricedItems.length) return [];
-  if (kioskScreen === 'menu') {
-    const group = KIOSK_GROUPS.find(row => row.id === kioskActiveGroup);
+  if (state.kioskScreen === 'menu') {
+    const group = KIOSK_GROUPS.find(row => row.id === state.kioskActiveGroup);
     const allowed = new Set(group?.categories || []);
     let scoped = pricedItems.filter(item => allowed.has(String(item.category || '')));
-    if (kioskActiveFilter && kioskActiveFilter !== '全部') {
-      scoped = scoped.filter(item => itemMatchesSubFilter(item, kioskActiveFilter));
+    if (state.kioskActiveFilter && state.kioskActiveFilter !== '全部') {
+      scoped = scoped.filter(item => itemMatchesSubFilter(item, state.kioskActiveFilter));
     }
     if (scoped.length) return scoped;
   }
@@ -781,8 +768,8 @@ function getChoiceHesitationCandidates() {
 function pickChoiceHesitationItem() {
   const candidates = getChoiceHesitationCandidates();
   if (!candidates.length) return null;
-  const pool = candidates.length > 1 && currentChoiceHesitationItem
-    ? candidates.filter(item => item.id !== currentChoiceHesitationItem.id)
+  const pool = candidates.length > 1 && state.currentChoiceHesitationItem
+    ? candidates.filter(item => item.id !== state.currentChoiceHesitationItem.id)
     : candidates;
   return pool[Math.floor(Math.random() * pool.length)] || candidates[0];
 }
@@ -818,7 +805,7 @@ function showChoiceHesitationModal() {
   if (!isChoiceHesitationEligible() || isChoiceHesitationVisible()) return;
   const item = pickChoiceHesitationItem();
   if (!item) return;
-  currentChoiceHesitationItem = item;
+  state.currentChoiceHesitationItem = item;
   renderChoiceHesitationItem(item);
   const modal = getChoiceHesitationModal();
   modal?.classList.remove('hidden');
@@ -835,9 +822,9 @@ function stopChoiceHesitationTimer() {
 // =========================================================
 async function loadMenu() {
   try {
-    menuData = await api.getMenu();
+    state.menuData = await api.getMenu();
   } catch {
-    menuData = [
+    state.menuData = [
       { id: 'MCD001', name: '測試大麥克', price: 100, category: '超值全餐', description: '後端未連線，這是預設測試資料。' },
       { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:8000 已啟動。' }
     ];
@@ -846,7 +833,7 @@ async function loadMenu() {
 }
 
 function renderMenu() {
-  if (kioskScreen === 'categories') {
+  if (state.kioskScreen === 'categories') {
     renderKioskCategories();
     return;
   }
@@ -854,11 +841,11 @@ function renderMenu() {
 }
 
 function renderKioskCategories() {
-  kioskScreen = 'categories';
+  state.kioskScreen = 'categories';
   document.getElementById('view-pos')?.classList.remove('kiosk-screen-menu');
   document.getElementById('view-pos')?.classList.add('kiosk-screen-categories');
-  kioskActiveGroup = '';
-  kioskActiveFilter = '全部';
+  state.kioskActiveGroup = '';
+  state.kioskActiveFilter = '全部';
   ui.menuGrid.innerHTML = '';
   ui.menuGrid.className = 'kiosk-category-grid';
   if (ui.kioskTitle) ui.kioskTitle.textContent = '';
@@ -888,10 +875,10 @@ function renderKioskCategories() {
 }
 
 function showMenuGroup(groupId, filter = '全部') {
-  const switchingInMenu = kioskScreen === 'menu' && (kioskActiveGroup !== groupId || kioskActiveFilter !== filter);
-  kioskScreen = 'menu';
-  kioskActiveGroup = groupId;
-  kioskActiveFilter = filter;
+  const switchingInMenu = state.kioskScreen === 'menu' && (state.kioskActiveGroup !== groupId || state.kioskActiveFilter !== filter);
+  state.kioskScreen = 'menu';
+  state.kioskActiveGroup = groupId;
+  state.kioskActiveFilter = filter;
   if (switchingInMenu) {
     interactionState.categorySwitchCount += 1;
     if (interactionState.categorySwitchCount >= 4) {
@@ -909,7 +896,7 @@ function showMenuGroup(groupId, filter = '全部') {
 function groupItems(groupId) {
   const group = KIOSK_GROUPS.find(g => g.id === groupId) || KIOSK_GROUPS[1];
   const allowed = new Set((group.categories || []).map(String));
-  const items = menuData.filter(item => allowed.has(String(item.category || '')));
+  const items = state.menuData.filter(item => allowed.has(String(item.category || '')));
   return group.featuredLimit ? items.slice(0, group.featuredLimit) : items;
 }
 
@@ -936,9 +923,9 @@ function subFiltersForGroup(groupId) {
 function renderKioskMenuItems() {
   document.getElementById('view-pos')?.classList.remove('kiosk-screen-categories');
   document.getElementById('view-pos')?.classList.add('kiosk-screen-menu');
-  const group = KIOSK_GROUPS.find(g => g.id === kioskActiveGroup) || KIOSK_GROUPS[1];
+  const group = KIOSK_GROUPS.find(g => g.id === state.kioskActiveGroup) || KIOSK_GROUPS[1];
   const filters = subFiltersForGroup(group.id);
-  const items = groupItems(group.id).filter(item => itemMatchesSubFilter(item, kioskActiveFilter));
+  const items = groupItems(group.id).filter(item => itemMatchesSubFilter(item, state.kioskActiveFilter));
   ui.menuGrid.innerHTML = '';
   ui.menuGrid.className = 'kiosk-menu-list';
   if (ui.kioskTitle) ui.kioskTitle.textContent = groupLabel(group);
@@ -952,7 +939,7 @@ function renderKioskMenuItems() {
   const tabs = document.createElement('div');
   tabs.className = 'kiosk-menu-tabs';
   tabs.innerHTML = filters.map(filter => `
-    <button type="button" class="${filter === kioskActiveFilter ? 'active' : ''}" data-filter="${escapeHTML(filter)}">
+    <button type="button" class="${filter === state.kioskActiveFilter ? 'active' : ''}" data-filter="${escapeHTML(filter)}">
       ${escapeHTML(kFilterLabel(filter))}
     </button>`).join('');
   tabs.querySelectorAll('button').forEach(button => {
@@ -1081,7 +1068,7 @@ function showCartScreen() {
 function hideCartScreen() {
   document.querySelector('.cart-shell')?.classList.remove('kiosk-cart-open');
   if (!orderCompleted && ui.kioskPaymentScreen?.classList.contains('hidden')) {
-    setInteractionPage(kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
+    setInteractionPage(state.kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
   }
   updateVoiceAssistVisibility();
   aiPush.scheduleAfterCartClose();
@@ -1115,9 +1102,9 @@ function _showPaymentCdSection(name) {
 }
 
 function openPaymentCountdown(cartIds) {
-  _paymentCdCartIds = cartIds.slice();
-  _pendingPaymentEmotion = null;
-  _paymentEmotionPromise = null;
+  state._paymentCdCartIds = cartIds.slice();
+  state._pendingPaymentEmotion = null;
+  state._paymentEmotionPromise = null;
   ui.paymentCdBackdrop?.classList.remove('hidden');
   ui.paymentCdModal?.classList.remove('hidden');
   _showPaymentCdSection('counting');
@@ -1125,16 +1112,16 @@ function openPaymentCountdown(cartIds) {
 }
 
 function closePaymentCountdown() {
-  if (_paymentCdTimer) { clearInterval(_paymentCdTimer); _paymentCdTimer = null; }
+  if (state._paymentCdTimer) { clearInterval(state._paymentCdTimer); state._paymentCdTimer = null; }
   ui.paymentCdBackdrop?.classList.add('hidden');
   ui.paymentCdModal?.classList.add('hidden');
-  _pendingPaymentEmotion = null;
-  _paymentEmotionPromise = null;
-  _paymentCdCartIds = [];
+  state._pendingPaymentEmotion = null;
+  state._paymentEmotionPromise = null;
+  state._paymentCdCartIds = [];
 }
 
 function _startPaymentCountdown() {
-  if (_paymentCdTimer) clearInterval(_paymentCdTimer);
+  if (state._paymentCdTimer) clearInterval(state._paymentCdTimer);
   let secondsLeft = PAYMENT_CD_TOTAL;
 
   // 付款倒數擷取：在第 (TOTAL - paymentClipSec) 秒觸發，確保 buffer 有 paymentClipSec 秒的影像
@@ -1154,7 +1141,7 @@ function _startPaymentCountdown() {
   };
   updateUI();
 
-  _paymentCdTimer = setInterval(() => {
+  state._paymentCdTimer = setInterval(() => {
     secondsLeft -= 1;
     updateUI();
 
@@ -1166,13 +1153,13 @@ function _startPaymentCountdown() {
     }
 
     if (secondsLeft <= 0) {
-      clearInterval(_paymentCdTimer);
-      _paymentCdTimer = null;
+      clearInterval(state._paymentCdTimer);
+      state._paymentCdTimer = null;
       trackInteractionEvent({
         page_id: 'payment_page',
         event_type: 'payment_timeout',
         button_id: 'paymentCountdownModal',
-        metadata: { cart_ids: _paymentCdCartIds }
+        metadata: { cart_ids: state._paymentCdCartIds }
       });
       _showPaymentCdSection('failed');
     }
@@ -1183,10 +1170,10 @@ function _triggerPaymentEmotionCapture() {
   if (!isPosMode()) return;
   const blob = capturePreEventClip();
   if (!blob) return;
-  _paymentEmotionPromise = api.analyzeEmotionEvent(sessionId, 'payment_timeout', blob)
+  state._paymentEmotionPromise = api.analyzeEmotionEvent(sessionId, 'payment_timeout', blob)
     .then(data => {
       if (data) {
-        _pendingPaymentEmotion = {
+        state._pendingPaymentEmotion = {
           emotion:        data.emotion        || '',
           intensity:      data.intensity      || '',
           description:    data.description    || '',
@@ -1455,7 +1442,7 @@ ui.startBtn.onclick = async () => {
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
-    lastCartAddAt = Date.now();
+    state.lastCartAddAt = Date.now();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
@@ -1502,8 +1489,8 @@ function _isVoiceActive() {
 // 語音問答（問題3: 回覆綁定浮動氣泡，問題5: 語言偵測）
 // =========================================================
 function closeVoiceBubble(stopAudio = true) {
-  if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
-  voiceBubbleTimer = null;
+  if (state.voiceBubbleTimer) clearTimeout(state.voiceBubbleTimer);
+  state.voiceBubbleTimer = null;
   if (stopAudio && ui.audio) {
     ui.audio.pause();
     ui.audio.currentTime = 0;
@@ -1556,8 +1543,8 @@ function showVoiceBubble(data) {
       timerBar.style.width = '0%';
     });
   }
-  if (voiceBubbleTimer) clearTimeout(voiceBubbleTimer);
-  voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
+  if (state.voiceBubbleTimer) clearTimeout(state.voiceBubbleTimer);
+  state.voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
 
 function showVoiceAssistMessage(message, lang = kioskLang) {
@@ -1609,12 +1596,12 @@ function setupAskRecorder() {
   let chunks = [];
   askRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   askRecorder.onstop = async () => {
-    if (_voiceProcessing) return; // 上一次 onstop 還在跑，放棄本次（正常情況不應發生）
-    _voiceProcessing = true;
+    if (state._voiceProcessing) return; // 上一次 onstop 還在跑，放棄本次（正常情況不應發生）
+    state._voiceProcessing = true;
     try {
     const blob = new Blob(chunks, { type: 'video/webm' });
-    const durationMs = askRecordingStartedAt ? Date.now() - askRecordingStartedAt : 0;
-    askRecordingStartedAt = 0;
+    const durationMs = state.askRecordingStartedAt ? Date.now() - state.askRecordingStartedAt : 0;
+    state.askRecordingStartedAt = 0;
     chunks = [];
     if (runtimeSettings.EMOTION_LLAMA_EVENT_VOICE) {
       if (runtimeSettings.EMOTION_LLAMA_VOICE_WAIT_MODE === 'analysis') {
@@ -1684,7 +1671,7 @@ function setupAskRecorder() {
         });
         if (appliedOrders.length) {
           lastValidOrderActionAt = Date.now();
-          lastCartAddAt = Date.now();
+          state.lastCartAddAt = Date.now();
           trackInteractionEvent({
             event_type: 'cart_edit', button_id: 'askBtn',
             cart_edit_count: appliedOrders.length,
@@ -1704,7 +1691,7 @@ function setupAskRecorder() {
     if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
     } finally {
-      _voiceProcessing = false;
+      state._voiceProcessing = false;
       _resumePassiveListener();
     }
   };
@@ -1712,7 +1699,7 @@ function setupAskRecorder() {
 
 function startAskRecording(sourceBtn) {
   if (!askRecorder) setupAskRecorder();
-  if (!askRecorder || askRecorder.state !== 'inactive' || _voiceProcessing) {
+  if (!askRecorder || askRecorder.state !== 'inactive' || state._voiceProcessing) {
     showVoiceAssistMessage(kt('voiceMicNotReady'));
     return;
   }
@@ -1726,7 +1713,7 @@ function startAskRecording(sourceBtn) {
       metadata: {}
     });
     _pausePassiveListener();
-    askRecordingStartedAt = Date.now();
+    state.askRecordingStartedAt = Date.now();
     askRecorder.start();
     document.getElementById('voiceAssistBtn')?.classList.add('recording');
     showVoiceAssistOverlay('listening');
@@ -1992,7 +1979,7 @@ ui.checkoutBtn.onclick = () => {
 };
 
 ui.kioskBackBtn?.addEventListener('click', () => {
-  if (kioskScreen === 'menu') renderKioskCategories();
+  if (state.kioskScreen === 'menu') renderKioskCategories();
 });
 ui.kioskHomeBtn?.addEventListener('click', () => {
   hideCartScreen();
@@ -2009,7 +1996,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   sessionCartSources = [];
   ui.overlay.classList.remove('hidden');
   ui.overlay.style.opacity = '1';
-  kioskScreen = 'categories';
+  state.kioskScreen = 'categories';
   setInteractionPage('startup', { source: 'home_button' });
 });
 ui.kioskCartBtn?.addEventListener('click', () => {
@@ -2017,14 +2004,14 @@ ui.kioskCartBtn?.addEventListener('click', () => {
 });
 ui.continueOrderBtn?.addEventListener('click', () => {
   hideCartScreen();
-  if (kioskScreen === 'categories') showMenuGroup('value');
+  if (state.kioskScreen === 'categories') showMenuGroup('value');
 });
 ui.clearCartBtn?.addEventListener('click', () => {
   cartManager.clearCart();
   sessionCartSources = [];
   hideCartScreen();
   renderKioskCategories();
-  lastCartAddAt = Date.now();
+  state.lastCartAddAt = Date.now();
 });
 ui.kioskPaymentBackBtn?.addEventListener('click', () => {
   hidePaymentScreen();
@@ -2041,7 +2028,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
-  lastCartAddAt = Date.now();
+  state.lastCartAddAt = Date.now();
 });
 ui.kioskFastPayBtn?.addEventListener('click', () => {
   const cartIds = cartManager.getCartIds();
@@ -2084,14 +2071,14 @@ ui.paymentCdAssistBtn?.addEventListener('click', async () => {
   _showPaymentCdSection('notified');
 
   // 背景等待情緒分析（最長 12 秒），完成後更新 admin 通知
-  if (!_pendingPaymentEmotion && _paymentEmotionPromise) {
-    await Promise.race([_paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
+  if (!state._pendingPaymentEmotion && state._paymentEmotionPromise) {
+    await Promise.race([state._paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
   }
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_staff_requested',
     button_id: 'paymentCdAssistBtn',
-    metadata: { emotion: _pendingPaymentEmotion }
+    metadata: { emotion: state._pendingPaymentEmotion }
   });
   setTimeout(() => { closePaymentCountdown(); }, 3000);
 });
@@ -2200,15 +2187,15 @@ async function _triggerEmotionCaptureAndWait(eventType) {
 document.getElementById('choiceHesitationClose')?.addEventListener('click', () => hideChoiceHesitationModal(true));
 document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => hideChoiceHesitationModal(true));
 document.getElementById('choiceHesitationPick')?.addEventListener('click', () => {
-  if (!currentChoiceHesitationItem) return;
-  const item = currentChoiceHesitationItem;
+  if (!state.currentChoiceHesitationItem) return;
+  const item = state.currentChoiceHesitationItem;
   hideChoiceHesitationModal();
   showItemConfirmModal(item, 'choice_hesitation');
 });
 document.getElementById('choiceHesitationNext')?.addEventListener('click', () => {
   const nextItem = pickChoiceHesitationItem();
   if (!nextItem) return;
-  currentChoiceHesitationItem = nextItem;
+  state.currentChoiceHesitationItem = nextItem;
   renderChoiceHesitationItem(nextItem);
 });
 document.getElementById('choiceHesitationVoice')?.addEventListener('click', () => {
@@ -2391,7 +2378,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   hidePaymentScreen();
   renderKioskCategories();
   aiPush.start();
-  lastCartAddAt = Date.now();
+  state.lastCartAddAt = Date.now();
 });
 
 
@@ -2460,10 +2447,10 @@ function _resumePassiveListener() {
 
 function _handlePassiveHit(result) {
   if (!isPosActive() || orderCompleted || _isVoiceActive()) return;
-  if (Date.now() - _passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
-  const item = menuData.find(m => m.id === result.item?.id) || result.item;
+  if (Date.now() - state._passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
+  const item = state.menuData.find(m => m.id === result.item?.id) || result.item;
   if (!item) return;
-  _passiveLastTriggerAt = Date.now();
+  state._passiveLastTriggerAt = Date.now();
   console.log(`[PassiveVoice] ✅ 命中「${item.name}」（${result.matched_label}）→ 顯示猶豫彈跳視窗`);
   _showHesitationForItem(item);
 }
@@ -2477,7 +2464,7 @@ function _showHesitationForItem(item) {
     console.log('[PassiveVoice] _showHesitationForItem 被系統狀態攔截');
     return;
   }
-  currentChoiceHesitationItem = item;
+  state.currentChoiceHesitationItem = item;
   renderChoiceHesitationItem(item);
   const modal = getChoiceHesitationModal();
   modal?.classList.remove('hidden');
