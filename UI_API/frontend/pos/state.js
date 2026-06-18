@@ -18,6 +18,9 @@ export const state = {
   _pendingPaymentEmotion: null,
   _paymentEmotionPromise: null,
   _paymentCdCartIds: [],
+  // 媒體串流 / 語音錄音器（跨模組共享）
+  stream: null,
+  askRecorder: null,
   // 語音
   _voiceProcessing: false,
   askRecordingStartedAt: 0,
