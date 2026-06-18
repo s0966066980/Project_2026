@@ -17,6 +17,10 @@ import { createCartManager } from './cart.js';
 import { connectRealtime } from '../shared/realtime_client.js';
 import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
 import { state } from './state.js';
+import {
+  showChoiceHesitationModal, hideChoiceHesitationModal, stopChoiceHesitationTimer,
+  isChoiceHesitationVisible, pickChoiceHesitationItem, renderChoiceHesitationItem,
+} from './choice_hesitation.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -62,6 +66,7 @@ let _passiveInFlight = false;
 const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
 const PASSIVE_CHUNK_MS = 5000;
 let kioskLang = localStorage.getItem('kiosk_lang') === 'en' ? 'en' : 'zh';
+export function getKioskLang() { return kioskLang; }
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -76,7 +81,7 @@ const interactionState = {
   lastReportedDwellPage: '',
 };
 
-const KIOSK_GROUPS = [
+export const KIOSK_GROUPS = [
   { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
   { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
   { id: 'premium', label: '極選系列', labelEn: 'Signature Meals', image: '/static/menu_images/MCD014.jpg', categories: ['極選系列'] },
@@ -315,7 +320,7 @@ const INTERACTION_LABELS = {
   },
 };
 
-function getFeatures() {
+export function getFeatures() {
   try {
     const versionMatches = localStorage.getItem('kiosk_feat_version') === FEATURE_SCHEMA_VERSION;
     const hasSavedFeatures = Boolean(localStorage.getItem('kiosk_feat'));
@@ -363,7 +368,7 @@ function applyFeaturesToPOS() {
   if (!f.recommend) aiPush.stop();
 }
 
-function isCartScreenOpen() {
+export function isCartScreenOpen() {
   return Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
 }
 
@@ -375,7 +380,7 @@ function updateVoiceAssistVisibility() {
   voiceAssistMod.classList.toggle('hidden', !visible);
 }
 
-function isPosActive() {
+export function isPosActive() {
   return isSystemRunning && !orderCompleted && ui.posView && !ui.posView.classList.contains('hidden');
 }
 
@@ -406,7 +411,7 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang });
+export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang });
 
 function trackedAddToCart(item, metadata = {}) {
   lastValidOrderActionAt = Date.now();
@@ -715,108 +720,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function getChoiceHesitationModal() {
-  return document.getElementById('choiceHesitationModal');
-}
-
-function isChoiceHesitationVisible() {
-  return !getChoiceHesitationModal()?.classList.contains('hidden');
-}
-
-function hideChoiceHesitationModal(resetIdle = false) {
-  const modal = getChoiceHesitationModal();
-  modal?.classList.add('hidden');
-  modal?.setAttribute('aria-hidden', 'true');
-  state.currentChoiceHesitationItem = null;
-  state._passiveLastTriggerAt = 0;  // modal 關閉後立即允許下一次被動語音觸發
-  if (resetIdle) {
-    state.lastCartAddAt = Date.now();
-  }
-}
-
-function isChoiceHesitationEligible() {
-  const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
-  return Boolean(
-    getFeatures().choiceHesitation !== false
-    && isPosActive()
-    && !document.hidden
-    && !_isVoiceActive()
-    && !paymentOpen
-    && !isCartScreenOpen()
-    && cartManager.getCartIds().length === 0
-    && state.menuData.length
-  );
-}
-
-function getChoiceHesitationCandidates() {
-  const pricedItems = state.menuData.filter(item => item && item.id && Number(item.price || 0) > 0);
-  if (!pricedItems.length) return [];
-  if (state.kioskScreen === 'menu') {
-    const group = KIOSK_GROUPS.find(row => row.id === state.kioskActiveGroup);
-    const allowed = new Set(group?.categories || []);
-    let scoped = pricedItems.filter(item => allowed.has(String(item.category || '')));
-    if (state.kioskActiveFilter && state.kioskActiveFilter !== '全部') {
-      scoped = scoped.filter(item => itemMatchesSubFilter(item, state.kioskActiveFilter));
-    }
-    if (scoped.length) return scoped;
-  }
-  const preferredCategories = new Set(['超值全餐', '極選系列', '點心']);
-  const preferred = pricedItems.filter(item => preferredCategories.has(String(item.category || '')));
-  return preferred.length ? preferred : pricedItems;
-}
-
-function pickChoiceHesitationItem() {
-  const candidates = getChoiceHesitationCandidates();
-  if (!candidates.length) return null;
-  const pool = candidates.length > 1 && state.currentChoiceHesitationItem
-    ? candidates.filter(item => item.id !== state.currentChoiceHesitationItem.id)
-    : candidates;
-  return pool[Math.floor(Math.random() * pool.length)] || candidates[0];
-}
-
-function renderChoiceHesitationItem(item) {
-  const modal = getChoiceHesitationModal();
-  if (!modal || !item) return;
-  const visual = getMenuVisual(item);
-  const nameEl = document.getElementById('choiceHesitationName');
-  const priceEl = document.getElementById('choiceHesitationPrice');
-  const reasonEl = document.getElementById('choiceHesitationReason');
-  const imageEl = document.getElementById('choiceHesitationImage');
-  const fallbackEl = document.getElementById('choiceHesitationFallback');
-  if (nameEl) nameEl.textContent = item.name || '推薦餐點';
-  if (priceEl) priceEl.textContent = formatItemPrice(item, kioskLang);
-  if (reasonEl) reasonEl.textContent = item.description || '先試試這份熱門餐點。';
-  if (fallbackEl) {
-    fallbackEl.textContent = visual.emoji || '🍔';
-    fallbackEl.style.display = visual.image ? 'none' : 'block';
-  }
-  if (imageEl) {
-    imageEl.style.display = visual.image ? 'block' : 'none';
-    imageEl.src = visual.image || '';
-    imageEl.alt = item.name || '推薦餐點';
-    imageEl.onerror = () => {
-      imageEl.style.display = 'none';
-      if (fallbackEl) fallbackEl.style.display = 'block';
-    };
-  }
-}
-
-function showChoiceHesitationModal() {
-  if (!isChoiceHesitationEligible() || isChoiceHesitationVisible()) return;
-  const item = pickChoiceHesitationItem();
-  if (!item) return;
-  state.currentChoiceHesitationItem = item;
-  renderChoiceHesitationItem(item);
-  const modal = getChoiceHesitationModal();
-  modal?.classList.remove('hidden');
-  modal?.setAttribute('aria-hidden', 'false');
-}
-
-function stopChoiceHesitationTimer() {
-  hideChoiceHesitationModal();
-}
-
-
 // =========================================================
 // 菜單
 // =========================================================
@@ -900,7 +803,7 @@ function groupItems(groupId) {
   return group.featuredLimit ? items.slice(0, group.featuredLimit) : items;
 }
 
-function itemMatchesSubFilter(item, filter) {
+export function itemMatchesSubFilter(item, filter) {
   if (!filter || filter === '全部') return true;
   const name = String(item.name || '').replace(/鷄/g, '雞');
   if (filter === '牛肉系列') return /牛|安格斯|大麥克|吉事|四盎司/.test(name);
@@ -1480,7 +1383,7 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
 });
 
 
-function _isVoiceActive() {
+export function _isVoiceActive() {
   // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
   return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
 }
