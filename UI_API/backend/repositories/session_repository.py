@@ -38,20 +38,3 @@ def get_session_history(session_id: str):
 def archive_session(session_id: str):
     if session_id in session_db:
         del session_db[session_id]
-    clear_session_mood(session_id)
-
-
-# ── 心情評分儲存（與語音對話 session_db 分開） ──────────────────
-_mood_db: dict[str, dict] = {}
-
-
-def set_session_mood(session_id: str, mood_score: int, mood_label: str) -> None:
-    _mood_db[session_id] = {"mood_score": mood_score, "mood_label": mood_label}
-
-
-def get_session_mood(session_id: str) -> dict:
-    return _mood_db.get(session_id, {"mood_score": 0, "mood_label": ""})
-
-
-def clear_session_mood(session_id: str) -> None:
-    _mood_db.pop(session_id, None)

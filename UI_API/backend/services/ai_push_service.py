@@ -8,7 +8,6 @@ import ai_services
 import config
 from repositories import menu_repository
 from services.recommendation_service import clean_menu_id
-from services.mood_service import get_mood_context
 from services.popular_service import get_top_items
 
 _menu_cache: dict = {"items": None, "ts": 0.0}
@@ -98,10 +97,7 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
             pass
 
     system = config.get("AI_PUSH_SYSTEM_PROMPT")
-    mood_context = get_mood_context(session_id)
-    mood_section = f"【顧客心情參考】\n{mood_context}\n\n" if mood_context else ""
     user = (
-        f"{mood_section}"
         f"{rag_section}"
         f"【指定推播餐點】{sel_id}｜{sel_name}\n\n"
         f"push_text 必須是繁體中文，字數至少 {config.get('AI_PUSH_TEXT_MIN', 18)} 字、最多 {config.get('AI_PUSH_TEXT_MAX', 34)} 字，"

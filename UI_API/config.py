@@ -128,12 +128,6 @@ DEFAULT_SETTINGS = {
     "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
     "BARRIER_CART_REMOVE_MAX": 2,           # 購物車移除次數達此值視為 menu_hesitation
     "BARRIER_PAYMENT_FAIL_MAX": 1,          # 付款失敗次數達此值視為 payment_confusion
-    # ── 心情星星 prompt context ──────────────────────────────────
-    "MOOD_CONTEXT_1": _prompts.MOOD_CONTEXT_1,
-    "MOOD_CONTEXT_2": _prompts.MOOD_CONTEXT_2,
-    "MOOD_CONTEXT_3": _prompts.MOOD_CONTEXT_3,
-    "MOOD_CONTEXT_4": _prompts.MOOD_CONTEXT_4,
-    "MOOD_CONTEXT_5": _prompts.MOOD_CONTEXT_5,
     # ── 機台識別 ─────────────────────────────────────────────────
     "KIOSK_NAME": "機台01",
     # ── 付款逾時協助 Prompt ───────────────────────────────────────

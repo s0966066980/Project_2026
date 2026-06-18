@@ -8,21 +8,13 @@ from collections import Counter
 from services import scenario_service
 
 
-# ── session 統計（AI 推播成效 + 心情） ──────────────────────────────────
+# ── session 統計（AI 推播成效） ──────────────────────────────────────────
 def compute_session_stats(logs: list) -> dict:
     total = len(logs)
     total_clicks = sum(int(l.get("ai_push_cart_count", 0)) for l in logs)
     success_count = sum(1 for l in logs if l.get("ai_push_success", False))
     failure_count = total - success_count
     rate = round(success_count / total, 4) if total > 0 else 0.0
-
-    mood_sessions = sum(1 for l in logs if int(l.get("mood_score") or 0) > 0)
-    mood_hit_rate = round(mood_sessions / total, 4) if total > 0 else 0.0
-    mood_distribution = {str(i): 0 for i in range(1, 6)}
-    for l in logs:
-        score = int(l.get("mood_score") or 0)
-        if 1 <= score <= 5:
-            mood_distribution[str(score)] += 1
 
     sessions = [
         {
@@ -32,8 +24,6 @@ def compute_session_stats(logs: list) -> dict:
             "ai_push_success": bool(l.get("ai_push_success", False)),
             "final_cart_ids": l.get("final_cart_ids", []),
             "cart_sources": l.get("cart_sources", []),
-            "mood_score": int(l.get("mood_score") or 0),
-            "mood_label": str(l.get("mood_label") or ""),
             "voice_turns": l.get("voice_turns", []),
         }
         for l in reversed(logs)
@@ -44,9 +34,6 @@ def compute_session_stats(logs: list) -> dict:
         "success_sessions": success_count,
         "failure_sessions": failure_count,
         "success_rate": rate,
-        "mood_hit_rate": mood_hit_rate,
-        "mood_sessions": mood_sessions,
-        "mood_distribution": mood_distribution,
         "cumulative_score": success_count - failure_count,
         "sessions": sessions,
     }

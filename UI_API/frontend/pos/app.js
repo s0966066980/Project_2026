@@ -41,10 +41,6 @@ function buildSessionId() {
 const sessionId = buildSessionId();
 let stream, askRecorder;
 let isSystemRunning = false;
-let currentMoodScore = 0;  // 0 = 未選，1–5 = 已選
-
-const MOOD_LABELS = ['很差', '普通', '還不錯', '很開心', '超棒'];
-const MOOD_EMOJIS = ['😞', '😐', '🙂', '😊', '🤩'];
 let orderCompleted = false;
 let menuData = [];
 let sessionPushedIds = new Set();
@@ -1482,81 +1478,11 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
 }
 
 // =========================================================
-// 心情星星
-// =========================================================
-function renderMoodStars() {
-  const row = document.getElementById('moodStarsRow');
-  if (!row) return;
-
-  // 初次呼叫時建立 5 顆星；之後只更新 class
-  if (!row.dataset.built) {
-    row.dataset.built = '1';
-    for (let i = 1; i <= 5; i++) {
-      const item = document.createElement('div');
-      item.className = 'mood-star-item';
-      item.dataset.score = String(i);
-      item.innerHTML = `
-        <svg class="mood-star-svg" viewBox="0 0 52 52">
-          <polygon class="star-poly" points="26,4 32,18 47,18 36,28 40,43 26,34 12,43 16,28 5,18 20,18"/>
-        </svg>
-        <div class="mood-star-label">${MOOD_LABELS[i - 1]}</div>
-      `;
-      item.addEventListener('click', () => selectMood(i));
-      row.appendChild(item);
-    }
-  }
-
-  // 更新 lit class
-  row.querySelectorAll('.mood-star-item').forEach(el => {
-    const score = Number(el.dataset.score);
-    const shouldBeLit = score <= currentMoodScore;
-    const wasLit = el.classList.contains('lit');
-    el.classList.toggle('lit', shouldBeLit);
-    // 彈跳動畫：剛亮起的那顆
-    if (shouldBeLit && !wasLit && score === currentMoodScore) {
-      el.classList.add('popping');
-      setTimeout(() => el.classList.remove('popping'), 350);
-    }
-  });
-
-  // 更新按鈕標籤與提示文字（按鈕外觀由 CSS 控制）
-  const btnLabel = document.getElementById('startBtnLabel');
-  const feedback = document.getElementById('moodFeedbackText');
-  const skipHint = document.getElementById('moodSkipHint');
-  if (currentMoodScore > 0) {
-    if (btnLabel) btnLabel.textContent = `開始點餐 ${MOOD_EMOJIS[currentMoodScore - 1]}`;
-
-    if (skipHint) skipHint.style.visibility = 'hidden';
-  } else {
-    if (btnLabel) btnLabel.textContent = '開始點餐';
-    if (feedback) feedback.textContent = '';
-    if (skipHint) skipHint.style.visibility = 'visible';
-  }
-}
-
-function selectMood(n) {
-  currentMoodScore = (currentMoodScore === n) ? 0 : n;
-  renderMoodStars();
-}
-
-// =========================================================
 // 啟動
 // =========================================================
 ui.startBtn.onclick = async () => {
   if (isAdminMode()) return;
   try {
-    // 若顧客有選心情星星，先寫入後端 session
-    if (currentMoodScore > 0) {
-      try {
-        await fetch('/api/session/mood', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, mood_score: currentMoodScore }),
-        });
-      } catch (e) {
-        console.warn('mood API failed (non-blocking):', e);
-      }
-    }
     await loadRuntimeSettings();
     const f = getFeatures();
     const needAudio = Boolean(f.voiceAssist);
@@ -2616,5 +2542,3 @@ if (isAdminMode()) {
   applyFeaturesToPOS();
   initRealtimeClients();
 }
-
-renderMoodStars();

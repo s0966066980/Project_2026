@@ -1,5 +1,5 @@
 import config
-from repositories import log_repository, menu_repository, session_repository
+from repositories import log_repository, menu_repository
 from services import recommendation_service
 
 
@@ -65,7 +65,4 @@ def record_final_checkout(
     log_entry["ai_push_cart_count"] = max(0, int(ai_push_cart_count))
     log_entry["ai_push_success"] = ai_push_cart_count >= 1
     log_entry["cart_sources"] = cart_sources if isinstance(cart_sources, list) else []
-    mood = session_repository.get_session_mood(session_id)
-    log_entry["mood_score"] = mood.get("mood_score", 0)
-    log_entry["mood_label"] = mood.get("mood_label", "")
     return log_repository.append_session_log(log_entry)

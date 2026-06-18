@@ -14,7 +14,6 @@ import ai_services
 import config
 import database
 from repositories import menu_repository, session_repository
-from services.mood_service import get_mood_context
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
@@ -93,7 +92,7 @@ async def _build_voice_context(
     """組合語音 LLM 的 system_prompt 與 user_prompt。
 
     handle_voice 與 handle_voice_stream 共用此邏輯：
-    載入菜單與對話歷史、選定中／英 system prompt、注入心情／情緒／RAG／熱門 context。
+    載入菜單與對話歷史、選定中／英 system prompt、注入情緒／RAG／熱門 context。
     回傳 (system_prompt, user_prompt, menu_items)。
     """
     (menu_items, full_menu_context), history = await asyncio.gather(
@@ -112,11 +111,6 @@ async def _build_voice_context(
         rag_context = await get_rag().query(user_text)
     else:
         rag_context = ""
-
-    # 注入心情 context（若顧客有選心情星星）
-    mood_context = get_mood_context(session_id)
-    if mood_context:
-        system_prompt = f"【顧客心情參考】\n{mood_context}\n\n{system_prompt}"
 
     # Emotion-LLaMA 快取注入（若啟用且有快取）
     emotion_context = _build_emotion_context(session_id)
