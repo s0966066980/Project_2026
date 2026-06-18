@@ -38,17 +38,6 @@ def clear_voice_emotion_cache(session_id: str) -> None:
         _voice_cache.pop(session_id, None)
 
 
-async def analyze(session_id: str, media_path: str) -> dict:
-    """emotion_routes 通用入口（保持向下相容）。"""
-    return {
-        "session_id": session_id,
-        "emotion_label": "未偵測",
-        "emotion_score": 0,
-        "emotion_available": False,
-        "status": "stub",
-    }
-
-
 async def analyze_event(session_id: str, media_path: str, event_type: str, speech_text: str = "") -> dict:
     """事件驅動分析主入口。非同步執行，結果寫 log + 更新語音快取。"""
     if not is_enabled():
@@ -213,11 +202,13 @@ async def _extract_emotion_via_ollama(description: str) -> dict:
     )
     user = (
         f"Analysis description:\n{description}\n\n"
-        "Return ONLY this JSON (fill in values based on the description):\n"
+        "Return ONLY this JSON (fill in values based on the description). "
+        "Keep 'emotion' and 'intensity' as the English labels listed below; "
+        "write 'facial' and 'vocal' in Traditional Chinese (繁體中文):\n"
         '{"emotion":"<primary emotion label, e.g. neutral/happy/frustrated/anxious/sad>",'
         '"intensity":"low|medium|high",'
-        '"facial":"<brief facial cues>",'
-        '"vocal":"<brief vocal cues or silent>"}'
+        '"facial":"<繁體中文簡述表情線索>",'
+        '"vocal":"<繁體中文簡述聲音線索，無聲則填「靜默」>"}'
     )
     result = await asyncio.to_thread(
         ai_services.ask_ollama, system, user, "EMOTION_EXTRACT",

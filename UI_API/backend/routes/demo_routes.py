@@ -89,26 +89,10 @@ SCENARIOS = {
     },
 }
 
-LEGACY_SCENARIO_ALIASES = {
-    "operation_confusion": "operation_difficulty",
-    "operation_confusion_explicit": "operation_difficulty",
-    "invalid_touch": "operation_difficulty",
-    "back_navigation": "operation_difficulty",
-    "decision_hesitation": "menu_hesitation",
-    "ask_recommendation": "menu_hesitation",
-    "menu_confusion": "menu_hesitation",
-    "payment_failed": "payment_problem",
-    "payment_confusion": "payment_problem",
-    "long_payment_dwell": "payment_problem",
-    "coupon_error": "operation_difficulty",
-    "customer_service_requested": "operation_difficulty",
-    "complaint_risk": "operation_difficulty",
-}
-
-
 def _scenario_payload(payload: dict) -> tuple[dict, str, str, str]:
     requested = str((payload or {}).get("scenario") or "operation_difficulty")
-    scenario = LEGACY_SCENARIO_ALIASES.get(requested) or scenario_service.normalize_scenario_id(requested)
+    # 別名對照統一由 scenario_service 維護（單一來源）。
+    scenario = scenario_service.normalize_scenario_id(requested)
     if scenario not in SCENARIOS:
         scenario = "operation_difficulty"
     base = dict(SCENARIOS.get(scenario) or SCENARIOS["operation_difficulty"])

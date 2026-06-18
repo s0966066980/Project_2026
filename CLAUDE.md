@@ -40,16 +40,15 @@ Project_2026/
 │   ├── main.py                        ← 唯一入口，啟動 8000/8001
 │   ├── config.py                      ← 靜態設定 + 動態設定管理器（DEFAULT_SETTINGS）
 │   ├── backend/
-│   │   ├── ai_services.py             ← 所有 AI 呼叫（Whisper、Ollama、Gemini、TTS）
+│   │   ├── ai_services.py             ← Ollama / Gemini 文字生成（STT/TTS/視覺走各自 provider）
 │   │   ├── database.py                ← 菜單 context、checkout log
 │   │   ├── routes/                    ← FastAPI endpoints（詳見下方路由清單）
-│   │   ├── services/                  ← 業務邏輯
+│   │   ├── services/                  ← 業務邏輯（含 STT/TTS provider 抽象）
 │   │   ├── repositories/              ← JSON 資料存取
 │   │   ├── realtime/                  ← WebSocket event bus
 │   │   ├── utils/                     ← 共用工具
-│   │   ├── prompts/defaults.py        ← LLM system prompt 預設值
-│   │   ├── scripts/                   ← 一次性工具腳本
-│   │   └── menu_data/menu.json        ← 菜單（MCDxxx 格式）
+│   │   ├── prompts/defaults.py        ← LLM system prompt 預設值（config.DEFAULT_SETTINGS 引用）
+│   │   └── scripts/                   ← 一次性工具腳本
 │   ├── frontend/
 │   │   ├── pos/                       ← POS kiosk（index.html, app.js, cart.js, media.js）
 │   │   ├── admin/                     ← 後台（admin.html, admin.js）
@@ -87,7 +86,8 @@ python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 - **routes/**：只做請求解析 + 呼叫 service + 回傳 response。**不放業務邏輯。**
 - **services/**：業務邏輯主體。不直接讀寫 JSON，透過 repository。
 - **repositories/**：JSON 資料存取。**不放業務邏輯、不做 AI 呼叫。**
-- **ai_services.py**：所有 AI 呼叫集中在此，其他層不得直接呼叫 Ollama/Whisper/TTS。
+- **ai_services.py**：Ollama / Gemini 文字生成集中在此，route 層不得直接呼叫。
+- **STT / TTS / 視覺**：透過 `services/` 內的 provider 抽象（`stt_service`、`tts_service`、`emotion_service`）呼叫各自後端，不放進 `ai_services.py`。
 
 ### 設定系統
 - 靜態設定（port、API key）寫在 `.env`，由 `config.py` 讀取。

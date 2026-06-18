@@ -1,72 +1,14 @@
 import asyncio
 import json
-from datetime import datetime
 
 from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import FileResponse
 
 import config
-import database
-from repositories import interaction_event_repository, log_repository, session_repository
+from repositories import log_repository
 from realtime import event_bus
+from services import checkout_service, stats_service
 from utils.auth_utils import require_admin_token
-
-
-def _seconds_since_timestamp(timestamp: str) -> int:
-    if not timestamp:
-        return 0
-    try:
-        started_at = datetime.fromisoformat(str(timestamp))
-        return max(0, int((datetime.now() - started_at).total_seconds()))
-    except Exception:
-        return 0
-
-
-def _build_checkout_intervention_result(
-    open_log: dict,
-    checkout_success: bool,
-    session_id: str,
-    final_cart_ids: list | None = None,
-) -> dict:
-    result = dict(open_log.get("result") if isinstance(open_log.get("result"), dict) else {})
-    barrier_result = open_log.get("barrier_result") if isinstance(open_log.get("barrier_result"), dict) else {}
-    result.update({
-        "session_id": session_id,
-        "scenario_id": open_log.get("scenario_id") or barrier_result.get("scenario_id", ""),
-        "scenario_label": open_log.get("scenario_label") or barrier_result.get("scenario_label", ""),
-        "resolved": bool(checkout_success),
-        "resolved_by": "checkout" if checkout_success else "",
-        "checkout_success": bool(checkout_success),
-        "payment_success": bool(checkout_success),
-        "time_to_checkout_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
-        "time_to_resolution_sec": _seconds_since_timestamp(open_log.get("timestamp", "")),
-        "resolved_by_checkout": bool(checkout_success),
-        "final_cart_ids": list(final_cart_ids or []),
-    })
-    if not checkout_success:
-        result["resolved_by_checkout"] = False
-    return result
-
-
-def _mark_latest_intervention_checkout(
-    session_id: str,
-    checkout_success: bool = True,
-    final_cart_ids: list | None = None,
-) -> dict | None:
-    open_log = interaction_event_repository.find_latest_open_intervention(session_id)
-    if not open_log:
-        return None
-    intervention_id = str(open_log.get("intervention_id") or "")
-    if not intervention_id:
-        return None
-    result = _build_checkout_intervention_result(
-        open_log,
-        checkout_success,
-        session_id,
-        final_cart_ids,
-    )
-    return interaction_event_repository.update_intervention_result(intervention_id, result)
-
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -94,46 +36,7 @@ def create_router(deps: dict) -> APIRouter:
     @router.get("/api/session_stats")
     async def get_session_stats():
         logs = await asyncio.to_thread(log_repository.get_session_logs)
-        total = len(logs)
-        total_clicks = sum(int(l.get("ai_push_cart_count", 0)) for l in logs)
-        success_count = sum(1 for l in logs if l.get("ai_push_success", False))
-        failure_count = total - success_count
-        rate = round(success_count / total, 4) if total > 0 else 0.0
-        # 心情統計
-        mood_sessions = sum(1 for l in logs if int(l.get("mood_score") or 0) > 0)
-        mood_hit_rate = round(mood_sessions / total, 4) if total > 0 else 0.0
-        mood_distribution = {str(i): 0 for i in range(1, 6)}
-        for l in logs:
-            score = int(l.get("mood_score") or 0)
-            if 1 <= score <= 5:
-                mood_distribution[str(score)] += 1
-        sessions = [
-            {
-                "timestamp": l.get("timestamp", ""),
-                "session_id": l.get("session_id", ""),
-                "ai_push_cart_count": int(l.get("ai_push_cart_count", 0)),
-                "ai_push_success": bool(l.get("ai_push_success", False)),
-                "final_cart_ids": l.get("final_cart_ids", []),
-                "cart_sources": l.get("cart_sources", []),
-                "mood_score": int(l.get("mood_score") or 0),
-                "mood_label": str(l.get("mood_label") or ""),
-                "voice_turns": l.get("voice_turns", []),
-            }
-            for l in reversed(logs)
-        ]
-        return {
-            "status": "success",
-            "total_sessions": total,
-            "total_ai_push_cart_clicks": total_clicks,
-            "success_sessions": success_count,
-            "failure_sessions": failure_count,
-            "success_rate": rate,
-            "mood_hit_rate": mood_hit_rate,
-            "mood_sessions": mood_sessions,
-            "mood_distribution": mood_distribution,
-            "cumulative_score": success_count - failure_count,
-            "sessions": sessions,
-        }
+        return {"status": "success", **stats_service.compute_session_stats(logs)}
 
 
     @router.get("/api/public_settings")
@@ -213,44 +116,8 @@ def create_router(deps: dict) -> APIRouter:
             sources = []
         ai_count = max(0, int(ai_push_cart_count or 0))
 
-        session_history = await asyncio.to_thread(session_repository.get_session_history, session_id)
-        try:
-            loop = asyncio.get_running_loop()
-            log_entry = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    database.record_final_checkout,
-                    session_id,
-                    pushed_list,
-                    cart_list,
-                    session_history,
-                    ai_count,
-                    sources,
-                ),
-                timeout=5.0,
-            )
-        except asyncio.TimeoutError:
-            log_entry = {"skipped": True}
-
-        if not log_entry.get("skipped"):
-            intervention_result = await asyncio.to_thread(
-                _mark_latest_intervention_checkout, session_id, True, cart_list
-            )
-        else:
-            intervention_result = None
-        if intervention_result:
-            log_entry = dict(log_entry or {})
-            log_entry["recommendation_result"] = {
-                "session_id": session_id,
-                "pushed_ids": pushed_list,
-                "final_cart_ids": cart_list,
-                "is_success": bool(log_entry.get("is_success", False)),
-            }
-            log_entry["intervention_result"] = intervention_result
-
-        order_number = len(log_repository.get_session_logs())
-
-        session_repository.archive_session(session_id)
-        return {"status": "success", "log": log_entry, "order_number": order_number, "session_id": session_id}
+        return await checkout_service.process_checkout(
+            session_id, pushed_list, cart_list, ai_count, sources
+        )
 
     return router

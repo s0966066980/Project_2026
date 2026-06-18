@@ -85,46 +85,26 @@ def _build_emotion_context(session_id: str) -> str:
     return "【顧客情緒參考（Emotion-LLaMA）】\n" + "　".join(parts)
 
 
-async def handle_voice(
+async def _build_voice_context(
     session_id: str,
-    audio_path: str,
-    ollama_semaphore,
-    multi_lang: bool = True,
-) -> dict:
-    # ── 1. STT ────────────────────────────────────────────────────
-    stt = get_stt()
-    try:
-        stt_result = await stt.transcribe(audio_path)
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"STT 失敗: {e}",
-            "user_text": "", "ai_response": "", "audio_base64": "",
-            "audio_format": "", "cart_actions": [], "detected_lang": "zh",
-        }
+    user_text: str,
+    detected_lang: str,
+) -> tuple[str, str, list]:
+    """組合語音 LLM 的 system_prompt 與 user_prompt。
 
-    user_text = (stt_result.get("text") or "").strip()
-    detected_lang = stt_result.get("language", "zh") if multi_lang else "zh"
-
-    if not user_text:
-        return {
-            "status": "error",
-            "message": "無法辨識語音內容",
-            "user_text": "", "ai_response": "", "audio_base64": "",
-            "audio_format": "", "cart_actions": [], "detected_lang": detected_lang,
-        }
-
-    # ── 2. Ollama LLM ─────────────────────────────────────────────
+    handle_voice 與 handle_voice_stream 共用此邏輯：
+    載入菜單與對話歷史、選定中／英 system prompt、注入心情／情緒／RAG／熱門 context。
+    回傳 (system_prompt, user_prompt, menu_items)。
+    """
     (menu_items, full_menu_context), history = await asyncio.gather(
         _load_menu_cached(),
         asyncio.to_thread(session_repository.get_session_history, session_id),
     )
     history_context = _format_history(history)
 
-    if detected_lang == "en":
-        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN")
-    else:
-        system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT")
+    system_prompt = config.get(
+        "VOICE_ASSIST_SYSTEM_PROMPT_EN" if detected_lang == "en" else "VOICE_ASSIST_SYSTEM_PROMPT"
+    )
 
     # RAG context 注入
     if config.get("RAG_ENABLED", False):
@@ -165,6 +145,42 @@ async def handle_voice(
         + popular_section
         + (f"{rag_context}\n\n" if rag_context else "")
         + full_menu_context
+    )
+    return system_prompt, user_prompt, menu_items
+
+
+async def handle_voice(
+    session_id: str,
+    audio_path: str,
+    ollama_semaphore,
+    multi_lang: bool = True,
+) -> dict:
+    # ── 1. STT ────────────────────────────────────────────────────
+    stt = get_stt()
+    try:
+        stt_result = await stt.transcribe(audio_path)
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"STT 失敗: {e}",
+            "user_text": "", "ai_response": "", "audio_base64": "",
+            "audio_format": "", "cart_actions": [], "detected_lang": "zh",
+        }
+
+    user_text = (stt_result.get("text") or "").strip()
+    detected_lang = stt_result.get("language", "zh") if multi_lang else "zh"
+
+    if not user_text:
+        return {
+            "status": "error",
+            "message": "無法辨識語音內容",
+            "user_text": "", "ai_response": "", "audio_base64": "",
+            "audio_format": "", "cart_actions": [], "detected_lang": detected_lang,
+        }
+
+    # ── 2. Ollama LLM ─────────────────────────────────────────────
+    system_prompt, user_prompt, menu_items = await _build_voice_context(
+        session_id, user_text, detected_lang
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -258,49 +274,9 @@ async def handle_voice_stream(
         yield (err + "\n").encode()
         return
 
-    # ── Context（menu + history，與 STT 並行已在上層完成，此處直接取） ──
-    (menu_items, full_menu_context), history = await asyncio.gather(
-        _load_menu_cached(),
-        asyncio.to_thread(session_repository.get_session_history, session_id),
-    )
-    history_context = _format_history(history)
-
-    # ── System prompt ─────────────────────────────────────────────────
-    system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT_EN" if detected_lang == "en" else "VOICE_ASSIST_SYSTEM_PROMPT")
-
-    if config.get("RAG_ENABLED", False):
-        from services.rag_provider import get_rag
-        rag_context = await get_rag().query(user_text)
-    else:
-        rag_context = ""
-
-    mood_context = get_mood_context(session_id)
-    if mood_context:
-        system_prompt = f"【顧客心情參考】\n{mood_context}\n\n{system_prompt}"
-
-    emotion_context = _build_emotion_context(session_id)
-    if emotion_context:
-        system_prompt += (
-            "\n若有顧客情緒參考，請據此調整語氣與推薦措辭。"
-            "若顧客主動詢問情緒或心情相關問題，可自然地根據參考資料回應"
-            "（例如「您看起來心情有些低落」），但不要說「我在分析情緒」或「系統偵測到」等字眼。"
-        )
-
-    from services.popular_service import get_top_items
-    top_items = await asyncio.to_thread(get_top_items, 3)
-    popular_section = ""
-    if top_items:
-        lines = "\n".join(f"{i+1}. {t['name']}（{t['id']}）" for i, t in enumerate(top_items))
-        popular_section = f"【熱門點選 TOP 3】\n{lines}\n\n"
-
-    input_label = "【本輪語音輸入】" if history_context else "【顧客語音輸入】"
-    user_prompt = (
-        (f"{history_context}\n\n" if history_context else "")
-        + f"{input_label}\n{user_text}\n\n"
-        + (f"{emotion_context}\n\n" if emotion_context else "")
-        + popular_section
-        + (f"{rag_context}\n\n" if rag_context else "")
-        + full_menu_context
+    # ── Context + System prompt（與 handle_voice 共用組裝邏輯） ──────────
+    system_prompt, user_prompt, menu_items = await _build_voice_context(
+        session_id, user_text, detected_lang
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
