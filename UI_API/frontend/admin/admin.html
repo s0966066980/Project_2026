@@ -391,6 +391,17 @@ tbody tr:hover td { background: #f8fafd; }
 .voice-bubble-ai::before {
   content: "AI　"; font-weight: 700; font-size: 11px; opacity: 0.75;
 }
+/* Emotion 介入紀錄：描述折疊 */
+.emo-desc > summary {
+  cursor: pointer; color: #4b5daa; font-size: 12px;
+  list-style: none; user-select: none; white-space: nowrap;
+}
+.emo-desc > summary::-webkit-details-marker { display: none; }
+.emo-desc > summary::before { content: "顯示描述 ▸"; }
+.emo-desc[open] > summary::before { content: "隱藏描述 ▾"; }
+.emo-desc > .emo-desc-body {
+  margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--text2, #5a6b8c);
+}
 </style>
 </head>
 <body>
@@ -524,11 +535,10 @@ tbody tr:hover td { background: #f8fafd; }
                 <th>最終購物車</th>
                 <th>加入方式</th>
                 <th>語音對話</th>
-                <th>心情</th>
               </tr>
             </thead>
             <tbody id="s-tbody">
-              <tr><td colspan="8" class="adm-empty">載入中…</td></tr>
+              <tr><td colspan="7" class="adm-empty">載入中…</td></tr>
             </tbody>
           </table>
         </div>
@@ -688,38 +698,6 @@ tbody tr:hover td { background: #f8fafd; }
             </p>
             <div>
               <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
-            </div>
-          </section>
-
-          <hr style="border:none;border-top:1px solid #edf0f7">
-
-          <!-- 心情 Prompt -->
-          <section>
-            <div class="section-title">心情評分 Prompt 注入</div>
-            <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
-              顧客選擇星星後，對應文字會插入 AI 推播與語音 Prompt 最前方（<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">【顧客心情參考】</code>）。空白則使用系統預設。
-            </p>
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <div>
-                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★ 1 星 — 很差</label>
-                <textarea id="inp-mood-ctx-1" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
-              </div>
-              <div>
-                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★ 2 星 — 普通</label>
-                <textarea id="inp-mood-ctx-2" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
-              </div>
-              <div>
-                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★ 3 星 — 還不錯</label>
-                <textarea id="inp-mood-ctx-3" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
-              </div>
-              <div>
-                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★★ 4 星 — 很開心</label>
-                <textarea id="inp-mood-ctx-4" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
-              </div>
-              <div>
-                <label style="font-size:12px;font-weight:700;color:#3b4a6b;display:block;margin-bottom:4px">★★★★★ 5 星 — 超棒</label>
-                <textarea id="inp-mood-ctx-5" rows="2" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"></textarea>
-              </div>
             </div>
           </section>
 

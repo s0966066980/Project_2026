@@ -3,17 +3,6 @@ import { connectRealtime } from '../shared/realtime_client.js';
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
 
-const MOOD_BAR_COLORS = { '1':'#ef9a9a','2':'#ffcc80','3':'#fff176','4':'#a5d6a7','5':'#81d4fa' };
-const MOOD_BAR_LABELS = { '1':'★ 很差','2':'★★ 普通','3':'★★★ 還不錯','4':'★★★★ 很開心','5':'★★★★★ 超棒' };
-const MOOD_CHIP_STYLES = {
-  0: 'background:#f0f0f0;color:#aaa',
-  1: 'background:#ffebee;color:#c62828',
-  2: 'background:#fff8e1;color:#f57f17',
-  3: 'background:#fffde7;color:#827717',
-  4: 'background:#e8f5e9;color:#2e7d32',
-  5: 'background:#e3f2fd;color:#0d47a1',
-};
-
 const DEFAULT_PUSH_PROMPT =
   '你是麥當勞自助點餐機的 AI 推播助手。' +
   '只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。' +
@@ -337,20 +326,6 @@ function renderTable(sessions) {
 
     tr.append(tdTs, tdSid, tdClicks, tdResult, tdCart, tdSource, tdVoice);
 
-    // 心情欄
-    const tdMood = document.createElement('td');
-    const score = s.mood_score ?? 0;
-    if (score > 0) {
-      const chip = document.createElement('span');
-      chip.style.cssText = `display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;${MOOD_CHIP_STYLES[score] || ''}`;
-      chip.textContent = `${'★'.repeat(score)} ${['','很差','普通','還不錯','很開心','超棒'][score]}`;
-      tdMood.appendChild(chip);
-    } else {
-      tdMood.style.cssText = 'color:#bbb;font-size:12px';
-      tdMood.textContent = '—';
-    }
-    tr.appendChild(tdMood);
-
     tbody.appendChild(tr);
   });
 }
@@ -425,8 +400,6 @@ async function loadSettings() {
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
     // 付款逾時協助 Prompt
     setVal('inp-payment-assist-prompt', s.PAYMENT_ASSIST_PROMPT || '');
-    // 心情 Prompt
-    [1,2,3,4,5].forEach(n => setVal(`inp-mood-ctx-${n}`, s[`MOOD_CONTEXT_${n}`] || ''));
     const kws = Array.isArray(s.PASSIVE_VOICE_KEYWORDS) ? s.PASSIVE_VOICE_KEYWORDS : [];
     setVal('inp-passive-keywords', kws.join('\n'));
     // 別名：{"MCDxxx": ["別名1","別名2"]} → "MCDxxx = 別名1, 別名2\n..."
@@ -473,8 +446,6 @@ async function saveSettings() {
       TTS_API_URL:         val('inp-tts-api-url'),
       TTS_API_KEY:         val('inp-tts-api-key'),
       TTS_VOICE:           val('inp-tts-voice')     || 'alloy',
-      // 心情 Prompt（空白 = 保留系統預設，交由後端 config fallback 處理）
-      ...Object.fromEntries([1,2,3,4,5].map(n => [`MOOD_CONTEXT_${n}`, val(`inp-mood-ctx-${n}`)])),
       PASSIVE_VOICE_KEYWORDS: (val('inp-passive-keywords') || '')
         .split('\n').map(s => s.trim()).filter(Boolean),
       PASSIVE_VOICE_ALIASES: Object.fromEntries(
@@ -593,6 +564,23 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Emotion-LLaMA 結構化欄位英→繁對照（emotion / intensity 為有限列舉）
+const EMOTION_ZH = {
+  neutral: '中性', happy: '開心', sad: '難過', angry: '生氣',
+  frustrated: '沮喪', anxious: '焦慮', confused: '困惑', surprised: '驚訝',
+  disgust: '厭惡', fear: '害怕', fearful: '害怕', excited: '興奮', bored: '無聊',
+};
+const INTENSITY_ZH = { low: '低', medium: '中', high: '高' };
+
+function zhEmotion(v) {
+  if (!v) return '';
+  return EMOTION_ZH[String(v).trim().toLowerCase()] || v;
+}
+function zhIntensity(v) {
+  if (!v) return '';
+  return INTENSITY_ZH[String(v).trim().toLowerCase()] || v;
+}
+
 async function loadEmotionLogs() {
   const tbody = g('emotion-logs-tbody');
   if (!tbody) return;
@@ -624,11 +612,13 @@ async function loadEmotionLogs() {
         vocalCell  = EMPTY_CELL;
         descCell   = EMPTY_CELL;
       } else {
-        const intens = r.intensity ? ` <span style="font-size:11px;color:var(--text2)">(${escHtml(r.intensity)})</span>` : '';
-        emoCell    = r.emotion  ? `<strong>${escHtml(r.emotion)}</strong>${intens}` : EMPTY_CELL;
+        const intens = r.intensity ? ` <span style="font-size:11px;color:var(--text2)">(${escHtml(zhIntensity(r.intensity))})</span>` : '';
+        emoCell    = r.emotion  ? `<strong>${escHtml(zhEmotion(r.emotion))}</strong>${intens}` : EMPTY_CELL;
         facialCell = r.facial   ? escHtml(r.facial)   : EMPTY_CELL;
         vocalCell  = r.vocal    ? escHtml(r.vocal)    : EMPTY_CELL;
-        descCell   = r.description ? escHtml(r.description) : EMPTY_CELL;
+        descCell   = r.description
+          ? `<details class="emo-desc"><summary></summary><div class="emo-desc-body">${escHtml(r.description)}</div></details>`
+          : EMPTY_CELL;
       }
 
       return `<tr style="border-top:1px solid var(--border)">
