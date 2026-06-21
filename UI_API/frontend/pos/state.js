@@ -30,4 +30,5 @@ export const state = {
   sessionCartSources: [],   // [{id, source}] 記錄每筆加入來源
   interactionModalTimer: null,
   lastValidOrderActionAt: 0,
+  member: null,
 };

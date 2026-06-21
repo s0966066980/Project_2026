@@ -200,3 +200,18 @@ export async function passiveCheck(sessionId, audioBlob) {
   fd.append('media', audioBlob, 'passive.webm');
   return asJson(await fetch(`${API_BASE}/api/passive_check`, { method: 'POST', body: fd }));
 }
+
+export async function memberLogin(sessionId, phone) {
+  const fd = new FormData();
+  fd.append('session_id', sessionId);
+  fd.append('phone', phone);
+  return asJson(await fetch(`${API_BASE}/api/member/login`, { method: 'POST', body: fd }));
+}
+
+export async function memberRegister(sessionId, phone, nickname) {
+  const fd = new FormData();
+  fd.append('session_id', sessionId);
+  fd.append('phone', phone);
+  fd.append('nickname', nickname || '');
+  return asJson(await fetch(`${API_BASE}/api/member/register`, { method: 'POST', body: fd }));
+}

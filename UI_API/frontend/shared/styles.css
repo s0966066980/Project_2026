@@ -3260,3 +3260,33 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
   flex-shrink: 0;
   color: #c8102e;
 }
+.member-overlay { position:absolute; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+  background:rgba(40,32,24,.55); }
+.member-overlay.hidden { display:none; }
+.member-card { width:min(92vw,420px); background:#e8ddd4; border-radius:24px; padding:30px 26px; position:relative;
+  display:flex; flex-direction:column; }
+.member-arches { text-align:center; font-size:52px; font-weight:900; color:#ffbc0d; letter-spacing:-4px; }
+.member-welcome,.member-title { text-align:center; color:#3a2c1f; font-size:24px; font-weight:800; margin:10px 0 4px; }
+.member-sub { text-align:center; color:#8a7866; font-size:15px; margin-bottom:22px; }
+.member-choice { border:none; border-radius:18px; padding:22px; margin-bottom:16px; text-align:left; cursor:pointer;
+  display:flex; flex-direction:column; gap:4px; }
+.member-choice.member { background:linear-gradient(135deg,#da291c,#b3160c); color:#fff; }
+.member-choice.guest { background:#fff; color:#2a2018; border:2px solid #e0d3c6; }
+.member-choice strong { font-size:20px; } .member-choice small { font-size:13px; opacity:.9; }
+.member-choice-badge { align-self:flex-start; background:#ffbc0d; color:#3a2c1f; font-size:11px; font-weight:800;
+  padding:2px 9px; border-radius:20px; }
+.member-back { position:absolute; top:20px; left:18px; width:40px; height:40px; border-radius:12px; border:1px solid #e0d3c6;
+  background:#fff; color:#6b5d4f; font-size:18px; cursor:pointer; }
+.member-phone-display { background:#fff; border:2px solid #e0d3c6; border-radius:14px; height:64px; display:flex;
+  align-items:center; justify-content:center; font-size:30px; font-weight:800; letter-spacing:3px; color:#2a2018; }
+.member-hint { text-align:center; font-size:12.5px; color:#a8978a; margin:8px 0 18px; min-height:16px; }
+.member-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.member-keypad button { background:#fff; border:1px solid #e6dace; border-radius:14px; min-height:58px; font-size:26px;
+  font-weight:700; color:#2a2018; cursor:pointer; }
+.member-keypad button.fn { background:#efe6dc; font-size:18px; color:#6b5d4f; }
+.member-input { background:#fff; border:2px solid #e0d3c6; border-radius:14px; height:56px; padding:0 16px; font-size:18px;
+  color:#2a2018; margin-bottom:18px; }
+.member-primary { background:linear-gradient(135deg,#da291c,#b3160c); color:#fff; border:none; border-radius:16px;
+  height:58px; font-size:18px; font-weight:800; cursor:pointer; margin-top:18px; }
+.member-skip { background:none; border:none; color:#8a7866; font-size:13px; text-decoration:underline; cursor:pointer;
+  margin-top:14px; }

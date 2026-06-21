@@ -23,6 +23,7 @@ import {
   getChoiceHesitationModal,
 } from './choice_hesitation.js';
 import { openPaymentCountdown, closePaymentCountdown, _showPaymentCdSection } from './payment_countdown.js';
+import { showMemberChoice } from './member.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -1233,11 +1234,20 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
 // =========================================================
 ui.startBtn.onclick = async () => {
   if (isAdminMode()) return;
+  await loadRuntimeSettings();
+  if (getRuntimeSettings().MEMBER_ENABLED) {
+    ui.overlay.classList.add('hidden');  // 收起開始頁，露出會員選擇 overlay
+    showMemberChoice(() => { runPosStartup(); });
+  } else {
+    runPosStartup();
+  }
+};
+
+async function runPosStartup() {
   try {
-    await loadRuntimeSettings();
     const f = getFeatures();
     const needAudio = Boolean(f.voiceAssist);
-    const needVideo = Boolean(runtimeSettings.EMOTION_LLAMA_ENABLED);
+    const needVideo = Boolean(getRuntimeSettings().EMOTION_LLAMA_ENABLED);
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && needAudio) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
     await loadMenu();
@@ -1248,19 +1258,18 @@ ui.startBtn.onclick = async () => {
     state.lastCartAddAt = Date.now();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
-    setTimeout(() => aiPush.start(), 600); // overlay 淡出 500ms 後再顯示推播
+    setTimeout(() => aiPush.start(), 600);
     if (f.voiceAssist) setupAskRecorder();
-    if (runtimeSettings.EMOTION_LLAMA_ENABLED && state.stream) {
+    if (getRuntimeSettings().EMOTION_LLAMA_ENABLED && state.stream) {
       const bufferSec = Math.max(
-        Number(runtimeSettings.EMOTION_LLAMA_CLIP_SEC) || 2.0,
-        Number(runtimeSettings.PAYMENT_EMOTION_CLIP_SEC) || 5.0,
+        Number(getRuntimeSettings().EMOTION_LLAMA_CLIP_SEC) || 2.0,
+        Number(getRuntimeSettings().PAYMENT_EMOTION_CLIP_SEC) || 5.0,
       );
       startRollingBuffer(state.stream, bufferSec);
     }
   } catch { alert("無法存取攝影機與麥克風。"); }
-  // 被動語音監聽在 try/catch 之外啟動，確保即使媒體權限失敗也能運行
   startPassiveListener();
-};
+}
 
 // 閒置偵測：任何觸控 / 點擊都重設計時（全域，只需註冊一次）
 document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); }, { passive: true });

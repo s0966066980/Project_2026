@@ -203,6 +203,55 @@
     </button>
   </div>
 
+  <!-- 會員：選擇頁 -->
+  <div id="memberChoiceOverlay" class="member-overlay hidden" aria-hidden="true">
+    <div class="member-card">
+      <div class="member-arches">M</div>
+      <h2 class="member-welcome">歡迎光臨</h2>
+      <p class="member-sub">請選擇您的點餐方式</p>
+      <button id="memberChoiceMember" class="member-choice member" type="button">
+        <span class="member-choice-badge">會員專屬</span>
+        <strong>會員點餐</strong>
+        <small>手機登入 · 專屬推薦 · 您的常點</small>
+      </button>
+      <button id="memberChoiceGuest" class="member-choice guest" type="button">
+        <strong>直接點餐</strong>
+        <small>免登入，立即開始</small>
+      </button>
+    </div>
+  </div>
+
+  <!-- 會員：手機登入 -->
+  <div id="memberLoginOverlay" class="member-overlay hidden" aria-hidden="true">
+    <div class="member-card">
+      <button id="memberLoginBack" class="member-back" type="button">←</button>
+      <h2 class="member-title">會員登入</h2>
+      <p class="member-sub">請輸入手機號碼</p>
+      <div id="memberPhoneDisplay" class="member-phone-display"></div>
+      <p id="memberLoginHint" class="member-hint">輸入完整 10 碼後按「下一步」</p>
+      <div id="memberKeypad" class="member-keypad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <button type="button" data-k="clear" class="fn">清除</button><button type="button" data-k="0">0</button><button type="button" data-k="back" class="fn">⌫</button>
+      </div>
+      <button id="memberLoginNext" class="member-primary" type="button">下一步 →</button>
+      <button id="memberLoginSkip" class="member-skip" type="button">略過，直接點餐</button>
+    </div>
+  </div>
+
+  <!-- 會員：快速註冊 -->
+  <div id="memberRegisterOverlay" class="member-overlay hidden" aria-hidden="true">
+    <div class="member-card">
+      <button id="memberRegisterBack" class="member-back" type="button">←</button>
+      <h2 class="member-title">快速註冊會員</h2>
+      <p class="member-hint">這支號碼 <b id="memberRegisterPhone"></b> 還不是會員，輸入暱稱即可完成（可留空）</p>
+      <input id="memberNicknameInput" class="member-input" type="text" maxlength="20" placeholder="暱稱（例如：小明）" />
+      <button id="memberRegisterDone" class="member-primary" type="button">完成註冊並開始點餐 →</button>
+      <button id="memberRegisterSkip" class="member-skip" type="button">略過，直接點餐</button>
+    </div>
+  </div>
+
   <!-- 確認訂單 modal（保留舊版結構，正式 McDonald 風格流程改用下方付款頁） -->
   <div id="orderConfirmModal" class="order-modal hidden" aria-hidden="true">
     <div class="order-modal-backdrop"></div>
