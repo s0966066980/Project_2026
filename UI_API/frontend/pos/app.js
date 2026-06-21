@@ -1374,6 +1374,7 @@ async function writeCheckoutLog(cartIds = []) {
   fd.append('cart_ids', JSON.stringify(cartIds));
   fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
   fd.append('cart_sources', JSON.stringify(state.sessionCartSources));
+  fd.append('cart_total', String(cartManager.getCartTotal()));
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {

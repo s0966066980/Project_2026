@@ -99,6 +99,7 @@ def create_router(deps: dict) -> APIRouter:
         cart_ids: str = Form(...),
         ai_push_cart_count: str = Form(default="0"),
         cart_sources: str = Form(default="[]"),
+        cart_total: str = Form(default="0"),
     ):
         try:
             pushed_list = json.loads(pushed_ids) if pushed_ids else []
@@ -115,9 +116,13 @@ def create_router(deps: dict) -> APIRouter:
         except (json.JSONDecodeError, ValueError):
             sources = []
         ai_count = max(0, int(ai_push_cart_count or 0))
+        try:
+            total_val = int(float(cart_total or 0))
+        except (TypeError, ValueError):
+            total_val = 0
 
         return await checkout_service.process_checkout(
-            session_id, pushed_list, cart_list, ai_count, sources
+            session_id, pushed_list, cart_list, ai_count, sources, total_val
         )
 
     return router

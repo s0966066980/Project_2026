@@ -7,6 +7,7 @@ from datetime import datetime
 
 import database
 from repositories import interaction_event_repository, log_repository, session_repository
+from services import member_service
 
 
 def _seconds_since_timestamp(timestamp: str) -> int:
@@ -71,6 +72,7 @@ async def process_checkout(
     cart_list: list,
     ai_count: int,
     sources: list,
+    cart_total: int = 0,
 ) -> dict:
     session_history = await asyncio.to_thread(session_repository.get_session_history, session_id)
     try:
@@ -106,6 +108,13 @@ async def process_checkout(
             "is_success": bool(log_entry.get("is_success", False)),
         }
         log_entry["intervention_result"] = intervention_result
+
+    try:
+        await asyncio.to_thread(
+            member_service.finalize_checkout, session_id, cart_list, cart_total, True
+        )
+    except Exception:
+        pass
 
     order_number = len(log_repository.get_session_logs())
     session_repository.archive_session(session_id)
