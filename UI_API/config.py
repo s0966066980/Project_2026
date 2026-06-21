@@ -70,6 +70,11 @@ DEFAULT_SETTINGS = {
     "OLLAMA_POOL_CONNECTIONS": 2,    # 連線池數量（需重啟生效）
     "OLLAMA_POOL_MAXSIZE": 4,        # 連線池最大連線數（需重啟生效）
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
+    # ── 會員制 ─────────────────────────────────────────────────────
+    "MEMBER_ENABLED": True,            # 總開關；false 時 kiosk 跳過選擇頁、後台隱藏分頁
+    "MEMBER_USUALS_COUNT": 8,          # 「您的常點」顯示品項數
+    "MEMBER_PUSH_WEIGHT": 4,           # 會員常點品項於 ai_push 加權倍率
+    "MEMBER_ORDERS_KEEP": 20,          # 每位會員保留近期訂單筆數
     # ── RAG ───────────────────────────────────────────────────────
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
@@ -144,6 +149,8 @@ PUBLIC_SETTINGS_KEYS = {
     "AI_PUSH_REFRESH_SEC",
     "PAYMENT_EMOTION_CLIP_SEC",
     "PASSIVE_VOICE_KEYWORDS",
+    "MEMBER_ENABLED",
+    "MEMBER_USUALS_COUNT",
 }
 
 
