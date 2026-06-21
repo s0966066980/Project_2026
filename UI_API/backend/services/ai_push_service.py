@@ -7,6 +7,7 @@ import time
 import ai_services
 import config
 from repositories import menu_repository
+from services import member_service
 from services.recommendation_service import clean_menu_id
 from services.popular_service import get_top_items
 
@@ -40,15 +41,22 @@ def _menu_context(items: list[dict], limit: int = 80) -> str:
     return "\n".join(rows)
 
 
-def _weighted_pick(items: list[dict], exclude: set, top_weight: int = 3) -> dict | None:
-    """加權隨機選品：TOP3 品項權重 top_weight 倍，其他品項等機率（1）。"""
+def _weighted_pick(items: list[dict], exclude: set, top_weight: int = 3, member_ids=None) -> dict | None:
+    """加權隨機選品：TOP3 權重 top_weight 倍、會員常點權重 MEMBER_PUSH_WEIGHT 倍，其餘等機率。"""
     candidates = [i for i in items if i.get("id") and i["id"] not in exclude and _price(i) > 0]
     if not candidates:
         return None
     top_ids = {t["id"] for t in get_top_items(3)}
+    member_set = set(member_ids or [])
+    member_weight = int(config.get("MEMBER_PUSH_WEIGHT", 4))
     pool = []
     for item in candidates:
-        pool.extend([item] * (top_weight if item["id"] in top_ids else 1))
+        weight = 1
+        if item["id"] in top_ids:
+            weight = max(weight, top_weight)
+        if item["id"] in member_set:
+            weight = max(weight, member_weight)
+        pool.extend([item] * weight)
     return random.choice(pool)
 
 
@@ -79,7 +87,9 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
         return {"status": "error", "message": "menu is empty"}
 
     # 加權隨機選品：TOP3 品項機率提高，其他等機率
-    picked = await asyncio.to_thread(_weighted_pick, items, exclude)
+    member = member_service.get_session_member(session_id)
+    member_ids = member_service.member_top_ids(member) if member else []
+    picked = await asyncio.to_thread(_weighted_pick, items, exclude, 3, member_ids)
     if not picked:
         picked = fallback
     sel_id   = picked.get("id") or fb_id
@@ -97,8 +107,14 @@ async def generate(session_id: str, ollama_semaphore, exclude_ids: list[str] | N
             pass
 
     system = config.get("AI_PUSH_SYSTEM_PROMPT")
+    member_section = ""
+    if member:
+        ctx = member_service.member_push_context(member)
+        if ctx:
+            member_section = f"{ctx}\n\n"
     user = (
         f"{rag_section}"
+        f"{member_section}"
         f"【指定推播餐點】{sel_id}｜{sel_name}\n\n"
         f"push_text 必須是繁體中文，字數至少 {config.get('AI_PUSH_TEXT_MIN', 18)} 字、最多 {config.get('AI_PUSH_TEXT_MAX', 34)} 字，"
         f"自然熱情地促購此餐點，不要出現 JSON 以外的文字。"
