@@ -146,3 +146,46 @@ def finalize_checkout(session_id: str, final_cart_ids: list, total, is_success: 
     member_repository.upsert_member(member)
     clear_session(session_id)
     return member
+
+
+def admin_list() -> list:
+    members = member_repository.get_all_members()
+    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    rows = []
+    for m in members:
+        favs = [menu_by_id.get(iid, {}).get("name", iid) for iid in member_top_ids(m, 2)]
+        rows.append({
+            "phone_masked": mask_phone(m.get("phone", "")),
+            "phone": m.get("phone", ""),
+            "nickname": m.get("nickname", ""),
+            "visit_count": int(m.get("visit_count", 0)),
+            "total_spend": int(m.get("total_spend", 0)),
+            "last_visit_at": m.get("last_visit_at", ""),
+            "favorites": favs,
+        })
+    return rows
+
+
+def admin_detail(phone) -> dict | None:
+    m = member_repository.get_member(normalize_phone(phone) or str(phone))
+    if not m:
+        return None
+    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    freq = m.get("item_freq") or {}
+    ranked = [
+        {"id": iid, "name": menu_by_id.get(iid, {}).get("name", iid), "count": cnt}
+        for iid, cnt in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+    visit = int(m.get("visit_count", 0))
+    spend = int(m.get("total_spend", 0))
+    return {
+        "phone_masked": mask_phone(m.get("phone", "")),
+        "nickname": m.get("nickname", ""),
+        "created_at": m.get("created_at", ""),
+        "visit_count": visit,
+        "total_spend": spend,
+        "avg_spend": (spend // visit if visit else 0),
+        "last_visit_at": m.get("last_visit_at", ""),
+        "favorites_ranked": ranked,
+        "orders": list(reversed(m.get("orders") or [])),
+    }
