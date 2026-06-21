@@ -79,3 +79,6 @@ Emotion-LLaMA/checkpoints/**/.git/
 
 # Backup files with timestamp suffix
 *.bak.*
+
+# Superpowers brainstorm mockups (local only)
+.superpowers/
