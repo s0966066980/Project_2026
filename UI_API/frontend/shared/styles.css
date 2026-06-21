@@ -3290,3 +3290,21 @@ body:has(#checkoutOverlay:not(.hidden)) #kioskBottomBar {
   height:58px; font-size:18px; font-weight:800; cursor:pointer; margin-top:18px; }
 .member-skip { background:none; border:none; color:#8a7866; font-size:13px; text-decoration:underline; cursor:pointer;
   margin-top:14px; }
+.member-menu-bar { background:linear-gradient(135deg,#fff7e8,#ffeccc); border-bottom:1px solid #f0dca5; padding:12px 16px; }
+.member-menu-bar.hidden { display:none; }
+.member-menu-id { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.member-menu-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#da291c,#b3160c);
+  color:#fff; display:grid; place-items:center; font-weight:800; }
+.member-menu-name { font-size:15px; font-weight:800; color:#2a2018; }
+.member-menu-meta { font-size:11.5px; color:#9a8978; }
+.member-usuals-title { font-size:14px; font-weight:800; color:#3a2c1f; margin-bottom:8px; }
+.member-usuals-row { display:flex; gap:10px; overflow-x:auto; padding-bottom:3px; }
+.member-usual-card { flex:0 0 110px; background:#fff; border:1px solid #f0dca5; border-radius:12px; padding:9px;
+  position:relative; cursor:pointer; }
+.member-usual-img { height:56px; border-radius:8px; background:#f3ece4; display:grid; place-items:center; font-size:26px;
+  margin-bottom:6px; overflow:hidden; }
+.member-usual-img img { width:100%; height:100%; object-fit:cover; }
+.member-usual-name { font-size:12px; font-weight:700; color:#2a2018; line-height:1.3; height:31px; overflow:hidden; }
+.member-usual-price { font-size:12.5px; font-weight:800; color:#da291c; }
+.member-usual-count { position:absolute; top:6px; right:6px; background:#da291c; color:#fff; font-size:10px; font-weight:800;
+  padding:1px 6px; border-radius:20px; }

@@ -23,7 +23,7 @@ import {
   getChoiceHesitationModal,
 } from './choice_hesitation.js';
 import { openPaymentCountdown, closePaymentCountdown, _showPaymentCdSection } from './payment_countdown.js';
-import { showMemberChoice } from './member.js';
+import { showMemberChoice, renderMemberMenuHeader } from './member.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
@@ -1258,6 +1258,7 @@ async function runPosStartup() {
     state.lastCartAddAt = Date.now();
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
+    renderMemberMenuHeader();
     setTimeout(() => aiPush.start(), 600);
     if (f.voiceAssist) setupAskRecorder();
     if (getRuntimeSettings().EMOTION_LLAMA_ENABLED && state.stream) {

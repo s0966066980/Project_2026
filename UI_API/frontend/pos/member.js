@@ -4,7 +4,8 @@
 // =========================================================
 import * as api from '../shared/api.js';
 import { state } from './state.js';
-import { sessionId } from './app.js';
+import { sessionId, cartManager } from './app.js';
+import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
 
 const $ = (id) => document.getElementById(id);
 let _phone = '';
@@ -86,3 +87,61 @@ $('memberKeypad')?.addEventListener('click', (e) => {
   const k = e.target?.getAttribute?.('data-k');
   if (k) onKey(k);
 });
+
+export function renderMemberMenuHeader() {
+  const bar = $('memberMenuBar');
+  const m = state.member;
+  if (!bar) return;
+  if (!m) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  $('memberMenuAvatar').textContent = (m.nickname || '會員').slice(0, 1);
+  $('memberMenuName').textContent = `歡迎回來，${m.nickname || '會員'} 👋`;
+  $('memberMenuMeta').textContent = `第 ${m.visit_count + 1} 次光臨 · 會員`;
+
+  const row = $('memberUsualsRow');
+  row.textContent = '';
+  const usuals = Array.isArray(m.usuals) ? m.usuals : [];
+  if (!usuals.length) {
+    const empty = document.createElement('div');
+    empty.className = 'member-usuals-empty';
+    empty.textContent = '首次點餐後，這裡會出現您的常點 ✨';
+    empty.style.cssText = 'font-size:12px;color:#9a8978;padding:6px 2px';
+    row.appendChild(empty);
+    return;
+  }
+  usuals.forEach((item) => {
+    const visual = getMenuVisual(item);
+    const card = document.createElement('div');
+    card.className = 'member-usual-card';
+
+    const count = document.createElement('span');
+    count.className = 'member-usual-count';
+    count.textContent = `×${item.count}`;
+
+    const img = document.createElement('div');
+    img.className = 'member-usual-img';
+    if (visual.image) {
+      const el = document.createElement('img');
+      el.src = visual.image; el.alt = item.name || '';
+      el.onerror = () => { img.textContent = visual.emoji || '🍔'; };
+      img.appendChild(el);
+    } else {
+      img.textContent = visual.emoji || '🍔';
+    }
+
+    const name = document.createElement('div');
+    name.className = 'member-usual-name';
+    name.textContent = item.name || '';
+
+    const price = document.createElement('div');
+    price.className = 'member-usual-price';
+    price.textContent = formatItemPrice(item);
+
+    card.append(count, img, name, price);
+    card.addEventListener('click', () => {
+      // cart.js 的 addToCart(item) 接收單一 item 物件（以 item.id 為 key），不是位置參數。
+      cartManager.addToCart({ id: item.id, name: item.name, price: Number(item.price || 0) });
+    });
+    row.appendChild(card);
+  });
+}
