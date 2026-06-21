@@ -111,7 +111,7 @@ async def process_checkout(
 
     try:
         await asyncio.to_thread(
-            member_service.finalize_checkout, session_id, cart_list, cart_total, True
+            member_service.finalize_checkout, session_id, cart_list, cart_total, bool(log_entry.get("is_success", False))
         )
     except Exception:
         pass

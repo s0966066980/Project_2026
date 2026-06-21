@@ -55,8 +55,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA' };
-    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye' };
+    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理' };
+    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -814,7 +814,7 @@ async function clearRagDocs() {
 // ── Members ──
 
 async function loadMembers() {
-  const rows = await fetch('/api/members').then(r => r.json()).catch(() => []);
+  const rows = await fetch('/api/members', { headers: adminHeaders() }).then(r => r.json()).catch(() => []);
   window._memberRows = Array.isArray(rows) ? rows : [];
   renderMemberStats(window._memberRows);
   renderMemberTable(window._memberRows);
@@ -854,7 +854,7 @@ function renderMemberTable(rows) {
 }
 
 async function loadMemberDetail(phone) {
-  const d = await fetch(`/api/members/${encodeURIComponent(phone)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const d = await fetch(`/api/members/${encodeURIComponent(phone)}`, { headers: adminHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null);
   const panel = document.getElementById('memberDetailPanel');
   if (!d) { panel.classList.add('hidden'); return; }
   const favRows = (d.favorites_ranked || []).map(f =>
