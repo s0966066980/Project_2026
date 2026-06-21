@@ -70,6 +70,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'settings') loadSettings();
     if (page === 'rag') { loadRagSettings(); loadRagDocs(); }
     if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
+    if (page === 'members') loadMembers();
   });
 });
 
@@ -410,6 +411,10 @@ async function loadSettings() {
 
     onSttProviderChange();
     onTtsProviderChange();
+    if (s.MEMBER_ENABLED === false) {
+      const tab = document.querySelector('.nav-item[data-page="members"]');
+      if (tab) tab.style.display = 'none';
+    }
   } catch (e) {
     console.error('loadSettings failed', e);
   }
@@ -804,6 +809,69 @@ async function clearRagDocs() {
   } catch (e) {
     ragNotice(`清空失敗：${e.message}`, false);
   }
+}
+
+// ── Members ──
+
+async function loadMembers() {
+  const rows = await fetch('/api/members').then(r => r.json()).catch(() => []);
+  window._memberRows = Array.isArray(rows) ? rows : [];
+  renderMemberStats(window._memberRows);
+  renderMemberTable(window._memberRows);
+}
+
+function renderMemberStats(rows) {
+  const total = rows.length;
+  const weekAgo = Date.now() - 7 * 864e5;
+  const active = rows.filter(r => Date.parse(r.last_visit_at || '') >= weekAgo).length;
+  const visits = rows.reduce((s, r) => s + (r.visit_count || 0), 0);
+  const spend = rows.reduce((s, r) => s + (r.total_spend || 0), 0);
+  const avg = visits ? Math.round(spend / visits) : 0;
+  const favFreq = {};
+  rows.forEach(r => (r.favorites || []).forEach(f => { favFreq[f] = (favFreq[f] || 0) + 1; }));
+  const topFav = Object.entries(favFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+  const cards = [['總會員數', total], ['本週活躍', active], ['會員平均客單', '$' + avg], ['會員最愛品項', topFav]];
+  document.getElementById('memberStatCards').innerHTML = cards
+    .map(([label, val]) => `<div class="member-stat"><b>${escHtml(String(val))}</b><span>${escHtml(label)}</span></div>`)
+    .join('');
+}
+
+function renderMemberTable(rows) {
+  const body = document.getElementById('memberTableBody');
+  body.innerHTML = '';
+  rows.forEach((r) => {
+    const tr = document.createElement('tr');
+    const favs = (r.favorites || []).map(f => `<span class="fav-chip">${escHtml(f)}</span>`).join('');
+    tr.innerHTML = `<td>${escHtml(r.phone_masked || '')}</td><td>${escHtml(r.nickname || '')}</td>`
+      + `<td>${r.visit_count || 0} 次</td><td>$${r.total_spend || 0}</td>`
+      + `<td>${escHtml(r.last_visit_at ? r.last_visit_at.slice(0, 10) : '—')}</td><td>${favs}</td>`
+      + `<td><button class="view-btn" data-phone="${escHtml(r.phone || '')}">查看</button></td>`;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadMemberDetail(btn.getAttribute('data-phone')));
+  });
+}
+
+async function loadMemberDetail(phone) {
+  const d = await fetch(`/api/members/${encodeURIComponent(phone)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const panel = document.getElementById('memberDetailPanel');
+  if (!d) { panel.classList.add('hidden'); return; }
+  const favRows = (d.favorites_ranked || []).map(f =>
+    `<div class="fav-row"><span>${escHtml(f.name)}</span><b>×${f.count}</b></div>`).join('');
+  const orderRows = (d.orders || []).map(o => {
+    const items = (o.cart_ids || []).map(escHtml).join('、');
+    const hit = o.is_success ? '<span class="hit">⭐ 推播命中</span>' : '';
+    return `<div class="order-row"><div><span>${escHtml((o.timestamp || '').slice(0, 16).replace('T', ' '))}</span>`
+      + `<b>$${o.total || 0}</b></div><div class="order-items">${items}</div>${hit}</div>`;
+  }).join('');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<h2>${escHtml(d.nickname || '')}　<small>${escHtml(d.phone_masked || '')}</small></h2>`
+    + `<div class="member-kpis"><div><b>${d.visit_count}</b><span>光臨</span></div>`
+    + `<div><b>$${d.total_spend}</b><span>累計消費</span></div>`
+    + `<div><b>$${d.avg_spend}</b><span>平均客單</span></div></div>`
+    + `<h3>🔁 常點品項排行</h3>${favRows || '<p class="muted">尚無紀錄</p>'}`
+    + `<h3>🧾 歷次訂單</h3>${orderRows || '<p class="muted">尚無訂單</p>'}`;
 }
 
 // expose to inline handlers
