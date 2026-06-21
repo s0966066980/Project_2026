@@ -32,7 +32,8 @@ def clear_session(session_id: str) -> None:
 
 
 def get_session_member(session_id: str) -> dict | None:
-    phone = _session_member.get(session_id)
+    with _lock:
+        phone = _session_member.get(session_id)
     return member_repository.get_member(phone) if phone else None
 
 
