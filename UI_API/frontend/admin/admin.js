@@ -871,7 +871,31 @@ async function loadMemberDetail(phone) {
     + `<div><b>$${d.total_spend}</b><span>累計消費</span></div>`
     + `<div><b>$${d.avg_spend}</b><span>平均客單</span></div></div>`
     + `<h3>🔁 常點品項排行</h3>${favRows || '<p class="muted">尚無紀錄</p>'}`
-    + `<h3>🧾 歷次訂單</h3>${orderRows || '<p class="muted">尚無訂單</p>'}`;
+    + `<h3>🧾 歷次訂單</h3>${orderRows || '<p class="muted">尚無訂單</p>'}`
+    + `<div class="member-danger">`
+    + `<button class="member-clear-btn" type="button">🧹 刪除點餐紀錄</button>`
+    + `<button class="member-delete-btn" type="button">🗑️ 刪除會員帳戶</button>`
+    + `</div>`;
+  panel.querySelector('.member-clear-btn')?.addEventListener('click', () => clearMemberRecords(phone, d.nickname || ''));
+  panel.querySelector('.member-delete-btn')?.addEventListener('click', () => deleteMember(phone, d.nickname || ''));
+}
+
+async function clearMemberRecords(phone, nickname) {
+  if (!confirm(`確定要刪除「${nickname || phone}」的所有點餐紀錄（訂單、常點、消費統計）嗎？\n帳戶會保留，但紀錄無法復原。`)) return;
+  const res = await fetch(`/api/members/${encodeURIComponent(phone)}/records`, { method: 'DELETE', headers: adminHeaders() })
+    .then(r => r.ok).catch(() => false);
+  if (!res) { alert('刪除失敗'); return; }
+  await loadMembers();
+  loadMemberDetail(phone);
+}
+
+async function deleteMember(phone, nickname) {
+  if (!confirm(`確定要刪除會員帳戶「${nickname || phone}」嗎？\n此操作將永久移除該會員及其所有紀錄，無法復原。`)) return;
+  const res = await fetch(`/api/members/${encodeURIComponent(phone)}`, { method: 'DELETE', headers: adminHeaders() })
+    .then(r => r.ok).catch(() => false);
+  if (!res) { alert('刪除失敗'); return; }
+  document.getElementById('memberDetailPanel')?.classList.add('hidden');
+  await loadMembers();
 }
 
 // expose to inline handlers

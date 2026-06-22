@@ -254,6 +254,30 @@ def _ensure_ollama(
     threading.Thread(target=_pull, name="ollama-pull", daemon=True).start()
 
 
+def _kill_stray_ngrok():
+    """清掉其他 process tree 殘留的 ngrok agent（上次 main.py 被 kill 後遺留），
+    避免 session 名額被佔滿（ERR_NGROK_108）。最佳努力，失敗不影響本機運作。"""
+    import signal
+    import subprocess as _sp
+
+    try:
+        out = _sp.run(["pgrep", "-f", "ngrok"], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return
+    my_pid = os.getpid()
+    for line in out.stdout.split():
+        try:
+            pid = int(line)
+        except ValueError:
+            continue
+        if pid == my_pid:
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
 if __name__ == "__main__":
     import socket
     import sys
@@ -338,11 +362,18 @@ if __name__ == "__main__":
                     t = ngrok.connect(pos_port)
                     tunnel_url = str(getattr(t, "public_url", "") or "")
                 except Exception as connect_err:
-                    # 上次 main.py 被 kill 後 ngrok agent 殘留，endpoint 仍在雲端，
-                    # 重啟時拿不到舊 tunnel 但 connect 被拒 (ERR_NGROK_334)。
-                    # 殺掉舊 agent 再重試一次。
-                    if "ERR_NGROK_334" in str(connect_err) or "already online" in str(connect_err):
-                        ngrok.kill()
+                    # 上次 main.py 被 kill 後 ngrok agent 殘留，導致：
+                    #   ERR_NGROK_334：endpoint 仍在雲端、connect 被拒
+                    #   ERR_NGROK_108：殘留 agent 佔用 session 名額（上限 3 個）
+                    # 兩者都靠清掉殘留 agent 再重試一次解決。
+                    err_text = str(connect_err)
+                    recoverable = any(
+                        marker in err_text
+                        for marker in ("ERR_NGROK_334", "already online", "ERR_NGROK_108", "simultaneous")
+                    )
+                    if recoverable:
+                        ngrok.kill()              # 清掉 pyngrok 自己管的 agent
+                        _kill_stray_ngrok()       # 清掉其他 process tree 殘留的 agent
                         t = ngrok.connect(pos_port)
                         tunnel_url = str(getattr(t, "public_url", "") or "")
                     else:

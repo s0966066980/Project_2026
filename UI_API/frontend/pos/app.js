@@ -405,7 +405,7 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang });
+export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
 
 function trackedAddToCart(item, metadata = {}) {
   state.lastValidOrderActionAt = Date.now();

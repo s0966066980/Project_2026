@@ -209,15 +209,17 @@
       <div class="member-arches">M</div>
       <h2 class="member-welcome">歡迎光臨</h2>
       <p class="member-sub">請選擇您的點餐方式</p>
-      <button id="memberChoiceMember" class="member-choice member" type="button">
-        <span class="member-choice-badge">會員專屬</span>
-        <strong>會員點餐</strong>
-        <small>手機登入 · 專屬推薦 · 您的常點</small>
-      </button>
-      <button id="memberChoiceGuest" class="member-choice guest" type="button">
-        <strong>直接點餐</strong>
-        <small>免登入，立即開始</small>
-      </button>
+      <div class="member-choice-row">
+        <button id="memberChoiceMember" class="member-choice member" type="button">
+          <span class="member-choice-badge">會員專屬</span>
+          <strong>會員點餐</strong>
+          <small>手機登入 · 專屬推薦 · 您的常點</small>
+        </button>
+        <button id="memberChoiceGuest" class="member-choice guest" type="button">
+          <strong>直接點餐</strong>
+          <small>免登入，立即開始</small>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -249,6 +251,28 @@
       <input id="memberNicknameInput" class="member-input" type="text" maxlength="20" placeholder="暱稱（例如：小明）" />
       <button id="memberRegisterDone" class="member-primary" type="button">完成註冊並開始點餐 →</button>
       <button id="memberRegisterSkip" class="member-skip" type="button">略過，直接點餐</button>
+    </div>
+  </div>
+
+  <!-- 會員：點餐歷史紀錄 彈跳視窗（含您的常點）-->
+  <div id="memberHistoryModal" class="member-modal hidden" aria-hidden="true">
+    <div class="member-modal-backdrop" data-close></div>
+    <div class="member-modal-card" role="dialog" aria-modal="true" aria-labelledby="memberHistoryModalTitle">
+      <button class="member-modal-close" type="button" data-close aria-label="關閉"><i class="fas fa-times"></i></button>
+      <h2 id="memberHistoryModalTitle" class="member-modal-title">🧾 點餐歷史紀錄</h2>
+      <p id="memberHistorySub" class="member-modal-sub"></p>
+      <div class="member-modal-body">
+        <div class="mh-section-head">
+          <span>🔁 您的常點</span>
+          <span class="mh-hint">點選即可加入購物車</span>
+        </div>
+        <div id="memberUsualsGrid" class="member-usuals-grid"></div>
+        <div class="mh-section-head">
+          <span>📜 歷史訂單</span>
+          <span id="memberHistoryHint" class="mh-hint"></span>
+        </div>
+        <div id="memberHistoryList" class="member-history-list"></div>
+      </div>
     </div>
   </div>
 
@@ -461,19 +485,6 @@
       </div>
     </div>
     <div class="menu-content flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
-      <div id="memberMenuBar" class="member-menu-bar hidden">
-        <div class="member-menu-id">
-          <span id="memberMenuAvatar" class="member-menu-avatar"></span>
-          <div>
-            <div id="memberMenuName" class="member-menu-name"></div>
-            <div id="memberMenuMeta" class="member-menu-meta"></div>
-          </div>
-        </div>
-        <div class="member-usuals">
-          <div class="member-usuals-title">🔁 您的常點</div>
-          <div id="memberUsualsRow" class="member-usuals-row"></div>
-        </div>
-      </div>
       <div id="kioskSectionHead" class="flex items-center gap-4 mb-7">
         <span class="section-kicker"><i class="fas fa-utensils"></i></span>
         <h3 class="text-2xl font-extrabold" style="color:var(--text)">精選推薦</h3>
@@ -519,7 +530,10 @@
   </div>
 
   <div id="kioskBottomBar" class="kiosk-bottom-bar">
-    <button id="kioskHomeBtn" class="kiosk-bottom-home" type="button"><i class="fas fa-home"></i><span>回首頁</span></button>
+    <div class="kiosk-bottom-left">
+      <button id="kioskHomeBtn" class="kiosk-bottom-home" type="button"><i class="fas fa-home"></i><span>回首頁</span></button>
+      <button id="kioskHistoryBtn" class="kiosk-bottom-history hidden" type="button"><i class="fas fa-clock-rotate-left"></i><span>點餐歷史紀錄</span></button>
+    </div>
     <div class="kiosk-bottom-right">
       <div id="mod-voice-assist" class="kiosk-bottom-voice-wrap">
         <button id="voiceAssistBtn" class="kiosk-bottom-voice" type="button" title="語音模式">

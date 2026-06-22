@@ -89,24 +89,27 @@ $('memberKeypad')?.addEventListener('click', (e) => {
 });
 
 export function renderMemberMenuHeader() {
-  const bar = $('memberMenuBar');
-  const m = state.member;
-  if (!bar) return;
-  if (!m) { bar.classList.add('hidden'); return; }
-  bar.classList.remove('hidden');
-  $('memberMenuAvatar').textContent = (m.nickname || '會員').slice(0, 1);
-  $('memberMenuName').textContent = `歡迎回來，${m.nickname || '會員'} 👋`;
-  $('memberMenuMeta').textContent = `第 ${m.visit_count + 1} 次光臨 · 會員`;
+  // 點餐歷史紀錄按鈕：會員一律顯示於底部欄（彈窗內含常點 + 歷史訂單），訪客則隱藏。
+  const historyBtn = $('kioskHistoryBtn');
+  historyBtn?.classList.toggle('hidden', !state.member);
+}
 
-  const row = $('memberUsualsRow');
-  row.textContent = '';
-  const usuals = Array.isArray(m.usuals) ? m.usuals : [];
+function addItemToCart(item) {
+  // cart.js 的 addToCart(item) 接收單一 item 物件（以 item.id 為 key），不是位置參數。
+  // 帶上 image（常點有；歷史訂單品項無，cart.js 會依 MCD id 推導本地圖）。
+  cartManager.addToCart({ id: item.id, name: item.name, price: Number(item.price || 0), image: item.image || '' });
+}
+
+function renderUsualsGrid() {
+  const grid = $('memberUsualsGrid');
+  if (!grid) return;
+  grid.textContent = '';
+  const usuals = Array.isArray(state.member?.usuals) ? state.member.usuals : [];
   if (!usuals.length) {
     const empty = document.createElement('div');
-    empty.className = 'member-usuals-empty';
+    empty.className = 'member-modal-empty';
     empty.textContent = '首次點餐後，這裡會出現您的常點 ✨';
-    empty.style.cssText = 'font-size:12px;color:#9a8978;padding:6px 2px';
-    row.appendChild(empty);
+    grid.appendChild(empty);
     return;
   }
   usuals.forEach((item) => {
@@ -137,11 +140,101 @@ export function renderMemberMenuHeader() {
     price.className = 'member-usual-price';
     price.textContent = formatItemPrice(item);
 
-    card.append(count, img, name, price);
-    card.addEventListener('click', () => {
-      // cart.js 的 addToCart(item) 接收單一 item 物件（以 item.id 為 key），不是位置參數。
-      cartManager.addToCart({ id: item.id, name: item.name, price: Number(item.price || 0) });
-    });
-    row.appendChild(card);
+    const addBtn = document.createElement('button');
+    addBtn.className = 'member-usual-add';
+    addBtn.type = 'button';
+    addBtn.textContent = '＋ 加入';
+
+    card.append(count, img, name, price, addBtn);
+    card.addEventListener('click', () => addItemToCart(item));
+    grid.appendChild(card);
   });
 }
+
+function reorder(order) {
+  (Array.isArray(order.items) ? order.items : []).forEach((it) => {
+    for (let i = 0; i < (it.count || 1); i += 1) addItemToCart(it);
+  });
+}
+
+function formatOrderDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderHistoryList() {
+  const list = $('memberHistoryList');
+  if (!list) return;
+  list.textContent = '';
+  const history = Array.isArray(state.member?.history) ? state.member.history : [];
+  if (!history.length) {
+    const empty = document.createElement('div');
+    empty.className = 'member-modal-empty';
+    empty.textContent = '目前還沒有點餐紀錄 🧾';
+    list.appendChild(empty);
+    return;
+  }
+  history.forEach((order) => {
+    const card = document.createElement('div');
+    card.className = 'member-history-card';
+
+    const top = document.createElement('div');
+    top.className = 'member-history-top';
+    const date = document.createElement('span');
+    date.className = 'member-history-date';
+    date.textContent = formatOrderDate(order.timestamp);
+    if (order.is_success === false) {
+      const failed = document.createElement('span');
+      failed.className = 'member-history-failed';
+      failed.textContent = '未完成';
+      date.appendChild(failed);
+    }
+    const total = document.createElement('span');
+    total.className = 'member-history-total';
+    total.textContent = `$${Number(order.total || 0)}`;
+    top.append(date, total);
+
+    const items = document.createElement('div');
+    items.className = 'member-history-items';
+    const orderItems = Array.isArray(order.items) ? order.items : [];
+    orderItems.forEach((it) => {
+      const chip = document.createElement('span');
+      chip.className = 'member-history-chip';
+      chip.textContent = it.count > 1 ? `${it.name} ×${it.count}` : it.name;
+      items.appendChild(chip);
+    });
+
+    card.append(top, items);
+
+    if (orderItems.length) {
+      const reorderBtn = document.createElement('button');
+      reorderBtn.className = 'member-history-reorder';
+      reorderBtn.type = 'button';
+      reorderBtn.textContent = '↻ 再點一次';
+      reorderBtn.addEventListener('click', () => { reorder(order); hide($('memberHistoryModal')); });
+      card.appendChild(reorderBtn);
+    }
+
+    list.appendChild(card);
+  });
+}
+
+function openHistoryModal() {
+  const m = state.member;
+  const sub = $('memberHistorySub');
+  if (sub) sub.textContent = m ? `${m.nickname || '會員'} · 第 ${(m.visit_count || 0) + 1} 次光臨` : '';
+  const hint = $('memberHistoryHint');
+  const history = Array.isArray(m?.history) ? m.history : [];
+  if (hint) hint.textContent = history.length ? `最近 ${history.length} 筆` : '';
+  renderUsualsGrid();
+  renderHistoryList();
+  show($('memberHistoryModal'));
+}
+
+$('kioskHistoryBtn')?.addEventListener('click', openHistoryModal);
+$('memberHistoryModal')?.addEventListener('click', (e) => {
+  if (e.target?.closest?.('[data-close]')) hide($('memberHistoryModal'));
+});

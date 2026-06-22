@@ -1,6 +1,17 @@
-export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh' }) {
+export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh', getVisual }) {
   const cart = {};
   const tx = (key, fallback = key) => (typeof t === 'function' ? t(key) : fallback);
+
+  // 購物車品項圖：優先用 item.image，否則依 MCD id 推導本地圖片，最後退回 emoji。
+  // 與菜單卡片相同邏輯（getMenuVisual），避免常點／再點一次等未帶 image 的品項變空白。
+  function resolveVisual(item) {
+    if (typeof getVisual === 'function') return getVisual(item);
+    const id = String(item.id || '').toUpperCase();
+    return {
+      image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : ''),
+      emoji: '🍔',
+    };
+  }
 
   function addToCart(item) {
     cart[item.id] ? cart[item.id].quantity++ : (cart[item.id] = { ...item, quantity: 1 });
@@ -73,7 +84,9 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
       ui.cartList.innerHTML += `
         <div class="cart-item p-4 flex justify-between items-center">
           <div class="kiosk-cart-product">
-            ${item.image ? `<img src="${escapeHTML(item.image)}" alt="${escapeHTML(item.name)}">` : ''}
+            ${(() => { const v = resolveVisual(item); return `
+            ${v.image ? `<img src="${escapeHTML(v.image)}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+            <span class="cart-photo-fallback" style="display:${v.image ? 'none' : 'flex'}">${escapeHTML(v.emoji || '🍔')}</span>`; })()}
           </div>
           <div class="min-w-0 flex-1 mr-2">
             <p class="font-bold text-base truncate" style="color:var(--text)">${escapeHTML(item.name)}</p>

@@ -43,6 +43,7 @@ def _public_member(member: dict) -> dict:
         "nickname": member.get("nickname", ""),
         "visit_count": int(member.get("visit_count", 0)),
         "usuals": build_usuals(member),
+        "history": build_history(member),
     }
 
 
@@ -104,6 +105,39 @@ def build_usuals(member: dict, limit: int | None = None) -> list:
         if len(usuals) >= limit:
             break
     return usuals
+
+
+def build_history(member: dict, limit: int | None = None) -> list:
+    if limit is None:
+        limit = int(config.get("MEMBER_ORDERS_KEEP", 20))
+    orders = member.get("orders") or []
+    if not orders:
+        return []
+    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    history = []
+    for order in reversed(orders):  # 最新在前
+        counts = {}
+        for iid in order.get("cart_ids") or []:
+            if iid:
+                counts[iid] = counts.get(iid, 0) + 1
+        items = [
+            {
+                "id": iid,
+                "name": menu_by_id.get(iid, {}).get("name", iid),
+                "price": menu_by_id.get(iid, {}).get("price", 0),
+                "count": cnt,
+            }
+            for iid, cnt in counts.items()
+        ]
+        history.append({
+            "timestamp": order.get("timestamp", ""),
+            "total": int(order.get("total", 0)),
+            "is_success": bool(order.get("is_success", True)),
+            "items": items,
+        })
+        if len(history) >= limit:
+            break
+    return history
 
 
 def member_top_ids(member: dict, n: int = 5) -> list:
@@ -189,3 +223,22 @@ def admin_detail(phone) -> dict | None:
         "favorites_ranked": ranked,
         "orders": list(reversed(m.get("orders") or [])),
     }
+
+
+def admin_clear_records(phone) -> bool:
+    """清除會員的點餐紀錄（訂單、常點、消費統計），保留帳戶本身。"""
+    m = member_repository.get_member(normalize_phone(phone) or str(phone))
+    if not m:
+        return False
+    m["orders"] = []
+    m["item_freq"] = {}
+    m["visit_count"] = 0
+    m["total_spend"] = 0
+    m["last_visit_at"] = ""
+    member_repository.upsert_member(m)
+    return True
+
+
+def admin_delete_member(phone) -> bool:
+    """手動刪除整個會員帳戶。"""
+    return member_repository.delete_member(normalize_phone(phone) or str(phone))

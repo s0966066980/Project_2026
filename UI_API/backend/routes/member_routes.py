@@ -39,4 +39,20 @@ def create_router(deps: dict) -> APIRouter:
             raise HTTPException(status_code=404, detail="member not found")
         return detail
 
+    @router.delete("/api/members/{phone}/records")
+    async def member_clear_records(request: Request, phone: str):
+        require_admin_token(request)
+        ok = await asyncio.to_thread(member_service.admin_clear_records, phone)
+        if not ok:
+            raise HTTPException(status_code=404, detail="member not found")
+        return {"ok": True}
+
+    @router.delete("/api/members/{phone}")
+    async def member_delete(request: Request, phone: str):
+        require_admin_token(request)
+        ok = await asyncio.to_thread(member_service.admin_delete_member, phone)
+        if not ok:
+            raise HTTPException(status_code=404, detail="member not found")
+        return {"ok": True}
+
     return router

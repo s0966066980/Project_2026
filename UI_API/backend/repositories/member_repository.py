@@ -62,3 +62,14 @@ def upsert_member(record: dict) -> dict:
             rows.append(record)
         _write(rows)
     return record
+
+
+def delete_member(phone: str) -> bool:
+    key = str(phone or "")
+    with _lock:
+        rows = _read()
+        kept = [r for r in rows if str(r.get("phone")) != key]
+        if len(kept) == len(rows):
+            return False
+        _write(kept)
+    return True
