@@ -27,8 +27,8 @@ import { showMemberChoice, renderMemberMenuHeader } from './member.js';
 
 const APP_MODE = (() => {
   const path = window.location.pathname;
-  if (window.location.port === '8001') return 'admin';
-  if (window.location.port === '8000') return 'pos';
+  if (window.location.port === '9001') return 'admin';
+  if (window.location.port === '9000') return 'pos';
   if (path.startsWith('/admin')) return 'admin';
   if (path.startsWith('/pos')) return 'pos';
   return 'pos';
@@ -723,7 +723,7 @@ async function loadMenu() {
   } catch {
     state.menuData = [
       { id: 'MCD001', name: '測試大麥克', price: 100, category: '超值全餐', description: '後端未連線，這是預設測試資料。' },
-      { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:8000 已啟動。' }
+      { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:9000 已啟動。' }
     ];
   }
   renderMenu();

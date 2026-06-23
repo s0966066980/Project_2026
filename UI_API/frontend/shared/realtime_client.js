@@ -13,7 +13,7 @@ export function connectRealtime(clientType, sessionId, handlers = {}) {
 
   const buildUrl = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host || '127.0.0.1:8000';
+    const host = window.location.host || '127.0.0.1:9000';
     const token = demoToken();
     const query = token ? `?token=${encodeURIComponent(token)}` : '';
     return `${protocol}//${host}/ws/${encodeURIComponent(clientType)}/${encodeURIComponent(sessionId || 'global')}${query}`;
