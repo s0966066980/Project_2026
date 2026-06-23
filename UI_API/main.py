@@ -25,6 +25,7 @@ from routes import (
     realtime_routes,
     passive_voice_routes,
     member_routes,
+    test_routes,
 )
 
 # Allow same-origin requests over any ngrok/cloudflared/localhost tunnel URL so the
@@ -178,6 +179,7 @@ app.include_router(realtime_routes.create_router(_deps))
 app.include_router(demo_routes.create_router(_deps))
 app.include_router(passive_voice_routes.create_router(_deps))
 app.include_router(member_routes.create_router(_deps))
+app.include_router(test_routes.create_router(_deps))
 if config.get("ENABLE_DEBUG_ROUTES", False):
     app.include_router(debug_routes.create_router(_deps))
 

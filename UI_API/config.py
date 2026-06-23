@@ -17,6 +17,9 @@ from prompts import defaults as _prompts
 # 靜態與網路設定 (需寫在 .env)
 # ==========================================
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL",
+    OLLAMA_API_URL.split("/api/")[0] if "/api/" in OLLAMA_API_URL else "http://localhost:11434"
+)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")

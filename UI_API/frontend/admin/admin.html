@@ -420,6 +420,81 @@ tbody tr:hover td { background: #f8fafd; }
 .order-row > div:first-child { display:flex; justify-content:space-between; }
 .order-items { font-size:12px; color:#6b5d4f; margin-top:5px; } .hit { font-size:11px; color:#2e9e5b; }
 .muted { color:#9aa4b1; font-size:12.5px; }
+/* ── 測試頁 ── */
+#page-test {
+  display: grid;
+  grid-template-columns: 272px 1fr;
+  gap: 20px;
+  overflow: hidden;
+}
+.test-left  { display:flex; flex-direction:column; gap:16px; overflow-y:auto; min-height:0; }
+.test-right { display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+.provider-tabs {
+  display:flex; border:1.5px solid #dde3f0; border-radius:9px; overflow:hidden; flex:1;
+}
+.provider-tab {
+  flex:1; padding:7px 6px; text-align:center; font-size:12px; font-weight:700;
+  cursor:pointer; border:none; background:#f8fafd; color:#6b7a99;
+  transition:all .15s; border-right:1px solid #dde3f0;
+}
+.provider-tab:last-child { border-right:none; }
+.provider-tab.active { background:#1a2233; color:#fff; }
+.provider-tab:hover:not(.active) { background:#edf2ff; color:#3b7aee; }
+.provider-note {
+  display:flex; align-items:flex-start; gap:8px;
+  background:#f0f5ff; border:1px solid #ccd8f5; border-radius:8px;
+  padding:8px 12px; font-size:11.5px; color:#3b4a6b; margin-bottom:8px; line-height:1.5;
+}
+.provider-note i { color:#3b7aee; flex-shrink:0; margin-top:1px; }
+.model-select-wrap { position:relative; flex:1; }
+.model-select-wrap select.setting-input { width:100%; padding-right:28px; }
+.model-select-loading { position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:11px; color:#8494b0; }
+.chat-window {
+  flex:1; overflow-y:auto; padding:12px 14px;
+  display:flex; flex-direction:column; gap:10px;
+  background:#f8fafd; border:1.5px solid #edf0f7; border-radius:12px; min-height:0;
+}
+.chat-bubble { display:flex; flex-direction:column; gap:3px; max-width:82%; }
+.chat-bubble.user { align-self:flex-end; align-items:flex-end; }
+.chat-bubble.ai   { align-self:flex-start; align-items:flex-start; }
+.bubble-label { font-size:10px; font-weight:700; color:#8494b0; white-space:nowrap; }
+.bubble-text { padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+.chat-bubble.user .bubble-text { background:#3b7aee; color:#fff; border-radius:12px 4px 12px 12px; }
+.chat-bubble.ai   .bubble-text { background:#fff; border:1.5px solid #dde3f0; color:#1a2233; border-radius:4px 12px 12px 12px; }
+.chat-bubble.ai.loading .bubble-text { color:#adb5c9; font-style:italic; }
+.chat-input-row { display:flex; gap:8px; margin-top:10px; flex-shrink:0; }
+.chat-input {
+  flex:1; padding:10px 14px; border:1.5px solid #dde3f0; border-radius:10px;
+  font-size:13px; outline:none; font-family:inherit; resize:none;
+}
+.chat-input:focus { border-color:#3b7aee; }
+.send-btn {
+  padding:10px 18px; background:#3b7aee; color:#fff; border:none;
+  border-radius:10px; font-size:13px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; gap:6px; flex-shrink:0; transition:background .15s;
+}
+.send-btn:hover { background:#2d67d8; }
+.send-btn:disabled { background:#adb5c9; cursor:not-allowed; }
+.test-view-tabs { display:flex; gap:6px; }
+.test-view-tab {
+  padding:5px 12px; border-radius:7px; font-size:12px; font-weight:700;
+  cursor:pointer; border:1.5px solid #dde3f0; background:#f8fafd; color:#6b7a99; transition:all .15s;
+}
+.test-view-tab.active { background:#1a2233; color:#fff; border-color:#1a2233; }
+.raw-json {
+  flex:1; background:#1a2233; color:#a8d8a0; border-radius:10px;
+  padding:12px 14px; font-family:monospace; font-size:11.5px;
+  line-height:1.6; overflow:auto; white-space:pre; min-height:0;
+}
+.stat-chips { display:flex; gap:8px; flex-wrap:wrap; }
+.stat-chip {
+  background:#f4f6fa; border:1px solid #e0e5f0; border-radius:7px;
+  padding:3px 10px; font-size:11.5px; color:#3b4a6b; font-weight:600;
+}
+.stat-chip span { color:#1a2233; font-weight:800; }
+@media (max-width:1000px) { #page-test { grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
+/* ── 設定頁：AI API section ── */
+.api-provider-section { display:flex; flex-direction:column; gap:0; }
 .member-danger { display:flex; gap:10px; margin-top:18px; padding-top:16px; border-top:1px solid #f0f2f5; }
 .member-clear-btn, .member-delete-btn { border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700;
   cursor:pointer; }
@@ -452,6 +527,9 @@ tbody tr:hover td { background: #f8fafd; }
     </button>
     <button class="nav-item" data-page="members" type="button">
       <i class="fas fa-user"></i> 會員
+    </button>
+    <button class="nav-item" data-page="test" type="button">
+      <i class="fas fa-flask"></i> 測試
     </button>
   </nav>
 </aside>
@@ -585,18 +663,78 @@ tbody tr:hover td { background: #f8fafd; }
         <!-- ── 左欄：模型 / STT / TTS ── -->
         <div style="display:flex;flex-direction:column;gap:20px">
 
-          <!-- Ollama -->
+          <!-- AI 文字生成 API -->
           <section>
-            <div class="section-title">Ollama 模型</div>
-            <div class="setting-row">
-              <label class="setting-label">主要 LLM 模型</label>
-              <input id="inp-model-name" class="setting-input" type="text" placeholder="qwen3.5:4b">
-              <span style="font-size:11px;color:#8494b0;flex-shrink:0">AI 推播</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div class="section-title" style="margin:0">AI 文字生成 API</div>
+              <span style="font-size:11px;color:#8494b0">影響：AI 推播、語音問答、協助推薦</span>
             </div>
             <div class="setting-row">
-              <label class="setting-label">語音 LLM 模型</label>
-              <input id="inp-voice-model" class="setting-input" type="text" placeholder="qwen3.5:4b">
+              <label class="setting-label">提供者</label>
+              <div class="provider-tabs">
+                <button class="provider-tab active" data-provider="ollama" onclick="onAiProviderChange(this)" type="button">
+                  <i class="fas fa-robot" style="margin-right:3px"></i>Ollama
+                </button>
+                <button class="provider-tab" data-provider="gemini" onclick="onAiProviderChange(this)" type="button">
+                  <i class="fas fa-star" style="margin-right:3px"></i>Gemini
+                </button>
+                <button class="provider-tab" data-provider="openai" onclick="onAiProviderChange(this)" type="button">
+                  <i class="fas fa-bolt" style="margin-right:3px"></i>OpenAI
+                </button>
+              </div>
             </div>
+
+            <!-- Ollama 欄位 -->
+            <div id="settings-fields-ollama" class="api-provider-section">
+              <div class="setting-row">
+                <label class="setting-label">主要 LLM 模型</label>
+                <div class="model-select-wrap">
+                  <select id="inp-model-name" class="setting-input">
+                    <option value="">載入中…</option>
+                  </select>
+                </div>
+                <span style="font-size:11px;color:#8494b0;flex-shrink:0">推播</span>
+              </div>
+              <div class="setting-row">
+                <label class="setting-label">語音 LLM 模型</label>
+                <div class="model-select-wrap">
+                  <select id="inp-voice-model" class="setting-input">
+                    <option value="">載入中…</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gemini 欄位 -->
+            <div id="settings-fields-gemini" class="api-provider-section hidden">
+              <div class="provider-note"><i class="fas fa-info-circle"></i>API Key 讀取自 <code>.env</code> 的 <b>GEMINI_API_KEY</b>，修改後需重啟服務。</div>
+              <div class="setting-row">
+                <label class="setting-label">主要模型</label>
+                <input id="inp-gemini-model" class="setting-input" type="text" placeholder="gemini-2.0-flash">
+              </div>
+              <div class="setting-row">
+                <label class="setting-label">語音模型</label>
+                <input id="inp-gemini-voice-model" class="setting-input" type="text" placeholder="gemini-2.0-flash">
+              </div>
+            </div>
+
+            <!-- OpenAI 欄位 -->
+            <div id="settings-fields-openai" class="api-provider-section hidden">
+              <div class="provider-note"><i class="fas fa-info-circle"></i>支援 OpenAI 及相容 API（vLLM、LocalAI）。API Key 讀取自 <code>.env</code> 的 <b>OPENAI_API_KEY</b>。</div>
+              <div class="setting-row">
+                <label class="setting-label">Base URL</label>
+                <input id="inp-openai-base-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1">
+              </div>
+              <div class="setting-row">
+                <label class="setting-label">主要模型</label>
+                <input id="inp-openai-model" class="setting-input" type="text" placeholder="gpt-4o-mini">
+              </div>
+              <div class="setting-row">
+                <label class="setting-label">語音模型</label>
+                <input id="inp-openai-voice-model" class="setting-input" type="text" placeholder="gpt-4o-mini">
+              </div>
+            </div>
+
             <div class="setting-row">
               <label class="setting-label">Temperature</label>
               <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8">
@@ -962,6 +1100,119 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
     <div id="memberDetailPanel" class="member-detail-panel hidden"></div>
   </section>
+
+  <!-- ── 測試頁 ── -->
+  <div class="content" id="page-test" style="display:none;overflow:hidden;padding-bottom:0">
+
+    <!-- 左欄：設定 -->
+    <div class="test-left">
+      <div class="card" style="flex-shrink:0">
+        <div class="card-title"><i class="fas fa-cog"></i> 測試設定</div>
+
+        <div class="section-title" style="margin-bottom:8px">提供者</div>
+        <div class="provider-tabs" style="margin-bottom:14px">
+          <button class="provider-tab active" data-provider="ollama" onclick="onTestProviderChange(this)" type="button">
+            <i class="fas fa-robot" style="margin-right:3px"></i>Ollama
+          </button>
+          <button class="provider-tab" data-provider="gemini" onclick="onTestProviderChange(this)" type="button">
+            <i class="fas fa-star" style="margin-right:3px"></i>Gemini
+          </button>
+          <button class="provider-tab" data-provider="openai" onclick="onTestProviderChange(this)" type="button">
+            <i class="fas fa-bolt" style="margin-right:3px"></i>OpenAI
+          </button>
+        </div>
+
+        <!-- Ollama 欄位 -->
+        <div id="test-fields-ollama">
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <label class="setting-label" style="width:auto">模型</label>
+            <div class="model-select-wrap" style="width:100%">
+              <select id="test-inp-model" class="setting-input" style="width:100%">
+                <option value="">載入中…</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gemini 欄位 -->
+        <div id="test-fields-gemini" class="hidden">
+          <div class="provider-note"><i class="fas fa-info-circle"></i>使用 .env 中的 GEMINI_API_KEY。</div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <label class="setting-label" style="width:auto">模型</label>
+            <input id="test-inp-gemini-model" class="setting-input" type="text" value="gemini-2.0-flash" style="width:100%">
+          </div>
+        </div>
+
+        <!-- OpenAI 欄位 -->
+        <div id="test-fields-openai" class="hidden">
+          <div class="provider-note"><i class="fas fa-info-circle"></i>使用 .env 中的 OPENAI_API_KEY；Base URL 留空則使用 api.openai.com。</div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <label class="setting-label" style="width:auto">Base URL（可選）</label>
+            <input id="test-inp-openai-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1" style="width:100%">
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <label class="setting-label" style="width:auto">模型</label>
+            <input id="test-inp-openai-model" class="setting-input" type="text" placeholder="gpt-4o-mini" style="width:100%">
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #edf0f7;margin:12px 0">
+
+        <div class="section-title" style="margin-bottom:8px">System Prompt（留空 = 預設）</div>
+        <textarea id="test-inp-system-prompt" class="setting-input" rows="4"
+          style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"
+          placeholder="載入中… 自動帶入目前功能設定的語音 System Prompt，可直接修改測試不同 prompt。"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="refresh-btn" type="button" onclick="clearTestChat()" style="flex:1;justify-content:center">
+          <i class="fas fa-trash-alt"></i> 清除對話
+        </button>
+        <button class="refresh-btn" type="button" id="test-refresh-models-btn" onclick="loadOllamaModels()" style="padding:7px 12px">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 右欄：對話 -->
+    <div class="test-right" style="padding-bottom:24px">
+
+      <!-- 頂部工具列 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
+        <div class="test-view-tabs">
+          <button class="test-view-tab active" onclick="switchTestView('chat',this)" type="button">
+            <i class="fas fa-comments"></i> 對話
+          </button>
+          <button class="test-view-tab" onclick="switchTestView('json',this)" type="button">
+            <i class="fas fa-code"></i> 原始回應
+          </button>
+        </div>
+        <div class="stat-chips" id="test-stat-chips" style="display:none">
+          <div class="stat-chip">延遲 <span id="test-stat-latency">—</span></div>
+        </div>
+      </div>
+
+      <!-- 對話視窗 -->
+      <div id="test-chat-view" class="chat-window" style="flex:1">
+        <div class="chat-bubble ai">
+          <span class="bubble-label">AI 助理</span>
+          <div class="bubble-text">你好！輸入問題測試 LLM 回答，例如：<br>「有什麼推薦套餐？」<br>「大麥克多少錢？」</div>
+        </div>
+      </div>
+
+      <!-- 原始回應視窗 -->
+      <pre id="test-json-view" class="raw-json hidden" style="flex:1">// 送出訊息後，原始回應會顯示在這裡</pre>
+
+      <!-- 輸入列 -->
+      <div class="chat-input-row" style="flex-shrink:0">
+        <textarea id="test-input" class="chat-input" rows="1"
+          placeholder="輸入測試問題，Enter 送出（Shift+Enter 換行）…" style="min-height:42px;max-height:120px"></textarea>
+        <button class="send-btn" id="test-send-btn" onclick="sendTestMsg()" type="button">
+          <i class="fas fa-paper-plane"></i> 送出
+        </button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- /.main -->
 

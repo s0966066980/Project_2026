@@ -370,6 +370,50 @@ def parse_llm_json(content: str, tag: str = "") -> dict:
     return _parse_llm_json_response(content, tag)
 
 
+def ask_ollama_raw_text(system_prompt: str, user_prompt: str, model_name: str = "") -> dict:
+    """自由文字回應（不強制 JSON），供管理後台測試頁使用。"""
+    payload = {
+        "model": model_name or config.get("MODEL_NAME", "llama3.2"),
+        "prompt": f"[系統]\n{system_prompt}\n\n[使用者]\n{user_prompt}",
+        "stream": False,
+        "think": False,
+        "options": {
+            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
+            "num_predict": int(config.get("OLLAMA_NUM_PREDICT", 512)),
+        },
+    }
+    try:
+        t0 = time.time()
+        response = _get_ollama_session().post(
+            config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120))
+        )
+        response.raise_for_status()
+        text = _strip_think_blocks(response.json().get("response", ""))
+        return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
+                "provider": "ollama", "model": payload["model"]}
+    except Exception as e:
+        return {"error": str(e), "text": "", "latency_ms": 0}
+
+
+def ask_gemini_raw_text(system_prompt: str, user_prompt: str, model_name: str = "") -> dict:
+    """Gemini 自由文字回應，供管理後台測試頁使用。"""
+    global _gemini_cooldown_until, _gemini_last_error
+    model = _resolve_gemini_model(model_name)
+    try:
+        remaining = _gemini_cooldown_remaining()
+        if remaining > 0:
+            return {"error": f"Gemini API 冷卻中，{remaining} 秒後重試", "text": "", "latency_ms": 0}
+        client = _get_gemini_client()
+        contents = f"[系統指令]\n{system_prompt}\n\n[使用者]\n{user_prompt}"
+        t0 = time.time()
+        response = client.models.generate_content(model=model, contents=contents)
+        text = _strip_think_blocks(getattr(response, "text", "") or "")
+        return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
+                "provider": "gemini", "model": model}
+    except Exception as e:
+        return {"error": str(e), "text": "", "latency_ms": 0}
+
+
 def init_gemini_client():
     if not config.GEMINI_API_KEY:
         print("Gemini client 預載略過: 未設定 GEMINI_API_KEY / GOOGLE_API_KEY")

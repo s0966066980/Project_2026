@@ -55,8 +55,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理' };
-    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users' };
+    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
+    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -71,6 +71,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'rag') { loadRagSettings(); loadRagDocs(); }
     if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
     if (page === 'members') loadMembers();
+    if (page === 'test') { loadOllamaModels(); loadVoicePromptDefault(); }
   });
 });
 
@@ -376,9 +377,24 @@ async function loadSettings() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
 
-    // Ollama
-    setVal('inp-model-name',    s.MODEL_NAME          || 'qwen3.5:4b');
-    setVal('inp-voice-model',   s.VOICE_ASSIST_MODEL  || 'qwen3.5:4b');
+    // AI 提供者
+    const provider = s.AI_PROVIDER || 'ollama';
+    g('page-settings')?.querySelectorAll('.provider-tab[data-provider]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.provider === provider);
+    });
+    ['ollama', 'gemini', 'openai'].forEach(p => {
+      g(`settings-fields-${p}`)?.classList.toggle('hidden', p !== provider);
+    });
+    // Gemini / OpenAI 文字欄
+    setVal('inp-gemini-model',       s.GEMINI_MODEL_NAME      || 'gemini-2.0-flash');
+    setVal('inp-gemini-voice-model', s.GEMINI_VOICE_MODEL     || 'gemini-2.0-flash');
+    setVal('inp-openai-base-url',    s.OPENAI_API_BASE_URL    || '');
+    setVal('inp-openai-model',       s.OPENAI_MODEL_NAME      || 'gpt-4o-mini');
+    setVal('inp-openai-voice-model', s.OPENAI_VOICE_MODEL     || 'gpt-4o-mini');
+    // Ollama 模型 select（需先載入清單）
+    await loadOllamaModels();
+    populateModelSelect('inp-model-name',  _ollamaModels, s.MODEL_NAME         || 'qwen3.5:4b');
+    populateModelSelect('inp-voice-model', _ollamaModels, s.VOICE_ASSIST_MODEL || 'qwen3.5:4b');
     setVal('inp-temperature',   s.OLLAMA_TEMPERATURE  ?? 0.8);
     setVal('inp-num-predict',   s.OLLAMA_NUM_PREDICT  ?? 2048);
     // Prompts
@@ -426,10 +442,19 @@ async function saveSettings() {
   if (btn) btn.disabled = true;
   if (notice) { notice.style.display = 'none'; }
   try {
+    const activeProvider = g('page-settings')?.querySelector('.provider-tab.active[data-provider]')?.dataset.provider || 'ollama';
     const body = {
+      AI_PROVIDER: activeProvider,
       // Ollama
       MODEL_NAME:                val('inp-model-name')      || 'qwen3.5:4b',
       VOICE_ASSIST_MODEL:        val('inp-voice-model')     || 'qwen3.5:4b',
+      // Gemini
+      GEMINI_MODEL_NAME:         val('inp-gemini-model')    || 'gemini-2.0-flash',
+      GEMINI_VOICE_MODEL:        val('inp-gemini-voice-model') || 'gemini-2.0-flash',
+      // OpenAI
+      OPENAI_API_BASE_URL:       val('inp-openai-base-url'),
+      OPENAI_MODEL_NAME:         val('inp-openai-model')    || 'gpt-4o-mini',
+      OPENAI_VOICE_MODEL:        val('inp-openai-voice-model') || 'gpt-4o-mini',
       OLLAMA_TEMPERATURE:        parseFloat(val('inp-temperature') || '0.8'),
       OLLAMA_NUM_PREDICT:        parseInt(val('inp-num-predict') || '2048', 10),
       // Prompts
@@ -898,7 +923,233 @@ async function deleteMember(phone, nickname) {
   await loadMembers();
 }
 
-// expose to inline handlers
+// ── 測試頁：載入預設語音 Prompt ──
+
+async function loadVoicePromptDefault() {
+  const ta = g('test-inp-system-prompt');
+  if (!ta || ta.value.trim()) return;   // 使用者已手動填寫則不覆蓋
+  try {
+    const res = await fetch(`${API}/api/test/voice_prompt`, { headers: adminHeaders() });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.prompt) ta.value = data.prompt;
+  } catch { /* 靜默失敗 */ }
+}
+
+// ── Ollama 模型清單 ──
+
+let _ollamaModels = [];
+
+async function loadOllamaModels() {
+  try {
+    const res = await fetch(`${API}/api/ollama/models`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _ollamaModels = Array.isArray(data.models) ? data.models : [];
+  } catch {
+    _ollamaModels = [];
+  }
+  // 更新設定頁 select
+  const mainCur  = val('inp-model-name');
+  const voiceCur = val('inp-voice-model');
+  populateModelSelect('inp-model-name',  _ollamaModels, mainCur  || 'qwen3.5:4b');
+  populateModelSelect('inp-voice-model', _ollamaModels, voiceCur || 'qwen3.5:4b');
+  // 更新測試頁 select
+  const testCur = val('test-inp-model');
+  populateModelSelect('test-inp-model', _ollamaModels, testCur || (_ollamaModels[0] || ''));
+}
+
+function populateModelSelect(selectId, models, currentValue) {
+  const sel = g(selectId);
+  if (!sel || sel.tagName !== 'SELECT') return;
+  const prev = sel.value || currentValue;
+  sel.textContent = '';
+  if (!models.length) {
+    const opt = document.createElement('option');
+    opt.value = currentValue;
+    opt.textContent = currentValue || '（無法取得模型清單）';
+    sel.appendChild(opt);
+    return;
+  }
+  let matched = false;
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    if (m === prev) { opt.selected = true; matched = true; }
+    sel.appendChild(opt);
+  });
+  // 若目前值不在清單中，插入一個自訂 option
+  if (!matched && prev) {
+    const opt = document.createElement('option');
+    opt.value = prev;
+    opt.textContent = `${prev}（自訂）`;
+    opt.selected = true;
+    sel.insertBefore(opt, sel.firstChild);
+  }
+}
+
+// ── 設定頁：AI 提供者切換 ──
+
+function onAiProviderChange(btn) {
+  const provider = btn.dataset.provider;
+  btn.closest('.provider-tabs').querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['ollama', 'gemini', 'openai'].forEach(p => {
+    g(`settings-fields-${p}`)?.classList.toggle('hidden', p !== provider);
+  });
+  if (provider === 'ollama' && !_ollamaModels.length) loadOllamaModels();
+}
+
+// ── 測試頁：提供者切換 ──
+
+function onTestProviderChange(btn) {
+  const provider = btn.dataset.provider;
+  btn.closest('.provider-tabs').querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['ollama', 'gemini', 'openai'].forEach(p => {
+    g(`test-fields-${p}`)?.classList.toggle('hidden', p !== provider);
+  });
+}
+
+function getTestProvider() {
+  return g('page-test')?.querySelector('.provider-tab.active')?.dataset.provider || 'ollama';
+}
+
+function getTestModel() {
+  const p = getTestProvider();
+  if (p === 'gemini') return val('test-inp-gemini-model') || 'gemini-2.0-flash';
+  if (p === 'openai') return val('test-inp-openai-model') || 'gpt-4o-mini';
+  return val('test-inp-model') || (_ollamaModels[0] || '');
+}
+
+// ── 測試頁：對話 ──
+
+const _testMessages = [];
+
+function switchTestView(view, btn) {
+  btn.closest('.test-view-tabs').querySelectorAll('.test-view-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  g('test-chat-view')?.classList.toggle('hidden', view !== 'chat');
+  g('test-json-view')?.classList.toggle('hidden', view !== 'json');
+}
+
+function clearTestChat() {
+  _testMessages.length = 0;
+  const win = g('test-chat-view');
+  if (win) {
+    win.textContent = '';
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ai';
+    bubble.innerHTML = '<span class="bubble-label">AI 助理</span><div class="bubble-text">對話已清除，可繼續輸入測試。</div>';
+    win.appendChild(bubble);
+  }
+  const raw = g('test-json-view');
+  if (raw) raw.textContent = '// 對話已清除';
+  g('test-stat-chips')?.style.setProperty('display', 'none');
+}
+
+function _appendBubble(role, text, meta = '') {
+  const win = g('test-chat-view');
+  if (!win) return null;
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${role}`;
+  const label = document.createElement('span');
+  label.className = 'bubble-label';
+  label.textContent = meta || (role === 'user' ? '測試輸入' : 'AI 助理');
+  const txt = document.createElement('div');
+  txt.className = 'bubble-text';
+  txt.textContent = text;
+  bubble.append(label, txt);
+  win.appendChild(bubble);
+  win.scrollTop = win.scrollHeight;
+  return bubble;
+}
+
+async function sendTestMsg() {
+  const inputEl = g('test-input');
+  const text = (inputEl?.value || '').trim();
+  if (!text) return;
+
+  const sendBtn = g('test-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = '';
+
+  _appendBubble('user', text);
+  _testMessages.push({ role: 'user', content: text });
+
+  const loadingBubble = _appendBubble('ai loading', '思考中…');
+  if (loadingBubble) loadingBubble.classList.add('loading');
+
+  const provider = getTestProvider();
+  const model    = getTestModel();
+  const systemPrompt = val('test-inp-system-prompt') || '';
+
+  try {
+    const res = await fetch(`${API}/api/test/ask`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model, system_prompt: systemPrompt, messages: [..._testMessages] }),
+    });
+    const data = await res.json();
+
+    loadingBubble?.remove();
+
+    if (data.error && !data.ai_response) {
+      _appendBubble('ai', `❌ 錯誤：${data.error}`);
+    } else {
+      // 語音模式回傳 ai_response（JSON 結構）；備援 text（raw 模式）
+      const responseText = data.ai_response || data.text || '';
+      const cartActions  = Array.isArray(data.cart_actions) ? data.cart_actions : [];
+      const mentionedIds = Array.isArray(data.mentioned_ids) ? data.mentioned_ids : [];
+
+      const latency = data.latency_ms ?? '?';
+      const providerLabel = `${data.provider || provider} / ${data.model || model}`;
+      let meta = `AI 助理 · ${providerLabel} · ${latency}ms`;
+      if (cartActions.length) meta += ` · 加購 ${cartActions.length} 項`;
+
+      _appendBubble('ai', responseText, meta);
+      _testMessages.push({ role: 'assistant', content: responseText });
+
+      // cart_actions 加購提示
+      if (cartActions.length) {
+        const addedNames = cartActions.map(a => `${a.id}×${a.quantity ?? 1}`).join('、');
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11.5px;color:#1db87a;padding:2px 0 4px 4px';
+        hint.textContent = `🛒 加入購物車：${addedNames}`;
+        g('test-chat-view')?.appendChild(hint);
+      }
+
+      // 原始 JSON 視窗（隱藏內部欄位以保持清晰）
+      const raw = g('test-json-view');
+      if (raw) {
+        const display = {
+          ai_response:   responseText,
+          mentioned_ids: mentionedIds,
+          cart_actions:  cartActions,
+          _meta: { provider: data.provider || provider, model: data.model || model, latency_ms: latency },
+        };
+        raw.textContent = JSON.stringify(display, null, 2);
+      }
+
+      // 延遲 chip
+      const chips = g('test-stat-chips');
+      if (chips) {
+        chips.style.display = 'flex';
+        const latEl = g('test-stat-latency');
+        if (latEl) latEl.textContent = `${latency}ms`;
+      }
+    }
+  } catch (e) {
+    loadingBubble?.remove();
+    _appendBubble('ai', `❌ 請求失敗：${e.message}`);
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+// ── expose to inline handlers
 window.onSttProviderChange = onSttProviderChange;
 window.onTtsProviderChange = onTtsProviderChange;
 window.saveSettings    = saveSettings;
@@ -910,6 +1161,25 @@ window.clearRagDocs    = clearRagDocs;
 window.saveEmotionSettings        = saveEmotionSettings;
 window.clearEmotionLogs           = clearEmotionLogs;
 window.updateEmotionPromptCounter = updateEmotionPromptCounter;
+window.onAiProviderChange  = onAiProviderChange;
+window.onTestProviderChange = onTestProviderChange;
+window.sendTestMsg   = sendTestMsg;
+window.clearTestChat = clearTestChat;
+window.switchTestView = switchTestView;
+window.loadOllamaModels = loadOllamaModels;
+window.loadVoicePromptDefault = loadVoicePromptDefault;
+
+// ── 測試頁：Enter 送出 / Shift+Enter 換行；自動撐高 ──
+g('test-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTestMsg();
+  }
+});
+g('test-input')?.addEventListener('input', (e) => {
+  e.target.style.height = 'auto';
+  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+});
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
