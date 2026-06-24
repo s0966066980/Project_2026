@@ -22,6 +22,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL",
 )
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
+R1_OMNI_GRADIO_URL = os.getenv("R1_OMNI_GRADIO_URL", "http://127.0.0.1:7890")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
 ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
@@ -118,7 +119,8 @@ DEFAULT_SETTINGS = {
     "TTS_API_URL": "https://api.openai.com",
     "TTS_API_KEY": "",
     "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
-    # ── Emotion-LLaMA ─────────────────────────────────────────────
+    # ── 情緒分析 ─────────────────────────────────────────────
+    "EMOTION_PROVIDER": "emotion_llama",    # "emotion_llama"（:7889）| "r1_omni"（:7890）
     "EMOTION_LLAMA_ENABLED": False,
     "EMOTION_LLAMA_CLIP_SEC": 2.0,
     "PAYMENT_EMOTION_CLIP_SEC": 5.0,   # 付款倒數逾時擷取秒數（觸發點 = 15 - 此值）

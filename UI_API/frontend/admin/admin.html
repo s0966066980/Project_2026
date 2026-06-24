@@ -523,7 +523,7 @@ tbody tr:hover td { background: #f8fafd; }
       <i class="fas fa-database"></i> RAG 知識庫
     </button>
     <button class="nav-item" data-page="emotion" type="button">
-      <i class="fas fa-eye"></i> Emotion-LLaMA
+      <i class="fas fa-eye"></i> 情緒分析
     </button>
     <button class="nav-item" data-page="members" type="button">
       <i class="fas fa-user"></i> 會員
@@ -860,7 +860,7 @@ tbody tr:hover td { background: #f8fafd; }
           <section>
             <div class="section-title">付款逾時情緒摘要 Prompt（員工用）</div>
             <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
-              付款倒數逾時後，Ollama 根據 Emotion-LLaMA 分析結果產生一段<b>給員工閱讀</b>的中文情緒摘要，說明顧客目前狀態與建議應對方式，顯示於後台「人員協助付款」彈窗。輸出請使用 JSON 格式：<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">{"assist_message":"..."}</code>
+              付款倒數逾時後，Ollama 根據情緒分析結果產生一段<b>給員工閱讀</b>的中文情緒摘要，說明顧客目前狀態與建議應對方式，顯示於後台「人員協助付款」彈窗。輸出請使用 JSON 格式：<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">{"assist_message":"..."}</code>
             </p>
             <div>
               <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
@@ -984,8 +984,16 @@ tbody tr:hover td { background: #f8fafd; }
 
     <!-- 設定卡片 -->
     <div class="card" style="margin-bottom:16px">
-      <div class="card-title"><i class="fas fa-eye"></i> Emotion-LLaMA 設定</div>
+      <div class="card-title"><i class="fas fa-eye"></i> 情緒分析設定</div>
       <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0">
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">情緒分析模型</label>
+          <select id="inp-emotion-provider" class="setting-input" style="width:220px">
+            <option value="emotion_llama">Emotion-LLaMA (7889)</option>
+            <option value="r1_omni">R1-Omni (7890)</option>
+          </select>
+        </div>
 
         <div style="display:flex;align-items:center;gap:12px">
           <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用分析</label>
@@ -1062,7 +1070,7 @@ tbody tr:hover td { background: #f8fafd; }
     <!-- 介入紀錄卡片 -->
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-        <span><i class="fas fa-list-alt"></i> Emotion-LLaMA 介入紀錄</span>
+        <span><i class="fas fa-list-alt"></i> 情緒分析介入紀錄</span>
         <button class="btn" style="font-size:12px;padding:4px 10px" onclick="clearEmotionLogs()" type="button">
           <i class="fas fa-trash-alt"></i> 清除
         </button>
@@ -1073,6 +1081,7 @@ tbody tr:hover td { background: #f8fafd; }
             <tr style="background:var(--surface2);text-align:left">
               <th style="padding:8px 10px;white-space:nowrap">時間</th>
               <th style="padding:8px 10px;white-space:nowrap">事件類型</th>
+              <th style="padding:8px 10px;white-space:nowrap">模型</th>
               <th style="padding:8px 10px;white-space:nowrap">情緒 / 強度</th>
               <th style="padding:8px 10px">表情</th>
               <th style="padding:8px 10px">聲音</th>
@@ -1080,7 +1089,7 @@ tbody tr:hover td { background: #f8fafd; }
             </tr>
           </thead>
           <tbody id="emotion-logs-tbody">
-            <tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
+            <tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
           </tbody>
         </table>
       </div>

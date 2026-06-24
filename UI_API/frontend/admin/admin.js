@@ -517,6 +517,7 @@ async function loadEmotionSettings() {
     const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
+    setVal('inp-emotion-provider',            s.EMOTION_PROVIDER || 'emotion_llama');
     g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_LLAMA_ENABLED);
     setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC       ?? 2.0);
     setVal('inp-payment-emotion-clip-sec',    s.PAYMENT_EMOTION_CLIP_SEC     ?? 5.0);
@@ -553,6 +554,7 @@ async function saveEmotionSettings() {
   if (notice) notice.style.display = 'none';
   try {
     const body = {
+      EMOTION_PROVIDER:             val('inp-emotion-provider') || 'emotion_llama',
       EMOTION_LLAMA_ENABLED:        g('inp-emotion-enabled').checked,
       EMOTION_LLAMA_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
       PAYMENT_EMOTION_CLIP_SEC:     parseFloat(val('inp-payment-emotion-clip-sec') || '5.0'),
@@ -601,6 +603,8 @@ const EMOTION_ZH = {
   disgust: '厭惡', fear: '害怕', fearful: '害怕', excited: '興奮', bored: '無聊',
 };
 const INTENSITY_ZH = { low: '低', medium: '中', high: '高' };
+// 情緒分析模型代碼 → 顯示名稱
+const EMOTION_PROVIDER_LABELS = { emotion_llama: 'Emotion-LLaMA', r1_omni: 'R1-Omni' };
 
 function zhEmotion(v) {
   if (!v) return '';
@@ -615,20 +619,21 @@ async function loadEmotionLogs() {
   const tbody = g('emotion-logs-tbody');
   if (!tbody) return;
   const EMPTY_CELL = '<span style="color:var(--text2)">—</span>';
-  tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>`;
   try {
     const res = await fetch(`${API}/api/emotion/intervention_logs?limit=200`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const logs = (data.logs || []).slice().reverse();
     if (!logs.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>`;
       return;
     }
     tbody.innerHTML = logs.map(r => {
       const time  = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
       // 優先使用後端已計算的 event_type_label，避免前後端 label 不同步
       const evt   = escHtml(r.event_type_label || r.event_type || '—');
+      const prov  = r.provider ? escHtml(EMOTION_PROVIDER_LABELS[r.provider] || r.provider) : '—';
 
       let emoCell, facialCell, vocalCell, descCell;
       if (r.quality_skipped) {
@@ -654,6 +659,7 @@ async function loadEmotionLogs() {
       return `<tr style="border-top:1px solid var(--border)">
         <td style="padding:7px 10px;white-space:nowrap;font-size:12px">${time}</td>
         <td style="padding:7px 10px;white-space:nowrap">${evt}</td>
+        <td style="padding:7px 10px;white-space:nowrap;font-size:12px">${prov}</td>
         <td style="padding:7px 10px;white-space:nowrap">${emoCell}</td>
         <td style="padding:7px 10px;max-width:180px;overflow-wrap:break-word;font-size:12px">${facialCell}</td>
         <td style="padding:7px 10px;max-width:160px;overflow-wrap:break-word;font-size:12px">${vocalCell}</td>
@@ -661,7 +667,7 @@ async function loadEmotionLogs() {
       </tr>`;
     }).join('');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
   }
 }
 

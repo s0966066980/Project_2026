@@ -20,6 +20,21 @@ EVENT_TYPE_LABELS = {
     "payment_timeout": "付款逾時協助",
 }
 
+PROVIDER_LABELS = {
+    "emotion_llama": "Emotion-LLaMA",
+    "r1_omni": "R1-Omni",
+}
+
+
+def _provider() -> str:
+    return config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama"
+
+
+def _provider_url() -> str:
+    if _provider() == "r1_omni":
+        return config.R1_OMNI_GRADIO_URL
+    return config.EMOTION_LLAMA_GRADIO_URL
+
 _voice_cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 
@@ -90,6 +105,7 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
     entry = {
         "timestamp": datetime.now().isoformat(),
         "session_id": session_id,
+        "provider": _provider(),
         "event_type": event_type,
         "event_type_label": EVENT_TYPE_LABELS.get(event_type, event_type),
         "clip_sec": float(config.get("EMOTION_LLAMA_CLIP_SEC", 2.0)),
@@ -131,11 +147,13 @@ def _print_entry(entry: dict) -> None:
     sid   = entry.get("session_id", "?")[:8]
     evt   = entry.get("event_type_label") or entry.get("event_type", "")
     st    = entry.get("status", "")
+    prov  = PROVIDER_LABELS.get(entry.get("provider", ""), entry.get("provider", ""))
+    tag   = f"[Emotion:{prov}]" if prov else "[Emotion]"
     if st == "skipped":
-        print(f"[Emotion] {sid} | {evt} | 品質快篩跳過")
+        print(f"{tag} {sid} | {evt} | 品質快篩跳過")
         return
     if st == "error":
-        print(f"[Emotion] {sid} | {evt} | ⚠️ 分析失敗")
+        print(f"{tag} {sid} | {evt} | ⚠️ 分析失敗")
         return
     emo   = entry.get("emotion", "—")
     intens = entry.get("intensity", "")
@@ -152,7 +170,7 @@ def _print_entry(entry: dict) -> None:
     if desc:
         desc_display = desc[:120] + ("…" if len(desc) > 120 else "")
         parts.append(f"描述={desc_display}")
-    print(f"[Emotion] {sid} | {evt} | " + " | ".join(parts))
+    print(f"{tag} {sid} | {evt} | " + " | ".join(parts))
 
 
 
@@ -238,7 +256,7 @@ async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
 
 
 async def _call_http(video_path: str, question: str, skip_quality_check: bool = False) -> str:
-    url = f"{config.EMOTION_LLAMA_GRADIO_URL}/predict"
+    url = f"{_provider_url()}/predict"
     async with httpx.AsyncClient(timeout=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120))) as client:
         resp = await client.post(url, json={
             "video_path": video_path,
