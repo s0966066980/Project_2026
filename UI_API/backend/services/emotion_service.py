@@ -72,7 +72,7 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
     try:
         raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
     except Exception as e:
-        print(f"⚠️ Emotion-LLaMA analyze_event 失敗: {e}")
+        print(f"⚠️ {PROVIDER_LABELS.get(_provider(), _provider())} analyze_event 失敗: {e}")
         llama_error = str(e)
         raw = "[EMOTION_LLAMA_ERROR]"
 
