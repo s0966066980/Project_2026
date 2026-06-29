@@ -1,5 +1,4 @@
 """RAG 知識庫管理路由。"""
-import asyncio
 
 from fastapi import APIRouter, Body, Request
 

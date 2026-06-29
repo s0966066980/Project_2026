@@ -1,4 +1,5 @@
-import * as api from '../shared/api.js';
+import * as api from '../shared/apiClient.js';
+import { useDomReady } from '../shared/hooks/useDomEvents.js';
 import {
   ui,
   escapeHTML,
@@ -6,23 +7,28 @@ import {
 } from '../shared/ui.js';
 import {
   ensureMediaTracks as ensureMediaTracksCore,
-  createVideoRecorder,
-  createAudioRecorder,
-  captureVideoFrameBlob,
   startRollingBuffer,
   stopRollingBuffer,
   capturePreEventClip,
 } from './media.js';
 import { createCartManager } from './cart.js';
-import { connectRealtime } from '../shared/realtime_client.js';
-import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
+import { createRealtimeClient } from '../shared/realtimeClient.js';
+import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
+import { createKioskMenuController } from './controllers/kioskMenuController.js';
 import { state } from './state.js';
+import { configurePointOfSaleRuntime } from './runtime.js';
+import {
+  KIOSK_GROUPS,
+  kioskFilterLabel,
+  kioskGroupLabel,
+  kioskText,
+} from './constants/kiosk.js';
 import {
   hideChoiceHesitationModal,
   isChoiceHesitationVisible, pickChoiceHesitationItem, renderChoiceHesitationItem,
   getChoiceHesitationModal,
-} from './choice_hesitation.js';
-import { openPaymentCountdown, closePaymentCountdown, _showPaymentCdSection } from './payment_countdown.js';
+} from './choiceHesitation.js';
+import { openPaymentCountdown, closePaymentCountdown, showPaymentCountdownSection } from './paymentCountdown.js';
 import { showMemberChoice, renderMemberMenuHeader } from './member.js';
 
 const APP_MODE = (() => {
@@ -55,12 +61,12 @@ let lastInterventionEventAt = 0;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let posRealtime = null;
-let _passiveStream = null;
-let _passiveRecorder = null;
-let _passiveRecTimer = null;
-let _passiveListening = false;
-let _passivePaused = false;
-let _passiveInFlight = false;
+let passiveAudioStream = null;
+let passiveAudioRecorder = null;
+let passiveRecordingTimer = null;
+let isPassiveListening = false;
+let isPassivePaused = false;
+let isPassiveRequestInFlight = false;
 const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
 const PASSIVE_CHUNK_MS = 5000;
 let kioskLang = localStorage.getItem('kiosk_lang') === 'en' ? 'en' : 'zh';
@@ -79,148 +85,8 @@ const interactionState = {
   lastReportedDwellPage: '',
 };
 
-export const KIOSK_GROUPS = [
-  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
-  { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
-  { id: 'premium', label: '極選系列', labelEn: 'Signature Meals', image: '/static/menu_images/MCD014.jpg', categories: ['極選系列'] },
-  { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/mcd_categories/single.jpg', categories: ['超值全餐配餐'] },
-  { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/mcd_categories/value.jpg', categories: ['1+1星級點'] },
-  { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/mcd_categories/recommended.jpg', categories: ['麥當勞分享盒'] },
-  { id: 'happymeal', label: 'Happy Meal', labelEn: 'Happy Meal', image: '/static/mcd_categories/kids.jpg', categories: ['Happy Meal'] },
-  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/deals.jpg', categories: ['點心'] },
-  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé', 'McCafé'] },
-  { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
-];
-
-const KIOSK_TEXT = {
-  zh: {
-    chooseCategory: '請選擇餐點類別',
-    chooseCategorySub: '選擇分類後開始點餐',
-    addHint: '點選加號加入購物車',
-    searchFilter: '搜尋<br>篩選',
-    home: '回首頁',
-    emptyCategory: '此分類目前沒有可顯示餐點',
-    addToCart: '加入購物車',
-    checkoutGo: '結帳去',
-    continueOrder: '繼續點餐',
-    clearCart: '清空購物車',
-    yourCart: '您的購物車',
-    fastPayKicker: '點點卡、信用卡、掃碼支付',
-    fastPayTitle: '在此快速結帳',
-    counterPay: '至櫃檯排隊付款',
-    backCart: '回購物車',
-    cancelOrder: '取消整單訂單',
-    paymentTitle: '請選擇付款方式',
-    menuFallback: '目前沒有選擇任何餐點。',
-    langButton: '中文',
-    total: '總計',
-    subtotal: '小計',
-    secureCheckout: '安全交易 · 安心結帳',
-    checkoutDone: '點餐完成！',
-    thankYou: '感謝您的使用 · Thank you',
-    cartCount: '共 {count} 項',
-    cartEmptyTitle: '購物車是空的',
-    cartEmptySub: '快去選擇喜愛的餐點吧！',
-    holdVoiceOrder: '語音模式',
-    voiceAskHint: '語音協助開啟後可點餐與詢問 AI 助理',
-    listeningAsk: '收音中...',
-    listeningOrder: '聆聽語音協助中...',
-    aiThinking: 'AI 思考中...',
-    recognizingOrder: '辨識餐點中...',
-    languageZh: '繁體中文',
-    languageEn: 'English',
-    priority: '優先級',
-    customer: '顧客',
-    addedToCart: '已加入購物車：{items}',
-    noVoiceOrderItem: '沒有在菜單中找到可加入購物車的餐點。',
-    networkFailed: '網路連線失敗，請稍後再試。',
-    voiceOrderFailed: '語音協助失敗，請稍後再試。',
-    voiceTooShort: '沒有聽到完整語音，請再說一次。',
-    voiceMicNotReady: '麥克風尚未準備完成，請確認瀏覽器麥克風權限。',
-    zhOutput: '繁體中文輸出',
-    enOutput: 'English output',
-    checkoutProcessing: '結帳中...',
-    counterPayCreating: '建立櫃檯付款單...',
-    counterPayDone: '請至櫃檯付款',
-    filters: {
-      '全部': '全部',
-      '牛肉系列': '牛肉系列',
-      '雞肉系列': '雞肉系列',
-      '魚肉系列': '魚肉系列',
-      '點心飲料': '點心飲料',
-    },
-  },
-  en: {
-    chooseCategory: 'Choose a Category',
-    chooseCategorySub: 'Select a category to start ordering',
-    addHint: 'Tap plus to add to cart',
-    searchFilter: 'Search<br>Filter',
-    home: 'Home',
-    emptyCategory: 'No items in this category',
-    addToCart: 'Add to Cart',
-    checkoutGo: 'Checkout',
-    continueOrder: 'Continue Ordering',
-    clearCart: 'Clear Cart',
-    yourCart: 'Your Cart',
-    fastPayKicker: 'Card, credit card, QR payment',
-    fastPayTitle: 'Quick Checkout Here',
-    counterPay: 'Pay at Counter',
-    backCart: 'Back to Cart',
-    cancelOrder: 'Cancel Order',
-    paymentTitle: 'Choose Payment Method',
-    menuFallback: 'No items selected.',
-    langButton: 'EN',
-    total: 'Total',
-    subtotal: 'Subtotal',
-    secureCheckout: 'Secure Checkout',
-    checkoutDone: 'Order Complete!',
-    thankYou: 'Thank you',
-    cartCount: '{count} items',
-    cartEmptyTitle: 'Your cart is empty',
-    cartEmptySub: 'Choose your favorite meal to begin.',
-    holdVoiceOrder: 'Voice Mode',
-    voiceAskHint: 'Enable voice assistance for ordering and AI questions',
-    listeningAsk: 'Listening...',
-    listeningOrder: 'Listening for voice assist...',
-    aiThinking: 'AI is thinking...',
-    recognizingOrder: 'Recognizing order...',
-    languageZh: 'Traditional Chinese',
-    languageEn: 'English',
-    priority: 'Priority',
-    customer: 'Customer',
-    addedToCart: 'Added to cart: {items}',
-    noVoiceOrderItem: 'No matching menu item was found.',
-    networkFailed: 'Network failed. Please try again later.',
-    voiceOrderFailed: 'Voice assistance failed. Please try again later.',
-    voiceTooShort: 'I did not hear a complete request. Please try again.',
-    voiceMicNotReady: 'The microphone is not ready. Please check browser microphone permission.',
-    zhOutput: 'Traditional Chinese output',
-    enOutput: 'English output',
-    checkoutProcessing: 'Checking out...',
-    counterPayCreating: 'Creating counter payment...',
-    counterPayDone: 'Please pay at the counter',
-    filters: {
-      '全部': 'All',
-      '牛肉系列': 'Beef',
-      '雞肉系列': 'Chicken',
-      '魚肉系列': 'Fish',
-      '安格斯系列': 'Angus',
-      '早餐系列': 'Breakfast',
-      '點心飲料': 'Snacks & Drinks',
-    },
-  },
-};
-
 export function kt(key) {
-  return KIOSK_TEXT[kioskLang]?.[key] || KIOSK_TEXT.zh[key] || key;
-}
-
-function kFilterLabel(filter) {
-  return KIOSK_TEXT[kioskLang]?.filters?.[filter] || filter;
-}
-
-function groupLabel(group) {
-  return kioskLang === 'en' ? (group.labelEn || group.label) : group.label;
+  return kioskText(kioskLang, key);
 }
 let fullSettings = {};
 let runtimeSettings = {};
@@ -359,7 +225,7 @@ function applyFeaturesToPOS() {
   if (center) center.style.display = 'none';
   // 語音回覆氣泡（關閉語音協助時隱藏）
   if (!f.voiceAssist) closeVoiceBubble();
-  if (!f.recommend) aiPush.stop();
+  if (!f.recommend) aiRecommendationController.stop();
 }
 
 export function isCartScreenOpen() {
@@ -383,7 +249,7 @@ function clearPOSFloatingUI() {
   closeVoiceBubble();
   hideVoiceAssistOverlay();
   hideChoiceHesitationModal();
-  aiPush.hide();
+  aiRecommendationController.hide();
 }
 
 
@@ -406,6 +272,62 @@ function findMenuItems(ids = []) {
 }
 
 export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
+
+const kioskMenuController = createKioskMenuController({
+  api,
+  state,
+  ui,
+  escapeHTML,
+  getMenuVisual,
+  formatItemPrice,
+  groups: KIOSK_GROUPS,
+  getLanguage: () => kioskLang,
+  translate: kt,
+  translateFilter: (filter) => kioskFilterLabel(kioskLang, filter),
+  translateGroup: (group) => kioskGroupLabel(kioskLang, group),
+  showItemConfirmModal,
+  updateKioskCartSummary,
+  onCategorySwitchRepeat(groupId, filter) {
+    interactionState.categorySwitchCount += 1;
+    if (interactionState.categorySwitchCount >= 4) {
+      trackInteractionEvent({
+        event_type: 'category_switch_repeat',
+        button_id: `category_${groupId}`,
+        category_switch_count: interactionState.categorySwitchCount,
+        metadata: { action: 'category_switch', group_id: groupId, filter },
+      });
+    }
+  },
+});
+
+const {
+  loadMenu,
+  renderMenu,
+  renderKioskCategories,
+  showMenuGroup,
+} = kioskMenuController;
+
+export const itemMatchesSubFilter = kioskMenuController.itemMatchesSubFilter;
+
+configurePointOfSaleRuntime({
+  cartManager,
+  clearAllPushCards,
+  getFeatures,
+  getKioskLang,
+  getRuntimeSettings,
+  isAdminMode,
+  isPosActive,
+  isPosMode,
+  itemMatchesSubFilter,
+  kt,
+  sessionId,
+  showPushNotice,
+  trackInteractionEvent,
+  pausePassiveListener,
+  resumePassiveListener,
+  triggerEmotionCapture,
+  triggerEmotionCaptureAndWait,
+});
 
 function trackedAddToCart(item, metadata = {}) {
   state.lastValidOrderActionAt = Date.now();
@@ -478,61 +400,61 @@ export function showPushNotice(text) {
 // AI 推播底部欄
 // =========================================================
 
-const aiPush = (() => {
-  const REFRESH_MS = 15_000;
-  const RETRY_MS   = 1_000;
-  let _timer    = null;
-  let _inFlight = false;
-  let _item     = null;
+const aiRecommendationController = (() => {
+  const RECOMMENDATION_REFRESH_DELAY_MS = 15_000;
+  const RECOMMENDATION_RETRY_DELAY_MS   = 1_000;
+  let recommendationTimer    = null;
+  let isRecommendationRequestInFlight = false;
+  let currentRecommendationItem     = null;
 
   // ── DOM shortcuts ──
   const $ = id => document.getElementById(id);
 
-  function _eligible() {
+  function isRecommendationEligible() {
     if (!$('aiPushBar')) return false;
     const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
     const cartOpen    = Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
-    return Boolean(isPosActive() && !document.hidden && !_isVoiceActive() && !paymentOpen && !cartOpen && state.menuData.length);
+    return Boolean(isPosActive() && !document.hidden && !isVoiceAssistantActive() && !paymentOpen && !cartOpen && state.menuData.length);
   }
 
-  function _render(item, pushText) {
+  function renderRecommendation(item, pushText) {
     if (!item || !$('aiPushBar')) return;
     const visual = getMenuVisual(item);
-    _item = item;
+    currentRecommendationItem = item;
 
-    const nameEl = $('aiPushItemName');
-    const textEl = $('aiPushText');
-    const imgEl  = $('aiPushImage');
-    const emEl   = $('aiPushFallback');
+    const nameElement = $('aiPushItemName');
+    const textElement = $('aiPushText');
+    const imageElement  = $('aiPushImage');
+    const emojiElement   = $('aiPushFallback');
 
-    if (nameEl) nameEl.textContent = item.name || '';
-    const prEl = $('aiPushItemPrice');
-    if (prEl) prEl.textContent = formatItemPrice(item, kioskLang);
-    if (textEl) textEl.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
+    if (nameElement) nameElement.textContent = item.name || '';
+    const priceElement = $('aiPushItemPrice');
+    if (priceElement) priceElement.textContent = formatItemPrice(item, kioskLang);
+    if (textElement) textElement.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
 
-    if (imgEl) {
+    if (imageElement) {
       if (visual.image) {
-        imgEl.src = visual.image;
-        imgEl.alt = item.name || '';
-        imgEl.style.display = 'block';
-        imgEl.onerror = () => {
-          imgEl.style.display = 'none';
-          if (emEl) { emEl.textContent = visual.emoji || '🍔'; emEl.style.display = 'block'; }
+        imageElement.src = visual.image;
+        imageElement.alt = item.name || '';
+        imageElement.style.display = 'block';
+        imageElement.onerror = () => {
+          imageElement.style.display = 'none';
+          if (emojiElement) { emojiElement.textContent = visual.emoji || '🍔'; emojiElement.style.display = 'block'; }
         };
       } else {
-        imgEl.style.display = 'none';
+        imageElement.style.display = 'none';
       }
     }
-    if (emEl) {
-      emEl.textContent = visual.emoji || '🍔';
-      emEl.style.display = visual.image ? 'none' : 'block';
+    if (emojiElement) {
+      emojiElement.textContent = visual.emoji || '🍔';
+      emojiElement.style.display = visual.image ? 'none' : 'block';
     }
 
     $('aiPushBar').classList.remove('hidden', 'loading');
   }
 
   // 從菜單選預設推播（不呼叫 Ollama）
-  function _pickDefault() {
+  function pickDefaultRecommendation() {
     const priority = ['超值全餐', '極選系列', '點心'];
     for (const cat of priority) {
       const hit = state.menuData.find(m => m.category === cat && m.id);
@@ -542,73 +464,73 @@ const aiPush = (() => {
   }
 
   // 本地隨機備選（Ollama 失敗時使用），excludeCurrent=true 排除目前品項
-  function _pickRandom(excludeCurrent = true) {
+  function pickRandomRecommendation(excludeCurrent = true) {
     const priced = state.menuData.filter(m => m && m.id && Number(m.price || 0) > 0);
-    if (!priced.length) return _pickDefault();
-    const pool = excludeCurrent && _item?.id
-      ? priced.filter(m => m.id !== _item.id)
+    if (!priced.length) return pickDefaultRecommendation();
+    const pool = excludeCurrent && currentRecommendationItem?.id
+      ? priced.filter(m => m.id !== currentRecommendationItem.id)
       : priced;
     const src = pool.length ? pool : priced;
     return src[Math.floor(Math.random() * src.length)];
   }
 
   // excludeCurrentItem=false 時不排除目前項目（首次呼叫用）
-  async function _fetch(excludeCurrentItem = true) {
-    if (_inFlight || !_eligible()) { if (!_eligible()) hide(); return; }
-    _inFlight = true;
-    if (!_item) $('aiPushBar')?.classList.add('loading');
+  async function fetchRecommendation(excludeCurrentItem = true) {
+    if (isRecommendationRequestInFlight || !isRecommendationEligible()) { if (!isRecommendationEligible()) hide(); return; }
+    isRecommendationRequestInFlight = true;
+    if (!currentRecommendationItem) $('aiPushBar')?.classList.add('loading');
 
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    fd.append('exclude_ids', JSON.stringify(excludeCurrentItem && _item?.id ? [_item.id] : []));
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('exclude_ids', JSON.stringify(excludeCurrentItem && currentRecommendationItem?.id ? [currentRecommendationItem.id] : []));
     try {
-      const data = await api.aiPush(fd);
+      const data = await api.requestAiPushRecommendation(formData);
       const id     = data?.recommendation_id || '';
       const aiItem = id ? state.menuData.find(m => m.id === id) : null;
       // AI 推薦有效且與目前不同 → 採用；否則本地隨機備選
-      const item = (aiItem && aiItem.id !== _item?.id)
+      const item = (aiItem && aiItem.id !== currentRecommendationItem?.id)
         ? aiItem
-        : _pickRandom(excludeCurrentItem);
-      if (item) _render(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`);
+        : pickRandomRecommendation(excludeCurrentItem);
+      if (item) renderRecommendation(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`);
     } catch {
       // Ollama 無法連線，使用本地隨機備選確保畫面更新
-      const fallback = _pickRandom(excludeCurrentItem);
-      if (fallback) _render(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`);
+      const fallback = pickRandomRecommendation(excludeCurrentItem);
+      if (fallback) renderRecommendation(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`);
     } finally {
-      _inFlight = false;
+      isRecommendationRequestInFlight = false;
       $('aiPushBar')?.classList.remove('loading');
-      _schedule(REFRESH_MS);
+      scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
     }
   }
 
-  function _schedule(delay) {
-    _clearTimer();
-    _timer = setTimeout(() => {
-      _timer = null;
-      if (_eligible()) _fetch();
-      else { hide(); _schedule(RETRY_MS); }
+  function scheduleRecommendationRefresh(delay) {
+    clearRecommendationTimer();
+    recommendationTimer = setTimeout(() => {
+      recommendationTimer = null;
+      if (isRecommendationEligible()) fetchRecommendation();
+      else { hide(); scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS); }
     }, delay);
   }
 
-  function _clearTimer() {
-    if (_timer) { clearTimeout(_timer); _timer = null; }
+  function clearRecommendationTimer() {
+    if (recommendationTimer) { clearTimeout(recommendationTimer); recommendationTimer = null; }
   }
 
   // ── 對外介面 ──
 
   function start() {
     // ① 立即預載預設推播（零延遲，無需等待 Ollama）
-    const def = _pickDefault();
-    if (def) _render(def, `${def.name}是現在的熱門選擇，快來試試！`);
+    const defaultRecommendation = pickDefaultRecommendation();
+    if (defaultRecommendation) renderRecommendation(defaultRecommendation, `${defaultRecommendation.name}是現在的熱門選擇，快來試試！`);
     // ② 背景呼叫 Ollama 生成真實推播文字（不排除預載項目，讓 AI 自由選擇）
-    if (_eligible()) _fetch(false);
-    else _schedule(RETRY_MS);
+    if (isRecommendationEligible()) fetchRecommendation(false);
+    else scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
   }
 
   function stop() {
-    _clearTimer();
-    _inFlight = false;
-    _item     = null;
+    clearRecommendationTimer();
+    isRecommendationRequestInFlight = false;
+    currentRecommendationItem     = null;
     hide();
   }
 
@@ -620,13 +542,13 @@ const aiPush = (() => {
   function scheduleAfterCartClose() { start(); }
 
   // 事件監聽（module 頂層執行一次）
-  document.addEventListener('DOMContentLoaded', () => {
+  useDomReady(() => {
     $('aiPushPickBtn')?.addEventListener('click', () => {
-      if (!_item) return;
-      showItemConfirmModal(_item, 'ai_push');
-      _schedule(REFRESH_MS);
+      if (!currentRecommendationItem) return;
+      showItemConfirmModal(currentRecommendationItem, 'ai_push');
+      scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
     });
-    $('aiPushRefreshBtn')?.addEventListener('click', () => _fetch());
+    $('aiPushRefreshBtn')?.addEventListener('click', () => fetchRecommendation());
     $('aiPushVoiceBtn')?.addEventListener('click', () => startAskRecording($('aiPushVoiceBtn')));
   });
 
@@ -636,41 +558,41 @@ const aiPush = (() => {
 // =========================================================
 // 餐點確認彈窗
 // =========================================================
-let _icItem   = null;
-let _icQty    = 1;
-let _icSource = 'menu_card';
+let itemConfirmSelectedItem   = null;
+let itemConfirmQuantity    = 1;
+let itemConfirmSource = 'menu_card';
 
 function showItemConfirmModal(item, source = 'menu_card') {
-  _icSource = source;
+  itemConfirmSource = source;
   if (!item) return;
-  _icItem = item;
-  _icQty  = 1;
+  itemConfirmSelectedItem = item;
+  itemConfirmQuantity  = 1;
 
   const visual = getMenuVisual(item);
   const modal  = document.getElementById('itemConfirmModal');
   if (!modal) return;
 
-  const imgEl  = document.getElementById('itemConfirmImg');
-  const emEl   = document.getElementById('itemConfirmEmoji');
-  if (imgEl) {
-    imgEl.src = visual.image || '';
-    imgEl.alt = item.name || '';
-    imgEl.style.display = visual.image ? 'block' : 'none';
-    imgEl.onerror = () => {
-      imgEl.style.display = 'none';
-      if (emEl) { emEl.textContent = visual.emoji || '🍔'; emEl.style.display = 'block'; }
+  const imageElement  = document.getElementById('itemConfirmImg');
+  const emojiElement   = document.getElementById('itemConfirmEmoji');
+  if (imageElement) {
+    imageElement.src = visual.image || '';
+    imageElement.alt = item.name || '';
+    imageElement.style.display = visual.image ? 'block' : 'none';
+    imageElement.onerror = () => {
+      imageElement.style.display = 'none';
+      if (emojiElement) { emojiElement.textContent = visual.emoji || '🍔'; emojiElement.style.display = 'block'; }
     };
   }
-  if (emEl) {
-    emEl.textContent = visual.emoji || '🍔';
-    emEl.style.display = visual.image ? 'none' : 'block';
+  if (emojiElement) {
+    emojiElement.textContent = visual.emoji || '🍔';
+    emojiElement.style.display = visual.image ? 'none' : 'block';
   }
 
-  const nameEl  = document.getElementById('itemConfirmName');
+  const nameElement  = document.getElementById('itemConfirmName');
   const priceEl = document.getElementById('itemConfirmPrice');
   const descEl  = document.getElementById('itemConfirmDesc');
   const qtyEl   = document.getElementById('itemConfirmQtyDisplay');
-  if (nameEl)  nameEl.textContent  = item.name || '';
+  if (nameElement)  nameElement.textContent  = item.name || '';
   if (priceEl) priceEl.textContent = formatItemPrice(item, kioskLang);
   if (descEl)  descEl.textContent  = item.description || '';
   if (qtyEl)   qtyEl.textContent   = '1';
@@ -679,36 +601,36 @@ function showItemConfirmModal(item, source = 'menu_card') {
 }
 
 function hideItemConfirmModal() {
-  _icItem   = null;
-  _icQty    = 1;
-  _icSource = 'menu_card';
+  itemConfirmSelectedItem   = null;
+  itemConfirmQuantity    = 1;
+  itemConfirmSource = 'menu_card';
   document.getElementById('itemConfirmModal')?.classList.add('hidden');
 }
 
 // wire up once after DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+useDomReady(() => {
   document.getElementById('itemConfirmClose')?.addEventListener('click', hideItemConfirmModal);
   document.getElementById('itemConfirmBackdrop')?.addEventListener('click', hideItemConfirmModal);
   document.getElementById('itemConfirmCancel')?.addEventListener('click', hideItemConfirmModal);
 
   document.getElementById('itemConfirmMinus')?.addEventListener('click', () => {
-    if (_icQty <= 1) return;
-    _icQty--;
-    const el = document.getElementById('itemConfirmQtyDisplay');
-    if (el) el.textContent = String(_icQty);
+    if (itemConfirmQuantity <= 1) return;
+    itemConfirmQuantity--;
+    const quantityDisplayElement = document.getElementById('itemConfirmQtyDisplay');
+    if (quantityDisplayElement) quantityDisplayElement.textContent = String(itemConfirmQuantity);
   });
 
   document.getElementById('itemConfirmPlus')?.addEventListener('click', () => {
-    if (_icQty >= 20) return;
-    _icQty++;
-    const el = document.getElementById('itemConfirmQtyDisplay');
-    if (el) el.textContent = String(_icQty);
+    if (itemConfirmQuantity >= 20) return;
+    itemConfirmQuantity++;
+    const quantityDisplayElement = document.getElementById('itemConfirmQtyDisplay');
+    if (quantityDisplayElement) quantityDisplayElement.textContent = String(itemConfirmQuantity);
   });
 
   document.getElementById('itemConfirmAdd')?.addEventListener('click', () => {
-    if (!_icItem) return;
-    for (let i = 0; i < _icQty; i++) {
-      trackedAddToCart(_icItem, { source: _icSource });
+    if (!itemConfirmSelectedItem) return;
+    for (let i = 0; i < itemConfirmQuantity; i++) {
+      trackedAddToCart(itemConfirmSelectedItem, { source: itemConfirmSource });
     }
     hideItemConfirmModal();
   });
@@ -717,174 +639,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // =========================================================
 // 菜單
 // =========================================================
-async function loadMenu() {
-  try {
-    state.menuData = await api.getMenu();
-  } catch {
-    state.menuData = [
-      { id: 'MCD001', name: '測試大麥克', price: 100, category: '超值全餐', description: '後端未連線，這是預設測試資料。' },
-      { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:9000 已啟動。' }
-    ];
-  }
-  renderMenu();
-}
-
-function renderMenu() {
-  if (state.kioskScreen === 'categories') {
-    renderKioskCategories();
-    return;
-  }
-  renderKioskMenuItems();
-}
-
-function renderKioskCategories() {
-  state.kioskScreen = 'categories';
-  document.getElementById('view-pos')?.classList.remove('kiosk-screen-menu');
-  document.getElementById('view-pos')?.classList.add('kiosk-screen-categories');
-  state.kioskActiveGroup = '';
-  state.kioskActiveFilter = '全部';
-  ui.menuGrid.innerHTML = '';
-  ui.menuGrid.className = 'kiosk-category-grid';
-  if (ui.kioskTitle) ui.kioskTitle.textContent = '';
-  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('chooseCategorySub');
-  document.getElementById('kioskLogo')?.classList.remove('hidden');
-  document.getElementById('kioskLangBtn')?.classList.remove('hidden');
-  ui.kioskBackBtn?.classList.add('hidden');
-  ui.kioskSearchBtn?.classList.add('hidden');
-  ui.kioskSectionHead?.classList.add('hidden');
-
-  const heading = document.createElement('div');
-  heading.className = 'kiosk-category-heading';
-  heading.textContent = kt('chooseCategory');
-  ui.menuGrid.appendChild(heading);
-
-  KIOSK_GROUPS.forEach(group => {
-    const card = document.createElement('button');
-    card.className = 'kiosk-category-card';
-    card.type = 'button';
-    card.onclick = () => showMenuGroup(group.id);
-    card.innerHTML = `
-      <img src="${group.image}" alt="${escapeHTML(groupLabel(group))}" onerror="this.style.display='none'">
-      <strong>${escapeHTML(groupLabel(group))}</strong>`;
-    ui.menuGrid.appendChild(card);
-  });
-  updateKioskCartSummary();
-}
-
-function showMenuGroup(groupId, filter = '全部') {
-  const switchingInMenu = state.kioskScreen === 'menu' && (state.kioskActiveGroup !== groupId || state.kioskActiveFilter !== filter);
-  state.kioskScreen = 'menu';
-  state.kioskActiveGroup = groupId;
-  state.kioskActiveFilter = filter;
-  if (switchingInMenu) {
-    interactionState.categorySwitchCount += 1;
-    if (interactionState.categorySwitchCount >= 4) {
-      trackInteractionEvent({
-        event_type: 'category_switch_repeat',
-        button_id: `category_${groupId}`,
-        category_switch_count: interactionState.categorySwitchCount,
-        metadata: { action: 'category_switch', group_id: groupId, filter }
-      });
-    }
-  }
-  renderMenu();
-}
-
-function groupItems(groupId) {
-  const group = KIOSK_GROUPS.find(g => g.id === groupId) || KIOSK_GROUPS[1];
-  const allowed = new Set((group.categories || []).map(String));
-  const items = state.menuData.filter(item => allowed.has(String(item.category || '')));
-  return group.featuredLimit ? items.slice(0, group.featuredLimit) : items;
-}
-
-export function itemMatchesSubFilter(item, filter) {
-  if (!filter || filter === '全部') return true;
-  const name = String(item.name || '').replace(/鷄/g, '雞');
-  if (filter === '牛肉系列') return /牛|安格斯|大麥克|吉事|四盎司/.test(name);
-  if (filter === '雞肉系列') return /雞|脆|辣/.test(name);
-  if (filter === '魚肉系列') return /魚/.test(name);
-  if (filter === '安格斯系列') return /安格斯/.test(name);
-  if (filter === '早餐系列') return String(item.category || '') === '早餐' || /滿福|鬆餅|薯餅/.test(name);
-  if (filter === '點心飲料') return /薯|派|湯|茶|可樂|咖啡|那堤|奶茶/.test(name);
-  return true;
-}
-
-function subFiltersForGroup(groupId) {
-  if (groupId === 'value' || groupId === 'recommended') return ['全部', '牛肉系列', '雞肉系列', '魚肉系列'];
-  if (groupId === 'premium') return ['全部', '安格斯系列', '雞肉系列'];
-  if (groupId === 'single' || groupId === 'drinks') return ['全部', '點心飲料'];
-  if (groupId === 'breakfast') return ['全部', '早餐系列'];
-  return ['全部'];
-}
-
-function renderKioskMenuItems() {
-  document.getElementById('view-pos')?.classList.remove('kiosk-screen-categories');
-  document.getElementById('view-pos')?.classList.add('kiosk-screen-menu');
-  const group = KIOSK_GROUPS.find(g => g.id === state.kioskActiveGroup) || KIOSK_GROUPS[1];
-  const filters = subFiltersForGroup(group.id);
-  const items = groupItems(group.id).filter(item => itemMatchesSubFilter(item, state.kioskActiveFilter));
-  ui.menuGrid.innerHTML = '';
-  ui.menuGrid.className = 'kiosk-menu-list';
-  if (ui.kioskTitle) ui.kioskTitle.textContent = groupLabel(group);
-  if (ui.kioskSubtitle) ui.kioskSubtitle.textContent = kt('addHint');
-  document.getElementById('kioskLogo')?.classList.add('hidden');
-  document.getElementById('kioskLangBtn')?.classList.add('hidden');
-  ui.kioskBackBtn?.classList.remove('hidden');
-  ui.kioskSearchBtn?.classList.remove('hidden');
-  ui.kioskSectionHead?.classList.add('hidden');
-
-  const tabs = document.createElement('div');
-  tabs.className = 'kiosk-menu-tabs';
-  tabs.innerHTML = filters.map(filter => `
-    <button type="button" class="${filter === state.kioskActiveFilter ? 'active' : ''}" data-filter="${escapeHTML(filter)}">
-      ${escapeHTML(kFilterLabel(filter))}
-    </button>`).join('');
-  tabs.querySelectorAll('button').forEach(button => {
-    button.addEventListener('click', () => showMenuGroup(group.id, button.dataset.filter || '全部'));
-  });
-  ui.menuGrid.appendChild(tabs);
-
-  if (!items.length) {
-    const empty = document.createElement('div');
-    empty.className = 'kiosk-empty-menu';
-    empty.textContent = kt('emptyCategory');
-    ui.menuGrid.appendChild(empty);
-    return;
-  }
-
-  items.forEach(item => {
-    const visual = getMenuVisual(item);
-    const row = document.createElement('div');
-    row.id = `menu-${item.id}`;
-    row.className = 'kiosk-menu-row';
-    row.innerHTML = `
-      <div class="kiosk-menu-photo">
-        <img src="${visual.image}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <span class="menu-photo-fallback">${visual.emoji}</span>
-      </div>
-      <div class="kiosk-menu-copy">
-        <h3>${escapeHTML(item.name)}</h3>
-        <strong>${escapeHTML(formatItemPrice(item, kioskLang))}</strong>
-      </div>
-      <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(kt('addToCart'))}"><i class="fas fa-plus"></i></button>`;
-    row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
-      event.stopPropagation();
-      showItemConfirmModal(item);
-    });
-    row.addEventListener('click', () => showItemConfirmModal(item));
-    ui.menuGrid.appendChild(row);
-  });
-}
 
 function updateKioskCartSummary() {
   const items = cartManager?.getCartItems ? cartManager.getCartItems() : [];
   const total = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
-  const qty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  if (ui.kioskBottomCount) ui.kioskBottomCount.textContent = String(qty);
+  const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  if (ui.kioskBottomCount) ui.kioskBottomCount.textContent = String(quantity);
   if (ui.kioskBottomTotal) ui.kioskBottomTotal.textContent = `$${total}`;
   if (ui.totalPrice) ui.totalPrice.textContent = `$${total}`;
   if (ui.checkoutBtn) {
-    ui.checkoutBtn.disabled = qty <= 0;
+    ui.checkoutBtn.disabled = quantity <= 0;
     const label = ui.checkoutBtn.querySelector('span');
     if (label) label.textContent = `${kt('checkoutGo')} $${total}`;
   }
@@ -921,26 +685,26 @@ function applyKioskLanguage() {
   const paymentTitle = document.querySelector('.kiosk-payment-inner h1');
   if (paymentTitle) paymentTitle.textContent = kt('paymentTitle');
   const totalLabels = document.querySelectorAll('.cart-card .font-semibold.text-lg, .order-summary-total .grand span');
-  totalLabels.forEach(el => { el.textContent = kt('total'); });
+  totalLabels.forEach(element => { element.textContent = kt('total'); });
   const subtotalLabel = document.querySelector('.order-summary-total div:first-child span');
   if (subtotalLabel) subtotalLabel.textContent = kt('subtotal');
   const secureNotes = document.querySelectorAll('.order-secure-note, .cart-card.p-7 > p');
-  secureNotes.forEach(el => {
-    const icon = el.querySelector('i')?.outerHTML || '';
-    el.innerHTML = `${icon}${escapeHTML(kt('secureCheckout'))}`;
+  secureNotes.forEach(element => {
+    const icon = element.querySelector('i')?.outerHTML || '';
+    element.innerHTML = `${icon}${escapeHTML(kt('secureCheckout'))}`;
   });
   const checkoutDoneTitle = document.querySelector('#checkoutOverlay h1');
   if (checkoutDoneTitle) checkoutDoneTitle.textContent = kt('checkoutDone');
   const checkoutDoneSub = document.querySelector('#checkoutOverlay p');
   if (checkoutDoneSub) checkoutDoneSub.textContent = kt('thankYou');
-  const _vaLangText = document.getElementById('voiceAssistBtnText');
-  if (_vaLangText) _vaLangText.textContent = kt('holdVoiceOrder');
+  const voiceAssistantLanguageText = document.getElementById('voiceAssistBtnText');
+  if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = kt('holdVoiceOrder');
   if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
   if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
   if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音';
   if (ui.cartCountBadge) {
-    const qty = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
-    ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(qty));
+    const quantity = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
+    ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(quantity));
   }
 }
 
@@ -954,7 +718,7 @@ function setKioskLanguage(lang) {
 }
 
 function showCartScreen() {
-  aiPush.hide();
+  aiRecommendationController.hide();
   document.querySelector('.cart-shell')?.classList.add('kiosk-cart-open');
   ui.kioskBottomBar?.classList.remove('hidden');
   setInteractionPage('checkout_page', { source: 'cart_open' });
@@ -968,7 +732,7 @@ function hideCartScreen() {
     setInteractionPage(state.kioskScreen === 'categories' ? 'menu_page' : 'menu_page', { source: 'continue_order' });
   }
   updateVoiceAssistVisibility();
-  aiPush.scheduleAfterCartClose();
+  aiRecommendationController.scheduleAfterCartClose();
 }
 
 function showPaymentScreen() {
@@ -977,7 +741,7 @@ function showPaymentScreen() {
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
   hideChoiceHesitationModal();
-  aiPush.stop();
+  aiRecommendationController.stop();
   clearPOSFloatingUI();
   updateVoiceAssistVisibility();
 }
@@ -1067,9 +831,9 @@ function showAdminNotice(message, type = 'info') {
   ui.adminNotificationBox.classList.remove('hidden');
 }
 
-function setVisible(el, visible) {
-  if (!el) return;
-  el.style.display = visible ? '' : 'none';
+function setVisible(element, visible) {
+  if (!element) return;
+  element.style.display = visible ? '' : 'none';
 }
 
 function handleRealtimeSettingsChanged(event = {}) {
@@ -1095,7 +859,7 @@ function handleRealtimeInteractionIntervention(event = {}) {
 
 function startPosRealtime() {
   if (!posRealtime) {
-    posRealtime = connectRealtime('pos', sessionId, {
+    posRealtime = createRealtimeClient('pos', sessionId, {
       human_reply: handleRealtimeHumanReply,
       interaction_intervention: handleRealtimeInteractionIntervention,
       settings_changed: handleRealtimeSettingsChanged,
@@ -1259,7 +1023,7 @@ async function runPosStartup() {
     startPageDwellWatcher();
     setInteractionPage('menu_page', { source: 'start_system' });
     renderMemberMenuHeader();
-    setTimeout(() => aiPush.start(), 600);
+    setTimeout(() => aiRecommendationController.start(), 600);
     if (f.voiceAssist) setupAskRecorder();
     if (getRuntimeSettings().EMOTION_LLAMA_ENABLED && state.stream) {
       const bufferSec = Math.max(
@@ -1294,7 +1058,7 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
 
 
 import {
-  _isVoiceActive, closeVoiceBubble, hideVoiceAssistOverlay, setupAskRecorder, startAskRecording,
+  isVoiceAssistantActive, closeVoiceBubble, hideVoiceAssistOverlay, setupAskRecorder, startAskRecording,
 } from './voice.js';
 
 window.addEventListener('beforeunload', () => {
@@ -1302,7 +1066,7 @@ window.addEventListener('beforeunload', () => {
     if (state.askRecorder?.state === 'recording') state.askRecorder.stop();
   } catch { }
   if (pageDwellTimer) clearInterval(pageDwellTimer);
-  aiPush.stop();
+  aiRecommendationController.stop();
 });
 
 
@@ -1378,17 +1142,17 @@ function renderOrderConfirm() {
 }
 
 async function writeCheckoutLog(cartIds = []) {
-  const fd = new FormData();
-  fd.append('session_id', sessionId);
-  fd.append('pushed_ids', JSON.stringify(Array.from(state.sessionPushedIds)));
-  fd.append('cart_ids', JSON.stringify(cartIds));
-  fd.append('ai_push_cart_count', String(sessionAiPushCartCount));
-  fd.append('cart_sources', JSON.stringify(state.sessionCartSources));
-  fd.append('cart_total', String(cartManager.getCartTotal()));
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  formData.append('pushed_ids', JSON.stringify(Array.from(state.sessionPushedIds)));
+  formData.append('cart_ids', JSON.stringify(cartIds));
+  formData.append('ai_push_cart_count', String(sessionAiPushCartCount));
+  formData.append('cart_sources', JSON.stringify(state.sessionCartSources));
+  formData.append('cart_total', String(cartManager.getCartTotal()));
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const res = await api.checkout(fd, ctrl.signal);
+    const res = await api.submitCheckout(formData, ctrl.signal);
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
       return { orderNumber: data.order_number ?? 0, sessionId: data.session_id || sessionId };
@@ -1447,14 +1211,14 @@ function showCompletionOverlay(orderData = {}) {
     const listEl = overlay.querySelector('[data-item-list]');
     if (listEl) {
       listEl.textContent = '';
-      cartItems.forEach(({ name, qty, price }) => {
+      cartItems.forEach(({ name, quantity, price }) => {
         const row = document.createElement('div');
         row.className = 'co-item-row';
         const nameSpan = document.createElement('span');
         nameSpan.textContent = name;
         const qtySpan = document.createElement('span');
         qtySpan.className = 'co-item-qty';
-        qtySpan.textContent = `×${qty}`;
+        qtySpan.textContent = `×${quantity}`;
         const priceSpan = document.createElement('span');
         priceSpan.className = 'co-item-price';
         priceSpan.textContent = `$${price}`;
@@ -1463,7 +1227,7 @@ function showCompletionOverlay(orderData = {}) {
       });
     }
 
-    const total = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const totalEl = overlay.querySelector('[data-total]');
     if (totalEl) totalEl.textContent = `$${total}`;
 
@@ -1482,7 +1246,7 @@ async function finishOrder(cartIds, button, loadingText) {
   updateVoiceAssistVisibility();
   clearPOSFloatingUI();
   hideChoiceHesitationModal();
-  aiPush.stop();
+  aiRecommendationController.stop();
   const originalHTML = button?.innerHTML || '';
   setConfirmButtonsDisabled(true);
   if (button) button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${loadingText}`;
@@ -1498,7 +1262,7 @@ async function finishOrder(cartIds, button, loadingText) {
   const rawItems = cartManager.getCartItems ? cartManager.getCartItems() : [];
   orderData.cartItems = rawItems.map(item => ({
     name: item.name || item.id || '',
-    qty:  Number(item.qty || item.quantity || 1),
+    quantity:  Number(item.qty || item.quantity || 1),
     price: Number(item.price || 0),
   }));
 
@@ -1540,7 +1304,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   clearPOSFloatingUI();
   hideChoiceHesitationModal();
   stopPassiveListener();
-  aiPush.stop();
+  aiRecommendationController.stop();
   cartManager.clearCart();
   state.sessionCartSources = [];
   ui.overlay.classList.remove('hidden');
@@ -1576,7 +1340,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
   state.sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
-  aiPush.start();
+  aiRecommendationController.start();
   state.lastCartAddAt = Date.now();
 });
 ui.kioskFastPayBtn?.addEventListener('click', () => {
@@ -1591,43 +1355,43 @@ ui.kioskFastPayBtn?.addEventListener('click', () => {
   });
   openPaymentCountdown(cartIds);
 });
-ui.paymentCdCancelBtn?.addEventListener('click', () => {
+ui.paymentCountdownCancelButton?.addEventListener('click', () => {
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_countdown_cancel',
-    button_id: 'paymentCdCancelBtn',
+    button_id: 'paymentCountdownCancelButton',
     metadata: {}
   });
   closePaymentCountdown();
 });
 
-ui.paymentCdBackBtn?.addEventListener('click', () => {
+ui.paymentCountdownBackButton?.addEventListener('click', () => {
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_cd_back',
-    button_id: 'paymentCdBackBtn',
+    button_id: 'paymentCountdownBackButton',
     metadata: {}
   });
   closePaymentCountdown();
 });
 
-ui.paymentCdAssistBtn?.addEventListener('click', async () => {
+ui.paymentCountdownAssistButton?.addEventListener('click', async () => {
   // 防止重複點擊：立即禁用按鈕，避免 async await 期間多次觸發
-  if (ui.paymentCdAssistBtn.disabled) return;
-  ui.paymentCdAssistBtn.disabled = true;
+  if (ui.paymentCountdownAssistButton.disabled) return;
+  ui.paymentCountdownAssistButton.disabled = true;
 
   // 立刻切換到 notified 畫面，讓使用者知道已收到點擊
-  _showPaymentCdSection('notified');
+  showPaymentCountdownSection('notified');
 
   // 背景等待情緒分析（最長 12 秒），完成後更新 admin 通知
-  if (!state._pendingPaymentEmotion && state._paymentEmotionPromise) {
-    await Promise.race([state._paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
+  if (!state.pendingPaymentEmotion && state.paymentEmotionPromise) {
+    await Promise.race([state.paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
   }
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_staff_requested',
-    button_id: 'paymentCdAssistBtn',
-    metadata: { emotion: state._pendingPaymentEmotion }
+    button_id: 'paymentCountdownAssistButton',
+    metadata: { emotion: state.pendingPaymentEmotion }
   });
   setTimeout(() => { closePaymentCountdown(); }, 3000);
 });
@@ -1695,17 +1459,17 @@ document.getElementById('inp-model-name')?.addEventListener('change', (e) => {
 });
 
 // =========================================================
-// 2-1: Ripple effect on .btn-primary buttons
+// 2-1: Ripple effect addDomEventListener .btn-primary buttons
 // =========================================================
 document.addEventListener('pointerdown', (e) => {
-  const btn = e.target?.closest?.('.btn-primary');
-  if (!btn) return;
+  const buttonElement = e.target?.closest?.('.btn-primary');
+  if (!buttonElement) return;
   const ripple = document.createElement('span');
   ripple.className = 'btn-ripple';
-  const rect = btn.getBoundingClientRect();
+  const rect = buttonElement.getBoundingClientRect();
   ripple.style.left = (e.clientX - rect.left - 30) + 'px';
   ripple.style.top  = (e.clientY - rect.top  - 30) + 'px';
-  btn.appendChild(ripple);
+  buttonElement.appendChild(ripple);
   ripple.addEventListener('animationend', () => ripple.remove());
 }, true);
 
@@ -1713,7 +1477,7 @@ document.addEventListener('pointerdown', (e) => {
 // 2-2: Emotion capture helpers
 // =========================================================
 
-export function _triggerEmotionCapture(eventType) {
+export function triggerEmotionCapture(eventType) {
   if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
   const blob = capturePreEventClip(); // 同步，不再 await
   if (!blob) return;
@@ -1722,7 +1486,7 @@ export function _triggerEmotionCapture(eventType) {
   });
 }
 
-export async function _triggerEmotionCaptureAndWait(eventType) {
+export async function triggerEmotionCaptureAndWait(eventType) {
   if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
   const blob = capturePreEventClip(); // 同步
   if (!blob) return;
@@ -1758,29 +1522,29 @@ document.getElementById('voiceReplyBubbleClose')?.addEventListener('click', () =
 // =========================================================
 function showAssistModal() {
   document.getElementById('assistModal')?.classList.remove('hidden');
-  _showAssistPanel('main');
+  showAssistPanel('main');
   trackInteractionEvent({ event_type: 'assist_modal_open', button_id: '' });
 }
 
 function hideAssistModal() {
-  _assistRecommendLoading = false;
+  isAssistRecommendationLoading = false;
   document.getElementById('assistModal')?.classList.add('hidden');
   trackInteractionEvent({ event_type: 'assist_modal_close', button_id: '' });
 }
 
-function _showAssistPanel(name) {
+function showAssistPanel(name) {
   const panels = { main: 'assistMain', recommend: 'assistRecommend', tutorial: 'assistTutorial' };
   Object.entries(panels).forEach(([key, id]) => {
     document.getElementById(id)?.classList.toggle('hidden', key !== name);
   });
 }
 
-let _assistRecommendLoading = false;
+let isAssistRecommendationLoading = false;
 
-async function _loadAssistRecommendations() {
-  if (_assistRecommendLoading) return;
-  _assistRecommendLoading = true;
-  _showAssistPanel('recommend');
+async function loadAssistRecommendations() {
+  if (isAssistRecommendationLoading) return;
+  isAssistRecommendationLoading = true;
+  showAssistPanel('recommend');
   trackInteractionEvent({ event_type: 'assist_recommend_open', button_id: 'assistBtnRecommend' });
   const listEl = document.getElementById('assistRecommendItems');
   const loadingEl = document.getElementById('assistRecommendLoading');
@@ -1788,19 +1552,19 @@ async function _loadAssistRecommendations() {
   [...(listEl?.children || [])].forEach(c => { if (c !== loadingEl) c.remove(); });
 
   try {
-    const items = await api.assistRecommend(sessionId);
+    const items = await api.getAssistRecommendations(sessionId);
     if (loadingEl) loadingEl.classList.add('hidden');
     (Array.isArray(items) ? items : []).forEach(item => {
-      listEl?.appendChild(_buildAssistItemCard(item));
+      listEl?.appendChild(buildAssistItemCard(item));
     });
-    _assistRecommendLoading = false;
+    isAssistRecommendationLoading = false;
   } catch (e) {
     if (loadingEl) loadingEl.textContent = '推薦載入失敗，請重試';
-    _assistRecommendLoading = false;
+    isAssistRecommendationLoading = false;
   }
 }
 
-function _buildAssistItemCard(item) {
+function buildAssistItemCard(item) {
   const visual = getMenuVisual(item);
   const card = document.createElement('div');
   card.className = 'assist-item-card';
@@ -1842,35 +1606,35 @@ function _buildAssistItemCard(item) {
 
   infoDiv.append(nameSpan, pushP, priceSpan);
 
-  const btn = document.createElement('button');
-  btn.className = 'assist-item-add-btn';
-  btn.type = 'button';
-  btn.textContent = '加入購物車';
-  btn.addEventListener('click', () => {
+  const addButton = document.createElement('button');
+  addButton.className = 'assist-item-add-btn';
+  addButton.type = 'button';
+  addButton.textContent = '加入購物車';
+  addButton.addEventListener('click', () => {
     hideAssistModal();
     showItemConfirmModal(item, 'assist_recommend');
   });
 
-  card.append(photoDiv, infoDiv, btn);
+  card.append(photoDiv, infoDiv, addButton);
   return card;
 }
 
 document.getElementById('assistBackdrop')?.addEventListener('click', hideAssistModal);
 document.getElementById('assistClose')?.addEventListener('click', hideAssistModal);
-document.getElementById('assistBtnRecommend')?.addEventListener('click', _loadAssistRecommendations);
+document.getElementById('assistBtnRecommend')?.addEventListener('click', loadAssistRecommendations);
 document.getElementById('assistBtnVoice')?.addEventListener('click', () => {
   hideAssistModal();
   trackInteractionEvent({ event_type: 'assist_voice_open', button_id: 'assistBtnVoice' });
   startAskRecording(document.getElementById('voiceAssistBtn'));
 });
 document.getElementById('assistBtnTutorial')?.addEventListener('click', () => {
-  _showAssistPanel('tutorial');
+  showAssistPanel('tutorial');
   trackInteractionEvent({ event_type: 'assist_tutorial_open', button_id: 'assistBtnTutorial' });
 });
-document.getElementById('assistRecommendBack')?.addEventListener('click', () => _showAssistPanel('main'));
+document.getElementById('assistRecommendBack')?.addEventListener('click', () => showAssistPanel('main'));
 document.getElementById('assistRecommendCancel')?.addEventListener('click', hideAssistModal);
-document.getElementById('assistRecommendRefresh')?.addEventListener('click', _loadAssistRecommendations);
-document.getElementById('assistTutorialBack')?.addEventListener('click', () => _showAssistPanel('main'));
+document.getElementById('assistRecommendRefresh')?.addEventListener('click', loadAssistRecommendations);
+document.getElementById('assistTutorialBack')?.addEventListener('click', () => showAssistPanel('main'));
 document.getElementById('assistTutorialClose')?.addEventListener('click', hideAssistModal);
 
 // =========================================================
@@ -1926,7 +1690,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   state.sessionCartSources = [];
   hidePaymentScreen();
   renderKioskCategories();
-  aiPush.start();
+  aiRecommendationController.start();
   state.lastCartAddAt = Date.now();
 });
 
@@ -1936,81 +1700,81 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
 // =========================================================
 
 function startPassiveListener() {
-  if (_passiveListening) return;
+  if (isPassiveListening) return;
   if (!navigator.mediaDevices?.getUserMedia) return;
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(stream => {
-      _passiveStream = stream;
-      _passiveListening = true;
-      _passivePaused = false;
+      passiveAudioStream = stream;
+      isPassiveListening = true;
+      isPassivePaused = false;
       console.log('[PassiveVoice] ✅ 被動語音監聽已啟動');
-      _schedulePassiveChunk();
+      schedulePassiveAudioChunk();
     })
     .catch(e => console.warn('[PassiveVoice] 麥克風失敗:', e.message));
 }
 
-function _schedulePassiveChunk() {
-  if (!_passiveListening || !_passiveStream) return;
+function schedulePassiveAudioChunk() {
+  if (!isPassiveListening || !passiveAudioStream) return;
   const chunks = [];
   try {
-    _passiveRecorder = new MediaRecorder(_passiveStream, { mimeType: 'audio/webm' });
+    passiveAudioRecorder = new MediaRecorder(passiveAudioStream, { mimeType: 'audio/webm' });
   } catch {
-    _passiveRecorder = new MediaRecorder(_passiveStream);
+    passiveAudioRecorder = new MediaRecorder(passiveAudioStream);
   }
-  _passiveRecorder.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
-  _passiveRecorder.onstop = () => {
-    if (!_passiveListening) return;
-    _schedulePassiveChunk();
-    if (_passivePaused || _passiveInFlight) return;
+  passiveAudioRecorder.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
+  passiveAudioRecorder.onstop = () => {
+    if (!isPassiveListening) return;
+    schedulePassiveAudioChunk();
+    if (isPassivePaused || isPassiveRequestInFlight) return;
     const blob = new Blob(chunks, { type: 'audio/webm' });
     if (blob.size < 500) return;
-    _passiveInFlight = true;
-    api.passiveCheck(sessionId, blob)
-      .then(result => { if (result?.status === 'hit') _handlePassiveHit(result); })
+    isPassiveRequestInFlight = true;
+    api.checkPassiveVoice(sessionId, blob)
+      .then(result => { if (result?.status === 'hit') handlePassiveVoiceHit(result); })
       .catch(e => console.warn('[PassiveVoice] API 錯誤:', e))
-      .finally(() => { _passiveInFlight = false; });
+      .finally(() => { isPassiveRequestInFlight = false; });
   };
-  _passiveRecorder.start();
-  _passiveRecTimer = setTimeout(() => {
-    if (_passiveRecorder?.state === 'recording') _passiveRecorder.stop();
+  passiveAudioRecorder.start();
+  passiveRecordingTimer = setTimeout(() => {
+    if (passiveAudioRecorder?.state === 'recording') passiveAudioRecorder.stop();
   }, PASSIVE_CHUNK_MS);
 }
 
 function stopPassiveListener() {
-  _passiveListening = false;
-  _passivePaused = false;
-  clearTimeout(_passiveRecTimer);
-  try { _passiveRecorder?.stop(); } catch {}
-  _passiveStream?.getTracks().forEach(t => t.stop());
-  _passiveStream = null;
-  _passiveRecorder = null;
+  isPassiveListening = false;
+  isPassivePaused = false;
+  clearTimeout(passiveRecordingTimer);
+  try { passiveAudioRecorder?.stop(); } catch {}
+  passiveAudioStream?.getTracks().forEach(t => t.stop());
+  passiveAudioStream = null;
+  passiveAudioRecorder = null;
 }
 
-export function _pausePassiveListener() {
-  _passivePaused = true;
+export function pausePassiveListener() {
+  isPassivePaused = true;
 }
 
-export function _resumePassiveListener() {
-  _passivePaused = false;
+export function resumePassiveListener() {
+  isPassivePaused = false;
 }
 
-function _handlePassiveHit(result) {
-  if (!isPosActive() || orderCompleted || _isVoiceActive()) return;
-  if (Date.now() - state._passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
+function handlePassiveVoiceHit(result) {
+  if (!isPosActive() || orderCompleted || isVoiceAssistantActive()) return;
+  if (Date.now() - state.passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
   const item = state.menuData.find(m => m.id === result.item?.id) || result.item;
   if (!item) return;
-  state._passiveLastTriggerAt = Date.now();
+  state.passiveLastTriggerAt = Date.now();
   console.log(`[PassiveVoice] ✅ 命中「${item.name}」（${result.matched_label}）→ 顯示猶豫彈跳視窗`);
-  _showHesitationForItem(item);
+  showHesitationForItem(item);
 }
 
-function _showHesitationForItem(item) {
+function showHesitationForItem(item) {
   if (isChoiceHesitationVisible()) {
     console.log('[PassiveVoice] 猶豫彈跳視窗已顯示，略過');
     return;
   }
   if (!isSystemRunning || orderCompleted || !isPosActive()) {
-    console.log('[PassiveVoice] _showHesitationForItem 被系統狀態攔截');
+    console.log('[PassiveVoice] showHesitationForItem 被系統狀態攔截');
     return;
   }
   state.currentChoiceHesitationItem = item;

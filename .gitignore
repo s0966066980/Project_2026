@@ -82,3 +82,6 @@ Emotion-LLaMA/checkpoints/**/.git/
 
 # Superpowers brainstorm mockups (local only)
 .superpowers/
+
+# R1-Omni 推論服務：程式碼入庫，15GB 權重不入庫
+R1-Omni/models/

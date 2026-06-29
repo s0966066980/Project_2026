@@ -8,7 +8,6 @@ import ai_services
 import config
 from repositories import menu_repository
 from services import member_service
-from services.recommendation_service import clean_menu_id
 from services.popular_service import get_top_items
 
 _menu_cache: dict = {"items": None, "ts": 0.0}

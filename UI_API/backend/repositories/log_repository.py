@@ -1,7 +1,6 @@
 import json
 import os
 import threading
-from datetime import datetime
 
 import config
 
@@ -84,5 +83,4 @@ def delete_session_log(log_index: int) -> bool:
 def clear_session_logs() -> bool:
     save_session_logs([])
     return True
-
 

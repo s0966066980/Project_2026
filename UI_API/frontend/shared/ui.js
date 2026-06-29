@@ -1,3 +1,5 @@
+import { hideFlexElement, showFlexElement } from './components/VisibilityDisplay.js';
+
 export const ui = {
   posView: document.getElementById('view-pos'),
   adminView: document.getElementById('view-admin'),
@@ -9,17 +11,17 @@ export const ui = {
   kioskCounterPayBtn: document.getElementById('kioskCounterPayBtn'),
   kioskPaymentBackBtn: document.getElementById('kioskPaymentBackBtn'),
   kioskCancelOrderBtn: document.getElementById('kioskCancelOrderBtn'),
-  paymentCdBackdrop: document.getElementById('paymentCountdownBackdrop'),
-  paymentCdModal: document.getElementById('paymentCountdownModal'),
-  paymentCdCounting: document.getElementById('paymentCdCounting'),
-  paymentCdFailed: document.getElementById('paymentCdFailed'),
-  paymentCdNotified: document.getElementById('paymentCdNotified'),
-  paymentCdArc: document.getElementById('paymentCdArc'),
-  paymentCdNumber: document.getElementById('paymentCdNumber'),
-  paymentCdCancelBtn: document.getElementById('paymentCdCancelBtn'),
-  paymentCdAssistBtn: document.getElementById('paymentCdAssistBtn'),
-  paymentCdBackBtn: document.getElementById('paymentCdBackBtn'),
-  paymentCdNotifyMsg: document.getElementById('paymentCdNotifyMsg'),
+  paymentCountdownBackdrop: document.getElementById('paymentCountdownBackdrop'),
+  paymentCountdownModal: document.getElementById('paymentCountdownModal'),
+  paymentCountdownCounting: document.getElementById('paymentCountdownCounting'),
+  paymentCountdownFailed: document.getElementById('paymentCountdownFailed'),
+  paymentCountdownNotified: document.getElementById('paymentCountdownNotified'),
+  paymentCountdownArc: document.getElementById('paymentCountdownArc'),
+  paymentCountdownNumber: document.getElementById('paymentCountdownNumber'),
+  paymentCountdownCancelButton: document.getElementById('paymentCountdownCancelButton'),
+  paymentCountdownAssistButton: document.getElementById('paymentCountdownAssistButton'),
+  paymentCountdownBackButton: document.getElementById('paymentCountdownBackButton'),
+  paymentCountdownNotifyMessage: document.getElementById('paymentCountdownNotifyMessage'),
   kioskTitle: document.getElementById('kioskTitle'),
   kioskSubtitle: document.getElementById('kioskSubtitle'),
   kioskBackBtn: document.getElementById('kioskBackBtn'),
@@ -74,15 +76,13 @@ export function escapeHTML(value) {
 export function switchMainView(view, callbacks = {}) {
   if (view === 'admin') {
     callbacks.clearPOSFloatingUI?.();
-    ui.posView?.classList.replace('flex', 'hidden');
-    ui.adminView?.classList.replace('hidden', 'flex');
+    hideFlexElement(ui.posView);
+    showFlexElement(ui.adminView);
     callbacks.loadAdminData?.();
   } else {
-    ui.adminView?.classList.replace('flex', 'hidden');
-    ui.posView?.classList.replace('hidden', 'flex');
+    hideFlexElement(ui.adminView);
+    showFlexElement(ui.posView);
     callbacks.applyFeaturesToPOS?.();
     callbacks.loadMenu?.();
   }
 }
-
-

@@ -1,6 +1,4 @@
 import asyncio
-import json
-
 from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import FileResponse
 
@@ -9,6 +7,7 @@ from repositories import log_repository
 from realtime import event_bus
 from services import checkout_service, stats_service
 from utils.auth_utils import require_admin_token
+from utils.parsing import parse_int_from_decimal, parse_json_list, parse_non_negative_int
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -101,28 +100,13 @@ def create_router(deps: dict) -> APIRouter:
         cart_sources: str = Form(default="[]"),
         cart_total: str = Form(default="0"),
     ):
-        try:
-            pushed_list = json.loads(pushed_ids) if pushed_ids else []
-        except (json.JSONDecodeError, ValueError):
-            pushed_list = [x.strip() for x in pushed_ids.split(",") if x.strip()]
-        try:
-            cart_list = json.loads(cart_ids) if cart_ids else []
-        except (json.JSONDecodeError, ValueError):
-            cart_list = [x.strip() for x in cart_ids.split(",") if x.strip()]
-        try:
-            sources = json.loads(cart_sources) if cart_sources else []
-            if not isinstance(sources, list):
-                sources = []
-        except (json.JSONDecodeError, ValueError):
-            sources = []
-        ai_count = max(0, int(ai_push_cart_count or 0))
-        try:
-            total_val = int(float(cart_total or 0))
-        except (TypeError, ValueError):
-            total_val = 0
-
         return await checkout_service.process_checkout(
-            session_id, pushed_list, cart_list, ai_count, sources, total_val
+            session_id,
+            parse_json_list(pushed_ids, fallback_csv=True),
+            parse_json_list(cart_ids, fallback_csv=True),
+            parse_non_negative_int(ai_push_cart_count),
+            parse_json_list(cart_sources),
+            parse_int_from_decimal(cart_total),
         )
 
     return router

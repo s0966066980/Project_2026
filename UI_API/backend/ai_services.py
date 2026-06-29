@@ -1,6 +1,3 @@
-import os
-import asyncio
-import threading
 import requests
 from requests.adapters import HTTPAdapter
 from typing import Iterator

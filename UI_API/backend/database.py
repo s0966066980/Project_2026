@@ -1,4 +1,3 @@
-import config
 from repositories import log_repository, menu_repository
 from services import recommendation_service
 

@@ -2,17 +2,17 @@
 // 會員流程：選擇頁 → 手機登入 → (查無→快速註冊) → 完成回呼。
 // onResolved(member|null)：member 物件代表已登入會員，null 代表訪客。
 // =========================================================
-import * as api from '../shared/api.js';
+import * as api from '../shared/apiClient.js';
 import { state } from './state.js';
-import { sessionId, cartManager } from './app.js';
-import { getMenuVisual, formatItemPrice } from './menu_visuals.js';
+import { getRequiredRuntimeDependency } from './runtime.js';
+import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
 
 const $ = (id) => document.getElementById(id);
-let _phone = '';
-let _onResolved = null;
+let memberPhoneNumber = '';
+let onMemberResolved = null;
 
-function show(el) { el?.classList.remove('hidden'); el?.setAttribute('aria-hidden', 'false'); }
-function hide(el) { el?.classList.add('hidden'); el?.setAttribute('aria-hidden', 'true'); }
+function show(element) { element?.classList.remove('hidden'); element?.setAttribute('aria-hidden', 'false'); }
+function hide(element) { element?.classList.add('hidden'); element?.setAttribute('aria-hidden', 'true'); }
 
 function hideAll() {
   ['memberChoiceOverlay', 'memberLoginOverlay', 'memberRegisterOverlay'].forEach((id) => hide($(id)));
@@ -28,32 +28,33 @@ export function isMemberFlowVisible() {
 function resolve(member) {
   hideAll();
   state.member = member || null;
-  const cb = _onResolved;
-  _onResolved = null;
-  cb?.(state.member);
+  const resolveCallback = onMemberResolved;
+  onMemberResolved = null;
+  resolveCallback?.(state.member);
 }
 
 function renderPhone() {
-  const el = $('memberPhoneDisplay');
-  if (el) el.textContent = _phone || '';
+  const element = $('memberPhoneDisplay');
+  if (element) element.textContent = memberPhoneNumber || '';
   const next = $('memberLoginNext');
-  if (next) next.disabled = _phone.length !== 10;
+  if (next) next.disabled = memberPhoneNumber.length !== 10;
 }
 
 function onKey(k) {
-  if (k === 'clear') _phone = '';
-  else if (k === 'back') _phone = _phone.slice(0, -1);
-  else if (/^\d$/.test(k) && _phone.length < 10) _phone += k;
+  if (k === 'clear') memberPhoneNumber = '';
+  else if (k === 'back') memberPhoneNumber = memberPhoneNumber.slice(0, -1);
+  else if (/^\d$/.test(k) && memberPhoneNumber.length < 10) memberPhoneNumber += k;
   renderPhone();
 }
 
 async function submitLogin() {
-  if (_phone.length !== 10) return;
-  const res = await api.memberLogin(sessionId, _phone).catch(() => ({ found: false }));
+  if (memberPhoneNumber.length !== 10) return;
+  const sessionId = getRequiredRuntimeDependency('sessionId');
+  const res = await api.memberLogin(sessionId, memberPhoneNumber).catch(() => ({ found: false }));
   if (res && res.found && res.member) {
     resolve(res.member);
   } else {
-    $('memberRegisterPhone').textContent = _phone;
+    $('memberRegisterPhone').textContent = memberPhoneNumber;
     $('memberNicknameInput').value = '';
     hideAll();
     show($('memberRegisterOverlay'));
@@ -62,13 +63,14 @@ async function submitLogin() {
 
 async function submitRegister() {
   const nickname = String($('memberNicknameInput')?.value || '').trim();
-  const res = await api.memberRegister(sessionId, _phone, nickname).catch(() => null);
+  const sessionId = getRequiredRuntimeDependency('sessionId');
+  const res = await api.memberRegister(sessionId, memberPhoneNumber, nickname).catch(() => null);
   resolve(res && res.ok ? res.member : null);
 }
 
 export function showMemberChoice(onResolved) {
-  _onResolved = onResolved;
-  _phone = '';
+  onMemberResolved = onResolved;
+  memberPhoneNumber = '';
   renderPhone();
   hideAll();
   show($('memberChoiceOverlay'));
@@ -97,7 +99,7 @@ export function renderMemberMenuHeader() {
 function addItemToCart(item) {
   // cart.js 的 addToCart(item) 接收單一 item 物件（以 item.id 為 key），不是位置參數。
   // 帶上 image（常點有；歷史訂單品項無，cart.js 會依 MCD id 推導本地圖）。
-  cartManager.addToCart({ id: item.id, name: item.name, price: Number(item.price || 0), image: item.image || '' });
+  getRequiredRuntimeDependency('cartManager').addToCart({ id: item.id, name: item.name, price: Number(item.price || 0), image: item.image || '' });
 }
 
 function renderUsualsGrid() {
@@ -124,10 +126,11 @@ function renderUsualsGrid() {
     const img = document.createElement('div');
     img.className = 'member-usual-img';
     if (visual.image) {
-      const el = document.createElement('img');
-      el.src = visual.image; el.alt = item.name || '';
-      el.onerror = () => { img.textContent = visual.emoji || '🍔'; };
-      img.appendChild(el);
+      const imageElement = document.createElement('img');
+      imageElement.src = visual.image;
+      imageElement.alt = item.name || '';
+      imageElement.onerror = () => { img.textContent = visual.emoji || '🍔'; };
+      img.appendChild(imageElement);
     } else {
       img.textContent = visual.emoji || '🍔';
     }

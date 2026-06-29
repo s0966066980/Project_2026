@@ -12,17 +12,17 @@ export const state = {
   // 猶豫彈窗
   currentChoiceHesitationItem: null,
   lastCartAddAt: Date.now(),
-  _passiveLastTriggerAt: 0,
+  passiveLastTriggerAt: 0,
   // 付款倒數
-  _paymentCdTimer: null,
-  _pendingPaymentEmotion: null,
-  _paymentEmotionPromise: null,
-  _paymentCdCartIds: [],
+  paymentCountdownTimer: null,
+  pendingPaymentEmotion: null,
+  paymentEmotionPromise: null,
+  paymentCountdownCartIds: [],
   // 媒體串流 / 語音錄音器（跨模組共享）
   stream: null,
   askRecorder: null,
   // 語音
-  _voiceProcessing: false,
+  isVoiceProcessing: false,
   askRecordingStartedAt: 0,
   voiceBubbleTimer: null,
   // session 累計 + UI 計時器（跨模組共享）

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "target": "ES2022"
+  },
+  "include": [
+    "types.d.ts",
+    "shared/httpClient.js",
+    "shared/apiClient.js",
+    "shared/realtimeClient.js",
+    "shared/hooks/useDomEvents.js",
+    "shared/components/VisibilityDisplay.js",
+    "pos/runtime.js",
+    "pos/cart.js",
+    "pos/controllers/kioskMenuController.js",
+    "pos/constants/kiosk.js",
+    "pos/menuVisuals.js"
+  ]
+}

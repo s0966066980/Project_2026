@@ -1,4 +1,4 @@
-import { connectRealtime } from '../shared/realtime_client.js';
+import { createRealtimeClient } from '../shared/realtimeClient.js';
 
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
@@ -10,17 +10,29 @@ const DEFAULT_PUSH_PROMPT =
 
 // ── Menu cache (for name/image lookup) ──
 let menuCache = {};
+let menuLoadPromise = null;
+let statsLoadPromise = null;
 
 async function loadMenu() {
+  if (Object.keys(menuCache).length) return menuCache;
+  if (menuLoadPromise) return menuLoadPromise;
+  menuLoadPromise = (async () => {
   try {
     const res = await fetch(`${API}/api/menu`);
     const items = await res.json();
     if (Array.isArray(items)) {
+      const nextMenuCache = {};
       items.forEach(item => {
-        if (item.id) menuCache[item.id] = item;
+        if (item.id) nextMenuCache[item.id] = item;
       });
+      menuCache = nextMenuCache;
     }
   } catch { /* 靜默失敗，用 ID fallback */ }
+    return menuCache;
+  })().finally(() => {
+    menuLoadPromise = null;
+  });
+  return menuLoadPromise;
 }
 
 function menuName(id)  { return menuCache[id]?.name  || id; }
@@ -107,6 +119,8 @@ function emptyRow(tbody, msg, color) {
 
 // ── Stats loader ──
 async function loadStats() {
+  if (statsLoadPromise) return statsLoadPromise;
+  statsLoadPromise = (async () => {
   try {
     const res = await fetch(`${API}/api/session_stats`);
     const data = await res.json();
@@ -143,6 +157,10 @@ async function loadStats() {
     const tbody = document.getElementById('s-tbody');
     if (tbody) emptyRow(tbody, '載入失敗，請重新整理。', '#e84040');
   }
+  })().finally(() => {
+    statsLoadPromise = null;
+  });
+  return statsLoadPromise;
 }
 
 
@@ -1251,4 +1269,4 @@ window.dismissStaffNotify = function () {
   if (backdrop) backdrop.style.display = 'none';
 };
 
-connectRealtime('admin', 'admin', { staff_notify: handleStaffNotify });
+createRealtimeClient('admin', 'admin', { staff_notify: handleStaffNotify });

@@ -31,32 +31,8 @@ function videoRecorderOptions() {
     : { mimeType: 'video/webm', videoBitsPerSecond: 180000 };
 }
 
-export function audioRecorderOptions() {
-  return { mimeType: 'audio/webm' };
-}
-
 export function createVideoRecorder(stream) {
   return new MediaRecorder(stream, videoRecorderOptions());
-}
-
-export function createAudioRecorder(stream) {
-  return new MediaRecorder(new MediaStream(stream.getAudioTracks()), audioRecorderOptions());
-}
-
-export function captureVideoFrameBlob(video, { maxWidth = 320, type = 'image/jpeg', quality = 0.62 } = {}) {
-  return new Promise(resolve => {
-    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
-      resolve(null);
-      return;
-    }
-    const canvas = captureVideoFrameBlob.canvas || (captureVideoFrameBlob.canvas = document.createElement('canvas'));
-    const scale = Math.min(1, maxWidth / video.videoWidth);
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-    const ctx = canvas.getContext('2d', { willReadFrequently: false });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(blob => resolve(blob), type, quality);
-  });
 }
 
 // ── Rolling Buffer（Emotion-LLaMA 事件截片用）────────────────────────
@@ -146,4 +122,3 @@ export function capturePreEventClip() {
   const blob = new Blob(allChunks, { type: 'video/webm' });
   return blob.size > 0 ? blob : null;
 }
-

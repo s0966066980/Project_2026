@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "syntax": "find . -type f -name '*.js' -print | sort | xargs -n 1 node --check"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

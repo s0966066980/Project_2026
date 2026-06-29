@@ -1,9 +1,31 @@
+// @ts-check
+
+/** @typedef {import('../types.d.ts').CartAction} CartAction */
+/** @typedef {import('../types.d.ts').CartItem} CartItem */
+/** @typedef {import('../types.d.ts').CartManager} CartManager */
+/** @typedef {import('../types.d.ts').CartManagerOptions} CartManagerOptions */
+/** @typedef {import('../types.d.ts').MenuItem} MenuItem */
+
+/**
+ * @param {CartManagerOptions} options
+ * @returns {CartManager}
+ */
 export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh', getVisual }) {
+  /** @type {Record<string, CartItem>} */
   const cart = {};
-  const tx = (key, fallback = key) => (typeof t === 'function' ? t(key) : fallback);
+  /**
+   * @param {string} key
+   * @param {string} [fallback]
+   * @returns {string}
+   */
+  const translateCartText = (key, fallback = key) => (typeof t === 'function' ? t(key) : fallback);
 
   // 購物車品項圖：優先用 item.image，否則依 MCD id 推導本地圖片，最後退回 emoji。
   // 與菜單卡片相同邏輯（getMenuVisual），避免常點／再點一次等未帶 image 的品項變空白。
+  /**
+   * @param {MenuItem} item
+   * @returns {import('../types.d.ts').MenuVisual}
+   */
   function resolveVisual(item) {
     if (typeof getVisual === 'function') return getVisual(item);
     const id = String(item.id || '').toUpperCase();
@@ -13,8 +35,15 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     };
   }
 
+  /** @param {MenuItem} item */
   function addToCart(item) {
-    cart[item.id] ? cart[item.id].quantity++ : (cart[item.id] = { ...item, quantity: 1 });
+    if (!item.id) return;
+    const existingItem = cart[item.id];
+    if (existingItem) {
+      existingItem.quantity += 1;
+    } else {
+      cart[item.id] = { ...item, id: item.id, quantity: 1 };
+    }
     const card = document.getElementById(`menu-${item.id}`);
     if (card) {
       card.classList.add('selected');
@@ -23,61 +52,79 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     renderCart();
   }
 
-  function addToCartByQuantity(item, quantity = 1) {
-    const qty = Math.max(1, Math.min(10, Number(quantity) || 1));
-    for (let i = 0; i < qty; i++) addToCart(item);
+  /**
+   * @param {MenuItem} item
+   * @param {number} [requestedQuantity]
+   */
+  function addToCartByQuantity(item, requestedQuantity = 1) {
+    const normalizedQuantity = Math.max(1, Math.min(10, Number(requestedQuantity) || 1));
+    for (let index = 0; index < normalizedQuantity; index++) addToCart(item);
   }
 
+  /**
+   * @param {string} id
+   * @param {number} delta
+   */
   function updateCartQty(id, delta) {
-    if (!cart[id]) return;
-    cart[id].quantity += delta;
-    if (cart[id].quantity <= 0) delete cart[id];
+    const item = cart[id];
+    if (!item) return;
+    item.quantity += delta;
+    if (item.quantity <= 0) delete cart[id];
     renderCart();
   }
 
+  /** @param {string} id */
   function deleteCartItem(id) {
     delete cart[id];
     renderCart();
   }
 
+  /**
+   * @param {CartAction[]} [actions]
+   * @returns {string[]}
+   */
   function applyCartActions(actions = []) {
+    /** @type {string[]} */
     const applied = [];
     (Array.isArray(actions) ? actions : []).forEach(action => {
       if (!action || action.action !== 'add') return;
+      if (!action.id) return;
       const item = findMenuItems([action.id])[0];
       if (!item) return;
-      const qty = Math.max(1, Math.min(10, Number(action.quantity) || 1));
-      addToCartByQuantity(item, qty);
-      applied.push(`${item.name} x${qty}`);
+      const quantity = Math.max(1, Math.min(10, Number(action.quantity) || 1));
+      addToCartByQuantity(item, quantity);
+      applied.push(`${item.name} x${quantity}`);
     });
     return applied;
   }
 
+  /** @returns {void} */
   function renderCart() {
     const keys = Object.keys(cart);
     if (!keys.length) {
       ui.cartList.innerHTML = `
         <div class="cart-empty">
           <div class="cart-bag"><i class="fas fa-shopping-bag"></i></div>
-          <h4 class="text-2xl font-extrabold mt-4" style="color:var(--text)">${escapeHTML(tx('cartEmptyTitle', '購物車是空的'))}</h4>
-          <p class="text-base" style="color:var(--text2)">${escapeHTML(tx('cartEmptySub', '快去選擇喜愛的餐點吧！'))}</p>
+          <h4 class="text-2xl font-extrabold mt-4" style="color:var(--text)">${escapeHTML(translateCartText('cartEmptyTitle', '購物車是空的'))}</h4>
+          <p class="text-base" style="color:var(--text2)">${escapeHTML(translateCartText('cartEmptySub', '快去選擇喜愛的餐點吧！'))}</p>
         </div>`;
       ui.checkoutBtn.disabled = true;
       ui.totalPrice.textContent = '$0';
-      ui.cartCountBadge.textContent = tx('cartCount', '共 {count} 項').replace('{count}', '0');
+      ui.cartCountBadge.textContent = translateCartText('cartCount', '共 {count} 項').replace('{count}', '0');
       onCartChange?.(getCartItems());
       return;
     }
 
     ui.checkoutBtn.disabled = false;
     let total = 0;
-    let qty = 0;
+    let quantity = 0;
     ui.cartList.innerHTML = '';
     keys.forEach(id => {
       const item = cart[id];
+      if (!item) return;
       const itemPrice = Number(item.price || 0);
       total += itemPrice * item.quantity;
-      qty += item.quantity;
+      quantity += item.quantity;
       const priceLabel = itemPrice > 0
         ? `$${itemPrice}`
         : (lang() === 'en' ? 'Store Price' : '依店價');
@@ -103,22 +150,26 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
         </div>`;
     });
     ui.totalPrice.textContent = `$${total}`;
-    ui.cartCountBadge.textContent = tx('cartCount', '共 {count} 項').replace('{count}', String(qty));
+    ui.cartCountBadge.textContent = translateCartText('cartCount', '共 {count} 項').replace('{count}', String(quantity));
     onCartChange?.(getCartItems());
   }
 
+  /** @returns {string[]} */
   function getCartIds() {
     return Object.keys(cart);
   }
 
+  /** @returns {CartItem[]} */
   function getCartItems() {
     return Object.values(cart).map(item => ({ ...item }));
   }
 
+  /** @returns {number} */
   function getCartTotal() {
     return getCartItems().reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
   }
 
+  /** @returns {void} */
   function clearCart() {
     Object.keys(cart).forEach(id => { delete cart[id]; });
     renderCart();

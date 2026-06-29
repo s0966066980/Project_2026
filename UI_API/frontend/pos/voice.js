@@ -1,18 +1,33 @@
 // =========================================================
 // 語音助理：錄音 → STT/LLM/TTS 串流 → 氣泡/overlay → cart_actions。
 // =========================================================
-import * as api from '../shared/api.js';
+import * as api from '../shared/apiClient.js';
 import { ui, escapeHTML } from '../shared/ui.js';
 import { createVideoRecorder } from './media.js';
 import { state } from './state.js';
-import {
-  kt, isAdminMode, isPosActive, getFeatures, cartManager, trackInteractionEvent,
-  sessionId, getRuntimeSettings, getKioskLang, showPushNotice, clearAllPushCards,
-  _triggerEmotionCapture, _triggerEmotionCaptureAndWait,
-  _pausePassiveListener, _resumePassiveListener,
-} from './app.js';
+import { getRequiredRuntimeDependency } from './runtime.js';
 
-export function _isVoiceActive() {
+function kt(key) { return getRequiredRuntimeDependency('kt')(key); }
+function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
+function isPosActive() { return getRequiredRuntimeDependency('isPosActive')(); }
+function getFeatures() { return getRequiredRuntimeDependency('getFeatures')(); }
+function getRuntimeSettings() { return getRequiredRuntimeDependency('getRuntimeSettings')(); }
+function getKioskLang() { return getRequiredRuntimeDependency('getKioskLang')(); }
+function trackInteractionEvent(event) { return getRequiredRuntimeDependency('trackInteractionEvent')(event); }
+function showPushNotice(text) { return getRequiredRuntimeDependency('showPushNotice')(text); }
+function clearAllPushCards() { return getRequiredRuntimeDependency('clearAllPushCards')(); }
+function triggerEmotionCapture(eventType) { return getRequiredRuntimeDependency('triggerEmotionCapture')(eventType); }
+function triggerEmotionCaptureAndWait(eventType) { return getRequiredRuntimeDependency('triggerEmotionCaptureAndWait')(eventType); }
+function pausePassiveListener() { return getRequiredRuntimeDependency('pausePassiveListener')(); }
+function resumePassiveListener() { return getRequiredRuntimeDependency('resumePassiveListener')(); }
+
+const cartManager = new Proxy({}, {
+  get(_target, prop) {
+    return getRequiredRuntimeDependency('cartManager')[prop];
+  },
+});
+
+export function isVoiceAssistantActive() {
   // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
   return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
 }
@@ -122,8 +137,8 @@ export function setupAskRecorder() {
   let chunks = [];
   state.askRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   state.askRecorder.onstop = async () => {
-    if (state._voiceProcessing) return; // 上一次 onstop 還在跑，放棄本次（正常情況不應發生）
-    state._voiceProcessing = true;
+    if (state.isVoiceProcessing) return; // 上一次 onstop 還在跑，放棄本次（正常情況不應發生）
+    state.isVoiceProcessing = true;
     try {
     const blob = new Blob(chunks, { type: 'video/webm' });
     const durationMs = state.askRecordingStartedAt ? Date.now() - state.askRecordingStartedAt : 0;
@@ -131,9 +146,9 @@ export function setupAskRecorder() {
     chunks = [];
     if (getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE) {
       if (getRuntimeSettings().EMOTION_LLAMA_VOICE_WAIT_MODE === 'analysis') {
-        await _triggerEmotionCaptureAndWait('voice_mode'); // 等分析完才繼續
+        await triggerEmotionCaptureAndWait('voice_mode'); // 等分析完才繼續
       } else {
-        _triggerEmotionCapture('voice_mode');              // 背景執行
+        triggerEmotionCapture('voice_mode');              // 背景執行
       }
     }
     if (blob.size < 1500 || durationMs < 650) {
@@ -146,19 +161,19 @@ export function setupAskRecorder() {
       showVoiceAssistMessage(kt('voiceTooShort'));
       return;
     }
-    const fd = new FormData();
-    fd.append('session_id', sessionId);
-    fd.append('media', blob, 'voice_ask.webm');
-    fd.append('multi_lang', String(getFeatures().multiLang));
+    const formData = new FormData();
+    formData.append('session_id', getRequiredRuntimeDependency('sessionId'));
+    formData.append('media', blob, 'voice_ask.webm');
+    formData.append('multi_lang', String(getFeatures().multiLang));
 
     // ── 串流版：邊生成邊播音 ─────────────────────────────────────────
-    const _streamQueue = [];
-    let   _streamPlaying = false;
+    const audioStreamQueue = [];
+    let   isAudioStreamPlaying = false;
 
-    async function _playStreamQueue() {
-      _streamPlaying = true;
-      while (_streamQueue.length) {
-        const { b64, fmt } = _streamQueue.shift();
+    async function playAudioStreamQueue() {
+      isAudioStreamPlaying = true;
+      while (audioStreamQueue.length) {
+        const { b64, fmt } = audioStreamQueue.shift();
         await new Promise(resolve => {
           const a = new Audio(`data:audio/${fmt};base64,${b64}`);
           a.onended = resolve;
@@ -166,19 +181,19 @@ export function setupAskRecorder() {
           a.play().catch(resolve);
         });
       }
-      _streamPlaying = false;
+      isAudioStreamPlaying = false;
     }
 
     let firstAudioReceived = false;
 
-    await api.askStream(fd, {
+    await api.streamVoiceAssistantResponse(formData, {
       onAudio(b64, fmt) {
         if (!firstAudioReceived) {
           firstAudioReceived = true;
           hideVoiceAssistOverlay();   // 第一句音訊到就隱藏等待動畫
         }
-        _streamQueue.push({ b64, fmt });
-        if (!_streamPlaying) _playStreamQueue();
+        audioStreamQueue.push({ b64, fmt });
+        if (!isAudioStreamPlaying) playAudioStreamQueue();
       },
       onDone(data) {
         if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return;
@@ -213,19 +228,19 @@ export function setupAskRecorder() {
         showVoiceAssistMessage(kt('voiceOrderFailed'));
       },
     });
-    const _doneText = document.getElementById('voiceAssistBtnText');
-    if (_doneText) _doneText.textContent = kt('holdVoiceOrder');
+    const doneButtonText = document.getElementById('voiceAssistBtnText');
+    if (doneButtonText) doneButtonText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
     } finally {
-      state._voiceProcessing = false;
-      _resumePassiveListener();
+      state.isVoiceProcessing = false;
+      resumePassiveListener();
     }
   };
 }
 
 export function startAskRecording(sourceBtn) {
   if (!state.askRecorder) setupAskRecorder();
-  if (!state.askRecorder || state.askRecorder.state !== 'inactive' || state._voiceProcessing) {
+  if (!state.askRecorder || state.askRecorder.state !== 'inactive' || state.isVoiceProcessing) {
     showVoiceAssistMessage(kt('voiceMicNotReady'));
     return;
   }
@@ -238,13 +253,13 @@ export function startAskRecording(sourceBtn) {
       button_id: sourceBtn?.id || 'voiceAssistBtn',
       metadata: {}
     });
-    _pausePassiveListener();
+    pausePassiveListener();
     state.askRecordingStartedAt = Date.now();
     state.askRecorder.start();
     document.getElementById('voiceAssistBtn')?.classList.add('recording');
     showVoiceAssistOverlay('listening');
-    const _startText = document.getElementById('voiceAssistBtnText');
-    if (_startText) _startText.textContent = kt('listeningAsk');
+    const startButtonText = document.getElementById('voiceAssistBtnText');
+    if (startButtonText) startButtonText.textContent = kt('listeningAsk');
   }
 }
 function stopAskRecording() {
@@ -254,11 +269,11 @@ function stopAskRecording() {
     hideVoiceAssistOverlay(); // 立刻關閉；語音背景處理後以 voice bubble 顯示結果
   }
 }
-const _vaFabBtn = document.getElementById('voiceAssistBtn');
-if (_vaFabBtn) {
-  _vaFabBtn.addEventListener('pointerdown', (e) => {
+const voiceAssistantFloatingButton = document.getElementById('voiceAssistBtn');
+if (voiceAssistantFloatingButton) {
+  voiceAssistantFloatingButton.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    startAskRecording(_vaFabBtn);
+    startAskRecording(voiceAssistantFloatingButton);
   });
 }
 function stopOrHideVoiceAssistOverlay(event) {
