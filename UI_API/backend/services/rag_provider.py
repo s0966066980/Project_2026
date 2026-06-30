@@ -240,6 +240,7 @@ class RAGProvider:
                     "id": doc_id,
                     "content": doc,
                     "source_type": (meta or {}).get("source_type", ""),
+                    "metadata": dict(meta or {}),
                 }
                 for doc_id, doc, meta in zip(
                     result.get("ids", []),

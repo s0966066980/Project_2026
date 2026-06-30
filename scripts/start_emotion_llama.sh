@@ -16,10 +16,16 @@ set -euo pipefail
 
 # ── 路徑與環境 ────────────────────────────────────────────────
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UI_PY="/home/oliver/anaconda3/envs/emotion_ui/bin/python"
-LLAMA_PY="/home/oliver/anaconda3/envs/emotion_ollama/bin/python"
-OLLAMA_BIN="/usr/local/bin/ollama"
-MODEL_NAME="qwen3.5:4b"
+UI_PY="${UI_PY:-/home/oliver/anaconda3/envs/emotion_ui/bin/python}"
+LLAMA_PY="${LLAMA_PY:-/home/oliver/anaconda3/envs/emotion_ollama/bin/python}"
+OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
+MODEL_NAME="${MODEL_NAME:-qwen3.5:4b}"
+APP_PORT="${APP_PORT:-9000}"
+ADMIN_PORT="${ADMIN_PORT:-9001}"
+OPEN_BROWSER="${OPEN_BROWSER:-true}"
+POS_URL="http://127.0.0.1:${APP_PORT}/pos"
+ADMIN_URL="http://127.0.0.1:${ADMIN_PORT}/admin"
+export APP_PORT ADMIN_PORT
 
 LOG_DIR="$REPO/logs"
 mkdir -p "$LOG_DIR"
@@ -42,6 +48,19 @@ trap cleanup EXIT INT TERM
 
 # ── 小工具 ────────────────────────────────────────────────────
 port_open() { ss -ltn 2>/dev/null | grep -q ":$1 "; }
+
+open_browser() {
+  if [[ "$OPEN_BROWSER" != "true" ]]; then
+    return 0
+  fi
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$ADMIN_URL" >/dev/null 2>&1 || true
+    xdg-open "$POS_URL" >/dev/null 2>&1 || true
+  elif command -v open >/dev/null 2>&1; then
+    open "$ADMIN_URL" >/dev/null 2>&1 || true
+    open "$POS_URL" >/dev/null 2>&1 || true
+  fi
+}
 
 wait_for_port() {  # wait_for_port <port> <名稱> <秒數>
   local port="$1" name="$2" timeout="${3:-60}" i=0
@@ -91,19 +110,23 @@ else
 fi
 
 # ── 4. UI_API 主服務 (:9000 / :9001) ──────────────────────────
-if port_open 9000 || port_open 9001; then
-  echo "⚠️  9000/9001 已被占用，主服務可能已在跑 —— 略過啟動 main.py。"
+if port_open "$APP_PORT" || port_open "$ADMIN_PORT"; then
+  echo "⚠️  ${APP_PORT}/${ADMIN_PORT} 已被占用，主服務可能已在跑 —— 略過啟動 main.py。"
   echo "    若要重啟，請先停掉既有的 main.py。"
   echo ""
-  echo "👉 POS: http://127.0.0.1:9000   後台: http://127.0.0.1:9001/admin"
+  echo "👉 POS: $POS_URL   後台: $ADMIN_URL"
+  echo "👉 RAG: 後台 > RAG 知識庫，可直接清空 Chroma 並重新讀取 rag_documents"
   echo "（Ctrl-C 結束本腳本並收掉自己啟動的背景服務）"
+  open_browser
   wait
 else
   echo "🚀 啟動 UI_API 主服務 …"
   echo ""
-  echo "👉 POS: http://127.0.0.1:9000   後台: http://127.0.0.1:9001/admin"
+  echo "👉 POS: $POS_URL   後台: $ADMIN_URL"
+  echo "👉 RAG: 後台 > RAG 知識庫，可直接清空 Chroma 並重新讀取 rag_documents"
   echo "（前景執行，Ctrl-C 結束全部）"
   echo "────────────────────────────────────────────"
   cd "$REPO/UI_API"
+  ( sleep 3; open_browser ) &
   exec "$UI_PY" main.py
 fi

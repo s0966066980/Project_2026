@@ -18,6 +18,10 @@ The active application lives in `UI_API/`. Supporting model projects such as `Em
 - Configurable runtime settings through JSON and environment variables
 - Layered backend structure for API, bootstrap, services, repositories, models, utilities, and constants
 
+## Planning Documents
+
+- `MEMBERSHIP_RECOMMENDATION_IMPROVEMENTS.md`：會員推薦與語音個人化改進項目。
+
 ## Screenshots
 
 > Add production screenshots or demo captures here.
@@ -57,6 +61,7 @@ The active application lives in `UI_API/`. Supporting model projects such as `Em
 │   │   └── menu_images/            # Menu item images
 │   ├── learning_data/              # Runtime logs, settings, RAG data, member data
 │   ├── menu_data/                  # Menu JSON data
+│   ├── rag_documents/              # Versioned RAG source documents
 │   └── tests/                      # Backend tests
 ├── Emotion-LLaMA/                  # Optional emotion analysis service
 ├── R1-Omni/                        # Optional multimodal emotion service
@@ -141,6 +146,24 @@ Common variables:
 
 Runtime settings are also stored in `UI_API/learning_data/settings.json` and can be updated through the admin interface or backend settings API.
 
+## RAG Knowledge Base
+
+RAG source documents should be kept in `UI_API/rag_documents/` and committed to Git. The generated Chroma vector database is stored under `UI_API/learning_data/chroma_rag/` and is runtime data.
+
+Recommended source formats:
+
+- Markdown for FAQ, policies, menu notes, SOP, and customer-service knowledge.
+- JSON for structured promotions, member offers, and rule-like content.
+- CSV for tabular nutrition, allergen, pricing, or store-policy data.
+
+Manage RAG from the Admin dashboard:
+
+1. Open Admin and go to `RAG 知識庫`.
+2. Add or update text directly from the form. Supplying the same document ID overwrites that document.
+3. Use `清空 Chroma 並重新讀取 RAG 文件` to clear the current Chroma collection and rebuild it from `UI_API/rag_documents/`.
+
+No manual Python import command is required.
+
 ## Running Locally
 
 Start the main application:
@@ -162,7 +185,13 @@ bash scripts/start_emotion_llama.sh
 bash scripts/start_r1_omni.sh
 ```
 
-Those scripts assume local Python environment paths and model services are available on the host machine. Adjust paths before using them on a different workstation or server.
+Those scripts start Ollama, the selected emotion model service, and `UI_API`, then open POS/Admin in the browser when possible. They default to `APP_PORT=9000` and `ADMIN_PORT=9001`; override ports or disable browser opening when needed:
+
+```bash
+APP_PORT=8000 ADMIN_PORT=8001 OPEN_BROWSER=false bash scripts/start_emotion_llama.sh
+```
+
+The scripts assume local Python environment paths and model services are available on the host machine. Adjust environment variables before using them on a different workstation or server.
 
 ## Build
 

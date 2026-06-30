@@ -48,6 +48,7 @@ for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
 MENU_JSON_PATH = "./menu_data/menu.json"
 LEARNING_DATA_DIR = "./learning_data"
 SETTINGS_JSON_PATH = "./learning_data/settings.json"
+RAG_DOCUMENTS_DIR = "./rag_documents"
 os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
 
 _settings_cache = None

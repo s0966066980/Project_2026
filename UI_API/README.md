@@ -18,6 +18,19 @@ python main.py
 
 port 8000 永遠是 POS、8001 永遠是後台，兩者完全隔離。
 
+若要同時啟動模型服務與 UI，可從專案根目錄使用腳本：
+
+```bash
+bash scripts/start_emotion_llama.sh
+bash scripts/start_r1_omni.sh
+```
+
+腳本預設使用 `APP_PORT=9000`、`ADMIN_PORT=9001`，並會嘗試自動開啟 POS 與 Admin。需要改 port 或不要開瀏覽器時：
+
+```bash
+APP_PORT=8000 ADMIN_PORT=8001 OPEN_BROWSER=false bash scripts/start_emotion_llama.sh
+```
+
 ---
 
 ## 系統架構
@@ -41,6 +54,7 @@ UI_API/
 │   ├── admin/            ← 後台
 │   └── shared/           ← 共用模組
 ├── learning_data/        ← Runtime JSON 資料（不提交 git）
+├── rag_documents/        ← RAG 原始知識文件（提交 git，可重建向量庫）
 └── menu_data/            ← 菜單（config.py 路徑依賴，保持根目錄）
 ```
 
@@ -215,6 +229,47 @@ NGROK_AUTHTOKEN, POS_DEMO_TOKEN, ADMIN_DEMO_TOKEN
 | `EMOTION_LLAMA_AFFECT_BARRIER` | `false` | 情緒結果觸發 barrier pipeline |
 | `ENABLE_DEBUG_ROUTES` | `false` | Debug API 開關 |
 | `ENABLE_GEMINI_OPTIONS` | `false` | Gemini API 開關 |
+
+---
+
+## RAG 知識文件
+
+RAG 分成兩層：
+
+| 位置 | 說明 |
+|------|------|
+| `rag_documents/` | 原始知識文件，使用 Markdown / JSON / CSV 保存，應提交 git |
+| `learning_data/chroma_rag/` | ChromaDB 向量資料庫，執行時產物，不手動編輯、不提交 git |
+
+建議文件分類：
+
+```
+rag_documents/
+├── customer_service/  ← 客服回覆、異常處理、升級規則
+├── faq/               ← 常見問題
+├── menu/              ← 菜單補充、搭配建議、別名
+├── nutrition/         ← 營養、過敏原、成分資訊
+├── promotions/        ← 活動、會員優惠、有效日期
+└── store_policy/      ← 供應時間、付款、取餐、退費政策
+```
+
+後台操作：
+
+1. 開啟 Admin，進入 `RAG 知識庫`。
+2. 在 `新增 / 更新 RAG 文本` 輸入內容；若填寫相同文件 ID，會覆蓋更新該文件。
+3. 點擊 `清空 Chroma 並重新讀取 RAG 文件`，系統會清空目前 Chroma collection，重新讀取 `rag_documents/` 內的 Markdown / JSON / CSV。
+
+不需要手動執行 Python 匯入檔案。
+
+推薦格式：
+
+```text
+標題：早餐供應時間
+分類：營業規則
+內容：早餐供應時間為每日 05:00 至 10:30。
+限制條件：部分店鋪與特殊節日可能不同。
+相關品項：滿福堡、薯餅、熱咖啡
+```
 
 ---
 

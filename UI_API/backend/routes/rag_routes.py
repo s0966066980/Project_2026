@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Body, Request
 
+from services import rag_document_service
 from services.rag_provider import get_rag
 from utils.auth_utils import require_admin_token
 
@@ -33,8 +34,14 @@ def create_router(deps: dict) -> APIRouter:
             return {"status": "error", "message": "content 不可為空"}
         source_id = payload.get("source_id") or None
         source_type = str(payload.get("source_type") or "manual")
-        doc_id = await get_rag().add_document(content, source_id, source_type)
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
+        doc_id = await get_rag().add_document(content, source_id, source_type, metadata)
         return {"status": "ok", "id": doc_id}
+
+    @router.post("/rebuild")
+    async def rebuild_docs(request: Request):
+        require_admin_token(request)
+        return await rag_document_service.rebuild_from_source_documents()
 
     @router.delete("/docs/{doc_id}")
     async def delete_doc(request: Request, doc_id: str):
