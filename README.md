@@ -1,105 +1,86 @@
-# Smart Ordering POS Platform
+# Smart Ordering POS 智慧點餐平台
 
-An AI-assisted smart ordering and point-of-sale platform for kiosk-style food ordering. The project combines a FastAPI backend, a browser-based POS/admin UI, local or cloud AI model integrations, voice assistance, recommendation workflows, member personalization, RAG-backed knowledge retrieval, and optional multimodal emotion analysis.
+這是一套面向自助點餐機與門市後台的智慧點餐 / POS 系統。專案整合 FastAPI 後端、瀏覽器 POS 與 Admin 介面、語音點餐、AI 推播推薦、會員個人化、RAG 知識庫，以及可選的多模態情緒分析服務。
 
-The active application lives in `UI_API/`. Supporting model projects such as `Emotion-LLaMA/` and `R1-Omni/` are included for advanced emotion or multimodal analysis workflows.
+主要應用程式位於 `UI_API/`。`Emotion-LLaMA/` 與 `R1-Omni/` 是可選的情緒 / 多模態模型服務，用於進階分析流程。
 
-## Features
+## 主要功能
 
-- Kiosk POS ordering interface with cart, checkout, payment countdown, and order completion flows
-- Admin dashboard for settings, logs, testing, members, and system monitoring
-- AI recommendation push cards for customer-facing suggestions
-- Voice ordering and voice assistant flow with STT, LLM, and TTS support
-- Member login, registration, personalization, and usual-order recommendations
-- Interaction event tracking for hesitation, payment confusion, and assistance triggers
-- RAG provider for menu and knowledge retrieval
-- Realtime WebSocket event broadcasting
-- Optional Emotion-LLaMA and R1-Omni integrations
-- Configurable runtime settings through JSON and environment variables
-- Layered backend structure for API, bootstrap, services, repositories, models, utilities, and constants
+- 自助點餐 POS：菜單瀏覽、購物車、結帳、付款倒數、訂單完成畫面。
+- Admin 後台：系統設定、統計、紀錄、測試、會員管理、RAG 知識庫管理。
+- AI 推播推薦：依據購物車、會員偏好、熱門品項與設定產生顧客可見推薦。
+- 語音點餐：支援 STT、LLM、TTS 的語音助理流程。
+- 會員系統：手機登入 / 註冊、常點、歷史訂單、個人化推薦。
+- 訂單狀態追蹤：區分已完成訂單與取消 / 回首頁造成的未完成訂單。
+- 互動事件追蹤：紀錄猶豫、付款卡住、返回、取消、求助等事件。
+- RAG 知識庫：支援 FAQ、活動、門市政策、營養過敏原與菜單補充文件。
+- WebSocket 即時事件推送。
+- 可選 Emotion-LLaMA / R1-Omni 情緒分析整合。
+- 透過 `.env` 與 `learning_data/settings.json` 調整執行設定。
 
-## Planning Documents
-
-- `MEMBERSHIP_RECOMMENDATION_IMPROVEMENTS.md`：會員推薦與語音個人化改進項目。
-
-## Screenshots
-
-> Add production screenshots or demo captures here.
-
-| POS Kiosk | Admin Dashboard |
-| --- | --- |
-| `docs/screenshots/pos.png` | `docs/screenshots/admin.png` |
-
-| Voice Assistant | AI Recommendation |
-| --- | --- |
-| `docs/screenshots/voice.png` | `docs/screenshots/ai-push.png` |
-
-## Folder Structure
+## 專案結構
 
 ```text
 .
 ├── UI_API/
-│   ├── main.py                     # FastAPI application entrypoint
-│   ├── config.py                   # Environment and runtime settings
+│   ├── main.py                     # FastAPI 入口
+│   ├── config.py                   # 環境變數與 runtime 設定
 │   ├── backend/
-│   │   ├── api/                    # Router registration and API composition
-│   │   ├── bootstrap/              # Startup, server, and process helpers
-│   │   ├── core/                   # Shared backend constants and primitives
-│   │   ├── models/                 # Backend data models and dependency types
-│   │   ├── prompts/                # Default AI prompts
-│   │   ├── realtime/               # WebSocket connection and event bus
-│   │   ├── repositories/           # File-backed data access layer
-│   │   ├── routes/                 # FastAPI route modules
-│   │   ├── services/               # Business logic and AI workflows
-│   │   └── utils/                  # Shared backend utility functions
+│   │   ├── api/                    # Router 註冊
+│   │   ├── bootstrap/              # 啟動流程與 server helper
+│   │   ├── core/                   # 共用常數與基礎工具
+│   │   ├── models/                 # 後端資料模型與依賴型別
+│   │   ├── prompts/                # 預設 AI prompt
+│   │   ├── realtime/               # WebSocket 與事件匯流排
+│   │   ├── repositories/           # JSON 檔案資料存取層
+│   │   ├── routes/                 # FastAPI routes
+│   │   ├── services/               # 業務邏輯、AI、RAG、會員服務
+│   │   └── utils/                  # 共用工具
 │   ├── frontend/
-│   │   ├── admin/                  # Admin dashboard UI
-│   │   ├── pos/                    # POS kiosk UI modules
-│   │   │   └── constants/          # POS constants and display text
-│   │   ├── shared/                 # Shared API client, UI helpers, hooks, components
-│   │   ├── mcd_categories/         # Category images
-│   │   └── menu_images/            # Menu item images
-│   ├── learning_data/              # Runtime logs, settings, RAG data, member data
-│   ├── menu_data/                  # Menu JSON data
-│   ├── rag_documents/              # Versioned RAG source documents
-│   └── tests/                      # Backend tests
-├── Emotion-LLaMA/                  # Optional emotion analysis service
-├── R1-Omni/                        # Optional multimodal emotion service
-├── scripts/                        # Local startup scripts
-└── logs/                           # Runtime logs
+│   │   ├── admin/                  # Admin 後台
+│   │   ├── pos/                    # POS 點餐介面
+│   │   ├── shared/                 # 前端共用 API client / UI helper
+│   │   ├── mcd_categories/         # 分類圖片
+│   │   └── menu_images/            # 菜單圖片
+│   ├── learning_data/              # runtime 資料，不提交實際內容
+│   ├── menu_data/                  # 菜單 JSON
+│   ├── rag_documents/              # RAG 原始知識文件，提交 Git
+│   └── tests/                      # 後端測試
+├── Emotion-LLaMA/                  # 可選情緒分析服務
+├── R1-Omni/                        # 可選多模態情緒分析服務
+├── scripts/                        # 本機啟動腳本
+└── MEMBERSHIP_RECOMMENDATION_IMPROVEMENTS.md
 ```
 
-## Tech Stack
+## 技術棧
 
-### Backend
+### 後端
 
 - Python 3
 - FastAPI
 - Uvicorn
-- WebSockets
-- File-backed JSON repositories
-- ChromaDB and LangChain integrations for RAG
-- Ollama-compatible local LLM workflows
-- Google GenAI integration option
+- WebSocket
+- JSON 檔案型 repository
+- ChromaDB / LangChain RAG 整合
+- Ollama local LLM
+- Google GenAI 可選整合
 
-### Frontend
+### 前端
 
-- HTML, CSS, and vanilla JavaScript ES modules
-- Tailwind CDN usage in POS UI
-- Font Awesome icons
-- Browser media APIs for microphone/camera capture
+- HTML / CSS / Vanilla JavaScript ES Modules
+- POS 介面部分使用 Tailwind CDN
+- Font Awesome icon
+- Browser Media APIs，用於麥克風與影像擷取
 
-### AI and Media
+### AI 與媒體
 
-- Ollama local model serving
-- Faster Whisper or OpenAI-compatible STT
-- Edge TTS, MeloTTS, or OpenAI-compatible TTS
-- Optional Emotion-LLaMA
-- Optional R1-Omni
+- Ollama 本機模型服務
+- Faster Whisper 或 OpenAI-compatible STT
+- Edge TTS、MeloTTS 或 OpenAI-compatible TTS
+- Emotion-LLaMA，可選
+- R1-Omni，可選
 
-## Installation
-
-Clone the repository and create a Python environment for the main UI/API service.
+## 安裝
 
 ```bash
 git clone <repository-url>
@@ -111,212 +92,133 @@ pip install --upgrade pip
 pip install -r UI_API/requirements.txt
 ```
 
-If you use the optional emotion model services, install their dependencies separately according to the environment requirements of `Emotion-LLaMA/` and `R1-Omni/`.
+如果需要使用 `Emotion-LLaMA/` 或 `R1-Omni/`，請依照各模型服務的需求另外建立環境並安裝依賴。
 
-## Environment Variables
+## 環境變數
 
-Create a `.env` file in `UI_API/` when local overrides are needed.
+需要本機覆寫設定時，在 `UI_API/` 建立 `.env`：
 
 ```bash
 cd UI_API
-cp .env.example .env  # if an example file exists
+cp .env.example .env  # 如果存在範例檔
 ```
 
-Common variables:
+常用設定：
 
-| Variable | Description | Default |
+| 變數 | 說明 | 預設 |
 | --- | --- | --- |
-| `APP_HOST` | Host for the FastAPI server | `0.0.0.0` |
-| `APP_PORT` | POS/API port | `8000` |
-| `ADMIN_PORT` | Admin entry port | `8001` |
-| `OLLAMA_API_URL` | Ollama generate API endpoint | `http://localhost:11434/api/generate` |
-| `OLLAMA_BASE_URL` | Ollama base URL | Derived from `OLLAMA_API_URL` |
-| `GEMINI_API_KEY` | Google Gemini API key | Empty |
-| `GOOGLE_API_KEY` | Alternative Gemini API key variable | Empty |
-| `EMOTION_LLAMA_GRADIO_URL` | Emotion-LLaMA service URL | `http://127.0.0.1:7889` |
-| `R1_OMNI_GRADIO_URL` | R1-Omni service URL | `http://127.0.0.1:7890` |
-| `ENABLE_NGROK` | Enable ngrok tunnel startup | `true` |
-| `NGROK_AUTHTOKEN` | ngrok authentication token | Empty |
-| `POS_DEMO_TOKEN` | Optional POS demo token | Empty |
-| `ADMIN_DEMO_TOKEN` | Optional admin demo token | Empty |
-| `WS_DEMO_TOKEN` | Optional WebSocket demo token | Empty |
-| `PUBLIC_POS_ORIGIN` | Public POS origin for CORS | Empty |
-| `PUBLIC_ADMIN_ORIGIN` | Public admin origin for CORS | Empty |
-| `CORS_ORIGINS` | Comma-separated allowed origins | Localhost defaults |
+| `APP_HOST` | FastAPI host | `0.0.0.0` |
+| `APP_PORT` | POS / API port | `8000` |
+| `ADMIN_PORT` | Admin port | `8001` |
+| `OLLAMA_API_URL` | Ollama generate API | `http://localhost:11434/api/generate` |
+| `GEMINI_API_KEY` | Gemini API key | 空字串 |
+| `EMOTION_LLAMA_GRADIO_URL` | Emotion-LLaMA 服務 URL | `http://127.0.0.1:7889` |
+| `R1_OMNI_GRADIO_URL` | R1-Omni 服務 URL | `http://127.0.0.1:7890` |
+| `ENABLE_NGROK` | 是否啟動 ngrok | `true` |
+| `POS_DEMO_TOKEN` | POS demo token | 空字串 |
+| `ADMIN_DEMO_TOKEN` | Admin demo token | 空字串 |
+| `WS_DEMO_TOKEN` | WebSocket demo token | 空字串 |
+| `CORS_ORIGINS` | CORS 允許來源 | localhost 預設值 |
 
-Runtime settings are also stored in `UI_API/learning_data/settings.json` and can be updated through the admin interface or backend settings API.
+runtime 設定也會保存在 `UI_API/learning_data/settings.json`，可透過 Admin 後台或設定 API 更新。`learning_data/` 是執行期資料，不應提交實際內容。
 
-## RAG Knowledge Base
+## RAG 知識庫
 
-RAG source documents should be kept in `UI_API/rag_documents/` and committed to Git. The generated Chroma vector database is stored under `UI_API/learning_data/chroma_rag/` and is runtime data.
+RAG 原始文件放在：
 
-Recommended source formats:
+```text
+UI_API/rag_documents/
+```
 
-- Markdown for FAQ, policies, menu notes, SOP, and customer-service knowledge.
-- JSON for structured promotions, member offers, and rule-like content.
-- CSV for tabular nutrition, allergen, pricing, or store-policy data.
+這些文件應提交 Git。執行時產生的 Chroma 向量資料庫位於 `UI_API/learning_data/chroma_rag/`，不應手動編輯或提交。
 
-Manage RAG from the Admin dashboard:
+建議格式：
 
-1. Open Admin and go to `RAG 知識庫`.
-2. Add or update text directly from the form. Supplying the same document ID overwrites that document.
-3. Use `清空 Chroma 並重新讀取 RAG 文件` to clear the current Chroma collection and rebuild it from `UI_API/rag_documents/`.
+- Markdown：FAQ、政策、菜單補充、客服 SOP。
+- JSON：活動、會員優惠、結構化規則。
+- CSV：營養、過敏原、價格、門市政策表格。
 
-No manual Python import command is required.
+Admin 操作：
 
-## Running Locally
+1. 開啟 Admin。
+2. 進入 `RAG 知識庫`。
+3. 使用 `新增 / 更新 RAG 文本` 新增單筆內容。
+4. 使用 `清空 Chroma 並重新讀取 RAG 文件` 從 `UI_API/rag_documents/` 重建向量庫。
 
-Start the main application:
+## 本機啟動
+
+啟動主應用程式：
 
 ```bash
 cd UI_API
 python main.py
 ```
 
-Default local URLs depend on `APP_PORT` and `ADMIN_PORT`.
+預設網址依 `APP_PORT` 與 `ADMIN_PORT` 而定：
 
-- POS: `http://127.0.0.1:8000/pos`
-- Admin: `http://127.0.0.1:8001/admin`
+- POS：`http://127.0.0.1:8000/pos`
+- Admin：`http://127.0.0.1:8001/admin`
 
-The repository also includes helper scripts for optional model-backed startup flows:
+也可以使用啟動腳本同時啟動模型服務與 UI：
 
 ```bash
 bash scripts/start_emotion_llama.sh
 bash scripts/start_r1_omni.sh
 ```
 
-Those scripts start Ollama, the selected emotion model service, and `UI_API`, then open POS/Admin in the browser when possible. They default to `APP_PORT=9000` and `ADMIN_PORT=9001`; override ports or disable browser opening when needed:
+腳本預設使用 `APP_PORT=9000`、`ADMIN_PORT=9001`，並會嘗試自動開啟 POS / Admin。可用環境變數覆寫：
 
 ```bash
 APP_PORT=8000 ADMIN_PORT=8001 OPEN_BROWSER=false bash scripts/start_emotion_llama.sh
 ```
 
-The scripts assume local Python environment paths and model services are available on the host machine. Adjust environment variables before using them on a different workstation or server.
+## 測試與檢查
 
-## Build
-
-The current frontend is served as static HTML/CSS/JavaScript by FastAPI and does not require a Node build step.
-
-Recommended validation before release:
-
-```bash
-python3 -m py_compile UI_API/main.py $(find UI_API/backend -type f -name '*.py' -not -path '*/__pycache__/*')
-find UI_API/frontend -type f -name '*.js' -print | sort | xargs -n 1 node --check
-```
-
-If packaging for production, build a deployment artifact that includes:
-
-- `UI_API/main.py`
-- `UI_API/backend/`
-- `UI_API/frontend/`
-- `UI_API/menu_data/`
-- required runtime settings and seed data
-- installed Python dependencies from `UI_API/requirements.txt`
-
-## Testing
-
-Run the backend test suite:
+執行後端測試：
 
 ```bash
 cd UI_API
 python -m pytest tests
 ```
 
-Run static validation:
+執行 Python / JavaScript 靜態檢查：
 
 ```bash
+cd UI_API
 python -m py_compile main.py $(find backend -type f -name '*.py' -not -path '*/__pycache__/*')
 find frontend -type f -name '*.js' -print | sort | xargs -n 1 node --check
 ```
 
-Recommended test coverage areas:
+建議測試範圍：
 
-- Route registration and API response contracts
-- Member login, registration, and personalization
-- Checkout and session logging
-- AI push recommendation fallback behavior
-- RAG provider behavior with empty and populated document stores
-- Voice ordering request and error handling
-- Interaction event scoring and intervention triggers
+- route 註冊與 API response contract
+- 會員登入、註冊、常點、歷史訂單
+- 結帳與 session log
+- AI 推播 fallback
+- RAG 空資料與已建庫行為
+- 語音點餐錯誤處理
+- 互動事件與介入觸發
 
-## Deployment
+## 部署建議
 
-Recommended production deployment pattern:
+1. 建立 Python runtime，安裝 `UI_API/requirements.txt`。
+2. 設定 `.env` 與 `learning_data/settings.json`。
+3. 使用 `systemd`、`supervisord` 或平台服務管理 Uvicorn。
+4. 使用 Nginx / Caddy 等 reverse proxy 提供 TLS、壓縮與公開路由。
+5. 需要時將 Ollama、Emotion-LLaMA、R1-Omni 等模型服務獨立部署。
+6. 持久化 `UI_API/learning_data/` 與向量資料庫。
+7. Admin 應使用 token 與網路層控管存取。
 
-1. Provision a Python runtime with dependencies from `UI_API/requirements.txt`.
-2. Configure `.env` and `learning_data/settings.json` for the target environment.
-3. Run the app behind a process manager such as `systemd`, `supervisord`, or a platform-native service manager.
-4. Place a reverse proxy such as Nginx or Caddy in front of Uvicorn for TLS, compression, and public routing.
-5. Run optional AI model services separately and expose them on internal network URLs.
-6. Persist `UI_API/learning_data/` and any vector database files across deployments.
-7. Restrict admin access with tokens and network controls.
-
-Example Uvicorn command:
+Uvicorn 範例：
 
 ```bash
 cd UI_API
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-## API Overview
+## 注意事項
 
-The backend exposes REST and WebSocket endpoints through FastAPI route modules.
-
-| Module | Responsibility |
-| --- | --- |
-| `core_routes.py` | Frontend pages, settings, logs, checkout, session stats |
-| `menu_routes.py` | Menu retrieval and admin menu updates |
-| `voice_routes.py` | Voice assistant and voice ordering |
-| `ai_push_routes.py` | AI recommendation push |
-| `emotion_routes.py` | Emotion and multimodal event analysis |
-| `interaction_routes.py` | Interaction events and barrier state |
-| `realtime_routes.py` | WebSocket realtime updates |
-| `member_routes.py` | Member login, registration, history, and admin operations |
-| `rag_routes.py` | RAG document and retrieval operations |
-| `passive_voice_routes.py` | Passive voice keyword detection |
-| `demo_routes.py` | Demo scenario tooling |
-| `debug_routes.py` | Optional debug endpoints controlled by settings |
-| `test_routes.py` | Test and diagnostics endpoints |
-
-Important endpoint groups:
-
-- `GET /pos` - POS kiosk UI
-- `GET /admin` - admin dashboard UI
-- `GET /api/menu` - menu data
-- `POST /api/checkout` - checkout processing
-- `GET /api/settings` - admin settings
-- `POST /api/settings` - update admin settings
-- `POST /api/ai_push` - AI push recommendation
-- `POST /api/member/login` - member login
-- `POST /api/member/register` - member registration
-- WebSocket routes are defined in `backend/routes/realtime_routes.py`
-
-## Coding Conventions
-
-- Keep API routes thin. Put business behavior in `backend/services/`.
-- Keep persistence concerns in `backend/repositories/`.
-- Keep shared backend primitives in `backend/core/`, `backend/models/`, and `backend/utils/`.
-- Avoid importing route modules from services or repositories.
-- Avoid circular frontend imports. Shared POS dependencies should flow through `frontend/pos/runtime.js` or dedicated shared modules.
-- Keep customer-facing UI text concise and avoid exposing internal AI reasoning.
-- Prefer explicit, small modules over large cross-cutting files.
-- Preserve existing endpoint contracts unless a migration is planned.
-- Run Python and JavaScript static checks before submitting changes.
-- Do not commit runtime logs, cache files, local credentials, or generated media artifacts.
-
-## Future Roadmap
-
-- Add a formal release packaging workflow for repeatable deployment
-- Add CI for Python tests, JavaScript syntax checks, and import-cycle checks
-- Add OpenAPI documentation examples for key request/response payloads
-- Add Playwright smoke tests for POS and admin workflows
-- Add role-based admin authentication
-- Add database-backed persistence for production workloads
-- Improve observability with structured logs and metrics
-- Add migration tooling for settings, menu data, and member data
-- Expand multilingual UI coverage
-- Add screenshot assets and demo videos to documentation
-
-## License
-
-No license file is currently included in this repository. Add a `LICENSE` file before distributing or publishing the project. If this is intended to be open source, choose an appropriate license such as MIT, Apache-2.0, or GPL-3.0.
+- GitHub 版本只應包含 source code、測試、文件與可重建的 RAG 原始文件。
+- `UI_API/learning_data/`、模型權重、cache、log、`.env` 都不應提交。
+- 會員登入目前以手機號碼識別，正式商用前應加入 OTP 或 PIN 等驗證機制。
+- `MEMBERSHIP_RECOMMENDATION_IMPROVEMENTS.md` 記錄會員推薦與語音個人化的後續改進規劃。
