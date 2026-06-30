@@ -56,12 +56,15 @@ def test_member_push_context(svc):
 
 def test_finalize_checkout_updates_profile(svc):
     svc.register("s1", "0912345678", "小明")
-    out = svc.finalize_checkout("s1", ["MCD001", "MCD012", "MCD001"], 200, True)
+    out = svc.finalize_checkout("s1", ["MCD001", "MCD012", "MCD001"], 200, False)
     assert out["visit_count"] == 1
     assert out["total_spend"] == 200
     # 去重 → 光臨次數：MCD001 與 MCD012 各 +1
     assert out["item_freq"] == {"MCD001": 1, "MCD012": 1}
     assert len(out["orders"]) == 1 and out["orders"][0]["total"] == 200
+    assert out["orders"][0]["order_status"] == "completed"
+    assert out["orders"][0]["is_completed"] is True
+    assert out["orders"][0]["recommendation_success"] is False
     assert svc.get_session_member("s1") is None  # 綁定已清除
 
 
@@ -77,3 +80,28 @@ def test_finalize_checkout_orders_capped(svc, monkeypatch):
         svc.finalize_checkout("s1", ["MCD001"], 100, True)
     m = svc.member_repository.get_member("0912345678")
     assert len(m["orders"]) == 2
+
+
+def test_record_abandoned_order_marks_incomplete(svc):
+    svc.register("s1", "0912345678", "小明")
+    out = svc.record_abandoned_order("s1", ["MCD001"], 155, "home_button")
+    assert out["visit_count"] == 0
+    assert out["total_spend"] == 0
+    assert out["orders"][0]["order_status"] == "cancelled"
+    assert out["orders"][0]["is_completed"] is False
+    assert out["orders"][0]["cancel_reason"] == "home_button"
+    assert svc.get_session_member("s1") is None
+
+
+def test_build_history_treats_legacy_is_success_as_completed(svc):
+    member = _member({})
+    member["orders"] = [{
+        "timestamp": "2026-06-30T12:00:00",
+        "cart_ids": ["MCD001"],
+        "total": 155,
+        "is_success": False,
+    }]
+    history = svc.build_history(member)
+    assert history[0]["is_completed"] is True
+    assert history[0]["order_status"] == "completed"
+    assert history[0]["recommendation_success"] is False

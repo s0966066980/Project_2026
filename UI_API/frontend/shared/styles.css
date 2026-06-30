@@ -3363,8 +3363,10 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 .member-history-items { display:flex; flex-wrap:wrap; gap:8px; }
 .member-history-chip { background:#fff; border:1px solid #ece0d4; border-radius:10px; padding:5px 11px;
   font-size:14px; font-weight:600; color:#2a2018; }
-.member-history-failed { display:inline-block; margin-left:8px; font-size:12px; font-weight:800; color:#b3160c;
-  background:#fde8e6; border-radius:8px; padding:2px 8px; }
+.member-history-status { display:inline-block; margin-left:8px; font-size:12px; font-weight:800;
+  border-radius:8px; padding:2px 8px; }
+.member-history-status.is-completed { color:#176a3a; background:#edf8f1; }
+.member-history-status.is-incomplete { color:#b3160c; background:#fde8e6; }
 .member-history-reorder { margin-top:12px; border:1.5px solid #da291c; background:#fff; color:#da291c;
   border-radius:12px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
 .member-history-reorder:hover { background:#da291c; color:#fff; }

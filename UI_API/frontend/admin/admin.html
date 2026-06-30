@@ -337,6 +337,9 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-doc-tag.manual  { background:#e8f0fe; color:#3b7aee; }
 .rag-doc-tag.faq     { background:#e6f7ef; color:#1db87a; }
 .rag-doc-tag.menu_supplement { background:#fff4e5; color:#f5871f; }
+.rag-doc-tag.promotion { background:#feecec; color:#e84040; }
+.rag-doc-tag.nutrition { background:#f0edf9; color:#6f55d8; }
+.rag-doc-tag.customer_service { background:#eef8f9; color:#27818c; }
 .rag-doc-body { flex:1; min-width:0; }
 .rag-doc-text {
   font-size: 12px; color: #2d3a55; line-height: 1.6;
@@ -402,23 +405,62 @@ tbody tr:hover td { background: #f8fafd; }
 .emo-desc > .emo-desc-body {
   margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--text2, #5a6b8c);
 }
-.member-stat-cards { display:flex; gap:12px; margin-bottom:14px; }
-.member-stat { flex:1; background:#fff; border:1px solid #e7ebf0; border-radius:11px; padding:12px 14px; }
-.member-stat b { display:block; font-size:20px; color:#222; } .member-stat span { font-size:11.5px; color:#8a94a3; }
-.member-search { width:100%; max-width:320px; background:#fff; border:1px solid #dde2e8; border-radius:9px;
-  padding:9px 13px; margin-bottom:14px; }
-.fav-chip { display:inline-block; background:#f3ece4; color:#6b5d4f; border-radius:6px; padding:2px 7px;
-  font-size:11px; margin-right:4px; }
-.view-btn { background:#3b7aee; color:#fff; border:none; border-radius:7px; padding:6px 12px; cursor:pointer; }
-.member-detail-panel { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:18px; margin-top:16px; }
+.member-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.member-stat-cards { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:12px; }
+.member-stat { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:14px 15px; min-height:86px; }
+.member-stat b { display:block; font-size:22px; color:#1a2233; line-height:1; } .member-stat span { display:block; font-size:11.5px; color:#8a94a3; margin-top:7px; font-weight:700; }
+.member-stat small { display:block; font-size:10.5px; color:#a1aab8; margin-top:6px; }
+.member-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; border:1px solid #e7ebf0; border-radius:13px; padding:12px; }
+.member-search { width:min(340px,100%); background:#f8fafd; border:1px solid #dde2e8; border-radius:9px; padding:9px 13px; }
+.member-filters { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.member-filter { border:1px solid #dde3f0; background:#f8fafd; color:#51617d; border-radius:999px; padding:7px 12px; font-size:12px; font-weight:800; cursor:pointer; }
+.member-filter.active { background:#1a2233; color:#fff; border-color:#1a2233; }
+.member-layout { display:grid; grid-template-columns:minmax(560px,1fr) minmax(320px,380px); gap:16px; align-items:start; }
+.member-table-card, .member-detail-panel { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); }
+.member-table-card { overflow:hidden; }
+.member-table-card .adm-table-wrap { max-height:calc(100dvh - 330px); overflow:auto; }
+.member-row-selected td { background:#eef4ff !important; }
+.member-person { display:flex; flex-direction:column; gap:3px; }
+.member-person b { font-size:13px; color:#1a2233; }
+.member-person span { font-size:11px; color:#8494b0; }
+.fav-chip { display:inline-block; background:#f3ece4; color:#6b5d4f; border-radius:7px; padding:3px 8px; font-size:11px; margin:2px 4px 2px 0; font-weight:700; }
+.view-btn { background:#3b7aee; color:#fff; border:none; border-radius:7px; padding:6px 12px; cursor:pointer; font-weight:800; }
+.member-status { display:inline-flex; align-items:center; border-radius:999px; padding:3px 9px; font-size:11px; font-weight:900; white-space:nowrap; }
+.member-status.active { background:#e6f7ef; color:#128257; }
+.member-status.new { background:#e8f0fe; color:#3b7aee; }
+.member-status.dormant { background:#f2f4f8; color:#6b778c; }
+.member-status.risk { background:#feecec; color:#c0392b; }
+.member-detail-panel { padding:18px; position:sticky; top:0; min-width:0; }
 .member-detail-panel.hidden { display:none; }
-.member-kpis { display:flex; gap:14px; margin:10px 0 6px; }
-.member-kpis div { background:#f7f9fb; border-radius:9px; padding:9px 14px; text-align:center; }
-.member-kpis b { display:block; font-size:17px; } .member-kpis span { font-size:10.5px; color:#8a94a3; }
-.fav-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f0f2f5; }
-.order-row { border:1px solid #eef1f5; border-radius:9px; padding:10px 12px; margin-bottom:9px; }
-.order-row > div:first-child { display:flex; justify-content:space-between; }
-.order-items { font-size:12px; color:#6b5d4f; margin-top:5px; } .hit { font-size:11px; color:#2e9e5b; }
+.member-detail-empty { min-height:260px; display:flex; align-items:center; justify-content:center; text-align:center; color:#9aa4b1; font-size:13px; }
+.member-detail-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px; }
+.member-detail-head h2 { font-size:20px; color:#1a2233; margin:0; }
+.member-detail-head small { display:block; color:#8494b0; font-size:12px; margin-top:4px; }
+.member-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:12px 0 16px; }
+.member-kpis div { background:#f7f9fb; border-radius:10px; padding:10px 12px; }
+.member-kpis b { display:block; font-size:18px; color:#1a2233; } .member-kpis span { font-size:10.5px; color:#8a94a3; font-weight:800; }
+.member-section-title { font-size:12px; font-weight:900; color:#1a2233; margin:16px 0 8px; }
+.fav-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
+.order-row { border:1px solid #eef1f5; border-radius:10px; padding:11px 12px; margin-bottom:9px; }
+.order-row-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.order-row-date { font-size:12px; color:#6b778c; font-weight:700; }
+.order-row-total { font-size:14px; color:#1a2233; font-weight:900; }
+.order-items { font-size:12px; color:#3b4a6b; margin-top:7px; line-height:1.45; }
+.hit { display:inline-flex; margin-top:7px; font-size:11px; color:#2e9e5b; background:#e6f7ef; border-radius:999px; padding:2px 8px; font-weight:800; }
+.miss { display:inline-flex; margin-top:7px; font-size:11px; color:#8a94a3; background:#f2f4f8; border-radius:999px; padding:2px 8px; font-weight:800; }
+.member-danger { display:flex; gap:10px; margin-top:18px; padding-top:16px; border-top:1px solid #f0f2f5; }
+@media (max-width:1320px) {
+  .member-stat-cards { grid-template-columns:repeat(3,1fr); }
+  .member-layout { grid-template-columns:1fr; }
+  .member-detail-panel { position:static; }
+}
+@media (max-width:760px) {
+  .member-page { padding:16px; }
+  .member-stat-cards { grid-template-columns:repeat(2,1fr); }
+  .member-toolbar { align-items:stretch; flex-direction:column; }
+  .member-search { width:100%; }
+  .member-filters { justify-content:flex-start; }
+}
 .muted { color:#9aa4b1; font-size:12.5px; }
 /* ── 測試頁 ── */
 #page-test {
@@ -495,7 +537,6 @@ tbody tr:hover td { background: #f8fafd; }
 @media (max-width:1000px) { #page-test { grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
 /* ── 設定頁：AI API section ── */
 .api-provider-section { display:flex; flex-direction:column; gap:0; }
-.member-danger { display:flex; gap:10px; margin-top:18px; padding-top:16px; border-top:1px solid #f0f2f5; }
 .member-clear-btn, .member-delete-btn { border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700;
   cursor:pointer; }
 .member-clear-btn { background:#fff3e0; color:#b9700f; border:1px solid #f3d9b0; }
@@ -936,25 +977,36 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
       </div>
 
-      <!-- 新增知識文件 -->
+      <!-- 新增 / 更新知識文件 -->
       <div class="card" style="flex:1;display:flex;flex-direction:column">
-        <div class="card-title"><i class="fas fa-plus-circle"></i> 新增知識文件</div>
-        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">新增政策、FAQ、套餐說明等知識，讓語音助理回答更準確。</p>
+        <div class="card-title"><i class="fas fa-plus-circle"></i> 新增 / 更新 RAG 文本</div>
+        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">輸入文件 ID 可覆蓋同一筆內容；留空則新增一筆文件。</p>
+        <div class="setting-row">
+          <label class="setting-label">文件 ID</label>
+          <input id="rag-source-id" class="setting-input" type="text" placeholder="可留空，例如 promo_2026_combo">
+        </div>
         <div class="setting-row">
           <label class="setting-label">文件類型</label>
           <select id="rag-type" class="setting-input">
-            <option value="manual">政策 / 規則</option>
+            <option value="manual">手動文件</option>
+            <option value="policy">政策 / 規則</option>
             <option value="faq">FAQ</option>
             <option value="menu_supplement">菜單補充說明</option>
+            <option value="promotion">活動優惠</option>
+            <option value="nutrition">營養 / 過敏原</option>
+            <option value="customer_service">客服知識</option>
           </select>
         </div>
         <div style="flex:1;display:flex;flex-direction:column;margin-bottom:14px">
           <div class="section-title" style="margin-bottom:8px">內容</div>
           <textarea id="rag-content" class="setting-input" style="flex:1;min-height:120px;resize:vertical;font-size:13px;line-height:1.6" placeholder="輸入知識內容，例如：麥當勞早餐供應時間為每日 05:00 至 10:30。"></textarea>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <button class="refresh-btn" onclick="addRagDoc()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-plus"></i> 新增文件
+            <i class="fas fa-save"></i> 儲存文本
+          </button>
+          <button class="refresh-btn" onclick="rebuildRagDocs()" type="button" style="background:#1db87a;color:#fff;border-color:#1db87a">
+            <i class="fas fa-sync-alt"></i> 清空 Chroma 並重新讀取 RAG 文件
           </button>
           <button class="clear-btn" onclick="clearRagDocs()" type="button">
             <i class="fas fa-trash-alt"></i> 清空全部
@@ -1097,17 +1149,36 @@ tbody tr:hover td { background: #f8fafd; }
   </div>
 
   <!-- Members page -->
-  <section id="page-members" style="display:none">
+  <section id="page-members" class="member-page" style="display:none">
     <h1 class="page-title">會員管理</h1>
     <div id="memberStatCards" class="member-stat-cards"></div>
-    <input id="memberSearch" class="member-search" type="text" placeholder="搜尋手機號碼或暱稱…" />
-    <div class="adm-table-wrap">
-      <table>
-        <thead><tr><th>手機號碼</th><th>暱稱</th><th>光臨</th><th>累計消費</th><th>最近光臨</th><th>常點品項</th><th></th></tr></thead>
-        <tbody id="memberTableBody"></tbody>
-      </table>
+    <div class="member-toolbar">
+      <input id="memberSearch" class="member-search" type="text" placeholder="搜尋手機、暱稱或常點品項…" />
+      <div class="member-filters" id="memberFilters">
+        <button class="member-filter active" data-filter="all" type="button">全部</button>
+        <button class="member-filter" data-filter="active" type="button">近 7 天活躍</button>
+        <button class="member-filter" data-filter="incomplete" type="button">有未完成</button>
+        <button class="member-filter" data-filter="high_value" type="button">高消費</button>
+        <button class="member-filter" data-filter="new" type="button">新會員</button>
+      </div>
     </div>
-    <div id="memberDetailPanel" class="member-detail-panel hidden"></div>
+    <div class="member-layout">
+      <div class="member-table-card">
+        <div class="adm-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>會員</th><th>狀態</th><th>訂單</th><th>未完成</th><th>累計消費</th><th>平均客單</th><th>最近活動</th><th>常點品項</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="memberTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="memberDetailPanel" class="member-detail-panel">
+        <div class="member-detail-empty">選擇左側會員查看完整訂單、常點與推播成效</div>
+      </div>
+    </div>
   </section>
 
   <!-- ── 測試頁 ── -->

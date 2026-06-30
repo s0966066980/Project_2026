@@ -34,6 +34,21 @@ def test_login_not_found(client):
     assert r.json() == {"found": False}
 
 
+def test_abandoned_order_route(client):
+    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    r = client.post("/api/member/abandoned_order", data={
+        "session_id": "s1",
+        "cart_ids": '["MCD001"]',
+        "cart_total": "155",
+        "reason": "cancel_order",
+    })
+    body = r.json()
+    assert r.status_code == 200
+    assert body["ok"] is True
+    assert body["member"]["history"][0]["is_completed"] is False
+    assert body["member"]["history"][0]["order_status"] == "cancelled"
+
+
 def test_admin_list_and_detail(client):
     client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
     rows = client.get("/api/members").json()

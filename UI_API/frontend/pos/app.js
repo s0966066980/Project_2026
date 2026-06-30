@@ -1170,6 +1170,21 @@ async function writeCheckoutLog(cartIds = []) {
   return { orderNumber: 0, sessionId };
 }
 
+function saveAbandonedOrder(reason) {
+  if (!state.member) return;
+  const cartIds = cartManager.getCartIds();
+  if (!cartIds.length) return;
+  const cartTotal = cartManager.getCartTotal();
+  api.recordAbandonedOrder(sessionId, cartIds, cartTotal, reason)
+    .then((result) => {
+      if (result?.ok) {
+        state.member = null;
+        renderMemberMenuHeader();
+      }
+    })
+    .catch(() => {});
+}
+
 function setConfirmButtonsDisabled(disabled) {
   [
     ui.orderConfirmCloseBtn,
@@ -1298,6 +1313,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   hideCartScreen();
   hidePaymentScreen();
   if (orderCompleted) return;
+  saveAbandonedOrder('home_button');
   isSystemRunning = false;
   orderCompleted = false;
   totalClickCount = 0;
@@ -1336,6 +1352,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
     showCancelGuide();
     return;
   }
+  saveAbandonedOrder('cancel_order');
   cartManager.clearCart();
   state.sessionCartSources = [];
   hidePaymentScreen();
@@ -1686,6 +1703,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   hideCancelGuide();
   cancelClickCount = 0;
   totalClickCount = 0;
+  saveAbandonedOrder('confirm_cancel_order');
   cartManager.clearCart();
   state.sessionCartSources = [];
   hidePaymentScreen();

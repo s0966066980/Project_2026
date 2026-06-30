@@ -746,7 +746,13 @@ async function saveRagSettings() {
 // ── RAG docs ──
 
 const RAG_TYPE_LABELS = {
-  manual: '政策/規則', faq: 'FAQ', menu_supplement: '菜單補充',
+  manual: '手動',
+  policy: '政策/規則',
+  faq: 'FAQ',
+  menu_supplement: '菜單補充',
+  promotion: '活動優惠',
+  nutrition: '營養過敏原',
+  customer_service: '客服知識',
 };
 
 function ragNotice(msg, ok = true) {
@@ -787,7 +793,15 @@ async function loadRagDocs() {
       body.className = 'rag-doc-body';
 
       const tag = document.createElement('span');
-      const tagClass = { manual: 'manual', faq: 'faq', menu_supplement: 'menu_supplement' };
+      const tagClass = {
+        manual: 'manual',
+        policy: 'manual',
+        faq: 'faq',
+        menu_supplement: 'menu_supplement',
+        promotion: 'promotion',
+        nutrition: 'nutrition',
+        customer_service: 'customer_service',
+      };
       tag.className = `rag-doc-tag ${tagClass[doc.source_type] || 'manual'}`;
       tag.textContent = RAG_TYPE_LABELS[doc.source_type] || doc.source_type;
 
@@ -814,6 +828,7 @@ async function loadRagDocs() {
 }
 
 async function addRagDoc() {
+  const sourceId = (document.getElementById('rag-source-id')?.value || '').trim();
   const content = (document.getElementById('rag-content')?.value || '').trim();
   const type = document.getElementById('rag-type')?.value || 'manual';
   if (!content) { ragNotice('請輸入內容', false); return; }
@@ -821,14 +836,19 @@ async function addRagDoc() {
     const res = await fetch(`${API}/api/rag/docs`, {
       method: 'POST',
       headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, source_type: type }),
+      body: JSON.stringify({
+        content,
+        source_type: type,
+        ...(sourceId ? { source_id: sourceId } : {}),
+      }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (document.getElementById('rag-source-id')) document.getElementById('rag-source-id').value = '';
     if (document.getElementById('rag-content')) document.getElementById('rag-content').value = '';
-    ragNotice('✓ 新增成功');
+    ragNotice(sourceId ? '✓ 已更新文件' : '✓ 新增成功');
     await loadRagDocs();
   } catch (e) {
-    ragNotice(`新增失敗：${e.message}`, false);
+    ragNotice(`儲存失敗：${e.message}`, false);
   }
 }
 
@@ -860,40 +880,145 @@ async function clearRagDocs() {
   }
 }
 
+async function rebuildRagDocs() {
+  if (!confirm('確定清空 Chroma 並重新讀取 rag_documents 內的 RAG 文件？')) return;
+  try {
+    ragNotice('重建中，請稍候…');
+    const res = await fetch(`${API}/api/rag/rebuild`, {
+      method: 'POST',
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const failed = Number(data.failed || 0);
+    ragNotice(`✓ 重建完成：匯入 ${data.imported || 0} 筆，清除 ${data.deleted || 0} 筆${failed ? `，失敗 ${failed} 筆` : ''}`, failed === 0);
+    await loadRagDocs();
+  } catch (e) {
+    ragNotice(`重建失敗：${e.message}`, false);
+  }
+}
+
 // ── Members ──
+
+let memberFilter = 'all';
+let selectedMemberPhone = '';
+let memberControlsBound = false;
 
 async function loadMembers() {
   const rows = await fetch('/api/members', { headers: adminHeaders() }).then(r => r.json()).catch(() => []);
   window._memberRows = Array.isArray(rows) ? rows : [];
+  bindMemberControls();
   renderMemberStats(window._memberRows);
-  renderMemberTable(window._memberRows);
+  renderMemberTable(getFilteredMemberRows());
+}
+
+function bindMemberControls() {
+  if (memberControlsBound) return;
+  memberControlsBound = true;
+  const search = document.getElementById('memberSearch');
+  search?.addEventListener('input', () => renderMemberTable(getFilteredMemberRows()));
+  document.getElementById('memberFilters')?.addEventListener('click', (event) => {
+    const btn = event.target?.closest?.('.member-filter');
+    if (!btn) return;
+    memberFilter = btn.getAttribute('data-filter') || 'all';
+    document.querySelectorAll('.member-filter').forEach(el => el.classList.toggle('active', el === btn));
+    renderMemberTable(getFilteredMemberRows());
+  });
+}
+
+function getMemberSearchText(row) {
+  return [
+    row.phone,
+    row.phone_masked,
+    row.nickname,
+    ...(Array.isArray(row.favorites) ? row.favorites : []),
+  ].join(' ').toLowerCase();
+}
+
+function getMemberStatus(row) {
+  const completed = Number(row.completed_order_count || 0);
+  const incomplete = Number(row.incomplete_order_count || 0);
+  const last = Date.parse(row.last_visit_at || '');
+  const active = Number.isFinite(last) && last >= Date.now() - 7 * 864e5;
+  if (!completed && !incomplete) return { key: 'new', label: '新會員' };
+  if (incomplete > 0 && !completed) return { key: 'risk', label: '未完成' };
+  if (active) return { key: 'active', label: '活躍' };
+  return { key: 'dormant', label: '沉睡' };
+}
+
+function getFilteredMemberRows() {
+  const rows = Array.isArray(window._memberRows) ? window._memberRows : [];
+  const q = String(document.getElementById('memberSearch')?.value || '').trim().toLowerCase();
+  const spendValues = rows.map(r => Number(r.completed_spend ?? r.total_spend ?? 0)).sort((a, b) => a - b);
+  const highValueThreshold = spendValues.length ? spendValues[Math.max(0, Math.floor(spendValues.length * 0.75) - 1)] : 0;
+  return rows.filter((row) => {
+    if (q && !getMemberSearchText(row).includes(q)) return false;
+    const status = getMemberStatus(row);
+    if (memberFilter === 'active') {
+      const last = Date.parse(row.last_visit_at || '');
+      return Number.isFinite(last) && last >= Date.now() - 7 * 864e5;
+    }
+    if (memberFilter === 'incomplete') return Number(row.incomplete_order_count || 0) > 0;
+    if (memberFilter === 'high_value') return Number(row.completed_spend ?? row.total_spend ?? 0) >= highValueThreshold && highValueThreshold > 0;
+    if (memberFilter === 'new') return status.key === 'new';
+    return true;
+  });
+}
+
+function fmtMoney(value) {
+  return `$${Number(value || 0).toLocaleString('zh-TW')}`;
+}
+
+function fmtDate(value, fallback = '—') {
+  if (!value) return fallback;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16).replace('T', ' ');
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function renderMemberStats(rows) {
   const total = rows.length;
   const weekAgo = Date.now() - 7 * 864e5;
   const active = rows.filter(r => Date.parse(r.last_visit_at || '') >= weekAgo).length;
-  const visits = rows.reduce((s, r) => s + (r.visit_count || 0), 0);
-  const spend = rows.reduce((s, r) => s + (r.total_spend || 0), 0);
-  const avg = visits ? Math.round(spend / visits) : 0;
-  const favFreq = {};
-  rows.forEach(r => (r.favorites || []).forEach(f => { favFreq[f] = (favFreq[f] || 0) + 1; }));
-  const topFav = Object.entries(favFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
-  const cards = [['總會員數', total], ['本週活躍', active], ['會員平均客單', '$' + avg], ['會員最愛品項', topFav]];
+  const completedOrders = rows.reduce((s, r) => s + Number(r.completed_order_count || 0), 0);
+  const incompleteOrders = rows.reduce((s, r) => s + Number(r.incomplete_order_count || 0), 0);
+  const spend = rows.reduce((s, r) => s + Number(r.completed_spend ?? r.total_spend ?? 0), 0);
+  const avg = completedOrders ? Math.round(spend / completedOrders) : 0;
+  const hitCount = rows.reduce((s, r) => s + Number(r.recommendation_hit_count || 0), 0);
+  const hitRate = completedOrders ? Math.round((hitCount / completedOrders) * 100) : 0;
+  const cards = [
+    ['總會員數', total, '已註冊帳戶'],
+    ['近 7 天活躍', active, `${total ? Math.round(active / total * 100) : 0}% 活躍率`],
+    ['完成訂單', completedOrders, '會員完成交易'],
+    ['未完成訂單', incompleteOrders, `${completedOrders + incompleteOrders ? Math.round(incompleteOrders / (completedOrders + incompleteOrders) * 100) : 0}% 未完成率`],
+    ['會員營收', fmtMoney(spend), '只計完成訂單'],
+    ['平均客單', fmtMoney(avg), `推播命中 ${hitRate}%`],
+  ];
   document.getElementById('memberStatCards').innerHTML = cards
-    .map(([label, val]) => `<div class="member-stat"><b>${escHtml(String(val))}</b><span>${escHtml(label)}</span></div>`)
+    .map(([label, val, sub]) => `<div class="member-stat"><b>${escHtml(String(val))}</b><span>${escHtml(label)}</span><small>${escHtml(sub)}</small></div>`)
     .join('');
 }
 
 function renderMemberTable(rows) {
   const body = document.getElementById('memberTableBody');
   body.innerHTML = '';
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#9aa4b1;padding:24px">沒有符合條件的會員</td></tr>';
+    return;
+  }
   rows.forEach((r) => {
     const tr = document.createElement('tr');
+    tr.classList.toggle('member-row-selected', selectedMemberPhone && selectedMemberPhone === r.phone);
+    const status = getMemberStatus(r);
     const favs = (r.favorites || []).map(f => `<span class="fav-chip">${escHtml(f)}</span>`).join('');
-    tr.innerHTML = `<td>${escHtml(r.phone_masked || '')}</td><td>${escHtml(r.nickname || '')}</td>`
-      + `<td>${r.visit_count || 0} 次</td><td>$${r.total_spend || 0}</td>`
-      + `<td>${escHtml(r.last_visit_at ? r.last_visit_at.slice(0, 10) : '—')}</td><td>${favs}</td>`
+    tr.innerHTML = `<td><div class="member-person"><b>${escHtml(r.nickname || '未命名會員')}</b><span>${escHtml(r.phone_masked || '')}</span></div></td>`
+      + `<td><span class="member-status ${status.key}">${escHtml(status.label)}</span></td>`
+      + `<td>${Number(r.completed_order_count || 0)} 筆</td>`
+      + `<td>${Number(r.incomplete_order_count || 0)} 筆</td>`
+      + `<td>${fmtMoney(r.completed_spend ?? r.total_spend ?? 0)}</td>`
+      + `<td>${fmtMoney(r.avg_completed_spend ?? r.avg_spend ?? 0)}</td>`
+      + `<td>${escHtml(fmtDate(r.last_visit_at, '—').slice(0, 10))}</td><td>${favs || '<span class="muted">—</span>'}</td>`
       + `<td><button class="view-btn" data-phone="${escHtml(r.phone || '')}">查看</button></td>`;
     body.appendChild(tr);
   });
@@ -903,27 +1028,42 @@ function renderMemberTable(rows) {
 }
 
 async function loadMemberDetail(phone) {
+  selectedMemberPhone = phone || '';
+  renderMemberTable(getFilteredMemberRows());
   const d = await fetch(`/api/members/${encodeURIComponent(phone)}`, { headers: adminHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null);
   const panel = document.getElementById('memberDetailPanel');
-  if (!d) { panel.classList.add('hidden'); return; }
+  if (!d) {
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<div class="member-detail-empty">找不到會員資料</div>';
+    return;
+  }
   const favRows = (d.favorites_ranked || []).map(f =>
     `<div class="fav-row"><span>${escHtml(f.name)}</span><b>×${f.count}</b></div>`).join('');
   const orderRows = (d.orders || []).map(o => {
-    const items = (o.cart_ids || []).map(escHtml).join('、');
-    const hit = o.is_success ? '<span class="hit">⭐ 推播命中</span>' : '';
-    return `<div class="order-row"><div><span>${escHtml((o.timestamp || '').slice(0, 16).replace('T', ' '))}</span>`
-      + `<b>$${o.total || 0}</b></div><div class="order-items">${items}</div>${hit}</div>`;
+    const completed = o.is_completed !== false && (o.order_status || 'completed') === 'completed';
+    const status = completed
+      ? '<span class="member-status active">已完成</span>'
+      : '<span class="member-status risk">未完成</span>';
+    const items = (o.items || []).map(it => `${escHtml(it.name || it.id || '')}${Number(it.count || 1) > 1 ? ` ×${Number(it.count || 1)}` : ''}`).join('、')
+      || (o.cart_ids || []).map(escHtml).join('、');
+    const hit = o.recommendation_success || o.is_success
+      ? '<span class="hit">推播命中</span>'
+      : '<span class="miss">推播未命中</span>';
+    const reason = !completed && o.cancel_reason ? `<span class="miss">原因：${escHtml(o.cancel_reason)}</span>` : '';
+    return `<div class="order-row"><div class="order-row-top"><div><div class="order-row-date">${escHtml(fmtDate(o.timestamp))}</div>${status}</div>`
+      + `<b class="order-row-total">${fmtMoney(o.total || 0)}</b></div><div class="order-items">${items || '—'}</div>${hit}${reason}</div>`;
   }).join('');
   panel.classList.remove('hidden');
-  panel.innerHTML = `<h2>${escHtml(d.nickname || '')}　<small>${escHtml(d.phone_masked || '')}</small></h2>`
-    + `<div class="member-kpis"><div><b>${d.visit_count}</b><span>光臨</span></div>`
-    + `<div><b>$${d.total_spend}</b><span>累計消費</span></div>`
-    + `<div><b>$${d.avg_spend}</b><span>平均客單</span></div></div>`
-    + `<h3>🔁 常點品項排行</h3>${favRows || '<p class="muted">尚無紀錄</p>'}`
-    + `<h3>🧾 歷次訂單</h3>${orderRows || '<p class="muted">尚無訂單</p>'}`
+  panel.innerHTML = `<div class="member-detail-head"><div><h2>${escHtml(d.nickname || '未命名會員')}</h2><small>${escHtml(d.phone_masked || '')}</small></div><span class="member-status ${getMemberStatus(d).key}">${escHtml(getMemberStatus(d).label)}</span></div>`
+    + `<div class="member-kpis"><div><b>${d.completed_order_count || 0}</b><span>完成訂單</span></div>`
+    + `<div><b>${d.incomplete_order_count || 0}</b><span>未完成</span></div>`
+    + `<div><b>${fmtMoney(d.completed_spend ?? d.total_spend ?? 0)}</b><span>完成營收</span></div>`
+    + `<div><b>${fmtMoney(d.avg_completed_spend ?? d.avg_spend ?? 0)}</b><span>平均客單</span></div></div>`
+    + `<div class="member-section-title">常點品項排行</div>${favRows || '<p class="muted">尚無紀錄</p>'}`
+    + `<div class="member-section-title">訂單時間線</div>${orderRows || '<p class="muted">尚無訂單</p>'}`
     + `<div class="member-danger">`
-    + `<button class="member-clear-btn" type="button">🧹 刪除點餐紀錄</button>`
-    + `<button class="member-delete-btn" type="button">🗑️ 刪除會員帳戶</button>`
+    + `<button class="member-clear-btn" type="button">刪除點餐紀錄</button>`
+    + `<button class="member-delete-btn" type="button">刪除會員帳戶</button>`
     + `</div>`;
   panel.querySelector('.member-clear-btn')?.addEventListener('click', () => clearMemberRecords(phone, d.nickname || ''));
   panel.querySelector('.member-delete-btn')?.addEventListener('click', () => deleteMember(phone, d.nickname || ''));
@@ -1182,6 +1322,7 @@ window.loadRagDocs     = loadRagDocs;
 window.addRagDoc       = addRagDoc;
 window.deleteRagDoc    = deleteRagDoc;
 window.clearRagDocs    = clearRagDocs;
+window.rebuildRagDocs  = rebuildRagDocs;
 window.saveEmotionSettings        = saveEmotionSettings;
 window.clearEmotionLogs           = clearEmotionLogs;
 window.updateEmotionPromptCounter = updateEmotionPromptCounter;

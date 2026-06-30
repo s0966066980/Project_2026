@@ -26,6 +26,24 @@ def create_router(deps: dict) -> APIRouter:
     ):
         return await asyncio.to_thread(member_service.register, session_id, phone, nickname)
 
+    @router.post("/api/member/abandoned_order")
+    async def member_abandoned_order(
+        session_id: str = Form(...),
+        cart_ids: str = Form(...),
+        cart_total: str = Form(default="0"),
+        reason: str = Form(default=""),
+    ):
+        from utils.parsing import parse_int_from_decimal, parse_json_list
+
+        member = await asyncio.to_thread(
+            member_service.record_abandoned_order,
+            session_id,
+            parse_json_list(cart_ids, fallback_csv=True),
+            parse_int_from_decimal(cart_total),
+            reason,
+        )
+        return {"ok": bool(member), "member": member_service._public_member(member) if member else None}
+
     @router.get("/api/members")
     async def list_members(request: Request):
         require_admin_token(request)

@@ -168,6 +168,17 @@ function formatOrderDate(iso) {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function isOrderCompleted(order) {
+  if (order && typeof order.order_status === 'string' && order.order_status) {
+    return order.order_status === 'completed';
+  }
+  if (order && typeof order.is_completed === 'boolean') {
+    return order.is_completed;
+  }
+  // 舊資料的 is_success 是 AI 推播命中率，不是訂單完成狀態。
+  return true;
+}
+
 function renderHistoryList() {
   const list = $('memberHistoryList');
   if (!list) return;
@@ -189,12 +200,11 @@ function renderHistoryList() {
     const date = document.createElement('span');
     date.className = 'member-history-date';
     date.textContent = formatOrderDate(order.timestamp);
-    if (order.is_success === false) {
-      const failed = document.createElement('span');
-      failed.className = 'member-history-failed';
-      failed.textContent = '未完成';
-      date.appendChild(failed);
-    }
+    const status = document.createElement('span');
+    const completed = isOrderCompleted(order);
+    status.className = `member-history-status ${completed ? 'is-completed' : 'is-incomplete'}`;
+    status.textContent = completed ? '已完成' : '未完成';
+    date.appendChild(status);
     const total = document.createElement('span');
     total.className = 'member-history-total';
     total.textContent = `$${Number(order.total || 0)}`;

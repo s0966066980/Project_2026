@@ -132,12 +132,67 @@ def build_history(member: dict, limit: int | None = None) -> list:
         history.append({
             "timestamp": order.get("timestamp", ""),
             "total": int(order.get("total", 0)),
-            "is_success": bool(order.get("is_success", True)),
+            "is_success": bool(order.get("recommendation_success", order.get("is_success", True))),
+            "recommendation_success": bool(order.get("recommendation_success", order.get("is_success", True))),
+            "order_status": order.get("order_status", "completed"),
+            "is_completed": bool(order.get("is_completed", True)),
+            "cancel_reason": order.get("cancel_reason", ""),
             "items": items,
         })
         if len(history) >= limit:
             break
     return history
+
+
+def _order_is_completed(order: dict) -> bool:
+    if isinstance(order.get("order_status"), str) and order.get("order_status"):
+        return order.get("order_status") == "completed"
+    if isinstance(order.get("is_completed"), bool):
+        return bool(order.get("is_completed"))
+    return True
+
+
+def _order_recommendation_success(order: dict) -> bool:
+    return bool(order.get("recommendation_success", order.get("is_success", False)))
+
+
+def _order_item_rows(order: dict, menu_by_id: dict) -> list:
+    counts = {}
+    for iid in order.get("cart_ids") or []:
+        if iid:
+            counts[iid] = counts.get(iid, 0) + 1
+    return [
+        {
+            "id": iid,
+            "name": menu_by_id.get(iid, {}).get("name", iid),
+            "price": menu_by_id.get(iid, {}).get("price", 0),
+            "count": cnt,
+        }
+        for iid, cnt in counts.items()
+    ]
+
+
+def _member_order_metrics(member: dict) -> dict:
+    orders = list(member.get("orders") or [])
+    completed_orders = [o for o in orders if _order_is_completed(o)]
+    incomplete_orders = [o for o in orders if not _order_is_completed(o)]
+    completed_spend = sum(int(o.get("total", 0) or 0) for o in completed_orders)
+    recommendation_hit_count = sum(1 for o in completed_orders if _order_recommendation_success(o))
+    completed_count = len(completed_orders)
+    total_count = len(orders)
+    return {
+        "order_count": total_count,
+        "completed_order_count": completed_count,
+        "incomplete_order_count": len(incomplete_orders),
+        "completed_spend": completed_spend,
+        "avg_completed_spend": completed_spend // completed_count if completed_count else 0,
+        "recommendation_hit_count": recommendation_hit_count,
+        "recommendation_hit_rate": round(recommendation_hit_count / completed_count, 3) if completed_count else 0,
+        "incomplete_rate": round(len(incomplete_orders) / total_count, 3) if total_count else 0,
+        "last_order_status": (
+            "completed" if _order_is_completed(orders[-1]) else orders[-1].get("order_status", "cancelled")
+        ) if orders else "",
+    }
 
 
 def member_top_ids(member: dict, n: int = 5) -> list:
@@ -155,7 +210,16 @@ def member_push_context(member: dict) -> str:
     return f"此顧客為會員{who}，常點：{names}。請在促購短句中自然帶入其偏好。"
 
 
-def finalize_checkout(session_id: str, final_cart_ids: list, total, is_success: bool) -> dict | None:
+def _append_member_order(member: dict, order: dict) -> dict:
+    orders = list(member.get("orders") or [])
+    orders.append(order)
+    keep = int(config.get("MEMBER_ORDERS_KEEP", 20))
+    member["orders"] = orders[-keep:]
+    member_repository.upsert_member(member)
+    return member
+
+
+def finalize_checkout(session_id: str, final_cart_ids: list, total, recommendation_success: bool) -> dict | None:
     member = get_session_member(session_id)
     if not member:
         clear_session(session_id)
@@ -168,16 +232,36 @@ def finalize_checkout(session_id: str, final_cart_ids: list, total, is_success: 
         if iid:
             freq[iid] = freq.get(iid, 0) + 1
     member["item_freq"] = freq
-    orders = list(member.get("orders") or [])
-    orders.append({
+    _append_member_order(member, {
         "timestamp": datetime.now().isoformat(),
         "cart_ids": list(final_cart_ids or []),
         "total": int(total or 0),
-        "is_success": bool(is_success),
+        "order_status": "completed",
+        "is_completed": True,
+        "recommendation_success": bool(recommendation_success),
+        # Backward-compatible field for admin recommendation metrics.
+        "is_success": bool(recommendation_success),
     })
-    keep = int(config.get("MEMBER_ORDERS_KEEP", 20))
-    member["orders"] = orders[-keep:]
-    member_repository.upsert_member(member)
+    clear_session(session_id)
+    return member
+
+
+def record_abandoned_order(session_id: str, cart_ids: list, total, reason: str = "") -> dict | None:
+    member = get_session_member(session_id)
+    normalized_cart_ids = [iid for iid in (cart_ids or []) if iid]
+    if not member or not normalized_cart_ids:
+        return None
+    member["last_visit_at"] = datetime.now().isoformat()
+    _append_member_order(member, {
+        "timestamp": datetime.now().isoformat(),
+        "cart_ids": normalized_cart_ids,
+        "total": int(total or 0),
+        "order_status": "cancelled",
+        "is_completed": False,
+        "cancel_reason": str(reason or ""),
+        "recommendation_success": False,
+        "is_success": False,
+    })
     clear_session(session_id)
     return member
 
@@ -188,6 +272,7 @@ def admin_list() -> list:
     rows = []
     for m in members:
         favs = [menu_by_id.get(iid, {}).get("name", iid) for iid in member_top_ids(m, 2)]
+        metrics = _member_order_metrics(m)
         rows.append({
             "phone_masked": mask_phone(m.get("phone", "")),
             "phone": m.get("phone", ""),
@@ -196,6 +281,7 @@ def admin_list() -> list:
             "total_spend": int(m.get("total_spend", 0)),
             "last_visit_at": m.get("last_visit_at", ""),
             "favorites": favs,
+            **metrics,
         })
     return rows
 
@@ -212,8 +298,24 @@ def admin_detail(phone) -> dict | None:
     ]
     visit = int(m.get("visit_count", 0))
     spend = int(m.get("total_spend", 0))
+    metrics = _member_order_metrics(m)
+    orders = []
+    for order in reversed(m.get("orders") or []):
+        completed = _order_is_completed(order)
+        orders.append({
+            "timestamp": order.get("timestamp", ""),
+            "cart_ids": list(order.get("cart_ids") or []),
+            "items": _order_item_rows(order, menu_by_id),
+            "total": int(order.get("total", 0) or 0),
+            "order_status": order.get("order_status", "completed" if completed else "cancelled"),
+            "is_completed": completed,
+            "cancel_reason": order.get("cancel_reason", ""),
+            "recommendation_success": _order_recommendation_success(order),
+            "is_success": _order_recommendation_success(order),
+        })
     return {
         "phone_masked": mask_phone(m.get("phone", "")),
+        "phone": m.get("phone", ""),
         "nickname": m.get("nickname", ""),
         "created_at": m.get("created_at", ""),
         "visit_count": visit,
@@ -221,7 +323,8 @@ def admin_detail(phone) -> dict | None:
         "avg_spend": (spend // visit if visit else 0),
         "last_visit_at": m.get("last_visit_at", ""),
         "favorites_ranked": ranked,
-        "orders": list(reversed(m.get("orders") or [])),
+        "orders": orders,
+        **metrics,
     }
 
 

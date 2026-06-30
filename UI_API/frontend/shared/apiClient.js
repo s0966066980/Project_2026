@@ -230,3 +230,19 @@ export async function memberRegister(sessionId, phone, nickname) {
   formData.append('nickname', nickname || '');
   return postFormJson(`${API_BASE}/api/member/register`, formData);
 }
+
+/**
+ * @param {string} sessionId
+ * @param {string[]} cartIds
+ * @param {number} cartTotal
+ * @param {string} reason
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function recordAbandonedOrder(sessionId, cartIds, cartTotal, reason) {
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  formData.append('cart_ids', JSON.stringify(Array.isArray(cartIds) ? cartIds : []));
+  formData.append('cart_total', String(Number(cartTotal || 0)));
+  formData.append('reason', reason || '');
+  return postFormJson(`${API_BASE}/api/member/abandoned_order`, formData);
+}
