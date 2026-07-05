@@ -19,6 +19,7 @@ export function hideChoiceHesitationModal(resetIdle = false) {
   modal?.classList.add('hidden');
   modal?.setAttribute('aria-hidden', 'true');
   state.currentChoiceHesitationItem = null;
+  state.currentChoiceHesitationRecommendationRecord = null;
   state.passiveLastTriggerAt = 0;  // modal 關閉後立即允許下一次被動語音觸發
   if (resetIdle) {
     state.lastCartAddAt = Date.now();

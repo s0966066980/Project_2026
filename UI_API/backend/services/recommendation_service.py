@@ -202,6 +202,7 @@ def build_checkout_log_entry(
     session_id: str,
     pushed_ids: list,
     cart_ids: list,
+    cart_items: list | None,
     session_history: list,
 ) -> dict:
     """
@@ -230,6 +231,7 @@ def build_checkout_log_entry(
         "languages": languages,
         "pushed_ids": unique_pushed,
         "final_cart_ids": cart_ids,
+        "final_cart_items": cart_items if isinstance(cart_items, list) else [],
         "is_success": is_success,
         "voice_turns": voice_turns,
     }

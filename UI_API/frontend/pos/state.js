@@ -11,6 +11,7 @@ export const state = {
   kioskActiveFilter: '全部',
   // 猶豫彈窗
   currentChoiceHesitationItem: null,
+  currentChoiceHesitationRecommendationRecord: null,
   lastCartAddAt: Date.now(),
   passiveLastTriggerAt: 0,
   // 付款倒數
@@ -28,6 +29,7 @@ export const state = {
   // session 累計 + UI 計時器（跨模組共享）
   sessionPushedIds: new Set(),
   sessionCartSources: [],   // [{id, source}] 記錄每筆加入來源
+  sessionRecommendationEvents: new Map(),
   interactionModalTimer: null,
   lastValidOrderActionAt: 0,
   member: null,

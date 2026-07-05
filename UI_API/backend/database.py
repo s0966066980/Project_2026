@@ -44,13 +44,14 @@ def build_compact_menu_context() -> str:
 
 def update_menu(new_menu_data: list) -> None:
     menu_repository.save_menu(new_menu_data)
-    # TODO: trigger RAG rebuild when RAG is implemented
+    # RAG rebuild is intentionally explicit from the admin endpoint.
 
 
 def record_final_checkout(
     session_id: str,
     pushed_ids: list,
     cart_ids: list,
+    cart_items: list | None,
     session_history: list,
     ai_push_cart_count: int = 0,
     cart_sources: list | None = None,
@@ -59,6 +60,7 @@ def record_final_checkout(
         session_id=session_id,
         pushed_ids=pushed_ids,
         cart_ids=cart_ids,
+        cart_items=cart_items if isinstance(cart_items, list) else [],
         session_history=session_history,
     )
     log_entry["ai_push_cart_count"] = max(0, int(ai_push_cart_count))

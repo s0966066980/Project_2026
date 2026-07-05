@@ -23,10 +23,11 @@ export async function fetchJson(url, options) {
  * @template ResponseBody
  * @param {string} url
  * @param {FormData} formData
+ * @param {RequestInit} [options]
  * @returns {Promise<ResponseBody>}
  */
-export function postFormJson(url, formData) {
-  return fetchJson(url, { method: 'POST', body: formData });
+export function postFormJson(url, formData, options = {}) {
+  return fetchJson(url, { ...options, method: 'POST', body: formData });
 }
 
 /**

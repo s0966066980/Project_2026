@@ -1,0 +1,40 @@
+# R1-Omni local inference/server dependencies.
+#
+# Keep R1-Omni dependencies local to this subproject.
+# Install from the repository root with:
+#   pip install -r R1-Omni/requirements.txt
+#
+# GPU/CUDA builds of torch, torchvision and torchaudio may need platform-specific
+# install commands from https://pytorch.org/get-started/locally/.
+
+accelerate>=1.2.1
+bitsandbytes>=0.43.0
+datasets>=3.2.0
+decord
+deepspeed==0.15.4
+einops>=0.8.0
+fastapi
+filelock
+h5py
+hf_transfer>=0.1.4
+huggingface-hub[cli]>=0.19.2,<1.0
+imageio
+imageio-ffmpeg
+ipdb
+liger_kernel==0.5.2
+moviepy
+numpy
+opencv-python
+packaging>=23.0
+pillow
+requests
+safetensors>=0.3.3
+sentencepiece>=0.1.99
+timm
+tokenizers
+torch>=2.5.1
+torchaudio
+torchvision
+transformers @ git+https://github.com/huggingface/transformers.git@336dc69d63d56f232a183a3e7f52790429b871ef
+trl==0.14.0
+uvicorn

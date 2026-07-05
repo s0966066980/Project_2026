@@ -1,12 +1,82 @@
 import re
 import threading
-from datetime import datetime
+import csv
+import hashlib
+import hmac
+import io
+from datetime import datetime, timedelta
+from itertools import combinations
 
 import config
-from repositories import member_repository, menu_repository
+from repositories import member_repository, member_session_repository, menu_repository
+from repositories import recommendation_event_repository
 
 _session_member: dict[str, str] = {}
 _lock = threading.Lock()
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat()
+
+
+def _retention_until(now: datetime | None = None) -> str:
+    base = now or datetime.now()
+    try:
+        days = max(1, int(config.get("MEMBER_DATA_RETENTION_DAYS", 730)))
+    except Exception:
+        days = 730
+    return (base + timedelta(days=days)).isoformat()
+
+
+def _as_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on", "y", "同意")
+
+
+def _with_member_commercial_defaults(member: dict | None) -> dict | None:
+    if not isinstance(member, dict):
+        return member
+    member.setdefault("created_at", _now_iso())
+    member.setdefault("consent_version", "")
+    member.setdefault("privacy_version", "")
+    member.setdefault("consent_accepted_at", "")
+    member.setdefault("consent_source", "")
+    member.setdefault("order_history_consent", False)
+    member.setdefault("personalization_consent", False)
+    member.setdefault("last_login_at", "")
+    member.setdefault("login_count", 0)
+    member.setdefault("login_failed_count", 0)
+    member.setdefault("data_retention_until", _retention_until())
+    member.setdefault("deleted_at", "")
+    return member
+
+
+def _apply_consent_fields(
+    member: dict,
+    *,
+    order_history_consent: bool,
+    personalization_consent: bool,
+    source: str = "kiosk",
+) -> dict:
+    member["order_history_consent"] = _as_bool(order_history_consent)
+    member["personalization_consent"] = _as_bool(personalization_consent)
+    member["consent_version"] = str(config.get("MEMBER_CONSENT_VERSION", "2026-07-phone-login-v1"))
+    member["privacy_version"] = str(config.get("MEMBER_PRIVACY_VERSION", "2026-07-privacy-v1"))
+    member["consent_accepted_at"] = _now_iso()
+    member["consent_source"] = str(source or "kiosk")
+    member["data_retention_until"] = _retention_until()
+    return member
+
+
+def _mark_login_success(member: dict) -> dict:
+    _with_member_commercial_defaults(member)
+    member["last_login_at"] = _now_iso()
+    member["login_count"] = int(member.get("login_count", 0) or 0) + 1
+    member["login_failed_count"] = 0
+    return member
 
 
 def normalize_phone(raw) -> str:
@@ -21,30 +91,122 @@ def mask_phone(phone) -> str:
     return f"{p[:4]}-***-{p[7:]}"
 
 
+def _member_ref(phone) -> str:
+    secret = str(config.get("ADMIN_MEMBER_REF_SECRET", "local-admin-member-ref") or "local-admin-member-ref")
+    value = str(phone or "")
+    digest = hmac.new(secret.encode("utf-8"), value.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"mem_{digest[:24]}"
+
+
+def _resolve_member(identifier) -> dict | None:
+    raw = str(identifier or "")
+    normalized = normalize_phone(raw) or raw
+    member = member_repository.get_member(normalized)
+    if member:
+        return _with_member_commercial_defaults(member)
+    if raw.startswith("mem_"):
+        for row in member_repository.get_all_members():
+            if _member_ref(row.get("phone", "")) == raw:
+                return _with_member_commercial_defaults(row)
+    return None
+
+
+def _admin_member_identity(member: dict) -> dict:
+    return {
+        "member_ref": _member_ref(member.get("phone", "")),
+        "phone_masked": mask_phone(member.get("phone", "")),
+    }
+
+
 def bind_session(session_id: str, phone: str) -> None:
     with _lock:
         _session_member[session_id] = phone
+    try:
+        member_session_repository.bind_session(session_id, phone)
+    except Exception:
+        pass
 
 
 def clear_session(session_id: str) -> None:
     with _lock:
         _session_member.pop(session_id, None)
+    try:
+        member_session_repository.clear_session(session_id)
+    except Exception:
+        pass
 
 
 def get_session_member(session_id: str) -> dict | None:
     with _lock:
         phone = _session_member.get(session_id)
-    return member_repository.get_member(phone) if phone else None
+    if not phone:
+        try:
+            phone = member_session_repository.get_session_phone(session_id)
+        except Exception:
+            phone = ""
+        if phone:
+            with _lock:
+                _session_member[session_id] = phone
+    return _with_member_commercial_defaults(member_repository.get_member(phone)) if phone else None
 
 
 def _public_member(member: dict) -> dict:
+    _with_member_commercial_defaults(member)
     return {
         "phone": member.get("phone", ""),
+        "phone_masked": mask_phone(member.get("phone", "")),
         "nickname": member.get("nickname", ""),
         "visit_count": int(member.get("visit_count", 0)),
+        "consent_version": member.get("consent_version", ""),
+        "privacy_version": member.get("privacy_version", ""),
+        "order_history_consent": bool(member.get("order_history_consent", False)),
+        "personalization_consent": bool(member.get("personalization_consent", False)),
         "usuals": build_usuals(member),
         "history": build_history(member),
     }
+
+
+def _menu_by_id() -> dict:
+    return {str(i["id"]): i for i in menu_repository.get_menu() if i.get("id")}
+
+
+def _as_positive_int(value, default: int = 1, maximum: int = 20) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = default
+    return max(1, min(maximum, parsed))
+
+
+def _counter_add(counter: dict, key: str, amount: int = 1) -> dict:
+    if not key:
+        return counter
+    counter[key] = int(counter.get(key, 0) or 0) + max(1, amount)
+    return counter
+
+
+def _normalize_pair_key(first_item_id: str, second_item_id: str) -> str:
+    first = str(first_item_id or "").strip()
+    second = str(second_item_id or "").strip()
+    if not first or not second or first == second:
+        return ""
+    return "|".join(sorted([first, second]))
+
+
+def _recent_item_ids(existing: list, ordered_item_ids: list[str], limit: int | None = None) -> list[str]:
+    if limit is None:
+        limit = int(config.get("MEMBER_RECENT_ITEMS_KEEP", 20))
+    rows = []
+    seen = set()
+    for value in list(ordered_item_ids or []) + list(existing or []):
+        item_id = str(value or "").strip()
+        if not item_id or item_id in seen:
+            continue
+        seen.add(item_id)
+        rows.append(item_id)
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 def login(session_id: str, phone: str) -> dict:
@@ -54,29 +216,67 @@ def login(session_id: str, phone: str) -> dict:
     member = member_repository.get_member(norm)
     if not member:
         return {"found": False}
+    _mark_login_success(member)
+    member_repository.upsert_member(member)
     bind_session(session_id, norm)
     return {"found": True, "member": _public_member(member)}
 
 
-def register(session_id: str, phone: str, nickname: str = "") -> dict:
+def register(
+    session_id: str,
+    phone: str,
+    nickname: str = "",
+    order_history_consent: bool = True,
+    personalization_consent: bool = True,
+    consent_source: str = "kiosk",
+) -> dict:
     norm = normalize_phone(phone)
     if not norm:
         return {"ok": False, "error": "invalid_phone"}
+    order_history_consent = _as_bool(order_history_consent)
+    personalization_consent = _as_bool(personalization_consent)
+    if not order_history_consent or not personalization_consent:
+        return {"ok": False, "error": "consent_required"}
     existing = member_repository.get_member(norm)
     if existing:
+        _with_member_commercial_defaults(existing)
+        if not existing.get("consent_accepted_at"):
+            _apply_consent_fields(
+                existing,
+                order_history_consent=order_history_consent,
+                personalization_consent=personalization_consent,
+                source=consent_source,
+            )
+        _mark_login_success(existing)
+        member_repository.upsert_member(existing)
         bind_session(session_id, norm)
         return {"ok": True, "member": _public_member(existing)}
     nick = str(nickname or "").strip() or f"會員{norm[-4:]}"
+    now = _now_iso()
     record = {
         "phone": norm,
         "nickname": nick,
-        "created_at": datetime.now().isoformat(),
+        "created_at": now,
         "visit_count": 0,
         "total_spend": 0,
         "last_visit_at": "",
         "item_freq": {},
+        "category_freq": {},
+        "pair_freq": {},
+        "recent_item_ids": [],
+        "preference_updated_at": "",
+        "last_login_at": now,
+        "login_count": 1,
+        "login_failed_count": 0,
+        "deleted_at": "",
         "orders": [],
     }
+    _apply_consent_fields(
+        record,
+        order_history_consent=order_history_consent,
+        personalization_consent=personalization_consent,
+        source=consent_source,
+    )
     member_repository.upsert_member(record)
     bind_session(session_id, norm)
     return {"ok": True, "member": _public_member(record)}
@@ -88,7 +288,7 @@ def build_usuals(member: dict, limit: int | None = None) -> list:
     freq = member.get("item_freq") or {}
     if not freq:
         return []
-    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    menu_by_id = _menu_by_id()
     usuals = []
     for iid, count in sorted(freq.items(), key=lambda kv: kv[1], reverse=True):
         item = menu_by_id.get(iid)
@@ -113,7 +313,7 @@ def build_history(member: dict, limit: int | None = None) -> list:
     orders = member.get("orders") or []
     if not orders:
         return []
-    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    menu_by_id = _menu_by_id()
     history = []
     for order in reversed(orders):  # 最新在前
         counts = {}
@@ -195,6 +395,43 @@ def _member_order_metrics(member: dict) -> dict:
     }
 
 
+def _member_recommendation_summary(member: dict) -> dict:
+    phone_masked = mask_phone(member.get("phone", ""))
+    if not phone_masked:
+        return {
+            "shown": 0,
+            "clicked": 0,
+            "added_to_cart": 0,
+            "checked_out": 0,
+            "ignored": 0,
+            "removed_from_cart": 0,
+            "acceptance_rate": 0,
+        }
+    try:
+        events = recommendation_event_repository.get_recommendation_events(limit=5000)
+    except Exception:
+        events = []
+    matched = [
+        event for event in events
+        if str(event.get("member_phone_masked") or "") == phone_masked
+    ]
+    shown = sum(1 for event in matched if event.get("event_type") == "recommendation_shown")
+    checked_out = sum(1 for event in matched if event.get("event_type") == "recommendation_checked_out")
+    clicked = sum(1 for event in matched if event.get("event_type") == "recommendation_clicked")
+    added = sum(1 for event in matched if event.get("event_type") == "recommendation_added_to_cart")
+    ignored = sum(1 for event in matched if event.get("event_type") == "recommendation_ignored")
+    removed = sum(1 for event in matched if event.get("event_type") == "recommendation_removed_from_cart")
+    return {
+        "shown": shown,
+        "clicked": clicked,
+        "added_to_cart": added,
+        "checked_out": checked_out,
+        "ignored": ignored,
+        "removed_from_cart": removed,
+        "acceptance_rate": round(checked_out / shown, 3) if shown else 0,
+    }
+
+
 def member_top_ids(member: dict, n: int = 5) -> list:
     freq = member.get("item_freq") or {}
     return [iid for iid, _ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)[:n]]
@@ -219,22 +456,106 @@ def _append_member_order(member: dict, order: dict) -> dict:
     return member
 
 
-def finalize_checkout(session_id: str, final_cart_ids: list, total, recommendation_success: bool) -> dict | None:
+def _cart_item_quantities(final_cart_ids: list, cart_items: list | None = None) -> dict[str, int]:
+    if isinstance(cart_items, list) and cart_items:
+        quantities: dict[str, int] = {}
+        for item in cart_items:
+            if not isinstance(item, dict):
+                continue
+            item_id = str(item.get("id") or "").strip()
+            if not item_id:
+                continue
+            quantity = _as_positive_int(item.get("quantity", item.get("qty", 1)))
+            quantities[item_id] = quantities.get(item_id, 0) + quantity
+        if quantities:
+            return quantities
+    quantities: dict[str, int] = {}
+    for iid in final_cart_ids or []:
+        item_id = str(iid or "").strip()
+        if item_id and item_id not in quantities:
+            quantities[item_id] = 1
+    return quantities
+
+
+def _cart_item_rows(final_cart_ids: list, cart_items: list | None = None, menu_by_id: dict | None = None) -> list[dict]:
+    menu_rows = menu_by_id if menu_by_id is not None else _menu_by_id()
+    quantities = _cart_item_quantities(final_cart_ids, cart_items)
+    rows = []
+    for item_id, quantity in quantities.items():
+        menu_item = menu_rows.get(item_id, {})
+        rows.append({
+            "id": item_id,
+            "quantity": quantity,
+            "name": str(menu_item.get("name") or item_id),
+            "category": str(menu_item.get("category") or ""),
+        })
+    return rows
+
+
+def _update_member_preference_stats(member: dict, cart_rows: list[dict], timestamp: str) -> None:
+    item_freq = dict(member.get("item_freq") or {})
+    category_freq = dict(member.get("category_freq") or {})
+    pair_freq = dict(member.get("pair_freq") or {})
+
+    ordered_item_ids = []
+    for row in cart_rows:
+        item_id = str(row.get("id") or "").strip()
+        quantity = _as_positive_int(row.get("quantity", 1))
+        if not item_id:
+            continue
+        ordered_item_ids.append(item_id)
+        _counter_add(item_freq, item_id, quantity)
+        _counter_add(category_freq, str(row.get("category") or "").strip(), quantity)
+
+    quantity_by_id = {
+        str(row.get("id") or "").strip(): _as_positive_int(row.get("quantity", 1))
+        for row in cart_rows
+        if row.get("id")
+    }
+    for first_item_id, second_item_id in combinations(sorted(quantity_by_id), 2):
+        pair_key = _normalize_pair_key(first_item_id, second_item_id)
+        if not pair_key:
+            continue
+        pair_count = min(quantity_by_id[first_item_id], quantity_by_id[second_item_id])
+        _counter_add(pair_freq, pair_key, pair_count)
+
+    member["item_freq"] = item_freq
+    member["category_freq"] = category_freq
+    member["pair_freq"] = pair_freq
+    member["recent_item_ids"] = _recent_item_ids(member.get("recent_item_ids") or [], ordered_item_ids)
+    member["preference_updated_at"] = timestamp
+
+
+def _expanded_cart_ids(final_cart_ids: list, cart_items: list | None = None) -> list[str]:
+    quantities = _cart_item_quantities(final_cart_ids, cart_items)
+    if not quantities:
+        return list(final_cart_ids or [])
+    rows = []
+    for item_id, quantity in quantities.items():
+        rows.extend([item_id] * quantity)
+    return rows
+
+
+def finalize_checkout(
+    session_id: str,
+    final_cart_ids: list,
+    total,
+    recommendation_success: bool,
+    cart_items: list | None = None,
+) -> dict | None:
     member = get_session_member(session_id)
     if not member:
         clear_session(session_id)
         return None
+    timestamp = datetime.now().isoformat()
     member["visit_count"] = int(member.get("visit_count", 0)) + 1
     member["total_spend"] = int(member.get("total_spend", 0)) + int(total or 0)
-    member["last_visit_at"] = datetime.now().isoformat()
-    freq = dict(member.get("item_freq") or {})
-    for iid in set(final_cart_ids or []):
-        if iid:
-            freq[iid] = freq.get(iid, 0) + 1
-    member["item_freq"] = freq
+    member["last_visit_at"] = timestamp
+    _update_member_preference_stats(member, _cart_item_rows(final_cart_ids, cart_items), timestamp)
     _append_member_order(member, {
-        "timestamp": datetime.now().isoformat(),
-        "cart_ids": list(final_cart_ids or []),
+        "timestamp": timestamp,
+        "cart_ids": _expanded_cart_ids(final_cart_ids, cart_items),
+        "cart_items": cart_items if isinstance(cart_items, list) else [],
         "total": int(total or 0),
         "order_status": "completed",
         "is_completed": True,
@@ -268,18 +589,27 @@ def record_abandoned_order(session_id: str, cart_ids: list, total, reason: str =
 
 def admin_list() -> list:
     members = member_repository.get_all_members()
-    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    menu_by_id = _menu_by_id()
     rows = []
     for m in members:
+        _with_member_commercial_defaults(m)
         favs = [menu_by_id.get(iid, {}).get("name", iid) for iid in member_top_ids(m, 2)]
         metrics = _member_order_metrics(m)
         rows.append({
+            **_admin_member_identity(m),
             "phone_masked": mask_phone(m.get("phone", "")),
-            "phone": m.get("phone", ""),
             "nickname": m.get("nickname", ""),
             "visit_count": int(m.get("visit_count", 0)),
             "total_spend": int(m.get("total_spend", 0)),
             "last_visit_at": m.get("last_visit_at", ""),
+            "last_login_at": m.get("last_login_at", ""),
+            "login_count": int(m.get("login_count", 0) or 0),
+            "consent_version": m.get("consent_version", ""),
+            "privacy_version": m.get("privacy_version", ""),
+            "consent_accepted_at": m.get("consent_accepted_at", ""),
+            "order_history_consent": bool(m.get("order_history_consent", False)),
+            "personalization_consent": bool(m.get("personalization_consent", False)),
+            "data_retention_until": m.get("data_retention_until", ""),
             "favorites": favs,
             **metrics,
         })
@@ -287,15 +617,30 @@ def admin_list() -> list:
 
 
 def admin_detail(phone) -> dict | None:
-    m = member_repository.get_member(normalize_phone(phone) or str(phone))
+    m = _resolve_member(phone)
     if not m:
         return None
-    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    menu_by_id = _menu_by_id()
     freq = m.get("item_freq") or {}
     ranked = [
         {"id": iid, "name": menu_by_id.get(iid, {}).get("name", iid), "count": cnt}
         for iid, cnt in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)
     ]
+    categories_ranked = [
+        {"category": category, "count": cnt}
+        for category, cnt in sorted((m.get("category_freq") or {}).items(), key=lambda kv: kv[1], reverse=True)
+        if category
+    ]
+    pairs_ranked = []
+    for pair_key, count in sorted((m.get("pair_freq") or {}).items(), key=lambda kv: kv[1], reverse=True):
+        item_ids = [part for part in str(pair_key).split("|") if part]
+        if len(item_ids) != 2:
+            continue
+        pairs_ranked.append({
+            "item_ids": item_ids,
+            "names": [menu_by_id.get(item_id, {}).get("name", item_id) for item_id in item_ids],
+            "count": count,
+        })
     visit = int(m.get("visit_count", 0))
     spend = int(m.get("total_spend", 0))
     metrics = _member_order_metrics(m)
@@ -314,27 +659,108 @@ def admin_detail(phone) -> dict | None:
             "is_success": _order_recommendation_success(order),
         })
     return {
+        **_admin_member_identity(m),
         "phone_masked": mask_phone(m.get("phone", "")),
-        "phone": m.get("phone", ""),
         "nickname": m.get("nickname", ""),
         "created_at": m.get("created_at", ""),
+        "last_login_at": m.get("last_login_at", ""),
+        "login_count": int(m.get("login_count", 0) or 0),
+        "login_failed_count": int(m.get("login_failed_count", 0) or 0),
+        "consent_version": m.get("consent_version", ""),
+        "privacy_version": m.get("privacy_version", ""),
+        "consent_accepted_at": m.get("consent_accepted_at", ""),
+        "consent_source": m.get("consent_source", ""),
+        "order_history_consent": bool(m.get("order_history_consent", False)),
+        "personalization_consent": bool(m.get("personalization_consent", False)),
+        "data_retention_until": m.get("data_retention_until", ""),
+        "deleted_at": m.get("deleted_at", ""),
         "visit_count": visit,
         "total_spend": spend,
         "avg_spend": (spend // visit if visit else 0),
         "last_visit_at": m.get("last_visit_at", ""),
         "favorites_ranked": ranked,
+        "categories_ranked": categories_ranked,
+        "pairs_ranked": pairs_ranked,
+        "recent_item_ids": list(m.get("recent_item_ids") or []),
+        "preference_updated_at": m.get("preference_updated_at", ""),
+        "recommendation_summary": _member_recommendation_summary(m),
         "orders": orders,
         **metrics,
     }
 
 
+def export_members_csv() -> str:
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "phone_masked",
+        "nickname",
+        "consent_version",
+        "consent_accepted_at",
+        "order_history_consent",
+        "personalization_consent",
+        "data_retention_until",
+        "last_login_at",
+        "visit_count",
+        "completed_order_count",
+        "incomplete_order_count",
+        "completed_spend",
+        "avg_completed_spend",
+        "last_visit_at",
+        "favorites",
+        "preferred_categories",
+    ])
+    writer.writeheader()
+    menu_by_id = _menu_by_id()
+    for member in member_repository.get_all_members():
+        _with_member_commercial_defaults(member)
+        metrics = _member_order_metrics(member)
+        usuals = build_usuals(member, limit=5)
+        categories = [
+            category for category, _ in sorted(
+                (member.get("category_freq") or {}).items(),
+                key=lambda item: int(item[1] or 0),
+                reverse=True,
+            )
+            if category
+        ][:5]
+        if not categories:
+            categories = [
+                str(menu_by_id.get(item.get("id"), {}).get("category") or "")
+                for item in usuals
+                if item.get("id")
+            ][:5]
+        writer.writerow({
+            "phone_masked": mask_phone(member.get("phone", "")),
+            "nickname": member.get("nickname", ""),
+            "consent_version": member.get("consent_version", ""),
+            "consent_accepted_at": member.get("consent_accepted_at", ""),
+            "order_history_consent": bool(member.get("order_history_consent", False)),
+            "personalization_consent": bool(member.get("personalization_consent", False)),
+            "data_retention_until": member.get("data_retention_until", ""),
+            "last_login_at": member.get("last_login_at", ""),
+            "visit_count": int(member.get("visit_count", 0) or 0),
+            "completed_order_count": metrics.get("completed_order_count", 0),
+            "incomplete_order_count": metrics.get("incomplete_order_count", 0),
+            "completed_spend": metrics.get("completed_spend", 0),
+            "avg_completed_spend": metrics.get("avg_completed_spend", 0),
+            "last_visit_at": member.get("last_visit_at", ""),
+            "favorites": "、".join(item.get("name", "") for item in usuals if item.get("name")),
+            "preferred_categories": "、".join(category for category in categories if category),
+        })
+    return output.getvalue()
+
+
 def admin_clear_records(phone) -> bool:
     """清除會員的點餐紀錄（訂單、常點、消費統計），保留帳戶本身。"""
-    m = member_repository.get_member(normalize_phone(phone) or str(phone))
+    m = _resolve_member(phone)
     if not m:
         return False
     m["orders"] = []
     m["item_freq"] = {}
+    m["category_freq"] = {}
+    m["pair_freq"] = {}
+    m["recent_item_ids"] = []
+    m["preference_updated_at"] = ""
     m["visit_count"] = 0
     m["total_spend"] = 0
     m["last_visit_at"] = ""
@@ -344,4 +770,7 @@ def admin_clear_records(phone) -> bool:
 
 def admin_delete_member(phone) -> bool:
     """手動刪除整個會員帳戶。"""
-    return member_repository.delete_member(normalize_phone(phone) or str(phone))
+    m = _resolve_member(phone)
+    if not m:
+        return False
+    return member_repository.delete_member(m.get("phone", ""))

@@ -85,6 +85,13 @@ const interactionState = {
   lastReportedDwellPage: '',
 };
 
+function resetRecommendationTracking() {
+  sessionAiPushCartCount = 0;
+  state.sessionPushedIds.clear();
+  state.sessionCartSources = [];
+  state.sessionRecommendationEvents.clear();
+}
+
 export function kt(key) {
   return kioskText(kioskLang, key);
 }
@@ -332,8 +339,16 @@ configurePointOfSaleRuntime({
 function trackedAddToCart(item, metadata = {}) {
   state.lastValidOrderActionAt = Date.now();
   state.lastCartAddAt = Date.now();
-  if (metadata.source === 'ai_push' || metadata.source === 'choice_hesitation') sessionAiPushCartCount++;
+  if (metadata.source === 'ai_push') sessionAiPushCartCount++;
   if (item?.id) state.sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
+  if (['ai_push', 'assist_recommend', 'choice_hesitation'].includes(metadata.source || '')) {
+    reportRecommendationEvent('recommendation_added_to_cart', item, {
+      surface: metadata.source,
+      source: metadata.source,
+      quantity: 1,
+      metadata: { cart_source: metadata.source },
+    });
+  }
   hideChoiceHesitationModal();
   cartManager.addToCart(item);
   trackInteractionEvent({
@@ -364,8 +379,17 @@ function trackedUpdateCartQty(id, delta) {
 function trackedDeleteCartItem(id) {
   state.lastValidOrderActionAt = Date.now();
   interactionState.cartRemoveCount += 1;
+  const removedSources = state.sessionCartSources.filter(e => e.id === id).map(e => e.source);
   cartManager.deleteCartItem(id);
   state.sessionCartSources = state.sessionCartSources.filter(e => e.id !== id);
+  if (removedSources.some(source => ['ai_push', 'assist_recommend', 'choice_hesitation', 'voice_assist'].includes(source))) {
+    const item = state.menuData.find(menuItem => menuItem.id === id) || { id };
+    reportRecommendationEvent('recommendation_removed_from_cart', item, {
+      surface: removedSources[0] === 'voice_assist' ? 'voice' : removedSources[0],
+      source: removedSources[0],
+      metadata: { cart_source: removedSources[0] },
+    });
+  }
   trackInteractionEvent({
     event_type: 'cart_edit',
     button_id: `cart_delete_${id}`,
@@ -406,6 +430,7 @@ const aiRecommendationController = (() => {
   let recommendationTimer    = null;
   let isRecommendationRequestInFlight = false;
   let currentRecommendationItem     = null;
+  let currentRecommendationRecord = null;
 
   // ── DOM shortcuts ──
   const $ = id => document.getElementById(id);
@@ -417,10 +442,43 @@ const aiRecommendationController = (() => {
     return Boolean(isPosActive() && !document.hidden && !isVoiceAssistantActive() && !paymentOpen && !cartOpen && state.menuData.length);
   }
 
-  function renderRecommendation(item, pushText) {
+  function markCurrentRecommendationIgnored(reason = 'replaced') {
+    if (!currentRecommendationItem || !currentRecommendationRecord || currentRecommendationRecord.completed) return;
+    reportRecommendationEvent('recommendation_ignored', currentRecommendationItem, {
+      ...currentRecommendationRecord,
+      recommendationRecord: currentRecommendationRecord,
+      quantity: 0,
+      metadata: { reason },
+    });
+    currentRecommendationRecord.completed = true;
+  }
+
+  function renderRecommendation(item, pushText, recommendation = {}) {
     if (!item || !$('aiPushBar')) return;
     const visual = getMenuVisual(item);
+    if (currentRecommendationItem?.id && currentRecommendationItem.id !== item.id) {
+      markCurrentRecommendationIgnored('replaced_by_new_ai_push');
+    }
     currentRecommendationItem = item;
+    if (item.id) state.sessionPushedIds.add(item.id);
+    currentRecommendationRecord = reportRecommendationEvent('recommendation_shown', item, {
+      surface: 'ai_push',
+      source: recommendation.source || 'ai_push',
+      rank: recommendation.rank || 1,
+      score: recommendation.score || 0,
+      reasons: recommendation.reasons || [],
+      offer_ids: recommendation.offer_ids || [],
+      experiment_id: recommendation.experiment_id || '',
+      variant_id: recommendation.variant_id || '',
+      strategy: recommendation.strategy || '',
+      metadata: {
+        model_status: recommendation.model_status || '',
+        push_text: pushText || '',
+        experiment_id: recommendation.experiment_id || '',
+        variant_id: recommendation.variant_id || '',
+        strategy: recommendation.strategy || '',
+      },
+    });
 
     const nameElement = $('aiPushItemName');
     const textElement = $('aiPushText');
@@ -483,6 +541,7 @@ const aiRecommendationController = (() => {
     const formData = new FormData();
     formData.append('session_id', sessionId);
     formData.append('exclude_ids', JSON.stringify(excludeCurrentItem && currentRecommendationItem?.id ? [currentRecommendationItem.id] : []));
+    formData.append('cart_ids', JSON.stringify(cartManager.getCartIds()));
     try {
       const data = await api.requestAiPushRecommendation(formData);
       const id     = data?.recommendation_id || '';
@@ -491,11 +550,14 @@ const aiRecommendationController = (() => {
       const item = (aiItem && aiItem.id !== currentRecommendationItem?.id)
         ? aiItem
         : pickRandomRecommendation(excludeCurrentItem);
-      if (item) renderRecommendation(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`);
+      if (item) {
+        const recommendation = aiItem ? (data.recommendation || {}) : { source: 'local_fallback', reasons: ['local_fallback'] };
+        renderRecommendation(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`, recommendation);
+      }
     } catch {
       // Ollama 無法連線，使用本地隨機備選確保畫面更新
       const fallback = pickRandomRecommendation(excludeCurrentItem);
-      if (fallback) renderRecommendation(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`);
+      if (fallback) renderRecommendation(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`, { source: 'local_fallback', reasons: ['local_fallback'] });
     } finally {
       isRecommendationRequestInFlight = false;
       $('aiPushBar')?.classList.remove('loading');
@@ -521,7 +583,7 @@ const aiRecommendationController = (() => {
   function start() {
     // ① 立即預載預設推播（零延遲，無需等待 Ollama）
     const defaultRecommendation = pickDefaultRecommendation();
-    if (defaultRecommendation) renderRecommendation(defaultRecommendation, `${defaultRecommendation.name}是現在的熱門選擇，快來試試！`);
+    if (defaultRecommendation) renderRecommendation(defaultRecommendation, `${defaultRecommendation.name}是現在的熱門選擇，快來試試！`, { source: 'local_default', reasons: ['local_default'] });
     // ② 背景呼叫 Ollama 生成真實推播文字（不排除預載項目，讓 AI 自由選擇）
     if (isRecommendationEligible()) fetchRecommendation(false);
     else scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
@@ -530,7 +592,9 @@ const aiRecommendationController = (() => {
   function stop() {
     clearRecommendationTimer();
     isRecommendationRequestInFlight = false;
+    markCurrentRecommendationIgnored('ai_push_stopped');
     currentRecommendationItem     = null;
+    currentRecommendationRecord = null;
     hide();
   }
 
@@ -545,6 +609,12 @@ const aiRecommendationController = (() => {
   useDomReady(() => {
     $('aiPushPickBtn')?.addEventListener('click', () => {
       if (!currentRecommendationItem) return;
+      if (currentRecommendationRecord) {
+        reportRecommendationEvent('recommendation_clicked', currentRecommendationItem, {
+          ...currentRecommendationRecord,
+          recommendationRecord: currentRecommendationRecord,
+        });
+      }
       showItemConfirmModal(currentRecommendationItem, 'ai_push');
       scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
     });
@@ -964,6 +1034,101 @@ export function trackInteractionEvent(event = {}) {
   reportInteractionEvent(payload);
 }
 
+function recommendationKey(surface, itemId) {
+  return `${surface || 'unknown'}:${itemId || 'unknown'}`;
+}
+
+function createRecommendationId(surface, itemId) {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `rec_${sessionId}_${surface || 'unknown'}_${itemId || 'unknown'}_${Date.now()}_${suffix}`;
+}
+
+function findRecommendationRecord(itemId, surface = '', source = '') {
+  return (
+    state.sessionRecommendationEvents.get(recommendationKey(surface, itemId))
+    || state.sessionRecommendationEvents.get(recommendationKey(source, itemId))
+    || state.sessionRecommendationEvents.get(recommendationKey('item', itemId))
+    || null
+  );
+}
+
+function rememberRecommendationRecord(record) {
+  if (!record?.item_id) return record;
+  state.sessionRecommendationEvents.set(recommendationKey(record.surface, record.item_id), record);
+  state.sessionRecommendationEvents.set(recommendationKey(record.source, record.item_id), record);
+  state.sessionRecommendationEvents.set(recommendationKey('item', record.item_id), record);
+  return record;
+}
+
+function normalizeOfferIds(value) {
+  const raw = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(',') : []);
+  const seen = new Set();
+  return raw.map(v => String(v || '').trim()).filter((v) => {
+    if (!v || seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+}
+
+function reportRecommendationEvent(eventType, item = {}, options = {}) {
+  const itemId = String(options.item_id || item?.id || '').trim();
+  if (!itemId) return null;
+  const surface = String(options.surface || options.source || 'unknown');
+  const existing = options.recommendationRecord || findRecommendationRecord(itemId, surface, options.source || '');
+  const source = String(options.source || existing?.source || surface);
+  const offerIds = normalizeOfferIds(options.offer_ids || item.offer_ids || existing?.offer_ids || []);
+  const experimentId = String(options.experiment_id || item.experiment_id || existing?.experiment_id || '').trim();
+  const variantId = String(options.variant_id || item.variant_id || existing?.variant_id || '').trim();
+  const strategy = String(options.strategy || item.strategy || existing?.strategy || '').trim();
+  const record = {
+    recommendation_id: options.recommendation_id || item.recommendation_id || existing?.recommendation_id || createRecommendationId(surface, itemId),
+    item_id: itemId,
+    item_name: String(options.item_name || item?.name || existing?.item_name || ''),
+    category: String(options.category || item?.category || existing?.category || ''),
+    surface,
+    source,
+    rank: Number(options.rank ?? item.rank ?? existing?.rank ?? 0) || 0,
+    score: Number(options.score ?? item.score ?? existing?.score ?? 0) || 0,
+    reasons: Array.isArray(options.reasons) ? options.reasons : (Array.isArray(item.reasons) ? item.reasons : (existing?.reasons || [])),
+    offer_ids: offerIds,
+    experiment_id: experimentId,
+    variant_id: variantId,
+    strategy,
+  };
+  if (['recommendation_added_to_cart', 'recommendation_checked_out', 'recommendation_ignored', 'recommendation_removed_from_cart'].includes(eventType)) {
+    record.completed = true;
+    if (existing) existing.completed = true;
+  }
+  rememberRecommendationRecord(record);
+  const metadata = { ...(options.metadata || {}) };
+  if (offerIds.length) metadata.offer_ids = offerIds;
+  if (experimentId) metadata.experiment_id = experimentId;
+  if (variantId) metadata.variant_id = variantId;
+  if (strategy) metadata.strategy = strategy;
+  api.reportRecommendationEvent({
+    session_id: sessionId,
+    event_type: eventType,
+    recommendation_id: record.recommendation_id,
+    surface: record.surface,
+    source: record.source,
+    item_id: record.item_id,
+    item_name: record.item_name,
+    category: record.category,
+    rank: record.rank,
+    score: record.score,
+    reasons: record.reasons,
+    quantity: Number(options.quantity || 0) || 0,
+    audience: state.member ? 'member' : 'guest',
+    offer_ids: offerIds,
+    experiment_id: experimentId,
+    variant_id: variantId,
+    strategy,
+    metadata,
+    ui_context: buildUIContext({ recommendation_surface: record.surface, recommendation_source: record.source }),
+  }).catch(err => console.warn('[recommendation_event failed]', err));
+  return record;
+}
+
 function startPageDwellWatcher() {
   if (isAdminMode()) return;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
@@ -1146,6 +1311,7 @@ async function writeCheckoutLog(cartIds = []) {
   formData.append('session_id', sessionId);
   formData.append('pushed_ids', JSON.stringify(Array.from(state.sessionPushedIds)));
   formData.append('cart_ids', JSON.stringify(cartIds));
+  formData.append('cart_items', JSON.stringify(cartManager.getCartItems()));
   formData.append('ai_push_cart_count', String(sessionAiPushCartCount));
   formData.append('cart_sources', JSON.stringify(state.sessionCartSources));
   formData.append('cart_total', String(cartManager.getCartTotal()));
@@ -1322,7 +1488,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   stopPassiveListener();
   aiRecommendationController.stop();
   cartManager.clearCart();
-  state.sessionCartSources = [];
+  resetRecommendationTracking();
   ui.overlay.classList.remove('hidden');
   ui.overlay.style.opacity = '1';
   state.kioskScreen = 'categories';
@@ -1337,7 +1503,7 @@ ui.continueOrderBtn?.addEventListener('click', () => {
 });
 ui.clearCartBtn?.addEventListener('click', () => {
   cartManager.clearCart();
-  state.sessionCartSources = [];
+  resetRecommendationTracking();
   hideCartScreen();
   renderKioskCategories();
   state.lastCartAddAt = Date.now();
@@ -1354,7 +1520,7 @@ ui.kioskCancelOrderBtn?.addEventListener('click', () => {
   }
   saveAbandonedOrder('cancel_order');
   cartManager.clearCart();
-  state.sessionCartSources = [];
+  resetRecommendationTracking();
   hidePaymentScreen();
   renderKioskCategories();
   aiRecommendationController.start();
@@ -1514,21 +1680,30 @@ export async function triggerEmotionCaptureAndWait(eventType) {
   }
 }
 
-document.getElementById('choiceHesitationClose')?.addEventListener('click', () => hideChoiceHesitationModal(true));
-document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => hideChoiceHesitationModal(true));
+document.getElementById('choiceHesitationClose')?.addEventListener('click', () => closeChoiceHesitationModal(true, 'closed_by_customer'));
+document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => closeChoiceHesitationModal(true, 'backdrop_closed'));
 document.getElementById('choiceHesitationPick')?.addEventListener('click', () => {
   if (!state.currentChoiceHesitationItem) return;
   const item = state.currentChoiceHesitationItem;
+  if (state.currentChoiceHesitationRecommendationRecord) {
+    reportRecommendationEvent('recommendation_clicked', item, {
+      ...state.currentChoiceHesitationRecommendationRecord,
+      recommendationRecord: state.currentChoiceHesitationRecommendationRecord,
+      surface: 'choice_hesitation',
+      source: 'choice_hesitation',
+    });
+  }
   hideChoiceHesitationModal();
   showItemConfirmModal(item, 'choice_hesitation');
 });
 document.getElementById('choiceHesitationNext')?.addEventListener('click', () => {
+  markCurrentChoiceHesitationIgnored('replaced_by_next_choice');
   const nextItem = pickChoiceHesitationItem();
   if (!nextItem) return;
-  state.currentChoiceHesitationItem = nextItem;
-  renderChoiceHesitationItem(nextItem);
+  showChoiceHesitationRecommendation(nextItem);
 });
 document.getElementById('choiceHesitationVoice')?.addEventListener('click', () => {
+  markCurrentChoiceHesitationIgnored('switched_to_voice');
   hideChoiceHesitationModal(true);
   startAskRecording(document.getElementById('voiceAssistBtn'));
 });
@@ -1569,7 +1744,7 @@ async function loadAssistRecommendations() {
   [...(listEl?.children || [])].forEach(c => { if (c !== loadingEl) c.remove(); });
 
   try {
-    const items = await api.getAssistRecommendations(sessionId);
+    const items = await api.getAssistRecommendations(sessionId, cartManager.getCartIds());
     if (loadingEl) loadingEl.classList.add('hidden');
     (Array.isArray(items) ? items : []).forEach(item => {
       listEl?.appendChild(buildAssistItemCard(item));
@@ -1583,6 +1758,17 @@ async function loadAssistRecommendations() {
 
 function buildAssistItemCard(item) {
   const visual = getMenuVisual(item);
+  const recommendationRecord = reportRecommendationEvent('recommendation_shown', item, {
+    surface: 'assist_recommend',
+    source: item.source || 'recommendation_engine',
+    rank: item.rank || 0,
+    score: item.score || 0,
+    reasons: item.reasons || [],
+    offer_ids: item.offer_ids || [],
+    experiment_id: item.experiment_id || '',
+    variant_id: item.variant_id || '',
+    strategy: item.strategy || '',
+  });
   const card = document.createElement('div');
   card.className = 'assist-item-card';
 
@@ -1628,6 +1814,11 @@ function buildAssistItemCard(item) {
   addButton.type = 'button';
   addButton.textContent = '加入購物車';
   addButton.addEventListener('click', () => {
+    reportRecommendationEvent('recommendation_clicked', item, {
+      ...recommendationRecord,
+      recommendationRecord,
+      surface: 'assist_recommend',
+    });
     hideAssistModal();
     showItemConfirmModal(item, 'assist_recommend');
   });
@@ -1705,7 +1896,7 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
   totalClickCount = 0;
   saveAbandonedOrder('confirm_cancel_order');
   cartManager.clearCart();
-  state.sessionCartSources = [];
+  resetRecommendationTracking();
   hidePaymentScreen();
   renderKioskCategories();
   aiRecommendationController.start();
@@ -1776,6 +1967,43 @@ export function resumePassiveListener() {
   isPassivePaused = false;
 }
 
+function markCurrentChoiceHesitationIgnored(reason = 'dismissed') {
+  const item = state.currentChoiceHesitationItem;
+  const record = state.currentChoiceHesitationRecommendationRecord;
+  if (!item || !record || record.completed) return;
+  reportRecommendationEvent('recommendation_ignored', item, {
+    ...record,
+    recommendationRecord: record,
+    surface: 'choice_hesitation',
+    source: 'choice_hesitation',
+    quantity: 0,
+    metadata: { reason },
+  });
+  record.completed = true;
+}
+
+function closeChoiceHesitationModal(resetIdle = false, reason = 'dismissed') {
+  markCurrentChoiceHesitationIgnored(reason);
+  hideChoiceHesitationModal(resetIdle);
+}
+
+function showChoiceHesitationRecommendation(item) {
+  if (!item) return;
+  state.currentChoiceHesitationItem = item;
+  state.currentChoiceHesitationRecommendationRecord = reportRecommendationEvent('recommendation_shown', item, {
+    surface: 'choice_hesitation',
+    source: 'choice_hesitation',
+    rank: item.rank || 0,
+    score: item.score || 0,
+    reasons: item.reasons || ['passive_voice_hesitation'],
+    offer_ids: item.offer_ids || [],
+    experiment_id: item.experiment_id || '',
+    variant_id: item.variant_id || '',
+    strategy: item.strategy || '',
+  });
+  renderChoiceHesitationItem(item);
+}
+
 function handlePassiveVoiceHit(result) {
   if (!isPosActive() || orderCompleted || isVoiceAssistantActive()) return;
   if (Date.now() - state.passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
@@ -1795,8 +2023,7 @@ function showHesitationForItem(item) {
     console.log('[PassiveVoice] showHesitationForItem 被系統狀態攔截');
     return;
   }
-  state.currentChoiceHesitationItem = item;
-  renderChoiceHesitationItem(item);
+  showChoiceHesitationRecommendation(item);
   const modal = getChoiceHesitationModal();
   modal?.classList.remove('hidden');
   modal?.setAttribute('aria-hidden', 'false');

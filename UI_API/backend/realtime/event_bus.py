@@ -7,6 +7,7 @@ EVENT_TYPES = {
     "human_reply",
     "interaction_intervention",
     "staff_notify",
+    "rag_alert",
     "settings_changed",
     "demo_event",
 }

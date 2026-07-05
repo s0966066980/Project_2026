@@ -20,6 +20,7 @@ function triggerEmotionCapture(eventType) { return getRequiredRuntimeDependency(
 function triggerEmotionCaptureAndWait(eventType) { return getRequiredRuntimeDependency('triggerEmotionCaptureAndWait')(eventType); }
 function pausePassiveListener() { return getRequiredRuntimeDependency('pausePassiveListener')(); }
 function resumePassiveListener() { return getRequiredRuntimeDependency('resumePassiveListener')(); }
+function sessionId() { return getRequiredRuntimeDependency('sessionId'); }
 
 const cartManager = new Proxy({}, {
   get(_target, prop) {
@@ -30,6 +31,53 @@ const cartManager = new Proxy({}, {
 export function isVoiceAssistantActive() {
   // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
   return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
+}
+
+function voiceRecommendationKey(itemId) {
+  return `voice:${itemId}`;
+}
+
+function createVoiceRecommendationId(itemId) {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `rec_${sessionId()}_voice_${itemId}_${Date.now()}_${suffix}`;
+}
+
+function reportVoiceRecommendationEvent(eventType, itemId, quantity = 0) {
+  const normalizedId = String(itemId || '').trim();
+  if (!normalizedId) return null;
+  const item = state.menuData.find(row => row.id === normalizedId) || { id: normalizedId };
+  const key = voiceRecommendationKey(normalizedId);
+  const existing = state.sessionRecommendationEvents.get(key);
+  const record = {
+    recommendation_id: existing?.recommendation_id || createVoiceRecommendationId(normalizedId),
+    item_id: normalizedId,
+    item_name: item.name || '',
+    category: item.category || '',
+    surface: 'voice',
+    source: 'voice_assist',
+    rank: existing?.rank || 0,
+    score: existing?.score || 0,
+    reasons: existing?.reasons || ['voice_llm'],
+  };
+  state.sessionRecommendationEvents.set(key, record);
+  state.sessionRecommendationEvents.set(`item:${normalizedId}`, record);
+  api.reportRecommendationEvent({
+    session_id: sessionId(),
+    event_type: eventType,
+    recommendation_id: record.recommendation_id,
+    surface: record.surface,
+    source: record.source,
+    item_id: record.item_id,
+    item_name: record.item_name,
+    category: record.category,
+    rank: record.rank,
+    score: record.score,
+    reasons: record.reasons,
+    quantity,
+    audience: state.member ? 'member' : 'guest',
+    metadata: { cart_source: eventType === 'recommendation_added_to_cart' ? 'voice_assist' : '' },
+  }).catch(err => console.warn('[recommendation_event failed]', err));
+  return record;
 }
 
 // =========================================================
@@ -208,6 +256,7 @@ export function setupAskRecorder() {
             for (let i = 0; i < (Number(action.quantity) || 1); i++) {
               state.sessionCartSources.push({ id: action.id, source: 'voice_assist' });
             }
+            reportVoiceRecommendationEvent('recommendation_added_to_cart', action.id, Number(action.quantity) || 1);
           }
         });
         if (appliedOrders.length) {
@@ -220,7 +269,10 @@ export function setupAskRecorder() {
           });
           showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
         }
-        if (data.mentioned_ids) data.mentioned_ids.forEach(id => state.sessionPushedIds.add(id));
+        if (data.mentioned_ids) data.mentioned_ids.forEach(id => {
+          state.sessionPushedIds.add(id);
+          reportVoiceRecommendationEvent('recommendation_shown', id, 0);
+        });
       },
       onError() {
         hideVoiceAssistOverlay();

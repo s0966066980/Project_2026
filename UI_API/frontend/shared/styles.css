@@ -3315,8 +3315,12 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 .member-keypad button.fn { background:#efe6dc; font-size:24px; color:#6b5d4f; }
 .member-input { background:#fff; border:2px solid #e0d3c6; border-radius:16px; height:72px; padding:0 20px; font-size:24px;
   color:#2a2018; margin-bottom:24px; }
+.member-consent { display:flex; align-items:flex-start; gap:12px; font-size:16px; line-height:1.4; color:#5d4d3f;
+  background:#fff8ee; border:1px solid #ead9c7; border-radius:14px; padding:14px 16px; }
+.member-consent input { width:22px; height:22px; margin-top:1px; accent-color:#da291c; flex-shrink:0; }
 .member-primary { background:linear-gradient(135deg,#da291c,#b3160c); color:#fff; border:none; border-radius:18px;
   height:76px; font-size:24px; font-weight:800; cursor:pointer; margin-top:24px; }
+.member-primary:disabled { opacity:.45; cursor:not-allowed; }
 .member-skip { background:none; border:none; color:#8a7866; font-size:17px; text-decoration:underline; cursor:pointer;
   margin-top:18px; }
 /* 會員彈跳視窗（點餐歷史紀錄，含您的常點） */

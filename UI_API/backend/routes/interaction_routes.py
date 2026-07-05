@@ -9,14 +9,16 @@ from services import interaction_event_service
 from services import intervention_pipeline_service
 from services import scenario_service
 from services import stats_service
-from utils.auth_utils import require_admin_token
+from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
 
 
 def create_router(deps: dict | None = None) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["interaction"])
 
     @router.post("/interaction_event")
-    async def post_interaction_event(payload: dict = Body(...)):
+    async def post_interaction_event(request: Request, payload: dict = Body(...)):
+        require_kiosk_token(request)
+        check_rate_limit(request, "interaction_event", limit=180)
         event = interaction_event_service.normalize_interaction_event(payload)
         saved_event = await asyncio.to_thread(
             interaction_event_repository.append_interaction_event, event
@@ -43,8 +45,10 @@ def create_router(deps: dict | None = None) -> APIRouter:
         return {"status": "success", "session_id": session_id, "events": events}
 
     @router.post("/barrier_state")
-    async def post_barrier_state(payload: dict = Body(...)):
+    async def post_barrier_state(request: Request, payload: dict = Body(...)):
+        require_kiosk_token(request)
         session_id = str(payload.get("session_id") or "")
+        check_rate_limit(request, "barrier_state", limit=120, key=session_id)
         ui_context = payload.get("ui_context") if isinstance(payload.get("ui_context"), dict) else {}
         speech_text = str(payload.get("speech_text") or "")
         events = await asyncio.to_thread(
@@ -64,7 +68,9 @@ def create_router(deps: dict | None = None) -> APIRouter:
         }
 
     @router.post("/intervention_result")
-    async def post_intervention_result(payload: dict = Body(...)):
+    async def post_intervention_result(request: Request, payload: dict = Body(...)):
+        require_kiosk_token(request)
+        check_rate_limit(request, "intervention_result", limit=120)
         intervention_id = str(payload.get("intervention_id") or "")
         result = {key: value for key, value in payload.items() if key != "intervention_id"}
         if not result.get("scenario_id") and intervention_id:

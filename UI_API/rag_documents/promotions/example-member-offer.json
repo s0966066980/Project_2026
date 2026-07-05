@@ -1,15 +1,25 @@
-[
-  {
-    "source_id": "promotion_example_member_fries",
-    "source_type": "promotion",
-    "title": "會員薯條加購示例",
-    "valid_from": "2026-07-01",
-    "valid_until": "2026-07-31",
-    "member_only": true,
-    "content": "會員於活動期間購買任一主餐，可依現場活動設定加購薯條。實際價格、供應門市與活動限制以後台設定或現場公告為準。",
-    "metadata": {
-      "category": "member_offer",
-      "status": "example"
-    }
-  }
-]
+{
+  "type": "promotion",
+  "offer_id": "example_member_fries",
+  "source_id": "promotion_example_member_fries",
+  "source_type": "promotion",
+  "title": "會員薯條加購示例",
+  "valid_from": "2026-07-01",
+  "valid_until": "2026-07-31",
+  "timezone": "Asia/Taipei",
+  "member_only": true,
+  "item_ids": [
+    "MCD012"
+  ],
+  "categories": [
+    "點心"
+  ],
+  "score_boost": 4,
+  "category_score_boost": 2,
+  "content": "會員於活動期間購買任一主餐，可依現場活動設定加購薯條。實際價格、供應門市與活動限制以後台設定或現場公告為準。",
+  "metadata": {
+    "category": "member_offer",
+    "status": "active"
+  },
+  "status": "active"
+}

@@ -40,6 +40,12 @@ function renderPhone() {
   if (next) next.disabled = memberPhoneNumber.length !== 10;
 }
 
+function renderRegisterConsent() {
+  const consentInput = $('memberConsentInput');
+  const done = $('memberRegisterDone');
+  if (done) done.disabled = !consentInput?.checked;
+}
+
 function onKey(k) {
   if (k === 'clear') memberPhoneNumber = '';
   else if (k === 'back') memberPhoneNumber = memberPhoneNumber.slice(0, -1);
@@ -56,15 +62,25 @@ async function submitLogin() {
   } else {
     $('memberRegisterPhone').textContent = memberPhoneNumber;
     $('memberNicknameInput').value = '';
+    if ($('memberConsentInput')) $('memberConsentInput').checked = false;
+    renderRegisterConsent();
     hideAll();
     show($('memberRegisterOverlay'));
   }
 }
 
 async function submitRegister() {
+  const consentInput = $('memberConsentInput');
+  if (!consentInput?.checked) {
+    renderRegisterConsent();
+    return;
+  }
   const nickname = String($('memberNicknameInput')?.value || '').trim();
   const sessionId = getRequiredRuntimeDependency('sessionId');
-  const res = await api.memberRegister(sessionId, memberPhoneNumber, nickname).catch(() => null);
+  const res = await api.memberRegister(sessionId, memberPhoneNumber, nickname, {
+    orderHistoryConsent: true,
+    personalizationConsent: true,
+  }).catch(() => null);
   resolve(res && res.ok ? res.member : null);
 }
 
@@ -85,6 +101,8 @@ $('memberLoginNext')?.addEventListener('click', submitLogin);
 $('memberRegisterBack')?.addEventListener('click', () => { hideAll(); show($('memberLoginOverlay')); });
 $('memberRegisterSkip')?.addEventListener('click', () => resolve(null));
 $('memberRegisterDone')?.addEventListener('click', submitRegister);
+$('memberConsentInput')?.addEventListener('change', renderRegisterConsent);
+renderRegisterConsent();
 $('memberKeypad')?.addEventListener('click', (e) => {
   const k = e.target?.getAttribute?.('data-k');
   if (k) onKey(k);

@@ -3,6 +3,7 @@ uvicorn
 python-dotenv
 python-multipart
 requests
+psycopg[binary]
 google-genai
 pyngrok
 langchain-community

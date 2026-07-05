@@ -55,7 +55,7 @@ function adminToken() {
 }
 function adminHeaders(extra = {}) {
   const t = adminToken();
-  return t ? { ...extra, 'X-Admin-Token': t } : extra;
+  return t ? { ...extra, 'X-Admin-Token': t, Authorization: `Bearer ${t}` } : extra;
 }
 
 // ── Sidebar navigation ──
@@ -67,8 +67,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '狀態統計', settings: '功能設定', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
-    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
+    const titles  = { stats: '狀態統計', settings: '功能設定', recommendations: '推薦成效', availability: '供應狀態', health: '維運健康', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
+    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -80,7 +80,10 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     }
     if (page === 'stats') loadStats();
     if (page === 'settings') loadSettings();
-    if (page === 'rag') { loadRagSettings(); loadRagDocs(); }
+    if (page === 'recommendations') loadRecommendationEvents();
+    if (page === 'availability') loadAvailability();
+    if (page === 'health') loadAdminHealth();
+    if (page === 'rag') { loadRagSettings(); loadRagHealth(); loadRagAlerts(); loadPromotions(); loadRagReviews(); loadRagDocs(); }
     if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
     if (page === 'members') loadMembers();
     if (page === 'test') { loadOllamaModels(); loadVoicePromptDefault(); }
@@ -356,13 +359,551 @@ async function clearStats() {
   if (!confirm('確定清除所有點餐統計紀錄？此操作無法還原。')) return;
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch(`${API}/api/session_stats`, { method: 'DELETE' });
+    const res = await fetch(`${API}/api/session_stats`, { method: 'DELETE', headers: adminHeaders() });
     const data = await res.json();
     if (data.status === 'success') await loadStats();
   } catch {
     alert('清除失敗，請重試。');
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+// ── Recommendation event dashboard ──
+
+let recommendationEventsLoadPromise = null;
+let recommendationDashboardEvents = [];
+
+const RECOMMENDATION_EVENT_LABELS = {
+  recommendation_generated: '產生',
+  recommendation_shown: '曝光',
+  recommendation_clicked: '點擊',
+  recommendation_added_to_cart: '加購',
+  recommendation_removed_from_cart: '移除',
+  recommendation_checked_out: '成交',
+  recommendation_ignored: '忽略',
+};
+
+const RECOMMENDATION_SURFACE_LABELS = {
+  ai_push: 'AI 推播',
+  assist_recommend: '協助推薦',
+  choice_hesitation: '猶豫推薦',
+  voice: '語音推薦',
+  voice_assist: '語音推薦',
+  member_usual: '會員常點',
+  global_popular: '全站熱門',
+  local_default: '本地預設',
+  local_fallback: '本地備援',
+};
+
+function recommendationLabel(map, key) {
+  const normalized = String(key || 'unknown');
+  return map[normalized] || normalized || 'unknown';
+}
+
+function recommendationCount(counts, eventType) {
+  return Number(counts?.[eventType] || 0);
+}
+
+function recommendationRate(part, total) {
+  const denom = Number(total || 0);
+  if (!denom) return '0%';
+  return `${Math.round((Number(part || 0) / denom) * 1000) / 10}%`;
+}
+
+function recommendationOfferIds(event) {
+  const metadata = event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  const raw = metadata.offer_ids || metadata.offer_id || event?.offer_ids || [];
+  const rows = Array.isArray(raw) ? raw : String(raw || '').split(',');
+  return rows.map(row => String(row || '').trim()).filter(Boolean);
+}
+
+function recommendationMetadata(event) {
+  return event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+}
+
+function recommendationVariantKey(event) {
+  const metadata = recommendationMetadata(event);
+  const experimentId = String(metadata.experiment_id || event?.experiment_id || '').trim();
+  const variantId = String(metadata.variant_id || event?.variant_id || '').trim();
+  if (!variantId) return '';
+  return experimentId ? `${experimentId}:${variantId}` : variantId;
+}
+
+function buildRecommendationStats(events) {
+  const typeCounts = {};
+  const surfaceCounts = {};
+  const sourceCounts = {};
+  const offerCounts = {};
+  const variantCounts = {};
+  events.forEach(event => {
+    if (!event || typeof event !== 'object') return;
+    const eventType = String(event.event_type || 'unknown');
+    const surface = String(event.surface || 'unknown');
+    const source = String(event.source || 'unknown');
+    typeCounts[eventType] = (typeCounts[eventType] || 0) + 1;
+    surfaceCounts[surface] = surfaceCounts[surface] || {};
+    surfaceCounts[surface][eventType] = (surfaceCounts[surface][eventType] || 0) + 1;
+    sourceCounts[source] = sourceCounts[source] || {};
+    sourceCounts[source][eventType] = (sourceCounts[source][eventType] || 0) + 1;
+    recommendationOfferIds(event).forEach(offerId => {
+      offerCounts[offerId] = offerCounts[offerId] || {};
+      offerCounts[offerId][eventType] = (offerCounts[offerId][eventType] || 0) + 1;
+    });
+    const variantKey = recommendationVariantKey(event);
+    if (variantKey) {
+      variantCounts[variantKey] = variantCounts[variantKey] || {};
+      variantCounts[variantKey][eventType] = (variantCounts[variantKey][eventType] || 0) + 1;
+    }
+  });
+  return { typeCounts, surfaceCounts, sourceCounts, offerCounts, variantCounts };
+}
+
+function filteredRecommendationEvents() {
+  const eventType = val('recommendationEventTypeFilter');
+  const surface = val('recommendationSurfaceFilter');
+  const audience = val('recommendationAudienceFilter');
+  const sessionQuery = val('recommendationSessionFilter').toLowerCase();
+  return recommendationDashboardEvents.filter(event => {
+    if (eventType && event.event_type !== eventType) return false;
+    if (surface && event.surface !== surface) return false;
+    const eventAudience = event.is_member || event.audience === 'member' ? 'member' : 'guest';
+    if (audience && eventAudience !== audience) return false;
+    if (sessionQuery && !String(event.session_id || '').toLowerCase().includes(sessionQuery)) return false;
+    return true;
+  });
+}
+
+function renderRecommendationKpis(events, stats) {
+  const box = g('recommendationKpis');
+  if (!box) return;
+  const counts = stats.typeCounts;
+  const shown = recommendationCount(counts, 'recommendation_shown');
+  const clicked = recommendationCount(counts, 'recommendation_clicked');
+  const added = recommendationCount(counts, 'recommendation_added_to_cart');
+  const checked = recommendationCount(counts, 'recommendation_checked_out');
+  const ignored = recommendationCount(counts, 'recommendation_ignored');
+  const cards = [
+    ['總事件', events.length, '目前篩選'],
+    ['曝光', shown, 'shown'],
+    ['點擊', clicked, recommendationRate(clicked, shown)],
+    ['加購', added, recommendationRate(added, shown)],
+    ['成交', checked, recommendationRate(checked, shown)],
+    ['忽略', ignored, recommendationRate(ignored, shown)],
+    ['Offer 數', Object.keys(stats.offerCounts).length, '活動追蹤'],
+  ];
+  box.innerHTML = cards
+    .map(([label, value, sub]) => `<div class="recommendation-kpi"><b>${escHtml(value)}</b><span>${escHtml(label)}</span><small>${escHtml(sub)}</small></div>`)
+    .join('');
+}
+
+function renderRecommendationCountRows(containerId, groupedCounts, labelMap, emptyText) {
+  const box = g(containerId);
+  if (!box) return;
+  const rows = Object.entries(groupedCounts || {})
+    .map(([key, counts]) => ({
+      key,
+      counts,
+      total: Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0),
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+  if (!rows.length) {
+    box.innerHTML = `<div class="adm-empty">${escHtml(emptyText)}</div>`;
+    return;
+  }
+  box.innerHTML = '<div class="recommendation-row head"><b>名稱</b><span>曝</span><span>點</span><span>加</span><span>成</span><span>忽</span></div>'
+    + rows.map(row => `<div class="recommendation-row" title="${escHtml(row.key)}">`
+      + `<b>${escHtml(recommendationLabel(labelMap, row.key))}</b>`
+      + `<span>${recommendationCount(row.counts, 'recommendation_shown')}</span>`
+      + `<span>${recommendationCount(row.counts, 'recommendation_clicked')}</span>`
+      + `<span>${recommendationCount(row.counts, 'recommendation_added_to_cart')}</span>`
+      + `<span>${recommendationCount(row.counts, 'recommendation_checked_out')}</span>`
+      + `<span>${recommendationCount(row.counts, 'recommendation_ignored')}</span>`
+      + '</div>')
+      .join('');
+}
+
+function renderRecommendationVariantRows(containerId, groupedCounts, emptyText) {
+  const box = g(containerId);
+  if (!box) return;
+  const rows = Object.entries(groupedCounts || {})
+    .map(([key, counts]) => ({
+      key,
+      counts,
+      shown: recommendationCount(counts, 'recommendation_shown'),
+      total: Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0),
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+  if (!rows.length) {
+    box.innerHTML = `<div class="adm-empty">${escHtml(emptyText)}</div>`;
+    return;
+  }
+  box.innerHTML = '<div class="recommendation-strategy-row head"><b>版本</b><span>曝</span><span>點</span><span>加</span><span>成</span><span>忽</span><span>成率</span></div>'
+    + rows.map(row => {
+      const checked = recommendationCount(row.counts, 'recommendation_checked_out');
+      return `<div class="recommendation-strategy-row" title="${escHtml(row.key)}">`
+        + `<b>${escHtml(row.key)}</b>`
+        + `<span>${row.shown}</span>`
+        + `<span>${recommendationCount(row.counts, 'recommendation_clicked')}</span>`
+        + `<span>${recommendationCount(row.counts, 'recommendation_added_to_cart')}</span>`
+        + `<span>${checked}</span>`
+        + `<span>${recommendationCount(row.counts, 'recommendation_ignored')}</span>`
+        + `<span>${recommendationRate(checked, row.shown)}</span>`
+        + '</div>';
+    }).join('');
+}
+
+function renderRecommendationSurfaceOptions(events) {
+  const select = g('recommendationSurfaceFilter');
+  if (!select) return;
+  const current = select.value;
+  const surfaces = [...new Set(events.map(event => String(event.surface || '')).filter(Boolean))].sort();
+  select.textContent = '';
+  const all = document.createElement('option');
+  all.value = '';
+  all.textContent = '全部入口';
+  select.appendChild(all);
+  surfaces.forEach(surface => {
+    const option = document.createElement('option');
+    option.value = surface;
+    option.textContent = recommendationLabel(RECOMMENDATION_SURFACE_LABELS, surface);
+    option.selected = surface === current;
+    select.appendChild(option);
+  });
+}
+
+function eventTagClass(eventType) {
+  if (eventType === 'recommendation_checked_out') return 'recommendation-tag checked';
+  if (eventType === 'recommendation_ignored') return 'recommendation-tag ignored';
+  return 'recommendation-tag';
+}
+
+function renderRecommendationEventTable(events) {
+  const body = g('recommendationEventBody');
+  if (!body) return;
+  const summary = g('recommendationEventSummary');
+  if (summary) summary.textContent = `顯示 ${events.length} 筆 / 載入 ${recommendationDashboardEvents.length} 筆`;
+  if (!events.length) {
+    body.innerHTML = '<tr><td colspan="9" class="adm-empty">沒有符合條件的推薦事件。</td></tr>';
+    return;
+  }
+  body.innerHTML = events
+    .slice()
+    .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
+    .slice(0, 200)
+    .map(event => {
+      const offerText = recommendationOfferIds(event).join(', ') || '—';
+      const reasons = Array.isArray(event.reasons) ? event.reasons.slice(0, 2).join('、') : '';
+      const audience = event.is_member || event.audience === 'member' ? 'member' : 'guest';
+      return '<tr>'
+        + `<td>${escHtml(fmtDate(event.timestamp))}</td>`
+        + `<td style="font-family:monospace;color:#8494b0">…${escHtml(String(event.session_id || '').slice(-8))}</td>`
+        + `<td><span class="recommendation-tag ${audience}">${audience === 'member' ? '會員' : '訪客'}</span></td>`
+        + `<td><span class="${eventTagClass(event.event_type)}">${escHtml(recommendationLabel(RECOMMENDATION_EVENT_LABELS, event.event_type))}</span></td>`
+        + `<td>${escHtml(recommendationLabel(RECOMMENDATION_SURFACE_LABELS, event.surface))}</td>`
+        + `<td>${escHtml(recommendationLabel(RECOMMENDATION_SURFACE_LABELS, event.source))}</td>`
+        + `<td>${escHtml(event.item_name || menuName(event.item_id) || event.item_id || '—')}</td>`
+        + `<td style="font-family:monospace;color:#5a6a8a">${escHtml(offerText)}</td>`
+        + `<td class="recommendation-muted">${escHtml(reasons || '—')}</td>`
+        + '</tr>';
+    })
+    .join('');
+}
+
+function renderRecommendationDashboard() {
+  const events = filteredRecommendationEvents();
+  const stats = buildRecommendationStats(events);
+  renderRecommendationKpis(events, stats);
+  renderRecommendationCountRows('recommendationSurfaceStats', stats.surfaceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦入口資料。');
+  renderRecommendationCountRows('recommendationSourceStats', stats.sourceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦來源資料。');
+  renderRecommendationCountRows('recommendationOfferStats', stats.offerCounts, {}, '尚無 offer 追蹤資料。');
+  renderRecommendationVariantRows('recommendationVariantStats', stats.variantCounts, '尚無策略版本資料。');
+  renderRecommendationEventTable(events);
+}
+
+async function loadRecommendationEvents() {
+  if (recommendationEventsLoadPromise) return recommendationEventsLoadPromise;
+  recommendationEventsLoadPromise = (async () => {
+    const body = g('recommendationEventBody');
+    if (body) body.innerHTML = '<tr><td colspan="9" class="adm-empty">載入中…</td></tr>';
+    try {
+      await loadMenu();
+      const limit = val('recommendationLimit') || '200';
+      const params = new URLSearchParams({ limit });
+      const sessionId = val('recommendationSessionFilter');
+      if (sessionId) params.set('session_id', sessionId);
+      const res = await fetch(`${API}/api/recommendation_events?${params.toString()}`, { headers: adminHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      recommendationDashboardEvents = Array.isArray(data.events) ? data.events : [];
+      renderRecommendationSurfaceOptions(recommendationDashboardEvents);
+      renderRecommendationDashboard();
+    } catch (e) {
+      recommendationDashboardEvents = [];
+      if (body) body.innerHTML = `<tr><td colspan="9" class="adm-empty" style="color:#e84040">載入失敗：${escHtml(e.message)}</td></tr>`;
+    }
+  })().finally(() => {
+    recommendationEventsLoadPromise = null;
+  });
+  return recommendationEventsLoadPromise;
+}
+
+async function clearRecommendationEvents() {
+  if (!confirm('確定清除所有推薦事件？此操作無法還原。')) return;
+  const btn = g('recommendationClearBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/api/recommendation_events`, { method: 'DELETE', headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    recommendationDashboardEvents = [];
+    renderRecommendationSurfaceOptions([]);
+    renderRecommendationDashboard();
+  } catch (e) {
+    alert(`清除失敗：${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Availability dashboard ──
+
+let availabilityRows = [];
+
+const AVAILABILITY_STATUS_LABELS = {
+  normal: '正常',
+  low_stock: '低庫存',
+  sold_out: '售罄',
+  disabled: '停用',
+};
+
+function availabilityStatusLabel(status) {
+  return AVAILABILITY_STATUS_LABELS[status] || AVAILABILITY_STATUS_LABELS.normal;
+}
+
+function setAvailabilityForm(data) {
+  setVal('availabilityStoreId', data.store_id || 'default');
+  setVal('availabilityServicePeriod', data.configured_service_period || data.service_period || 'auto');
+  const periods = data.service_periods || {};
+  setVal('availabilityBreakfastStart', periods.breakfast?.start || '05:00');
+  setVal('availabilityBreakfastEnd', periods.breakfast?.end || '10:30');
+  setVal('availabilityRegularStart', periods.regular?.start || '10:30');
+  setVal('availabilityRegularEnd', periods.regular?.end || '23:59');
+  const current = g('availabilityCurrentPeriod');
+  if (current) current.textContent = `目前時段：${data.service_period === 'breakfast' ? '早餐' : '一般時段'}`;
+}
+
+function filteredAvailabilityRows() {
+  const query = val('availabilitySearch').toLowerCase();
+  const status = val('availabilityStatusFilter');
+  return availabilityRows.filter(row => {
+    if (status && row.status !== status) return false;
+    if (!query) return true;
+    return [row.id, row.name, row.category].some(value => String(value || '').toLowerCase().includes(query));
+  });
+}
+
+function renderAvailabilityRows() {
+  const body = g('availabilityTableBody');
+  if (!body) return;
+  const rows = filteredAvailabilityRows();
+  const summary = g('availabilitySummary');
+  if (summary) summary.textContent = `${rows.length} / ${availabilityRows.length} 個品項`;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="4" class="adm-empty">沒有符合條件的餐點。</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(row => {
+    const timeBadge = row.time_unavailable
+      ? '<span class="availability-badge time">目前時段不可供應</span>'
+      : '<span class="recommendation-muted">—</span>';
+    return '<tr>'
+      + `<td><div style="font-weight:800;color:#1a2233">${escHtml(row.name || row.id)}</div><div class="recommendation-muted" style="font-family:monospace">${escHtml(row.id)}</div></td>`
+      + `<td>${escHtml(row.category || '—')}</td>`
+      + `<td><select class="availability-status-select" data-item-id="${escHtml(row.id)}">`
+      + ['normal', 'low_stock', 'sold_out', 'disabled'].map(status =>
+        `<option value="${status}" ${row.status === status ? 'selected' : ''}>${availabilityStatusLabel(status)}</option>`).join('')
+      + `</select> <span class="availability-badge ${escHtml(row.status || 'normal')}">${escHtml(availabilityStatusLabel(row.status))}</span></td>`
+      + `<td>${timeBadge}</td>`
+      + '</tr>';
+  }).join('');
+  body.querySelectorAll('.availability-status-select').forEach(select => {
+    select.addEventListener('change', () => {
+      const itemId = select.getAttribute('data-item-id');
+      const row = availabilityRows.find(item => item.id === itemId);
+      if (row) row.status = select.value || 'normal';
+      renderAvailabilityRows();
+    });
+  });
+}
+
+async function loadAvailability() {
+  const body = g('availabilityTableBody');
+  if (body) body.innerHTML = '<tr><td colspan="4" class="adm-empty">載入中…</td></tr>';
+  try {
+    const res = await fetch(`${API}/api/availability`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    availabilityRows = Array.isArray(data.items) ? data.items : [];
+    setAvailabilityForm(data);
+    renderAvailabilityRows();
+  } catch (e) {
+    availabilityRows = [];
+    if (body) body.innerHTML = `<tr><td colspan="4" class="adm-empty" style="color:#e84040">載入失敗：${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function saveAvailability() {
+  const btn = g('availabilitySaveBtn');
+  if (btn) btn.disabled = true;
+  const statusIds = status => availabilityRows.filter(row => row.status === status).map(row => row.id);
+  const payload = {
+    store_id: val('availabilityStoreId') || 'default',
+    service_period: val('availabilityServicePeriod') || 'auto',
+    service_periods: {
+      breakfast: {
+        start: val('availabilityBreakfastStart') || '05:00',
+        end: val('availabilityBreakfastEnd') || '10:30',
+      },
+      regular: {
+        start: val('availabilityRegularStart') || '10:30',
+        end: val('availabilityRegularEnd') || '23:59',
+      },
+    },
+    sold_out_item_ids: statusIds('sold_out'),
+    low_stock_item_ids: statusIds('low_stock'),
+    store_disabled_item_ids: statusIds('disabled'),
+  };
+  try {
+    const res = await fetch(`${API}/api/availability`, {
+      method: 'POST',
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    availabilityRows = Array.isArray(data.items) ? data.items : [];
+    setAvailabilityForm(data);
+    renderAvailabilityRows();
+    alert('供應設定已儲存');
+  } catch (e) {
+    alert(`儲存失敗：${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Health dashboard ──
+function healthLabel(status) {
+  if (status === 'ok') return '正常';
+  if (status === 'degraded') return '異常';
+  if (status === 'skipped') return '略過';
+  return status || '未知';
+}
+
+function healthPillHtml(status) {
+  return `<span class="health-status-pill ${escHtml(status || 'skipped')}">${escHtml(healthLabel(status))}</span>`;
+}
+
+function formatBytes(size) {
+  const value = Number(size || 0);
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
+}
+
+function formatHealthTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-TW');
+}
+
+function renderHealthRows(checks) {
+  const box = g('healthCoreChecks');
+  if (!box) return;
+  const rows = [
+    ['PostgreSQL', checks.postgres?.status, checks.postgres?.message || checks.postgres?.reason || `backend: ${checks.postgres?.backend || '—'}`],
+    ['RAG / Chroma', checks.rag?.status, `文件 ${checks.rag?.doc_count ?? 0} 筆`],
+    ['RAG Alerts', checks.rag_alerts?.status, `open ${checks.rag_alerts?.open_count ?? 0} / ack ${checks.rag_alerts?.acknowledged_count ?? 0}`],
+    ['推薦事件', checks.recommendation_events?.status, `sample ${checks.recommendation_events?.sampled_records ?? 0}`],
+    ['Runtime Logs', checks.runtime_logs?.status, `保留 ${checks.runtime_logs?.retention_days ?? 0} 天`],
+  ];
+  box.innerHTML = rows.map(([label, status, detail]) => `
+    <div class="health-row">
+      <b>${escHtml(label)}</b>
+      <span>${healthPillHtml(status)} ${escHtml(detail)}</span>
+    </div>
+  `).join('');
+}
+
+function renderHealthLogs(logs = []) {
+  const box = g('healthRuntimeLogs');
+  if (!box) return;
+  const rows = Array.isArray(logs) ? logs : [];
+  if (!rows.length) {
+    box.innerHTML = '<div class="adm-empty">尚無 runtime log 檔案。</div>';
+    return;
+  }
+  box.innerHTML = rows.map(row => `
+    <div class="health-log-item">
+      <b title="${escHtml(row.name || '')}">${escHtml(row.name || 'unknown')}</b>
+      <span>${Number(row.records || 0)}</span>
+      <span>${escHtml(formatBytes(row.size_bytes))}</span>
+    </div>
+  `).join('');
+}
+
+function renderAdminHealth(data = {}) {
+  const checks = data.checks || {};
+  const status = data.status || 'skipped';
+  const statusEl = g('healthOverallStatus');
+  if (statusEl) {
+    statusEl.className = `health-status-pill ${status}`;
+    statusEl.textContent = `整體${healthLabel(status)}`;
+  }
+  setText('healthGeneratedAt', data.generated_at ? `更新時間：${formatHealthTime(data.generated_at)}` : '尚未載入');
+
+  const runtimeLogs = checks.runtime_logs?.logs || [];
+  const totalLogRecords = runtimeLogs.reduce((sum, row) => sum + Number(row.records || 0), 0);
+  const kpis = [
+    ['整體狀態', healthLabel(status), data.app?.environment || 'environment'],
+    ['資料庫', healthLabel(checks.postgres?.status), data.app?.member_storage_backend || 'storage'],
+    ['RAG 文件', checks.rag?.doc_count ?? 0, healthLabel(checks.rag?.status)],
+    ['Open Alerts', checks.rag_alerts?.open_count ?? 0, 'RAG alerts'],
+    ['Runtime Records', totalLogRecords, `${runtimeLogs.length} files`],
+  ];
+  const kpiBox = g('healthKpis');
+  if (kpiBox) {
+    kpiBox.innerHTML = kpis.map(([label, value, hint]) => `
+      <div class="health-kpi"><b>${escHtml(value)}</b><span>${escHtml(label)}</span><small>${escHtml(hint)}</small></div>
+    `).join('');
+  }
+  renderHealthRows(checks);
+  renderHealthLogs(runtimeLogs);
+}
+
+async function loadAdminHealth() {
+  try {
+    setText('healthGeneratedAt', '載入中…');
+    const res = await fetch(`${API}/api/admin/health`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderAdminHealth(await res.json());
+  } catch (e) {
+    const statusEl = g('healthOverallStatus');
+    if (statusEl) {
+      statusEl.className = 'health-status-pill degraded';
+      statusEl.textContent = '載入失敗';
+    }
+    setText('healthGeneratedAt', `載入失敗：${e.message}`);
+    renderHealthRows({
+      postgres: { status: 'skipped', reason: 'not loaded' },
+      rag: { status: 'skipped', doc_count: 0 },
+      rag_alerts: { status: 'skipped', open_count: 0, acknowledged_count: 0 },
+      recommendation_events: { status: 'skipped', sampled_records: 0 },
+      runtime_logs: { status: 'degraded', retention_days: 0 },
+    });
+    renderHealthLogs([]);
   }
 }
 
@@ -755,6 +1296,17 @@ const RAG_TYPE_LABELS = {
   customer_service: '客服知識',
 };
 
+const RAG_REVIEW_STATUS_LABELS = {
+  draft: '草稿',
+  approved: '已核准',
+  published: '已發布',
+  rejected: '已拒絕',
+  archived: '已封存',
+};
+
+let ragReviewRows = [];
+let ragAlertRows = [];
+
 function ragNotice(msg, ok = true) {
   const el = document.getElementById('rag-notice');
   if (!el) return;
@@ -762,6 +1314,168 @@ function ragNotice(msg, ok = true) {
   el.style.color = ok ? '#1db87a' : '#e84040';
   el.style.display = '';
   setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function renderRagHealth(data = {}) {
+  const box = g('rag-health-grid');
+  if (!box) return;
+  const chromaOk = data.collection_ok !== false && data.status !== 'degraded';
+  const sourceOk = data.source_dir_exists && data.source_dir_readable;
+  const writable = data.chroma_writable !== false;
+  const lastRebuild = data.last_rebuild || {};
+  const rows = [
+    [chromaOk ? '正常' : '異常', 'Chroma 狀態'],
+    [String(data.doc_count ?? '—'), 'Chroma 文件數'],
+    [sourceOk ? '可讀取' : '需檢查', '來源文件目錄'],
+    [writable ? '可寫入' : '不可寫入', 'Chroma 寫入權限'],
+    [lastRebuild.status || '—', '最後重建狀態'],
+    [lastRebuild.rebuild_at || lastRebuild.checked_at || '—', '最後檢查時間'],
+  ];
+  box.innerHTML = rows
+    .map(([value, label]) => `<div class="rag-health-chip"><b>${escHtml(String(value))}</b><span>${escHtml(label)}</span></div>`)
+    .join('');
+}
+
+async function loadRagHealth() {
+  try {
+    const res = await fetch(`${API}/api/rag/status`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderRagHealth(await res.json());
+  } catch (e) {
+    renderRagHealth({ status: 'degraded', collection_ok: false, collection_error: e.message });
+  }
+}
+
+function ragAlertStatusLabel(status) {
+  return {
+    open: '未處理',
+    acknowledged: '已知悉',
+    resolved: '已解決',
+  }[String(status || 'open')] || status;
+}
+
+function renderRagAlerts(rows = []) {
+  ragAlertRows = Array.isArray(rows) ? rows : [];
+  const box = g('rag-alert-list');
+  if (!box) return;
+  const visibleRows = ragAlertRows.filter(row => row.status !== 'resolved').slice(0, 5);
+  box.textContent = '';
+  if (!visibleRows.length) return;
+  visibleRows.forEach(row => {
+    const status = String(row.status || 'open');
+    const severity = String(row.severity || 'error');
+    const card = document.createElement('div');
+    card.className = `rag-alert-card ${severity === 'warning' ? 'warning' : ''} ${status === 'resolved' ? 'resolved' : ''}`;
+    const errors = Array.isArray(row.errors) ? row.errors : [];
+    const errorText = errors.length ? `｜${errors.slice(0, 2).map(err => err.message || '').filter(Boolean).join('；')}` : '';
+    const actions = [];
+    const actionable = row.alert_id && row.alert_id !== 'local_load_error';
+    if (actionable && status === 'open') {
+      actions.push(`<button type="button" onclick="ackRagAlert('${escHtml(row.alert_id)}')">已知悉</button>`);
+    }
+    if (actionable && status !== 'resolved') {
+      actions.push(`<button type="button" onclick="resolveRagAlert('${escHtml(row.alert_id)}')">標記解決</button>`);
+    }
+    card.innerHTML = `
+      <div class="rag-alert-head">
+        <div class="rag-alert-title">
+          <b>${escHtml(row.message || 'RAG alert')}</b>
+          <span>${escHtml(row.alert_type || '')}｜${escHtml(row.created_at || '')}${escHtml(errorText)}</span>
+        </div>
+        <span class="rag-alert-status ${escHtml(status)}">${escHtml(ragAlertStatusLabel(status))}</span>
+      </div>
+      <div class="rag-alert-actions">${actions.join('')}</div>
+    `;
+    box.appendChild(card);
+  });
+}
+
+async function loadRagAlerts() {
+  try {
+    const res = await fetch(`${API}/api/rag/alerts?limit=20`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderRagAlerts(data.alerts || []);
+  } catch (e) {
+    renderRagAlerts([{
+      alert_id: 'local_load_error',
+      alert_type: 'rag_alert_load_failed',
+      severity: 'warning',
+      status: 'open',
+      message: `RAG alert 載入失敗：${e.message}`,
+      created_at: '',
+    }]);
+  }
+}
+
+async function mutateRagAlert(alertId, action, notice) {
+  try {
+    const res = await fetch(`${API}/api/rag/alerts/${encodeURIComponent(alertId)}/${action}`, {
+      method: 'POST',
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'error') throw new Error((data.errors || []).join('、') || '操作失敗');
+    ragNotice(notice || '✓ alert 已更新');
+    await loadRagAlerts();
+  } catch (e) {
+    ragNotice(`alert 更新失敗：${e.message}`, false);
+  }
+}
+
+function ackRagAlert(alertId) {
+  mutateRagAlert(alertId, 'ack', '✓ 已標記知悉');
+}
+
+function resolveRagAlert(alertId) {
+  mutateRagAlert(alertId, 'resolve', '✓ 已標記解決');
+}
+
+function renderRagValidation(data = {}) {
+  const box = g('rag-validation-box');
+  if (!box) return;
+  const errors = Array.isArray(data.errors) ? data.errors : [];
+  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+  const ok = data.ok !== false && !errors.length;
+  const issues = [...errors, ...warnings].slice(0, 30);
+  const summary = [
+    `檔案 ${Number(data.total_files || 0)}`,
+    `文件 ${Number(data.total_documents || 0)}`,
+    `錯誤 ${errors.length}`,
+    `警告 ${warnings.length}`,
+  ].join(' / ');
+  const items = issues.length
+    ? issues.map(issue => {
+      const level = issue.level === 'error' ? 'error' : 'warning';
+      const label = level === 'error' ? '錯誤' : '警告';
+      const path = issue.path ? `${issue.path}：` : '';
+      return `<div class="rag-validation-item ${level}"><b>${label}</b> ${escHtml(path + (issue.message || ''))}</div>`;
+    }).join('')
+    : `<div class="rag-validation-item ok">檢查通過，可安全重建 Chroma。</div>`;
+  box.style.display = '';
+  box.innerHTML = `<div class="rag-validation-head"><b>${ok ? 'RAG 文件檢查通過' : 'RAG 文件需要修正'}</b><span>${escHtml(summary)}</span></div>`
+    + `<div class="rag-validation-list">${items}</div>`;
+}
+
+async function validateRagDocs(showNotice = true) {
+  try {
+    if (showNotice) ragNotice('檢查中，請稍候…');
+    const res = await fetch(`${API}/api/rag/validate`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderRagValidation(data);
+    if (showNotice) {
+      const errors = Array.isArray(data.errors) ? data.errors.length : 0;
+      const warnings = Array.isArray(data.warnings) ? data.warnings.length : 0;
+      ragNotice(errors ? `檢查未通過：${errors} 個錯誤` : `檢查通過${warnings ? `，${warnings} 個警告` : ''}`, errors === 0);
+    }
+    return data;
+  } catch (e) {
+    ragNotice(`檢查失敗：${e.message}`, false);
+    renderRagValidation({ ok: false, errors: [{ level: 'error', message: e.message }] });
+    return { ok: false, errors: [{ message: e.message }] };
+  }
 }
 
 async function loadRagDocs() {
@@ -828,28 +1542,162 @@ async function loadRagDocs() {
 }
 
 async function addRagDoc() {
+  const editingReviewId = (document.getElementById('rag-review-editing-id')?.value || '').trim();
   const sourceId = (document.getElementById('rag-source-id')?.value || '').trim();
   const content = (document.getElementById('rag-content')?.value || '').trim();
   const type = document.getElementById('rag-type')?.value || 'manual';
   if (!content) { ragNotice('請輸入內容', false); return; }
+  if (!sourceId) { ragNotice('請輸入文件 ID，發布後會以此建立 source file', false); return; }
   try {
-    const res = await fetch(`${API}/api/rag/docs`, {
-      method: 'POST',
+    const url = editingReviewId
+      ? `${API}/api/rag/reviews/${encodeURIComponent(editingReviewId)}`
+      : `${API}/api/rag/reviews`;
+    const res = await fetch(url, {
+      method: editingReviewId ? 'PUT' : 'POST',
       headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content,
         source_type: type,
-        ...(sourceId ? { source_id: sourceId } : {}),
+        source_id: sourceId,
+        title: sourceId,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'error') throw new Error((data.errors || []).join('、') || '儲存失敗');
     if (document.getElementById('rag-source-id')) document.getElementById('rag-source-id').value = '';
     if (document.getElementById('rag-content')) document.getElementById('rag-content').value = '';
-    ragNotice(sourceId ? '✓ 已更新文件' : '✓ 新增成功');
-    await loadRagDocs();
+    if (document.getElementById('rag-review-editing-id')) document.getElementById('rag-review-editing-id').value = '';
+    const saveBtn = document.getElementById('rag-save-btn-label');
+    if (saveBtn) saveBtn.textContent = '建立草稿';
+    ragNotice(editingReviewId ? '✓ 草稿已更新，需重新核准發布' : '✓ 已建立草稿，核准發布後才會進入 RAG 文件');
+    await loadRagReviews();
   } catch (e) {
     ragNotice(`儲存失敗：${e.message}`, false);
   }
+}
+
+function editRagReview(reviewId) {
+  const row = ragReviewRows.find(item => item.review_id === reviewId);
+  if (!row) return;
+  const editingInput = document.getElementById('rag-review-editing-id');
+  if (editingInput) editingInput.value = row.review_id;
+  if (document.getElementById('rag-source-id')) document.getElementById('rag-source-id').value = row.source_id || '';
+  if (document.getElementById('rag-type')) document.getElementById('rag-type').value = row.source_type || 'manual';
+  if (document.getElementById('rag-content')) document.getElementById('rag-content').value = row.content || '';
+  const saveBtn = document.getElementById('rag-save-btn-label');
+  if (saveBtn) saveBtn.textContent = '更新草稿';
+  ragNotice(`正在編輯：${row.source_id || row.review_id}`);
+}
+
+function cancelRagReviewEdit() {
+  if (document.getElementById('rag-review-editing-id')) document.getElementById('rag-review-editing-id').value = '';
+  if (document.getElementById('rag-source-id')) document.getElementById('rag-source-id').value = '';
+  if (document.getElementById('rag-content')) document.getElementById('rag-content').value = '';
+  const saveBtn = document.getElementById('rag-save-btn-label');
+  if (saveBtn) saveBtn.textContent = '建立草稿';
+}
+
+function renderRagReviews(rows = []) {
+  ragReviewRows = Array.isArray(rows) ? rows : [];
+  const list = document.getElementById('rag-review-list');
+  const count = document.getElementById('rag-review-count');
+  if (count) count.textContent = ragReviewRows.length ? `(${ragReviewRows.length})` : '';
+  if (!list) return;
+  list.textContent = '';
+  if (!ragReviewRows.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:#adb5c9;font-size:13px;padding:16px 0;text-align:center';
+    empty.textContent = '目前沒有待審核 RAG 文本。';
+    list.appendChild(empty);
+    return;
+  }
+
+  ragReviewRows.forEach(row => {
+    const card = document.createElement('div');
+    card.className = 'rag-review-card';
+    const status = row.status || 'draft';
+    const publishedPath = row.published_path ? ` · ${row.published_path}` : '';
+    const rejectedReason = row.rejection_reason ? `<div class="rag-review-reason">拒絕原因：${escHtml(row.rejection_reason)}</div>` : '';
+    const actions = [];
+    if (['draft', 'rejected'].includes(status)) {
+      actions.push(`<button type="button" onclick="approveRagReview('${escHtml(row.review_id)}')">核准</button>`);
+    }
+    if (status === 'approved') {
+      actions.push(`<button type="button" onclick="publishRagReview('${escHtml(row.review_id)}')">發布</button>`);
+    }
+    if (['draft', 'approved', 'rejected'].includes(status)) {
+      actions.push(`<button type="button" onclick="editRagReview('${escHtml(row.review_id)}')">編輯</button>`);
+    }
+    if (['draft', 'approved'].includes(status)) {
+      actions.push(`<button type="button" onclick="rejectRagReview('${escHtml(row.review_id)}')">拒絕</button>`);
+    }
+    if (status !== 'archived') {
+      actions.push(`<button type="button" onclick="archiveRagReview('${escHtml(row.review_id)}')">封存</button>`);
+    }
+
+    card.innerHTML = `
+      <div class="rag-review-head">
+        <div class="rag-review-title">
+          <b>${escHtml(row.title || row.source_id || row.review_id)}</b>
+          <span>${escHtml(row.source_id || '')} · v${Number(row.version || 1)} · ${escHtml(RAG_TYPE_LABELS[row.source_type] || row.source_type || 'manual')}${escHtml(publishedPath)}</span>
+        </div>
+        <span class="rag-review-status ${escHtml(status)}">${escHtml(RAG_REVIEW_STATUS_LABELS[status] || status)}</span>
+      </div>
+      <div class="rag-review-text">${escHtml(row.content || '')}</div>
+      ${rejectedReason}
+      <div class="rag-review-actions">${actions.join('')}</div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+async function loadRagReviews() {
+  try {
+    const res = await fetch(`${API}/api/rag/reviews`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderRagReviews(data.reviews || []);
+  } catch (e) {
+    ragNotice(`載入審核清單失敗：${e.message}`, false);
+  }
+}
+
+async function mutateRagReview(reviewId, action, options = {}) {
+  try {
+    const res = await fetch(`${API}/api/rag/reviews/${encodeURIComponent(reviewId)}/${action}`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(options.body || {}),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'error') throw new Error((data.errors || []).join('、') || '操作失敗');
+    ragNotice(options.notice || '✓ 操作完成');
+    await loadRagReviews();
+    await loadRagHealth();
+  } catch (e) {
+    ragNotice(`操作失敗：${e.message}`, false);
+  }
+}
+
+function approveRagReview(reviewId) {
+  mutateRagReview(reviewId, 'approve', { notice: '✓ 已核准，發布後才會寫入 rag_documents' });
+}
+
+function publishRagReview(reviewId) {
+  if (!confirm('發布後會更新 rag_documents source file；仍需執行安全重建 Chroma 才會進入正式向量庫。確定發布？')) return;
+  mutateRagReview(reviewId, 'publish', { notice: '✓ 已發布 source file，請執行安全重建 Chroma' });
+}
+
+function rejectRagReview(reviewId) {
+  const reason = prompt('請輸入拒絕原因，可留空：') || '';
+  mutateRagReview(reviewId, 'reject', { body: { reason }, notice: '✓ 已拒絕' });
+}
+
+function archiveRagReview(reviewId) {
+  if (!confirm('確定封存這筆審核紀錄？')) return;
+  mutateRagReview(reviewId, 'archive', { notice: '✓ 已封存' });
 }
 
 async function deleteRagDoc(id) {
@@ -861,6 +1709,7 @@ async function deleteRagDoc(id) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ragNotice('✓ 已刪除');
     await loadRagDocs();
+    await loadRagReviews();
   } catch (e) {
     ragNotice(`刪除失敗：${e.message}`, false);
   }
@@ -875,33 +1724,248 @@ async function clearRagDocs() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ragNotice('✓ 已清空');
     await loadRagDocs();
+    await loadRagReviews();
   } catch (e) {
     ragNotice(`清空失敗：${e.message}`, false);
   }
 }
 
 async function rebuildRagDocs() {
-  if (!confirm('確定清空 Chroma 並重新讀取 rag_documents 內的 RAG 文件？')) return;
+  if (!confirm('系統會先驗證 rag_documents；只有檢查通過才會清空並重建 Chroma。確定執行？')) return;
   try {
-    ragNotice('重建中，請稍候…');
+    ragNotice('驗證與重建中，請稍候…');
     const res = await fetch(`${API}/api/rag/rebuild`, {
       method: 'POST',
       headers: adminHeaders(),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    renderRagValidation(data.validated || data);
     const failed = Number(data.failed || 0);
-    ragNotice(`✓ 重建完成：匯入 ${data.imported || 0} 筆，清除 ${data.deleted || 0} 筆${failed ? `，失敗 ${failed} 筆` : ''}`, failed === 0);
+    if (data.status === 'error') {
+      ragNotice(`重建已停止：請先修正 ${failed} 個錯誤`, false);
+      return;
+    }
+    ragNotice(`✓ 安全重建完成：匯入 ${data.imported || 0} 筆，清除 ${data.deleted || 0} 筆${failed ? `，失敗 ${failed} 筆` : ''}`, failed === 0);
+    await loadRagHealth();
+    await loadRagAlerts();
     await loadRagDocs();
+    await loadRagReviews();
   } catch (e) {
     ragNotice(`重建失敗：${e.message}`, false);
+  }
+}
+
+// ── Promotion management ──
+
+let promotionRows = [];
+
+function splitCsv(value) {
+  return String(value || '').split(',').map(row => row.trim()).filter(Boolean);
+}
+
+function joinCsv(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  return String(value || '');
+}
+
+function promotionNotice(message, ok = true) {
+  const el = g('promotion-notice');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = ok ? '#1db87a' : '#e84040';
+  el.style.display = '';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function promotionStatusLabel(status) {
+  const key = String(status || 'draft').toLowerCase();
+  return { active: '啟用', draft: '草稿', inactive: '停用' }[key] || key;
+}
+
+function getPromotionPayload() {
+  return {
+    offer_id: val('promotion-offer-id'),
+    title: val('promotion-title'),
+    status: val('promotion-status') || 'draft',
+    member_only: val('promotion-member-only') === 'true',
+    valid_from: val('promotion-valid-from'),
+    valid_until: val('promotion-valid-until'),
+    timezone: val('promotion-timezone') || 'Asia/Taipei',
+    item_ids: splitCsv(val('promotion-item-ids')),
+    categories: splitCsv(val('promotion-categories')),
+    required_cart_item_ids: splitCsv(val('promotion-required-items')),
+    score_boost: parseInt(val('promotion-score-boost') || '4', 10),
+    category_score_boost: parseInt(val('promotion-category-score-boost') || '2', 10),
+    content: val('promotion-content'),
+  };
+}
+
+function setPromotionForm(row = {}) {
+  const rawStatus = String(row.status || row.metadata?.status || 'draft').toLowerCase();
+  const formStatus = ['active', 'draft', 'inactive'].includes(rawStatus) ? rawStatus : 'draft';
+  setVal('promotion-editing-id', row.offer_id || '');
+  setVal('promotion-offer-id', row.offer_id || '');
+  setVal('promotion-title', row.title || row.name || '');
+  setVal('promotion-status', formStatus);
+  setVal('promotion-member-only', row.member_only ? 'true' : 'false');
+  setVal('promotion-valid-from', row.valid_from || row.starts_at || '');
+  setVal('promotion-valid-until', row.valid_until || row.ends_at || '');
+  setVal('promotion-timezone', row.timezone || 'Asia/Taipei');
+  setVal('promotion-item-ids', joinCsv(row.item_ids || row.items));
+  setVal('promotion-categories', joinCsv(row.categories || row.category));
+  setVal('promotion-required-items', joinCsv(row.required_cart_item_ids || row.required_items));
+  setVal('promotion-score-boost', row.score_boost ?? 4);
+  setVal('promotion-category-score-boost', row.category_score_boost ?? 2);
+  setVal('promotion-content', row.content || row.description || '');
+  const offerInput = g('promotion-offer-id');
+  if (offerInput) offerInput.disabled = Boolean(row.offer_id);
+}
+
+function resetPromotionForm() {
+  setPromotionForm({});
+  const offerInput = g('promotion-offer-id');
+  if (offerInput) offerInput.disabled = false;
+}
+
+function promotionScope(row) {
+  const itemIds = Array.isArray(row.item_ids) ? row.item_ids : [];
+  const categories = Array.isArray(row.categories) ? row.categories : [];
+  const rows = [];
+  if (itemIds.length) rows.push(`品項 ${itemIds.slice(0, 4).join(', ')}`);
+  if (categories.length) rows.push(`分類 ${categories.slice(0, 4).join(', ')}`);
+  return rows.join(' · ') || '未設定範圍';
+}
+
+async function loadPromotions() {
+  const box = g('promotion-list');
+  if (box) box.innerHTML = '<div class="adm-empty">載入中…</div>';
+  try {
+    const res = await fetch(`${API}/api/rag/promotions`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    promotionRows = Array.isArray(data.promotions) ? data.promotions : [];
+    renderPromotionList();
+  } catch (e) {
+    promotionRows = [];
+    if (box) box.innerHTML = `<div class="adm-empty" style="color:#e84040">載入失敗：${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderPromotionList() {
+  const box = g('promotion-list');
+  const count = g('promotion-count');
+  if (count) count.textContent = `(${promotionRows.length})`;
+  if (!box) return;
+  if (!promotionRows.length) {
+    box.innerHTML = '<div class="adm-empty">尚無結構化活動。</div>';
+    return;
+  }
+  box.textContent = '';
+  promotionRows
+    .slice()
+    .sort((a, b) => String(a.status || '').localeCompare(String(b.status || '')) || String(a.offer_id || '').localeCompare(String(b.offer_id || '')))
+    .forEach(row => {
+      const status = String(row.status || row.metadata?.status || 'draft').toLowerCase();
+      const card = document.createElement('div');
+      card.className = 'promotion-card';
+      card.innerHTML = `<div class="promotion-card-head">`
+        + `<div class="promotion-card-title"><b>${escHtml(row.title || row.offer_id || '未命名活動')}</b><span>${escHtml(row.offer_id || '')}</span></div>`
+        + `<span class="promotion-status ${escHtml(status)}">${escHtml(promotionStatusLabel(status))}</span>`
+        + `</div>`
+        + `<div class="promotion-meta">`
+        + `<span>${row.member_only ? '會員限定' : '一般活動'}</span>`
+        + `<span>${escHtml(row.valid_from || '未設定')} - ${escHtml(row.valid_until || '未設定')}｜${escHtml(row.timezone || 'Asia/Taipei')}</span>`
+        + `<span>${escHtml(promotionScope(row))}</span>`
+        + `</div>`
+        + `<div class="promotion-actions"></div>`;
+      const actions = card.querySelector('.promotion-actions');
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = '編輯';
+      edit.addEventListener('click', () => setPromotionForm(row));
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.textContent = status === 'active' ? '停用' : '啟用';
+      toggle.addEventListener('click', () => updatePromotionStatus(row.offer_id, status === 'active' ? 'inactive' : 'active'));
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'danger';
+      del.textContent = '刪除';
+      del.addEventListener('click', () => deletePromotion(row.offer_id, row.title || ''));
+      actions.append(edit, toggle, del);
+      box.appendChild(card);
+    });
+}
+
+async function savePromotion() {
+  const editingId = val('promotion-editing-id');
+  const payload = getPromotionPayload();
+  const url = editingId
+    ? `${API}/api/rag/promotions/${encodeURIComponent(editingId)}`
+    : `${API}/api/rag/promotions`;
+  try {
+    const res = await fetch(url, {
+      method: editingId ? 'PUT' : 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error((data.errors || [data.message || '儲存失敗']).join('；'));
+    promotionNotice('✓ 活動已儲存');
+    resetPromotionForm();
+    await loadPromotions();
+    await loadRagDocs();
+    await loadRagReviews();
+  } catch (e) {
+    promotionNotice(`儲存失敗：${e.message}`, false);
+  }
+}
+
+async function updatePromotionStatus(offerId, status) {
+  if (!offerId) return;
+  try {
+    const res = await fetch(`${API}/api/rag/promotions/${encodeURIComponent(offerId)}/status`, {
+      method: 'PATCH',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error((data.errors || ['更新失敗']).join('；'));
+    promotionNotice(`✓ 已${status === 'active' ? '啟用' : '停用'}活動`);
+    await loadPromotions();
+  } catch (e) {
+    promotionNotice(`更新失敗：${e.message}`, false);
+  }
+}
+
+async function deletePromotion(offerId, title) {
+  if (!offerId) return;
+  if (!confirm(`確定刪除活動「${title || offerId}」？此操作會刪除 promotion JSON。`)) return;
+  try {
+    const res = await fetch(`${API}/api/rag/promotions/${encodeURIComponent(offerId)}`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.deleted) throw new Error('找不到活動');
+    promotionNotice('✓ 活動已刪除');
+    resetPromotionForm();
+    await loadPromotions();
+    await loadRagDocs();
+    await loadRagReviews();
+  } catch (e) {
+    promotionNotice(`刪除失敗：${e.message}`, false);
   }
 }
 
 // ── Members ──
 
 let memberFilter = 'all';
-let selectedMemberPhone = '';
+let selectedMemberRef = '';
 let memberControlsBound = false;
 
 async function loadMembers() {
@@ -924,11 +1988,11 @@ function bindMemberControls() {
     document.querySelectorAll('.member-filter').forEach(el => el.classList.toggle('active', el === btn));
     renderMemberTable(getFilteredMemberRows());
   });
+  document.getElementById('memberExportBtn')?.addEventListener('click', exportMembersCsv);
 }
 
 function getMemberSearchText(row) {
   return [
-    row.phone,
     row.phone_masked,
     row.nickname,
     ...(Array.isArray(row.favorites) ? row.favorites : []),
@@ -1009,7 +2073,8 @@ function renderMemberTable(rows) {
   }
   rows.forEach((r) => {
     const tr = document.createElement('tr');
-    tr.classList.toggle('member-row-selected', selectedMemberPhone && selectedMemberPhone === r.phone);
+    const memberRef = r.member_ref || '';
+    tr.classList.toggle('member-row-selected', selectedMemberRef && selectedMemberRef === memberRef);
     const status = getMemberStatus(r);
     const favs = (r.favorites || []).map(f => `<span class="fav-chip">${escHtml(f)}</span>`).join('');
     tr.innerHTML = `<td><div class="member-person"><b>${escHtml(r.nickname || '未命名會員')}</b><span>${escHtml(r.phone_masked || '')}</span></div></td>`
@@ -1019,18 +2084,18 @@ function renderMemberTable(rows) {
       + `<td>${fmtMoney(r.completed_spend ?? r.total_spend ?? 0)}</td>`
       + `<td>${fmtMoney(r.avg_completed_spend ?? r.avg_spend ?? 0)}</td>`
       + `<td>${escHtml(fmtDate(r.last_visit_at, '—').slice(0, 10))}</td><td>${favs || '<span class="muted">—</span>'}</td>`
-      + `<td><button class="view-btn" data-phone="${escHtml(r.phone || '')}">查看</button></td>`;
+      + `<td><button class="view-btn" data-member-ref="${escHtml(memberRef)}">查看</button></td>`;
     body.appendChild(tr);
   });
   body.querySelectorAll('.view-btn').forEach(btn => {
-    btn.addEventListener('click', () => loadMemberDetail(btn.getAttribute('data-phone')));
+    btn.addEventListener('click', () => loadMemberDetail(btn.getAttribute('data-member-ref')));
   });
 }
 
-async function loadMemberDetail(phone) {
-  selectedMemberPhone = phone || '';
+async function loadMemberDetail(memberRef) {
+  selectedMemberRef = memberRef || '';
   renderMemberTable(getFilteredMemberRows());
-  const d = await fetch(`/api/members/${encodeURIComponent(phone)}`, { headers: adminHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null);
+  const d = await fetch(`/api/members/${encodeURIComponent(memberRef)}`, { headers: adminHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null);
   const panel = document.getElementById('memberDetailPanel');
   if (!d) {
     panel.classList.remove('hidden');
@@ -1039,6 +2104,29 @@ async function loadMemberDetail(phone) {
   }
   const favRows = (d.favorites_ranked || []).map(f =>
     `<div class="fav-row"><span>${escHtml(f.name)}</span><b>×${f.count}</b></div>`).join('');
+  const categoryRows = (d.categories_ranked || []).slice(0, 6).map(row =>
+    `<div class="fav-row"><span>${escHtml(row.category || '未分類')}</span><b>×${Number(row.count || 0)}</b></div>`).join('');
+  const pairRows = (d.pairs_ranked || []).slice(0, 5).map(row =>
+    `<div class="fav-row"><span>${(row.names || []).map(escHtml).join(' + ')}</span><b>×${Number(row.count || 0)}</b></div>`).join('');
+  const rec = d.recommendation_summary || {};
+  const recRows = [
+    ['曝光', rec.shown || 0],
+    ['點擊', rec.clicked || 0],
+    ['加購', rec.added_to_cart || 0],
+    ['結帳命中', rec.checked_out || 0],
+    ['忽略', rec.ignored || 0],
+    ['接受率', `${Math.round(Number(rec.acceptance_rate || 0) * 100)}%`],
+  ].map(([label, value]) => `<div><b>${escHtml(String(value))}</b><span>${escHtml(label)}</span></div>`).join('');
+  const consentRows = [
+    ['點餐紀錄', d.order_history_consent ? '已同意' : '未同意'],
+    ['個人化推薦', d.personalization_consent ? '已同意' : '未同意'],
+    ['同意版本', d.consent_version || '—'],
+    ['隱私版本', d.privacy_version || '—'],
+    ['同意時間', fmtDate(d.consent_accepted_at, '—')],
+    ['最後登入', fmtDate(d.last_login_at, '—')],
+    ['登入次數', Number(d.login_count || 0)],
+    ['資料保留至', fmtDate(d.data_retention_until, '—').slice(0, 10)],
+  ].map(([label, value]) => `<div><b>${escHtml(String(value))}</b><span>${escHtml(label)}</span></div>`).join('');
   const orderRows = (d.orders || []).map(o => {
     const completed = o.is_completed !== false && (o.order_status || 'completed') === 'completed';
     const status = completed
@@ -1059,32 +2147,57 @@ async function loadMemberDetail(phone) {
     + `<div><b>${d.incomplete_order_count || 0}</b><span>未完成</span></div>`
     + `<div><b>${fmtMoney(d.completed_spend ?? d.total_spend ?? 0)}</b><span>完成營收</span></div>`
     + `<div><b>${fmtMoney(d.avg_completed_spend ?? d.avg_spend ?? 0)}</b><span>平均客單</span></div></div>`
+    + `<div class="member-section-title">會員資料治理</div><div class="member-kpis">${consentRows}</div>`
     + `<div class="member-section-title">常點品項排行</div>${favRows || '<p class="muted">尚無紀錄</p>'}`
+    + `<div class="member-section-title">分類偏好</div>${categoryRows || '<p class="muted">尚無分類偏好</p>'}`
+    + `<div class="member-section-title">常見搭配</div>${pairRows || '<p class="muted">尚無搭配紀錄</p>'}`
+    + `<div class="member-section-title">推薦成效</div><div class="member-kpis">${recRows}</div>`
     + `<div class="member-section-title">訂單時間線</div>${orderRows || '<p class="muted">尚無訂單</p>'}`
     + `<div class="member-danger">`
     + `<button class="member-clear-btn" type="button">刪除點餐紀錄</button>`
     + `<button class="member-delete-btn" type="button">刪除會員帳戶</button>`
     + `</div>`;
-  panel.querySelector('.member-clear-btn')?.addEventListener('click', () => clearMemberRecords(phone, d.nickname || ''));
-  panel.querySelector('.member-delete-btn')?.addEventListener('click', () => deleteMember(phone, d.nickname || ''));
+  panel.querySelector('.member-clear-btn')?.addEventListener('click', () => clearMemberRecords(d.member_ref || memberRef, d.nickname || '', d.phone_masked || ''));
+  panel.querySelector('.member-delete-btn')?.addEventListener('click', () => deleteMember(d.member_ref || memberRef, d.nickname || '', d.phone_masked || ''));
 }
 
-async function clearMemberRecords(phone, nickname) {
-  if (!confirm(`確定要刪除「${nickname || phone}」的所有點餐紀錄（訂單、常點、消費統計）嗎？\n帳戶會保留，但紀錄無法復原。`)) return;
-  const res = await fetch(`/api/members/${encodeURIComponent(phone)}/records`, { method: 'DELETE', headers: adminHeaders() })
-    .then(r => r.ok).catch(() => false);
-  if (!res) { alert('刪除失敗'); return; }
+async function clearMemberRecords(memberRef, nickname, phoneMasked) {
+  if (!confirm(`確定要刪除「${nickname || phoneMasked || memberRef}」的所有點餐紀錄（訂單、常點、消費統計）嗎？\n帳戶會保留，但紀錄無法復原。`)) return;
+  const result = await fetch(`/api/members/${encodeURIComponent(memberRef)}/records`, { method: 'DELETE', headers: adminHeaders() })
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!result?.ok) { alert('刪除失敗'); return; }
+  if (result.audit_id) alert(`已清除紀錄，Audit ID：${result.audit_id}`);
   await loadMembers();
-  loadMemberDetail(phone);
+  loadMemberDetail(memberRef);
 }
 
-async function deleteMember(phone, nickname) {
-  if (!confirm(`確定要刪除會員帳戶「${nickname || phone}」嗎？\n此操作將永久移除該會員及其所有紀錄，無法復原。`)) return;
-  const res = await fetch(`/api/members/${encodeURIComponent(phone)}`, { method: 'DELETE', headers: adminHeaders() })
-    .then(r => r.ok).catch(() => false);
-  if (!res) { alert('刪除失敗'); return; }
+async function deleteMember(memberRef, nickname, phoneMasked) {
+  if (!confirm(`確定要刪除會員帳戶「${nickname || phoneMasked || memberRef}」嗎？\n此操作將永久移除該會員及其所有紀錄，無法復原。`)) return;
+  const result = await fetch(`/api/members/${encodeURIComponent(memberRef)}`, { method: 'DELETE', headers: adminHeaders() })
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!result?.ok) { alert('刪除失敗'); return; }
+  if (result.audit_id) alert(`已刪除會員，Audit ID：${result.audit_id}`);
   document.getElementById('memberDetailPanel')?.classList.add('hidden');
   await loadMembers();
+}
+
+async function exportMembersCsv() {
+  const res = await fetch('/api/members/export', { headers: adminHeaders() }).catch(() => null);
+  if (!res || !res.ok) {
+    alert('匯出失敗');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'members_export.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  const auditId = res.headers.get('X-Admin-Audit-Id');
+  if (auditId) alert(`已匯出會員 CSV，Audit ID：${auditId}`);
 }
 
 // ── 測試頁：載入預設語音 Prompt ──
@@ -1318,11 +2431,28 @@ window.onSttProviderChange = onSttProviderChange;
 window.onTtsProviderChange = onTtsProviderChange;
 window.saveSettings    = saveSettings;
 window.saveRagSettings = saveRagSettings;
+window.loadRagHealth   = loadRagHealth;
+window.loadRagAlerts   = loadRagAlerts;
+window.ackRagAlert     = ackRagAlert;
+window.resolveRagAlert = resolveRagAlert;
 window.loadRagDocs     = loadRagDocs;
+window.loadRagReviews  = loadRagReviews;
 window.addRagDoc       = addRagDoc;
+window.editRagReview   = editRagReview;
+window.cancelRagReviewEdit = cancelRagReviewEdit;
+window.approveRagReview = approveRagReview;
+window.publishRagReview = publishRagReview;
+window.rejectRagReview = rejectRagReview;
+window.archiveRagReview = archiveRagReview;
+window.validateRagDocs = validateRagDocs;
 window.deleteRagDoc    = deleteRagDoc;
 window.clearRagDocs    = clearRagDocs;
 window.rebuildRagDocs  = rebuildRagDocs;
+window.loadPromotions = loadPromotions;
+window.savePromotion = savePromotion;
+window.resetPromotionForm = resetPromotionForm;
+window.loadAvailability = loadAvailability;
+window.saveAvailability = saveAvailability;
 window.saveEmotionSettings        = saveEmotionSettings;
 window.clearEmotionLogs           = clearEmotionLogs;
 window.updateEmotionPromptCounter = updateEmotionPromptCounter;
@@ -1349,6 +2479,25 @@ g('test-input')?.addEventListener('input', (e) => {
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
 document.getElementById('clearBtn')?.addEventListener('click', clearStats);
+document.getElementById('recommendationRefreshBtn')?.addEventListener('click', loadRecommendationEvents);
+document.getElementById('recommendationClearBtn')?.addEventListener('click', clearRecommendationEvents);
+document.getElementById('availabilityRefreshBtn')?.addEventListener('click', loadAvailability);
+document.getElementById('availabilitySaveBtn')?.addEventListener('click', saveAvailability);
+document.getElementById('availabilitySearch')?.addEventListener('input', renderAvailabilityRows);
+document.getElementById('availabilityStatusFilter')?.addEventListener('change', renderAvailabilityRows);
+document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
+[
+  'recommendationEventTypeFilter',
+  'recommendationSurfaceFilter',
+  'recommendationAudienceFilter',
+  'recommendationLimit',
+].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', () => {
+    if (id === 'recommendationLimit') loadRecommendationEvents();
+    else renderRecommendationDashboard();
+  });
+});
+document.getElementById('recommendationSessionFilter')?.addEventListener('input', renderRecommendationDashboard);
 
 // 先載入菜單對照表，再載入統計
 loadMenu().then(loadStats);
@@ -1356,6 +2505,8 @@ loadMenu().then(loadStats);
 setInterval(() => {
   const statsPage = document.getElementById('page-stats');
   if (statsPage && statsPage.style.display !== 'none') loadStats();
+  const recommendationsPage = document.getElementById('page-recommendations');
+  if (recommendationsPage && recommendationsPage.style.display !== 'none') loadRecommendationEvents();
 }, 15000);
 
 function toggleVoiceWaitMode() {
@@ -1405,9 +2556,21 @@ function handleStaffNotify(event) {
   if (backdrop) backdrop.style.display = 'flex';
 }
 
+function handleRagAlert(event) {
+  const alert = event.payload?.alert;
+  if (alert?.message) {
+    ragNotice(`RAG 警示：${alert.message}`, false);
+  }
+  loadRagHealth();
+  loadRagAlerts();
+}
+
 window.dismissStaffNotify = function () {
   const backdrop = document.getElementById('staffNotifyBackdrop');
   if (backdrop) backdrop.style.display = 'none';
 };
 
-createRealtimeClient('admin', 'admin', { staff_notify: handleStaffNotify });
+createRealtimeClient('admin', 'admin', {
+  staff_notify: handleStaffNotify,
+  rag_alert: handleRagAlert,
+});

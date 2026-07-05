@@ -275,6 +275,7 @@ tbody tr:hover td { background: #f8fafd; }
 .setting-input {
   flex:1; padding:7px 10px; border:1.5px solid #dde3f0; border-radius:8px;
   font-size:13px; color:#1a2233; background:#fff; outline:none;
+  min-width:0; max-width:100%;
 }
 .setting-input:focus { border-color:#3b7aee; }
 .hidden { display:none !important; }
@@ -316,6 +317,29 @@ tbody tr:hover td { background: #f8fafd; }
   gap: 10px;
   padding-top: 2px;
 }
+.promotion-form { display:flex; flex-direction:column; gap:10px; }
+.promotion-help {
+  background:#f8fafd; border:1px solid #e5eaf2; border-radius:10px;
+  padding:10px 12px; color:#5a6a8a; font-size:12px; line-height:1.6;
+}
+.promotion-help b { display:block; color:#1a2233; margin-bottom:4px; }
+.promotion-help ul { margin:6px 0 0 18px; padding:0; }
+.promotion-help li { margin:2px 0; }
+.promotion-field-hint {
+  color:#8494b0; font-size:11px; line-height:1.45; margin-top:-5px; margin-left:134px;
+}
+.promotion-pair {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:8px; flex:1; min-width:0;
+}
+.promotion-actions-row {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;
+}
+@media (max-width:520px) {
+  .setting-row { align-items:flex-start; flex-direction:column; gap:6px; }
+  .setting-label { width:auto; }
+  .promotion-field-hint { margin-left:0; }
+}
 .rag-doc-card {
   background: #f8fafd;
   border: 1.5px solid #edf0f7;
@@ -354,6 +378,85 @@ tbody tr:hover td { background: #f8fafd; }
   line-height: 1;
 }
 .rag-del-btn:hover { color: #e84040; background: #feecec; }
+.rag-health-grid { display:grid; grid-template-columns:repeat(2,minmax(120px,1fr)); gap:8px; margin-top:10px; }
+.rag-health-chip { background:#f8fafd; border:1px solid #e5eaf2; border-radius:10px; padding:9px 10px; font-size:12px; color:#5a6a8a; }
+.rag-health-chip b { display:block; color:#1a2233; font-size:15px; margin-bottom:3px; }
+.rag-alert-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.rag-alert-card {
+  border:1px solid #f5c6c0; background:#fff7f6; border-radius:10px; padding:10px 12px;
+  display:flex; flex-direction:column; gap:7px; font-size:12px; color:#5a2b27;
+}
+.rag-alert-card.warning { border-color:#f7dca5; background:#fff9ed; color:#6d4a12; }
+.rag-alert-card.resolved { border-color:#d8dfec; background:#f8fafd; color:#5a6a8a; }
+.rag-alert-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.rag-alert-title b { display:block; color:#1a2233; font-size:13px; margin-bottom:2px; }
+.rag-alert-title span { color:#8494b0; font-size:11px; }
+.rag-alert-status { border-radius:999px; padding:2px 8px; font-size:10px; font-weight:900; white-space:nowrap; background:#feecec; color:#b8322a; }
+.rag-alert-status.acknowledged { background:#fff4e5; color:#9a650f; }
+.rag-alert-status.resolved { background:#e6f7ef; color:#128257; }
+.rag-alert-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.rag-alert-actions button { border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:5px 9px; font-size:11px; color:#2d3a55; cursor:pointer; }
+.rag-alert-actions button:hover { border-color:#3b7aee; color:#3b7aee; }
+.rag-validation-box { margin-top:12px; background:#f8fafd; border:1px solid #e5eaf2; border-radius:10px; padding:10px; display:none; }
+.rag-validation-head { display:flex; justify-content:space-between; gap:10px; align-items:center; font-size:12px; color:#5a6a8a; margin-bottom:8px; }
+.rag-validation-list { display:flex; flex-direction:column; gap:6px; max-height:180px; overflow:auto; }
+.rag-validation-item { border-radius:8px; padding:7px 9px; font-size:11.5px; line-height:1.45; }
+.rag-validation-item.error { background:#feecec; color:#b8322a; }
+.rag-validation-item.warning { background:#fff4e5; color:#9a650f; }
+.rag-validation-item.ok { background:#e6f7ef; color:#128257; }
+.rag-review-list {
+  display:flex; flex-direction:column; gap:10px; margin-bottom:18px;
+  max-height:300px; overflow:auto; padding-right:2px;
+}
+.rag-review-card {
+  background:#f8fafd; border:1.5px solid #edf0f7; border-radius:12px;
+  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
+}
+.rag-review-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.rag-review-title { min-width:0; }
+.rag-review-title b { display:block; font-size:13px; color:#1a2233; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rag-review-title span { display:block; color:#8494b0; font-size:11px; margin-top:3px; line-height:1.4; }
+.rag-review-status { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:900; white-space:nowrap; }
+.rag-review-status.draft { background:#fff4e5; color:#b9700f; }
+.rag-review-status.approved { background:#e8f0fe; color:#3b7aee; }
+.rag-review-status.published { background:#e6f7ef; color:#128257; }
+.rag-review-status.rejected { background:#feecec; color:#b8322a; }
+.rag-review-status.archived { background:#f2f4f8; color:#6b778c; }
+.rag-review-text {
+  font-size:12px; color:#2d3a55; line-height:1.55; white-space:pre-wrap;
+  max-height:68px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
+.rag-review-reason { font-size:11px; color:#b8322a; background:#feecec; border-radius:8px; padding:6px 8px; }
+.rag-review-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.rag-review-actions button {
+  border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:5px 9px;
+  font-size:11px; color:#2d3a55; cursor:pointer;
+}
+.rag-review-actions button:hover { border-color:#3b7aee; color:#3b7aee; }
+.promotion-list {
+  display:flex; flex-direction:column; gap:10px; margin-bottom:18px;
+  max-height:260px; overflow:auto; padding-right:2px;
+}
+.promotion-card {
+  background:#f8fafd; border:1.5px solid #edf0f7; border-radius:12px;
+  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
+}
+.promotion-card-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.promotion-card-title { min-width:0; }
+.promotion-card-title b { display:block; font-size:13px; color:#1a2233; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.promotion-card-title span { display:block; font-family:monospace; color:#8494b0; font-size:11px; margin-top:3px; }
+.promotion-status { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:900; white-space:nowrap; }
+.promotion-status.active { background:#e6f7ef; color:#128257; }
+.promotion-status.draft { background:#fff4e5; color:#b9700f; }
+.promotion-status.inactive { background:#f2f4f8; color:#6b778c; }
+.promotion-meta { display:flex; flex-wrap:wrap; gap:6px; color:#5a6a8a; font-size:11px; line-height:1.4; }
+.promotion-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.promotion-actions button {
+  border:1px solid #dce4f2; background:#fff; color:#3b4a6b;
+  border-radius:7px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer;
+}
+.promotion-actions button:hover { background:#edf2ff; color:#3b7aee; }
+.promotion-actions button.danger:hover { background:#feecec; color:#c0392b; border-color:#f5c6c0; }
 @media (max-width:1000px) { #page-rag { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
 @media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
 /* ── 語音對話展開列 ── */
@@ -415,6 +518,8 @@ tbody tr:hover td { background: #f8fafd; }
 .member-filters { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 .member-filter { border:1px solid #dde3f0; background:#f8fafd; color:#51617d; border-radius:999px; padding:7px 12px; font-size:12px; font-weight:800; cursor:pointer; }
 .member-filter.active { background:#1a2233; color:#fff; border-color:#1a2233; }
+.member-export-btn { border:1px solid #c9d7ef; background:#eef5ff; color:#255aa8; border-radius:9px; padding:8px 12px; font-size:12px; font-weight:900; cursor:pointer; white-space:nowrap; }
+.member-export-btn:hover { background:#deebff; }
 .member-layout { display:grid; grid-template-columns:minmax(560px,1fr) minmax(320px,380px); gap:16px; align-items:start; }
 .member-table-card, .member-detail-panel { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); }
 .member-table-card { overflow:hidden; }
@@ -543,6 +648,118 @@ tbody tr:hover td { background: #f8fafd; }
 .member-clear-btn:hover { background:#ffe9c7; }
 .member-delete-btn { background:#fdecea; color:#c0392b; border:1px solid #f5c6c0; }
 .member-delete-btn:hover { background:#f9d6d1; }
+/* ── 推薦成效 dashboard ── */
+.recommendation-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.recommendation-toolbar {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:#fff; border:1px solid #e7ebf0; border-radius:13px; padding:12px;
+}
+.recommendation-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.recommendation-input, .recommendation-select {
+  background:#f8fafd; border:1px solid #dde2e8; border-radius:9px;
+  padding:8px 11px; color:#1a2233; font-size:12px; min-height:34px;
+}
+.recommendation-input { width:220px; }
+.recommendation-select { min-width:136px; }
+.recommendation-kpis { display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); gap:12px; }
+.recommendation-kpi {
+  background:#fff; border:1px solid #e7ebf0; border-radius:12px;
+  padding:14px 15px; min-height:82px;
+}
+.recommendation-kpi b { display:block; font-size:22px; color:#1a2233; line-height:1; }
+.recommendation-kpi span { display:block; font-size:11.5px; color:#8a94a3; margin-top:7px; font-weight:800; }
+.recommendation-kpi small { display:block; font-size:10.5px; color:#a1aab8; margin-top:6px; }
+.recommendation-grid { display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:16px; align-items:start; }
+.recommendation-row { display:grid; grid-template-columns:minmax(92px,1fr) repeat(5,48px); gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
+.recommendation-row:last-child { border-bottom:0; }
+.recommendation-row.head { color:#8494b0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.recommendation-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1a2233; font-size:12px; }
+.recommendation-row span { text-align:right; color:#3b4a6b; font-variant-numeric:tabular-nums; }
+.recommendation-strategy-row { display:grid; grid-template-columns:minmax(140px,1fr) repeat(6,48px); gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
+.recommendation-strategy-row:last-child { border-bottom:0; }
+.recommendation-strategy-row.head { color:#8494b0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.recommendation-strategy-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1a2233; font-size:12px; }
+.recommendation-strategy-row span { text-align:right; color:#3b4a6b; font-variant-numeric:tabular-nums; }
+.recommendation-events-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); overflow:hidden; }
+.recommendation-events-card .adm-table-wrap { max-height:calc(100dvh - 520px); overflow:auto; }
+.recommendation-tag { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:900; white-space:nowrap; background:#eef4ff; color:#2f67c7; }
+.recommendation-tag.member { background:#e6f7ef; color:#128257; }
+.recommendation-tag.guest { background:#f2f4f8; color:#6b778c; }
+.recommendation-tag.ignored { background:#feecec; color:#c0392b; }
+.recommendation-tag.checked { background:#e6f7ef; color:#128257; }
+.recommendation-muted { color:#9aa4b1; font-size:12px; }
+.availability-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.availability-layout { display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start; }
+.availability-form { display:flex; flex-direction:column; gap:12px; }
+.availability-field { display:flex; flex-direction:column; gap:6px; }
+.availability-field label { color:#5b6680; font-size:12px; font-weight:800; }
+.availability-field input, .availability-field select {
+  background:#f8fafd; border:1px solid #dde2e8; border-radius:9px;
+  padding:9px 11px; color:#1a2233; font-size:12px; min-height:36px;
+}
+.availability-periods { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.availability-search-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.availability-items-card .adm-table-wrap { max-height:calc(100dvh - 390px); overflow:auto; }
+.availability-status-select {
+  min-width:120px; background:#f8fafd; border:1px solid #dde2e8; border-radius:9px;
+  padding:7px 9px; color:#1a2233; font-size:12px;
+}
+.availability-badge { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:900; white-space:nowrap; }
+.availability-badge.normal { background:#e6f7ef; color:#128257; }
+.availability-badge.low_stock { background:#fff4e5; color:#b9700f; }
+.availability-badge.sold_out { background:#feecec; color:#c0392b; }
+.availability-badge.disabled { background:#f2f4f8; color:#6b778c; }
+.availability-badge.time { background:#eef4ff; color:#2f67c7; }
+.health-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.health-toolbar {
+  display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  background:#fff; border:1px solid #e7ebf0; border-radius:13px; padding:12px;
+}
+.health-status-pill {
+  display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:7px 11px;
+  font-size:12px; font-weight:900; background:#e6f7ef; color:#128257;
+}
+.health-status-pill.degraded { background:#fff4e5; color:#b9700f; }
+.health-status-pill.skipped { background:#f2f4f8; color:#6b778c; }
+.health-kpis { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; }
+.health-kpi {
+  background:#fff; border:1px solid #e7ebf0; border-radius:12px;
+  padding:14px 15px; min-height:82px;
+}
+.health-kpi b { display:block; font-size:20px; color:#1a2233; line-height:1.1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.health-kpi span { display:block; font-size:11.5px; color:#8a94a3; margin-top:7px; font-weight:800; }
+.health-grid { display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:16px; align-items:start; }
+.health-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); padding:16px; }
+.health-row { display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
+.health-row:last-child { border-bottom:0; }
+.health-row b { color:#1a2233; }
+.health-row span { color:#3b4a6b; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+.health-log-list { display:flex; flex-direction:column; gap:8px; }
+.health-log-item {
+  display:grid; grid-template-columns:minmax(150px,1fr) 70px 90px; gap:8px; align-items:center;
+  padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px;
+}
+.health-log-item:last-child { border-bottom:0; }
+.health-log-item b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.health-log-item span { color:#3b4a6b; text-align:right; font-variant-numeric:tabular-nums; }
+@media (max-width:1320px) {
+  .recommendation-kpis { grid-template-columns:repeat(4,1fr); }
+  .recommendation-grid { grid-template-columns:1fr; }
+  .availability-layout { grid-template-columns:1fr; }
+  .health-kpis { grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:760px) {
+  .recommendation-page { padding:16px; }
+  .recommendation-toolbar { align-items:stretch; flex-direction:column; }
+  .recommendation-kpis { grid-template-columns:repeat(2,1fr); }
+  .recommendation-input { width:100%; }
+  .availability-page { padding:16px; }
+  .availability-periods { grid-template-columns:1fr; }
+  .health-page { padding:16px; }
+  .health-grid { grid-template-columns:1fr; }
+  .health-kpis { grid-template-columns:repeat(2,1fr); }
+  .health-log-item { grid-template-columns:minmax(120px,1fr) 60px 76px; }
+}
 </style>
 </head>
 <body>
@@ -559,6 +776,15 @@ tbody tr:hover td { background: #f8fafd; }
     </button>
     <button class="nav-item" data-page="settings" type="button">
       <i class="fas fa-sliders-h"></i> 功能設定
+    </button>
+    <button class="nav-item" data-page="recommendations" type="button">
+      <i class="fas fa-bullseye"></i> 推薦成效
+    </button>
+    <button class="nav-item" data-page="availability" type="button">
+      <i class="fas fa-store"></i> 供應狀態
+    </button>
+    <button class="nav-item" data-page="health" type="button">
+      <i class="fas fa-heartbeat"></i> 維運健康
     </button>
     <button class="nav-item" data-page="rag" type="button">
       <i class="fas fa-database"></i> RAG 知識庫
@@ -693,6 +919,205 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
 
   </div>
+
+  <!-- Recommendation events page -->
+  <section id="page-recommendations" class="recommendation-page" style="display:none">
+    <div class="recommendation-toolbar">
+      <div class="recommendation-filters">
+        <select id="recommendationEventTypeFilter" class="recommendation-select">
+          <option value="">全部事件</option>
+          <option value="recommendation_shown">曝光</option>
+          <option value="recommendation_clicked">點擊</option>
+          <option value="recommendation_added_to_cart">加入購物車</option>
+          <option value="recommendation_checked_out">成交</option>
+          <option value="recommendation_ignored">忽略</option>
+          <option value="recommendation_removed_from_cart">移除</option>
+        </select>
+        <select id="recommendationSurfaceFilter" class="recommendation-select">
+          <option value="">全部入口</option>
+        </select>
+        <select id="recommendationAudienceFilter" class="recommendation-select">
+          <option value="">會員 / 訪客</option>
+          <option value="member">會員</option>
+          <option value="guest">訪客</option>
+        </select>
+        <input id="recommendationSessionFilter" class="recommendation-input" type="text" placeholder="Session ID">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <select id="recommendationLimit" class="recommendation-select" style="min-width:96px">
+          <option value="200">最近 200 筆</option>
+          <option value="500">最近 500 筆</option>
+          <option value="1000">最近 1000 筆</option>
+        </select>
+        <button class="refresh-btn" id="recommendationRefreshBtn" type="button">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+        <button class="clear-btn" id="recommendationClearBtn" type="button">
+          <i class="fas fa-trash-alt"></i> 清除事件
+        </button>
+      </div>
+    </div>
+
+    <div id="recommendationKpis" class="recommendation-kpis">
+      <div class="recommendation-kpi"><b>—</b><span>載入中</span><small>最近事件</small></div>
+    </div>
+
+    <div class="recommendation-grid">
+      <div class="card">
+        <div class="card-title"><i class="fas fa-window-restore"></i> 推薦入口成效</div>
+        <div id="recommendationSurfaceStats"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-code-branch"></i> 推薦來源成效</div>
+        <div id="recommendationSourceStats"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-ticket-alt"></i> 活動 Offer 成效</div>
+        <div id="recommendationOfferStats"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fas fa-vials"></i> 策略版本比較</div>
+        <div id="recommendationVariantStats"></div>
+      </div>
+    </div>
+
+    <div class="recommendation-events-card">
+      <div class="card-title" style="padding:16px 18px 0;margin-bottom:12px">
+        <i class="fas fa-stream"></i> 最近推薦事件
+        <span id="recommendationEventSummary" class="recommendation-muted" style="margin-left:auto"></span>
+      </div>
+      <div class="adm-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>時間</th>
+              <th>Session</th>
+              <th>受眾</th>
+              <th>事件</th>
+              <th>入口</th>
+              <th>來源</th>
+              <th>餐點</th>
+              <th>Offer</th>
+              <th>理由</th>
+            </tr>
+          </thead>
+          <tbody id="recommendationEventBody">
+            <tr><td colspan="9" class="adm-empty">載入中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-health" class="health-page" style="display:none">
+    <div class="health-toolbar">
+      <div>
+        <div class="card-title" style="margin-bottom:5px"><i class="fas fa-heartbeat"></i> 系統健康摘要</div>
+        <div class="recommendation-muted" id="healthGeneratedAt">尚未載入</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="healthOverallStatus" class="health-status-pill skipped">未載入</span>
+        <button class="refresh-btn" id="healthRefreshBtn" type="button">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+      </div>
+    </div>
+
+    <div id="healthKpis" class="health-kpis">
+      <div class="health-kpi"><b>—</b><span>載入中</span></div>
+    </div>
+
+    <div class="health-grid">
+      <div class="health-card">
+        <div class="card-title"><i class="fas fa-server"></i> 核心服務</div>
+        <div id="healthCoreChecks"></div>
+      </div>
+      <div class="health-card">
+        <div class="card-title"><i class="fas fa-file-alt"></i> Runtime Logs</div>
+        <div id="healthRuntimeLogs" class="health-log-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Availability page -->
+  <section id="page-availability" class="availability-page" style="display:none">
+    <div class="availability-layout">
+      <div class="card">
+        <div class="card-title"><i class="fas fa-store"></i> 店鋪與時段</div>
+        <div class="availability-form">
+          <div class="availability-field">
+            <label for="availabilityStoreId">店鋪 ID</label>
+            <input id="availabilityStoreId" type="text" placeholder="default">
+          </div>
+          <div class="availability-field">
+            <label for="availabilityServicePeriod">服務時段</label>
+            <select id="availabilityServicePeriod">
+              <option value="auto">自動依時間判斷</option>
+              <option value="breakfast">早餐</option>
+              <option value="regular">一般時段</option>
+            </select>
+          </div>
+          <div class="availability-periods">
+            <div class="availability-field">
+              <label for="availabilityBreakfastStart">早餐開始</label>
+              <input id="availabilityBreakfastStart" type="time">
+            </div>
+            <div class="availability-field">
+              <label for="availabilityBreakfastEnd">早餐結束</label>
+              <input id="availabilityBreakfastEnd" type="time">
+            </div>
+            <div class="availability-field">
+              <label for="availabilityRegularStart">一般開始</label>
+              <input id="availabilityRegularStart" type="time">
+            </div>
+            <div class="availability-field">
+              <label for="availabilityRegularEnd">一般結束</label>
+              <input id="availabilityRegularEnd" type="time">
+            </div>
+          </div>
+          <div class="recommendation-muted" id="availabilityCurrentPeriod">目前時段：—</div>
+          <button class="refresh-btn" id="availabilitySaveBtn" type="button">
+            <i class="fas fa-save"></i> 儲存供應設定
+          </button>
+        </div>
+      </div>
+
+      <div class="card availability-items-card">
+        <div class="card-title">
+          <i class="fas fa-boxes-stacked"></i> 商品供應狀態
+          <span id="availabilitySummary" class="recommendation-muted" style="margin-left:auto"></span>
+        </div>
+        <div class="availability-search-row">
+          <input id="availabilitySearch" class="recommendation-input" type="text" placeholder="搜尋餐點或 ID">
+          <select id="availabilityStatusFilter" class="recommendation-select">
+            <option value="">全部狀態</option>
+            <option value="normal">正常</option>
+            <option value="low_stock">低庫存</option>
+            <option value="sold_out">售罄</option>
+            <option value="disabled">停用</option>
+          </select>
+          <button class="refresh-btn" id="availabilityRefreshBtn" type="button">
+            <i class="fas fa-sync-alt"></i> 重新整理
+          </button>
+        </div>
+        <div class="adm-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>餐點</th>
+                <th>分類</th>
+                <th>狀態</th>
+                <th>時段限制</th>
+              </tr>
+            </thead>
+            <tbody id="availabilityTableBody">
+              <tr><td colspan="4" class="adm-empty">載入中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Settings page -->
   <div class="content" id="page-settings" style="display:none">
@@ -975,15 +1400,111 @@ tbody tr:hover td { background: #f8fafd; }
           </button>
           <span id="rag-settings-notice" style="font-size:12px;display:none"></span>
         </div>
+        <div class="rag-health-grid" id="rag-health-grid">
+          <div class="rag-health-chip"><b>—</b><span>Chroma 狀態</span></div>
+          <div class="rag-health-chip"><b>—</b><span>文件數</span></div>
+        </div>
+        <div class="rag-alert-list" id="rag-alert-list"></div>
+      </div>
+
+      <!-- 結構化活動管理 -->
+      <div class="card promotion-form">
+        <div class="card-title"><i class="fas fa-ticket-alt"></i> 結構化活動管理</div>
+        <div class="promotion-help">
+          <b>結構化活動會影響推薦與優惠回答</b>
+          <ul>
+            <li>活動會儲存為 `rag_documents/promotions/*.json`，安全重建 Chroma 後可被語音與 RAG 回答引用。</li>
+            <li>`啟用` 活動會依有效日期、會員限定、品項 ID 或分類，提升推薦引擎分數。</li>
+            <li>會員限定活動只會出現在會員 session；未列出的折扣與加購價不會被 AI 自行補充。</li>
+          </ul>
+        </div>
+        <input id="promotion-editing-id" type="hidden" value="">
+        <div class="setting-row">
+          <label class="setting-label">Offer ID</label>
+          <input id="promotion-offer-id" class="setting-input" type="text" placeholder="summer_combo_2026">
+        </div>
+        <div class="promotion-field-hint">活動唯一識別碼，只能使用英文、數字、底線或連字號；建立後不可直接改名。</div>
+        <div class="setting-row">
+          <label class="setting-label">活動名稱</label>
+          <input id="promotion-title" class="setting-input" type="text" placeholder="夏季套餐推薦">
+        </div>
+        <div class="promotion-field-hint">Admin、推薦事件與 RAG verified offers 會顯示這個名稱。</div>
+        <div class="setting-row">
+          <label class="setting-label">狀態</label>
+          <select id="promotion-status" class="setting-input">
+            <option value="draft">草稿</option>
+            <option value="active">啟用</option>
+            <option value="inactive">停用</option>
+          </select>
+        </div>
+        <div class="promotion-field-hint">草稿不會影響推薦；啟用才會依日期與範圍加權；停用會保留資料但不參與推薦。</div>
+        <div class="setting-row">
+          <label class="setting-label">會員限定</label>
+          <select id="promotion-member-only" class="setting-input">
+            <option value="false">否</option>
+            <option value="true">是</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">開始 / 結束</label>
+          <div class="promotion-pair">
+            <input id="promotion-valid-from" class="setting-input" type="date">
+            <input id="promotion-valid-until" class="setting-input" type="date">
+          </div>
+        </div>
+        <div class="promotion-field-hint">日期會依活動時區判斷整天有效；留空代表不限制開始或結束。</div>
+        <div class="setting-row">
+          <label class="setting-label">活動時區</label>
+          <input id="promotion-timezone" class="setting-input" type="text" value="Asia/Taipei" placeholder="Asia/Taipei">
+        </div>
+        <div class="promotion-field-hint">請使用 IANA timezone，例如 `Asia/Taipei`；錯誤時區會被檢查擋下。</div>
+        <div class="setting-row">
+          <label class="setting-label">品項 ID</label>
+          <input id="promotion-item-ids" class="setting-input" type="text" placeholder="MCD001, MCD012">
+        </div>
+        <div class="promotion-field-hint">只接受菜單內存在的品項 ID；可用逗號分隔多個品項。</div>
+        <div class="setting-row">
+          <label class="setting-label">分類</label>
+          <input id="promotion-categories" class="setting-input" type="text" placeholder="超值全餐, 點心">
+        </div>
+        <div class="promotion-field-hint">分類需存在於目前菜單；若未指定品項，至少要指定一個有效分類。</div>
+        <div class="setting-row">
+          <label class="setting-label">需先有品項</label>
+          <input id="promotion-required-items" class="setting-input" type="text" placeholder="可留空，例如 MCD001">
+        </div>
+        <div class="promotion-field-hint">可作為搭配情境條件，例如購物車已有主餐時才提高點心推薦分數。</div>
+        <div class="setting-row">
+          <label class="setting-label">加權</label>
+          <div class="promotion-pair">
+            <input id="promotion-score-boost" class="setting-input" type="number" min="1" max="20" value="4" placeholder="品項">
+            <input id="promotion-category-score-boost" class="setting-input" type="number" min="1" max="20" value="2" placeholder="分類">
+          </div>
+        </div>
+        <div class="promotion-field-hint">左側為指定品項加權，右側為分類加權；數字越高越容易被推薦。</div>
+        <div style="margin-bottom:12px">
+          <div class="section-title" style="margin-bottom:8px">活動說明</div>
+          <textarea id="promotion-content" class="setting-input" rows="4" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="描述活動限制、門市說明或客服回答需要知道的內容。"></textarea>
+        </div>
+        <div class="promotion-field-hint" style="margin-left:0;margin-top:-12px">這段會作為 verified offer 說明，語音回答優惠時只能引用已驗證內容。</div>
+        <div class="promotion-actions-row">
+          <button class="refresh-btn" onclick="savePromotion()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
+            <i class="fas fa-save"></i> 儲存活動
+          </button>
+          <button class="refresh-btn" onclick="resetPromotionForm()" type="button">
+            <i class="fas fa-undo"></i> 清空表單
+          </button>
+          <span id="promotion-notice" style="font-size:12px;display:none"></span>
+        </div>
       </div>
 
       <!-- 新增 / 更新知識文件 -->
       <div class="card" style="flex:1;display:flex;flex-direction:column">
         <div class="card-title"><i class="fas fa-plus-circle"></i> 新增 / 更新 RAG 文本</div>
-        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">輸入文件 ID 可覆蓋同一筆內容；留空則新增一筆文件。</p>
+        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">文本會先建立為草稿，核准並發布後才會寫入 rag_documents；執行安全重建 Chroma 後才會進入正式向量庫。</p>
+        <input id="rag-review-editing-id" type="hidden" value="">
         <div class="setting-row">
           <label class="setting-label">文件 ID</label>
-          <input id="rag-source-id" class="setting-input" type="text" placeholder="可留空，例如 promo_2026_combo">
+          <input id="rag-source-id" class="setting-input" type="text" placeholder="例如 store_policy_breakfast_time">
         </div>
         <div class="setting-row">
           <label class="setting-label">文件類型</label>
@@ -1003,22 +1524,47 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <button class="refresh-btn" onclick="addRagDoc()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> 儲存文本
+            <i class="fas fa-save"></i> <span id="rag-save-btn-label">建立草稿</span>
+          </button>
+          <button class="refresh-btn" onclick="cancelRagReviewEdit()" type="button">
+            <i class="fas fa-times"></i> 取消編輯
+          </button>
+          <button class="refresh-btn" onclick="validateRagDocs()" type="button">
+            <i class="fas fa-check-circle"></i> 檢查 RAG 文件
           </button>
           <button class="refresh-btn" onclick="rebuildRagDocs()" type="button" style="background:#1db87a;color:#fff;border-color:#1db87a">
-            <i class="fas fa-sync-alt"></i> 清空 Chroma 並重新讀取 RAG 文件
+            <i class="fas fa-sync-alt"></i> 安全重建 Chroma
           </button>
           <button class="clear-btn" onclick="clearRagDocs()" type="button">
             <i class="fas fa-trash-alt"></i> 清空全部
           </button>
           <span id="rag-notice" style="font-size:12px;display:none"></span>
         </div>
+        <div id="rag-validation-box" class="rag-validation-box"></div>
       </div>
 
     </div>
 
     <!-- ── 右欄：文件清單 ── -->
     <div class="card rag-right">
+      <div class="card-title" style="flex-shrink:0">
+        <i class="fas fa-ticket-alt"></i> 已建立活動
+        <span id="promotion-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
+        <button class="refresh-btn" onclick="loadPromotions()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+      </div>
+      <div id="promotion-list" class="promotion-list"></div>
+
+      <div class="card-title" style="flex-shrink:0">
+        <i class="fas fa-clipboard-check"></i> 待審核文本
+        <span id="rag-review-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
+        <button class="refresh-btn" onclick="loadRagReviews()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+      </div>
+      <div id="rag-review-list" class="rag-review-list"></div>
+
       <div class="card-title" style="flex-shrink:0">
         <i class="fas fa-database"></i> 已儲存文件
         <span id="rag-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
@@ -1161,6 +1707,9 @@ tbody tr:hover td { background: #f8fafd; }
         <button class="member-filter" data-filter="high_value" type="button">高消費</button>
         <button class="member-filter" data-filter="new" type="button">新會員</button>
       </div>
+      <button id="memberExportBtn" class="member-export-btn" type="button">
+        <i class="fas fa-file-export"></i> 匯出 CSV
+      </button>
     </div>
     <div class="member-layout">
       <div class="member-table-card">

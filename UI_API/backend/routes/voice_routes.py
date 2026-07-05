@@ -3,10 +3,11 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from services import voice_service
+from utils.auth_utils import check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
 
@@ -15,16 +16,19 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/ask")
     async def process_voice(
+        request: Request,
         session_id: str = Form(...),
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
     ):
+        require_kiosk_token(request)
+        check_rate_limit(request, "voice_ask", limit=30, key=session_id)
         temp_path = None
         try:
             suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 temp_path = tmp.name
-            media_bytes = await media.read()
+            media_bytes = await read_limited_upload(media)
             await asyncio.to_thread(write_binary_file, temp_path, media_bytes)
             return await voice_service.handle_voice(
                 session_id=session_id,
@@ -32,6 +36,8 @@ def create_router(deps: dict) -> APIRouter:
                 ollama_semaphore=deps["ollama_semaphore"],
                 multi_lang=multi_lang.lower() == "true",
             )
+        except HTTPException:
+            raise
         except Exception as e:
             return {"status": "error", "message": str(e)}
         finally:
@@ -40,14 +46,17 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/ask/stream")
     async def process_voice_stream(
+        request: Request,
         session_id: str = Form(...),
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
     ):
+        require_kiosk_token(request)
+        check_rate_limit(request, "voice_stream", limit=30, key=session_id)
+        media_bytes = await read_limited_upload(media)
         suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             temp_path = tmp.name
-        media_bytes = await media.read()
         await asyncio.to_thread(write_binary_file, temp_path, media_bytes)
 
         async def _stream_with_cleanup():

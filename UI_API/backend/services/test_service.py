@@ -51,13 +51,15 @@ def ask_voice_style(
     t0 = time.time()
     if provider == "gemini":
         raw = ai_services.ask_gemini(sp, user_prompt, model_name=model)
+    elif provider == "openai":
+        raw = _ask_openai_text(sp, user_prompt, model)
     else:
         raw = ai_services.ask_ollama(sp, user_prompt, model_name=model)
 
     latency_ms = int((time.time() - t0) * 1000)
-    raw["latency_ms"] = latency_ms
-    raw["provider"] = provider
-    raw["model"] = model or config.get("VOICE_ASSIST_MODEL", config.get("MODEL_NAME", ""))
+    raw["latency_ms"] = raw.get("latency_ms", latency_ms)
+    raw["provider"] = raw.get("provider") or provider
+    raw["model"] = raw.get("model") or model or config.get("VOICE_ASSIST_MODEL", config.get("MODEL_NAME", ""))
     return raw
 
 
@@ -79,7 +81,13 @@ def _ask_openai_text(system_prompt: str, user_prompt: str, model: str) -> dict:
         res = requests.post(f"{base_url}/chat/completions", json=payload, headers=headers, timeout=60)
         res.raise_for_status()
         text = res.json()["choices"][0]["message"]["content"]
+        parsed = ai_services.parse_llm_json(text, "TEST_OPENAI")
+        if isinstance(parsed, dict) and "error" not in parsed:
+            parsed["latency_ms"] = int((time.time() - t0) * 1000)
+            parsed["provider"] = "openai"
+            parsed["model"] = model or "gpt-4o-mini"
+            return parsed
         return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
-                "provider": "openai", "model": model}
+                "provider": "openai", "model": model or "gpt-4o-mini"}
     except Exception as e:
         return {"error": str(e), "text": "", "latency_ms": 0}

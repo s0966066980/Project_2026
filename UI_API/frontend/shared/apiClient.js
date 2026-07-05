@@ -60,7 +60,34 @@ function demoToken() {
  */
 function adminHeaders(extra = {}) {
   const token = demoToken();
-  return token ? { ...extra, 'X-Admin-Token': token } : extra;
+  return token ? { ...extra, 'X-Admin-Token': token, Authorization: `Bearer ${token}` } : extra;
+}
+
+/** @returns {string} */
+function kioskToken() {
+  const params = new URLSearchParams(window.location.search || '');
+  const token = (
+    params.get('kiosk_token') ||
+    params.get('pos_token') ||
+    params.get('token') ||
+    sessionStorage.getItem('pos_demo_token') ||
+    sessionStorage.getItem('kiosk_device_token') ||
+    ''
+  );
+  if (token) {
+    sessionStorage.setItem('pos_demo_token', token);
+    sessionStorage.setItem('kiosk_device_token', token);
+  }
+  return token;
+}
+
+/**
+ * @param {Record<string, string>} [extra]
+ * @returns {Record<string, string>}
+ */
+function kioskHeaders(extra = {}) {
+  const token = kioskToken();
+  return token ? { ...extra, 'X-Kiosk-Token': token } : extra;
 }
 
 /** @returns {Promise<Record<string, unknown>>} */
@@ -97,7 +124,7 @@ export async function getMenu() {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function requestAiPushRecommendation(formData) {
-  return postFormJson(`${API_BASE}/api/ai_push`, formData);
+  return postFormJson(`${API_BASE}/api/ai_push`, formData, { headers: kioskHeaders() });
 }
 
 /**
@@ -109,7 +136,7 @@ export async function requestAiPushRecommendation(formData) {
 export async function streamVoiceAssistantResponse(formData, { onAudio, onDone, onError }) {
   let resp;
   try {
-    resp = await fetch(`${API_BASE}/api/ask/stream`, { method: 'POST', body: formData });
+    resp = await fetch(`${API_BASE}/api/ask/stream`, { method: 'POST', body: formData, headers: kioskHeaders() });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (e) {
     onError(String(e));
@@ -158,7 +185,7 @@ export async function streamVoiceAssistantResponse(formData, { onAudio, onDone, 
  */
 export async function submitCheckout(formData, signal) {
   /** @type {RequestInit} */
-  const requestOptions = { method: 'POST', body: formData };
+  const requestOptions = { method: 'POST', body: formData, headers: kioskHeaders() };
   if (signal) requestOptions.signal = signal;
   return fetch(`${API_BASE}/api/checkout`, requestOptions);
 }
@@ -168,7 +195,15 @@ export async function submitCheckout(formData, signal) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function reportInteractionEvent(payload) {
-  return postJson(`${API_BASE}/api/interaction_event`, payload);
+  return postJson(`${API_BASE}/api/interaction_event`, payload, kioskHeaders());
+}
+
+/**
+ * @param {Record<string, unknown>} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function reportRecommendationEvent(payload) {
+  return postJson(`${API_BASE}/api/recommendation_events`, payload, kioskHeaders());
 }
 
 /**
@@ -182,15 +217,20 @@ export async function analyzeEmotionEvent(sessionId, eventType, mediaBlob) {
   formData.append('session_id', sessionId);
   formData.append('event_type', eventType);
   formData.append('media', mediaBlob, 'emotion_clip.webm');
-  return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData);
+  return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData, { headers: kioskHeaders() });
 }
 
 /**
  * @param {string} sessionId
+ * @param {string[]} cartIds
  * @returns {Promise<import('../types.d.ts').MenuItem[]>}
  */
-export async function getAssistRecommendations(sessionId) {
-  return fetchJson(`${API_BASE}/api/assist_recommend?session_id=${encodeURIComponent(sessionId)}`);
+export async function getAssistRecommendations(sessionId, cartIds = []) {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    cart_ids: JSON.stringify(cartIds),
+  });
+  return fetchJson(`${API_BASE}/api/assist_recommend?${params.toString()}`, { headers: kioskHeaders() });
 }
 
 /**
@@ -202,7 +242,7 @@ export async function checkPassiveVoice(sessionId, audioBlob) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
   formData.append('media', audioBlob, 'passive.webm');
-  return postFormJson(`${API_BASE}/api/passive_check`, formData);
+  return postFormJson(`${API_BASE}/api/passive_check`, formData, { headers: kioskHeaders() });
 }
 
 /**
@@ -214,21 +254,24 @@ export async function memberLogin(sessionId, phone) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
   formData.append('phone', phone);
-  return postFormJson(`${API_BASE}/api/member/login`, formData);
+  return postFormJson(`${API_BASE}/api/member/login`, formData, { headers: kioskHeaders() });
 }
 
 /**
  * @param {string} sessionId
  * @param {string} phone
  * @param {string} nickname
+ * @param {{orderHistoryConsent?: boolean, personalizationConsent?: boolean}} [options]
  * @returns {Promise<Record<string, unknown>>}
  */
-export async function memberRegister(sessionId, phone, nickname) {
+export async function memberRegister(sessionId, phone, nickname, options = {}) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
   formData.append('phone', phone);
   formData.append('nickname', nickname || '');
-  return postFormJson(`${API_BASE}/api/member/register`, formData);
+  formData.append('order_history_consent', String(options.orderHistoryConsent !== false));
+  formData.append('personalization_consent', String(options.personalizationConsent !== false));
+  return postFormJson(`${API_BASE}/api/member/register`, formData, { headers: kioskHeaders() });
 }
 
 /**
@@ -244,5 +287,5 @@ export async function recordAbandonedOrder(sessionId, cartIds, cartTotal, reason
   formData.append('cart_ids', JSON.stringify(Array.isArray(cartIds) ? cartIds : []));
   formData.append('cart_total', String(Number(cartTotal || 0)));
   formData.append('reason', reason || '');
-  return postFormJson(`${API_BASE}/api/member/abandoned_order`, formData);
+  return postFormJson(`${API_BASE}/api/member/abandoned_order`, formData, { headers: kioskHeaders() });
 }

@@ -6,6 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 import config
 from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
+from utils.auth_utils import websocket_token_allowed
 
 
 def _allowed_origins() -> set[str]:
@@ -17,7 +18,7 @@ def _allowed_origins() -> set[str]:
 
 
 def _origin_allowed(origin: str | None) -> bool:
-    if not config.is_demo_public_mode():
+    if not config.get("SECURITY_ENFORCED", config.is_security_enforced()) and not config.is_demo_public_mode():
         return True
     if not origin:
         return False
@@ -35,14 +36,7 @@ def _origin_allowed(origin: str | None) -> bool:
 
 
 def _token_allowed(client_type: str, token: str) -> bool:
-    if not config.is_demo_public_mode():
-        return True
-    valid_tokens = [config.WS_DEMO_TOKEN]
-    if client_type == "admin":
-        valid_tokens.append(config.ADMIN_DEMO_TOKEN)
-    else:
-        valid_tokens.append(config.POS_DEMO_TOKEN)
-    return bool(token) and token in {value for value in valid_tokens if value}
+    return websocket_token_allowed(client_type, token)
 
 
 def create_router(_deps: dict | None = None) -> APIRouter:

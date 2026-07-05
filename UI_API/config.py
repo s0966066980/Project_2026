@@ -7,6 +7,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = str(os.getenv(name, "")).strip().lower()
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower() or "development"
+SECURITY_ENFORCED = _env_bool("SECURITY_ENFORCED", APP_ENV in ("production", "staging"))
+ALLOW_UNSAFE_PRODUCTION_ROUTES = _env_bool("ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+
+
+def is_production() -> bool:
+    return APP_ENV == "production"
+
+
+def is_security_enforced() -> bool:
+    return bool(SECURITY_ENFORCED or APP_ENV in ("production", "staging"))
+
 # prompt 預設值集中在 backend/prompts/defaults.py（確保該套件可匯入）
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 if _BACKEND_DIR not in sys.path:
@@ -32,6 +56,9 @@ DEMO_PUBLIC_MODE = os.getenv("DEMO_PUBLIC_MODE", "false")
 POS_DEMO_TOKEN = os.getenv("POS_DEMO_TOKEN", "")
 ADMIN_DEMO_TOKEN = os.getenv("ADMIN_DEMO_TOKEN", "")
 WS_DEMO_TOKEN = os.getenv("WS_DEMO_TOKEN", "")
+ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", ADMIN_DEMO_TOKEN)
+KIOSK_DEVICE_TOKEN = os.getenv("KIOSK_DEVICE_TOKEN", POS_DEMO_TOKEN)
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", "10485760"))
 PUBLIC_POS_ORIGIN = os.getenv("PUBLIC_POS_ORIGIN", "")
 PUBLIC_ADMIN_ORIGIN = os.getenv("PUBLIC_ADMIN_ORIGIN", "")
 CORS_ORIGINS = [
@@ -45,10 +72,10 @@ CORS_ORIGINS = [
 for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
     if _public_origin and _public_origin not in CORS_ORIGINS:
         CORS_ORIGINS.append(_public_origin)
-MENU_JSON_PATH = "./menu_data/menu.json"
-LEARNING_DATA_DIR = "./learning_data"
-SETTINGS_JSON_PATH = "./learning_data/settings.json"
-RAG_DOCUMENTS_DIR = "./rag_documents"
+MENU_JSON_PATH = os.getenv("MENU_JSON_PATH", os.path.join(PROJECT_DIR, "menu_data", "menu.json"))
+LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", os.path.join(PROJECT_DIR, "learning_data"))
+SETTINGS_JSON_PATH = os.getenv("SETTINGS_JSON_PATH", os.path.join(LEARNING_DATA_DIR, "settings.json"))
+RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR", os.path.join(PROJECT_DIR, "rag_documents"))
 os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
 
 _settings_cache = None
@@ -60,6 +87,8 @@ _settings_lock = threading.RLock()  # RLock allows re-entry from save_settings �
 # 動態設定管理器 (支援後台即時讀寫)
 # ==========================================
 DEFAULT_SETTINGS = {
+    "APP_ENV": APP_ENV,
+    "SECURITY_ENFORCED": SECURITY_ENFORCED,
     "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
     "MODEL_NAME": "qwen3.5:4b",
     "ENABLE_GEMINI_OPTIONS": False,
@@ -68,6 +97,13 @@ DEFAULT_SETTINGS = {
     "GEMINI_NUM_PREDICT": 512,
     "GEMINI_USE_JSON_MIME": False,
     "ENABLE_DEBUG_ROUTES": False,
+    "ENABLE_DEMO_ROUTES": _env_bool("ENABLE_DEMO_ROUTES", not is_production()),
+    "ENABLE_TEST_ROUTES": _env_bool("ENABLE_TEST_ROUTES", not is_production()),
+    "MAX_UPLOAD_BYTES": MAX_UPLOAD_BYTES,
+    "RATE_LIMIT_ENABLED": _env_bool("RATE_LIMIT_ENABLED", True),
+    "RATE_LIMIT_DEFAULT_PER_MINUTE": int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "120")),
+    "STRUCTURED_LOGGING_ENABLED": _env_bool("STRUCTURED_LOGGING_ENABLED", True),
+    "LOG_RETENTION_DAYS": int(os.getenv("LOG_RETENTION_DAYS", "90")),
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
     "OLLAMA_LOG_RAW": False,
@@ -80,11 +116,45 @@ DEFAULT_SETTINGS = {
     "MEMBER_USUALS_COUNT": 8,          # 「您的常點」顯示品項數
     "MEMBER_PUSH_WEIGHT": 4,           # 會員常點品項於 ai_push 加權倍率
     "MEMBER_ORDERS_KEEP": 20,          # 每位會員保留近期訂單筆數
+    "MEMBER_RECENT_ITEMS_KEEP": 20,     # 會員近期偏好品項保留數
+    "RECOMMENDATION_CATEGORY_WEIGHT": 3, # 會員偏好分類加權
+    "RECOMMENDATION_PAIR_WEIGHT": 5,    # 會員常見搭配加權
+    "RECOMMENDATION_RAG_OFFER_WEIGHT": 4, # RAG 活動指定品項加權
+    "RECOMMENDATION_RAG_CATEGORY_WEIGHT": 2, # RAG 活動分類加權
+    "PROMOTION_DEFAULT_TIMEZONE": "Asia/Taipei", # 結構化活動預設門市時區
+    "RECOMMENDATION_IGNORE_FEEDBACK_ENABLED": True, # 近期忽略事件回饋推薦引擎
+    "RECOMMENDATION_IGNORE_WINDOW_MINUTES": 45,     # 忽略事件短期降權時間窗
+    "RECOMMENDATION_FEEDBACK_EVENT_LIMIT": 500,     # 讀取近期推薦事件筆數
+    "RECOMMENDATION_IGNORED_ITEM_PENALTY": 2,       # 忽略品項扣分
+    "RECOMMENDATION_IGNORED_OFFER_PENALTY": 1,      # 忽略 offer 扣分
+    "RECOMMENDATION_IGNORED_ITEM_EXCLUDE_THRESHOLD": 3, # 同品項忽略達門檻時短期排除
+    "RECOMMENDATION_AVAILABILITY_ENABLED": True,    # 店鋪供應狀態影響推薦候選
+    "RECOMMENDATION_LOW_STOCK_PENALTY": 1,          # 低庫存品項推薦降權
+    "RECOMMENDATION_EXPERIMENT_ENABLED": True,      # 推薦策略 A/B testing 開關
+    "RECOMMENDATION_EXPERIMENT_ID": "recommendation_strategy_v1",
+    "RECOMMENDATION_EXPERIMENT_VARIANTS": [
+        {"variant_id": "control", "strategy": "weighted_random", "traffic": 50},
+        {"variant_id": "ranked", "strategy": "ranked_top_score", "traffic": 50},
+    ],
+    "MEMBER_STORAGE_BACKEND": os.getenv("MEMBER_STORAGE_BACKEND", "json"),  # "json" | "postgres"
+    "DATABASE_URL": os.getenv("DATABASE_URL", ""),  # PostgreSQL 連線字串
+    "MEMBER_SESSION_TTL_SEC": int(os.getenv("MEMBER_SESSION_TTL_SEC", "86400")),
+    "ENABLE_MEMBER_DUAL_WRITE": os.getenv("ENABLE_MEMBER_DUAL_WRITE", "false").lower() in ("1", "true", "yes", "on"),
+    "ADMIN_MEMBER_REF_SECRET": os.getenv("ADMIN_MEMBER_REF_SECRET", "local-admin-member-ref"),
+    "ADMIN_AUDIT_MAX_RECORDS": int(os.getenv("ADMIN_AUDIT_MAX_RECORDS", "5000")),
+    "MEMBER_CONSENT_VERSION": os.getenv("MEMBER_CONSENT_VERSION", "2026-07-phone-login-v1"),
+    "MEMBER_PRIVACY_VERSION": os.getenv("MEMBER_PRIVACY_VERSION", "2026-07-privacy-v1"),
+    "MEMBER_DATA_RETENTION_DAYS": int(os.getenv("MEMBER_DATA_RETENTION_DAYS", "730")),
     # ── RAG ───────────────────────────────────────────────────────
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
     "RAG_COLLECTION": "kiosk_rag",
     "RAG_TOP_K": 3,
+    "RAG_ALERT_MAX_RECORDS": int(os.getenv("RAG_ALERT_MAX_RECORDS", "1000")),
+    "RAG_ALERT_WEBHOOK_ENABLED": os.getenv("RAG_ALERT_WEBHOOK_ENABLED", "false").lower() in ("1", "true", "yes", "on"),
+    "RAG_ALERT_WEBHOOK_URL": os.getenv("RAG_ALERT_WEBHOOK_URL", ""),
+    "RAG_ALERT_WEBHOOK_TOKEN": os.getenv("RAG_ALERT_WEBHOOK_TOKEN", ""),
+    "RAG_ALERT_WEBHOOK_TIMEOUT_SEC": float(os.getenv("RAG_ALERT_WEBHOOK_TIMEOUT_SEC", "5")),
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
     "VOICE_HISTORY_MAX_TURNS": 4,           # 注入 LLM 的對話歷史輪數
@@ -180,6 +250,46 @@ def is_demo_public_mode() -> bool:
     except Exception:
         return False
 
+
+def _apply_security_env_overrides(settings: dict) -> None:
+    settings["APP_ENV"] = APP_ENV
+    settings["SECURITY_ENFORCED"] = is_security_enforced()
+
+    for env_key in (
+        "MAX_UPLOAD_BYTES",
+        "RATE_LIMIT_DEFAULT_PER_MINUTE",
+    ):
+        env_value = os.getenv(env_key)
+        if env_value in (None, ""):
+            continue
+        if env_key in ("MAX_UPLOAD_BYTES", "RATE_LIMIT_DEFAULT_PER_MINUTE"):
+            try:
+                settings[env_key] = int(env_value)
+            except ValueError:
+                continue
+        else:
+            settings[env_key] = env_value
+
+    for env_key in (
+        "SECURITY_ENFORCED",
+        "RATE_LIMIT_ENABLED",
+        "ENABLE_DEBUG_ROUTES",
+        "ENABLE_DEMO_ROUTES",
+        "ENABLE_TEST_ROUTES",
+    ):
+        env_value = str(os.getenv(env_key, "")).lower()
+        if env_value in ("1", "true", "yes", "on"):
+            settings[env_key] = True
+        elif env_value in ("0", "false", "no", "off"):
+            settings[env_key] = False
+
+    settings["SECURITY_ENFORCED"] = is_security_enforced()
+
+    if is_production() and not ALLOW_UNSAFE_PRODUCTION_ROUTES:
+        settings["ENABLE_DEBUG_ROUTES"] = False
+        settings["ENABLE_DEMO_ROUTES"] = False
+        settings["ENABLE_TEST_ROUTES"] = False
+
 def load_settings():
     global _settings_cache, _settings_mtime, _settings_last_check
 
@@ -237,6 +347,23 @@ def load_settings():
         if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
             settings["DEMO_PUBLIC_MODE"] = True
 
+        for env_key in ("MEMBER_STORAGE_BACKEND", "DATABASE_URL", "MEMBER_SESSION_TTL_SEC"):
+            env_value = os.getenv(env_key)
+            if env_value not in (None, ""):
+                if env_key == "MEMBER_SESSION_TTL_SEC":
+                    try:
+                        settings[env_key] = int(env_value)
+                    except ValueError:
+                        pass
+                else:
+                    settings[env_key] = env_value
+        dual_write_env = str(os.getenv("ENABLE_MEMBER_DUAL_WRITE", "")).lower()
+        if dual_write_env in ("1", "true", "yes", "on"):
+            settings["ENABLE_MEMBER_DUAL_WRITE"] = True
+        elif dual_write_env in ("0", "false", "no", "off"):
+            settings["ENABLE_MEMBER_DUAL_WRITE"] = False
+        _apply_security_env_overrides(settings)
+
         if should_write:
             try:
                 tmp_path = SETTINGS_JSON_PATH + ".tmp"
@@ -273,6 +400,14 @@ def save_settings(new_settings):
 
 def get(key, default=None):
     """供外部服務調用，動態獲取參數，並支援預設值防呆"""
+    runtime_values = {
+        "APP_ENV": APP_ENV,
+        "SECURITY_ENFORCED": is_security_enforced(),
+        "ADMIN_API_TOKEN": ADMIN_API_TOKEN,
+        "KIOSK_DEVICE_TOKEN": KIOSK_DEVICE_TOKEN,
+    }
+    if key in runtime_values:
+        return runtime_values[key] if runtime_values[key] not in (None, "") else default
     value = load_settings().get(key)
     if value is not None and value != "":
         return value

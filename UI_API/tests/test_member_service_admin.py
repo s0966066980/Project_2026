@@ -66,6 +66,8 @@ def test_admin_list(svc):
     rows = svc.admin_list()
     assert len(rows) == 1
     r = rows[0]
+    assert "phone" not in r
+    assert r["member_ref"].startswith("mem_")
     assert r["phone_masked"] == "0912-***-678"
     assert r["nickname"] == "小明"
     assert r["favorites"] == ["大麥克套餐", "薯條(中)"]
@@ -77,12 +79,30 @@ def test_admin_list(svc):
 def test_admin_detail(svc):
     _seed(svc, "0912345678", "小明", {"MCD001": 8, "MCD012": 6}, 12, 3720)
     d = svc.admin_detail("0912345678")
+    assert "phone" not in d
+    assert d["member_ref"].startswith("mem_")
     assert d["phone_masked"] == "0912-***-678"
     assert d["avg_spend"] == 310  # 3720 // 12
     assert d["avg_completed_spend"] == 3720
     assert d["favorites_ranked"][0] == {"id": "MCD001", "name": "大麥克套餐", "count": 8}
     assert len(d["orders"]) == 1
     assert d["orders"][0]["items"][0]["name"] == "大麥克套餐"
+    assert d["recommendation_summary"]["shown"] == 0
+
+
+def test_admin_detail_accepts_member_ref(svc):
+    _seed(svc, "0912345678", "小明", {"MCD001": 8}, 12, 3720)
+    ref = svc.admin_list()[0]["member_ref"]
+    d = svc.admin_detail(ref)
+    assert d["nickname"] == "小明"
+
+
+def test_export_members_csv_uses_masked_phone(svc):
+    _seed(svc, "0912345678", "小明", {"MCD001": 8}, 12, 3720)
+    content = svc.export_members_csv()
+    assert "phone_masked,nickname" in content
+    assert "0912-***-678" in content
+    assert "0912345678" not in content
 
 
 def test_admin_metrics_distinguish_completed_and_incomplete(svc):

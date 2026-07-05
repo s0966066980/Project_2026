@@ -48,6 +48,7 @@ UI_API/chroma_db/
 UI_API/chroma_db_versions/
 UI_API/learning_data/
 !UI_API/learning_data/.gitkeep
+backups/
 
 # Generated audio fixtures / transient samples
 Emotion-LLaMA/audio.wav

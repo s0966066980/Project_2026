@@ -3,10 +3,11 @@ from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import FileResponse
 
 import config
+from core.constants import FRONTEND_DIR
 from repositories import log_repository
 from realtime import event_bus
-from services import checkout_service, stats_service
-from utils.auth_utils import require_admin_token
+from services import checkout_service, health_service, stats_service
+from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
 from utils.parsing import parse_int_from_decimal, parse_json_list, parse_non_negative_int
 
 
@@ -17,18 +18,19 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/")
     async def serve_frontend():
-        return FileResponse("frontend/pos/index.html", headers=_NO_CACHE)
+        return FileResponse(f"{FRONTEND_DIR}/pos/index.html", headers=_NO_CACHE)
 
     @router.get("/pos")
     async def serve_pos():
-        return FileResponse("frontend/pos/index.html", headers=_NO_CACHE)
+        return FileResponse(f"{FRONTEND_DIR}/pos/index.html", headers=_NO_CACHE)
 
     @router.get("/admin")
     async def serve_admin():
-        return FileResponse("frontend/admin/admin.html", headers=_NO_CACHE)
+        return FileResponse(f"{FRONTEND_DIR}/admin/admin.html", headers=_NO_CACHE)
 
     @router.delete("/api/session_stats")
-    async def clear_session_stats():
+    async def clear_session_stats(request: Request):
+        require_admin_token(request)
         await asyncio.to_thread(log_repository.clear_session_logs)
         return {"status": "success"}
 
@@ -47,9 +49,15 @@ def create_router(deps: dict) -> APIRouter:
         require_admin_token(request)
         return config.load_settings()
 
+    @router.get("/api/admin/health")
+    async def get_admin_health(request: Request):
+        require_admin_token(request)
+        return await health_service.build_admin_health()
+
     @router.post("/api/settings")
     async def update_settings(request: Request, new_settings: dict = Body(...)):
         require_admin_token(request)
+        check_rate_limit(request, "admin_settings_update", limit=30)
         config.save_settings(new_settings)
         saved_settings = config.load_settings()
         await event_bus.publish_event({
@@ -93,17 +101,22 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/api/checkout")
     async def process_checkout(
+        request: Request,
         session_id: str = Form(...),
         pushed_ids: str = Form(...),
         cart_ids: str = Form(...),
+        cart_items: str = Form(default="[]"),
         ai_push_cart_count: str = Form(default="0"),
         cart_sources: str = Form(default="[]"),
         cart_total: str = Form(default="0"),
     ):
+        require_kiosk_token(request)
+        check_rate_limit(request, "checkout", limit=120, key=session_id)
         return await checkout_service.process_checkout(
             session_id,
             parse_json_list(pushed_ids, fallback_csv=True),
             parse_json_list(cart_ids, fallback_csv=True),
+            parse_json_list(cart_items),
             parse_non_negative_int(ai_push_cart_count),
             parse_json_list(cart_sources),
             parse_int_from_decimal(cart_total),

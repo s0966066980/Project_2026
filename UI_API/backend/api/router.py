@@ -3,6 +3,7 @@ from core.async_utils import LoopBoundSemaphore
 from models.dependencies import RouteDependencies
 from routes import (
     ai_push_routes,
+    availability_routes,
     core_routes,
     debug_routes,
     demo_routes,
@@ -13,6 +14,7 @@ from routes import (
     passive_voice_routes,
     rag_routes,
     realtime_routes,
+    recommendation_event_routes,
     test_routes,
     voice_routes,
 )
@@ -27,16 +29,22 @@ def register_routes(app, deps: dict | None = None) -> dict:
 
     app.include_router(core_routes.create_router(route_deps))
     app.include_router(menu_routes.create_router(route_deps))
+    app.include_router(availability_routes.create_router(route_deps))
     app.include_router(voice_routes.create_router(route_deps))
     app.include_router(rag_routes.create_router(route_deps))
     app.include_router(ai_push_routes.create_router(route_deps))
     app.include_router(emotion_routes.create_router(route_deps))
     app.include_router(interaction_routes.create_router(route_deps))
+    app.include_router(recommendation_event_routes.create_router(route_deps))
     app.include_router(realtime_routes.create_router(route_deps))
-    app.include_router(demo_routes.create_router(route_deps))
     app.include_router(passive_voice_routes.create_router(route_deps))
     app.include_router(member_routes.create_router(route_deps))
-    app.include_router(test_routes.create_router(route_deps))
+
+    if config.get("ENABLE_DEMO_ROUTES", True):
+        app.include_router(demo_routes.create_router(route_deps))
+
+    if config.get("ENABLE_TEST_ROUTES", True):
+        app.include_router(test_routes.create_router(route_deps))
 
     if config.get("ENABLE_DEBUG_ROUTES", False):
         app.include_router(debug_routes.create_router(route_deps))

@@ -4,12 +4,17 @@
 #
 # 會依序拉起（缺哪個才補哪個，已在跑的不重啟）：
 #   1. 把後台 EMOTION_PROVIDER 設成 emotion_llama
-#   2. Ollama (serve + 確認模型)            :11434
-#   3. Emotion-LLaMA /predict server        :7889
-#   4. UI_API 主服務 (POS + 後台)           :9000 / 9001
+#   2. Ubuntu 本機 PostgreSQL（可用 POSTGRES_ENABLED=false 關閉）
+#   3. Ollama (serve + 確認模型)            :11434
+#   4. Emotion-LLaMA /predict server        :7889
+#   5. UI_API 主服務 (POS + 後台)           :9000 / 9001
 #
 # main.py 在前景執行；按 Ctrl-C 會把「本腳本啟動的」背景服務一起關掉
 # （原本就在跑的 Ollama / Emotion-LLaMA 不會被動到）。
+#
+# 安裝依賴請先看 README.md 與各模組 README：
+#   UI_API backend  -> UI_API/requirements.txt
+#   Emotion-LLaMA   -> Emotion-LLaMA/requirements.txt
 #
 # 用法：  bash scripts/start_emotion_llama.sh
 set -euo pipefail
@@ -29,6 +34,9 @@ export APP_PORT ADMIN_PORT
 
 LOG_DIR="$REPO/logs"
 mkdir -p "$LOG_DIR"
+
+# shellcheck source=scripts/lib_postgres.sh
+source "$REPO/scripts/lib_postgres.sh"
 
 # 記錄本腳本啟動的背景 PID，結束時收掉
 STARTED_PIDS=()
@@ -77,6 +85,7 @@ wait_for_port() {  # wait_for_port <port> <名稱> <秒數>
 
 # ── 1. 切換情緒模型為 emotion_llama ───────────────────────────
 echo "⚙️  設定 EMOTION_PROVIDER = emotion_llama …"
+prepare_local_postgres "$UI_PY" "$REPO"
 ( cd "$REPO/UI_API" && "$UI_PY" -c "import config; config.save_settings({'EMOTION_PROVIDER':'emotion_llama'})" )
 
 # ── 2. Ollama ─────────────────────────────────────────────────

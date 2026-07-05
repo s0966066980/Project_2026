@@ -14,6 +14,12 @@ import ai_services
 import config
 import database
 from repositories import menu_repository, session_repository
+from services import (
+    rag_guard_service,
+    rag_offer_service,
+    recommendation_context_service,
+    recommendation_engine_service,
+)
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
@@ -105,13 +111,6 @@ async def _build_voice_context(
         "VOICE_ASSIST_SYSTEM_PROMPT_EN" if detected_lang == "en" else "VOICE_ASSIST_SYSTEM_PROMPT"
     )
 
-    # RAG context 注入
-    if config.get("RAG_ENABLED", False):
-        from services.rag_provider import get_rag
-        rag_context = await get_rag().query(user_text)
-    else:
-        rag_context = ""
-
     # Emotion-LLaMA 快取注入（若啟用且有快取）
     emotion_context = _build_emotion_context(session_id)
     if emotion_context:
@@ -121,22 +120,41 @@ async def _build_voice_context(
             "（例如「您看起來心情有些低落」），但不要說「我在分析情緒」或「系統偵測到」等字眼。"
         )
 
-    # 熱門點選 TOP 3（讓 LLM 回答一般推薦問題時有依據）
-    from services.popular_service import get_top_items
-    top_items = await asyncio.to_thread(get_top_items, 3)
-    popular_section = ""
-    if top_items:
-        lines = "\n".join(
-            f"{i+1}. {t['name']}（{t['id']}）" for i, t in enumerate(top_items)
-        )
-        popular_section = f"【熱門點選 TOP 3】\n{lines}\n\n"
+    recommendation_context = await recommendation_context_service.build_context(
+        session_id,
+        rag_query=user_text,
+        surface="voice",
+        menu_items=menu_items,
+    )
+    rag_context = recommendation_context.get("rag", {}).get("context", "")
+    offer_section = rag_offer_service.format_offer_prompt_section(
+        recommendation_context.get("rag", {}).get("offers") or [],
+        audience=recommendation_context.get("audience", "guest"),
+    )
+    rag_guard_section = rag_guard_service.build_voice_guard_section(
+        user_text,
+        offers=recommendation_context.get("rag", {}).get("offers") or [],
+        audience=recommendation_context.get("audience", "guest"),
+        rag_context=rag_context,
+    )
+    member_section = recommendation_context_service.member_prompt_section(recommendation_context)
+    recommendation = await asyncio.to_thread(
+        recommendation_engine_service.recommend,
+        recommendation_context,
+        3,
+        False,
+    )
+    recommendation_section = recommendation_engine_service.format_voice_recommendation_context(recommendation)
 
     input_label = "【本輪語音輸入】" if history_context else "【顧客語音輸入】"
     user_prompt = (
         (f"{history_context}\n\n" if history_context else "")
         + f"{input_label}\n{user_text}\n\n"
+        + (f"{member_section}\n\n" if member_section else "")
         + (f"{emotion_context}\n\n" if emotion_context else "")
-        + popular_section
+        + (f"{rag_guard_section}\n\n" if rag_guard_section else "")
+        + (f"{offer_section}\n\n" if offer_section else "")
+        + (f"{recommendation_section}\n\n" if recommendation_section else "")
         + (f"{rag_context}\n\n" if rag_context else "")
         + full_menu_context
     )

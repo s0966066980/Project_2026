@@ -96,6 +96,8 @@ nvidia-nvtx==13.0.85
 oauthlib==3.3.1
 onnxruntime==1.23.2
 openai-whisper==20250625
+psycopg-binary==3.2.14
+psycopg==3.2.14
 opencv-python==4.13.0.92
 opencv-python-headless==4.13.0.92
 opentelemetry-api==1.41.0
