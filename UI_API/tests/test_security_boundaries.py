@@ -79,6 +79,7 @@ def test_runtime_paths_are_absolute():
 
 def test_production_route_gating(monkeypatch):
     from api import router as api_router
+    from api import route_registry
 
     def fake_config_get(key, default=None):
         values = {
@@ -88,7 +89,9 @@ def test_production_route_gating(monkeypatch):
         }
         return values.get(key, default)
 
-    monkeypatch.setattr(api_router.config, "get", fake_config_get)
+    monkeypatch.setattr(route_registry.config, "get", fake_config_get)
+    monkeypatch.setattr(route_registry.config, "is_production", lambda: True)
+    monkeypatch.setattr(route_registry.config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
     app = FastAPI()
     api_router.register_routes(app, deps={"ollama_semaphore": object()})
     paths = {getattr(route, "path", "") for route in app.routes}
@@ -97,3 +100,59 @@ def test_production_route_gating(monkeypatch):
     assert "/api/demo/trigger_scenario" not in paths
     assert "/api/test/ask" not in paths
     assert "/api/debug/intervention_logs/{session_id}" not in paths
+
+
+def test_production_startup_requires_tokens(monkeypatch):
+    import config
+    from backend import app_factory
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "")
+    monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "kiosk-secret")
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["https://example.com"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+
+    try:
+        app_factory.create_app()
+    except RuntimeError as exc:
+        assert "ADMIN_API_TOKEN" in str(exc)
+    else:
+        raise AssertionError("production startup should fail without ADMIN_API_TOKEN")
+
+
+def test_production_startup_rejects_wildcard_cors(monkeypatch):
+    import config
+    from backend import app_factory
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "admin-secret")
+    monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "kiosk-secret")
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["*"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+
+    try:
+        app_factory.create_app()
+    except RuntimeError as exc:
+        assert "CORS_ORIGINS" in str(exc)
+    else:
+        raise AssertionError("production startup should fail with wildcard CORS")
+
+
+def test_production_startup_accepts_safe_config(monkeypatch):
+    import config
+    from backend import app_factory
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "admin-secret")
+    monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "kiosk-secret")
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["https://example.com"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+    monkeypatch.setattr(config, "_env_bool", lambda name, default=False: False)
+
+    app = app_factory.create_app()
+    paths = {getattr(route, "path", "") for route in app.routes}
+    assert "/api/public_settings" in paths
+    assert "/api/demo/trigger_scenario" not in paths

@@ -31,6 +31,34 @@ def is_production() -> bool:
 def is_security_enforced() -> bool:
     return bool(SECURITY_ENFORCED or APP_ENV in ("production", "staging"))
 
+
+def _token_configured(value: str) -> bool:
+    return bool(str(value or "").strip())
+
+
+def validate_startup_config() -> None:
+    """Fail fast for unsafe production startup configuration."""
+    if not is_production():
+        return
+    errors: list[str] = []
+    if not is_security_enforced():
+        errors.append("SECURITY_ENFORCED must be true in production")
+    if not _token_configured(ADMIN_API_TOKEN):
+        errors.append("ADMIN_API_TOKEN must be configured in production")
+    if not _token_configured(KIOSK_DEVICE_TOKEN):
+        errors.append("KIOSK_DEVICE_TOKEN must be configured in production")
+    if "*" in CORS_ORIGINS:
+        errors.append("CORS_ORIGINS must not contain wildcard '*' in production")
+    if not ALLOW_UNSAFE_PRODUCTION_ROUTES:
+        if _env_bool("ENABLE_DEMO_ROUTES", False):
+            errors.append("ENABLE_DEMO_ROUTES must be false in production")
+        if _env_bool("ENABLE_TEST_ROUTES", False):
+            errors.append("ENABLE_TEST_ROUTES must be false in production")
+        if _env_bool("ENABLE_DEBUG_ROUTES", False):
+            errors.append("ENABLE_DEBUG_ROUTES must be false in production")
+    if errors:
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))
+
 # prompt 預設值集中在 backend/prompts/defaults.py（確保該套件可匯入）
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 if _BACKEND_DIR not in sys.path:

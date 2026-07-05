@@ -20,6 +20,7 @@ async def lifespan(app):
 
 
 def create_app() -> FastAPI:
+    config.validate_startup_config()
     observability_service.configure_logging()
     app = FastAPI(title="Smart Kiosk POS API", version="9.0", lifespan=lifespan)
     app.add_middleware(
