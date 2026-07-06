@@ -1,5 +1,7 @@
 // @ts-check
 
+import { resolveItemPrice } from './menuVisuals.js';
+
 /** @typedef {import('../types.d.ts').CartAction} CartAction */
 /** @typedef {import('../types.d.ts').CartItem} CartItem */
 /** @typedef {import('../types.d.ts').CartManager} CartManager */
@@ -41,6 +43,13 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     const existingItem = cart[item.id];
     if (existingItem) {
       existingItem.quantity += 1;
+      if (item.applied_offer_id) {
+        existingItem.price = item.price;
+        existingItem.original_price = item.original_price;
+        existingItem.applied_offer_id = item.applied_offer_id;
+        existingItem.offer_ids = item.offer_ids;
+        existingItem.promotion_title = item.promotion_title;
+      }
     } else {
       cart[item.id] = { ...item, id: item.id, quantity: 1 };
     }
@@ -122,12 +131,17 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     keys.forEach(id => {
       const item = cart[id];
       if (!item) return;
-      const itemPrice = Number(item.price || 0);
+      const itemPrice = resolveItemPrice(item);
       total += itemPrice * item.quantity;
       quantity += item.quantity;
-      const priceLabel = itemPrice > 0
-        ? `$${itemPrice}`
-        : (lang() === 'en' ? 'Store Price' : '依店價');
+      const priceLabel = `$${itemPrice}`;
+      const originalPrice = Number(item.original_price || 0);
+      const promotionNote = item.applied_offer_id
+        ? `<span class="cart-promotion-note">${escapeHTML(item.promotion_title || '活動優惠已套用')}</span>`
+        : '';
+      const originalPriceLabel = item.applied_offer_id && originalPrice > itemPrice
+        ? `<span class="cart-original-price">$${originalPrice}</span>`
+        : '';
       ui.cartList.innerHTML += `
         <div class="cart-item p-4 flex justify-between items-center">
           <div class="kiosk-cart-product">
@@ -137,7 +151,8 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
           </div>
           <div class="min-w-0 flex-1 mr-2">
             <p class="font-bold text-base truncate" style="color:var(--text)">${escapeHTML(item.name)}</p>
-            <p class="text-sm font-extrabold mt-1" style="color:var(--accent)">${escapeHTML(priceLabel)}</p>
+            <p class="text-sm font-extrabold mt-1" style="color:var(--accent)">${originalPriceLabel}${escapeHTML(priceLabel)}</p>
+            ${promotionNote}
           </div>
           <div class="flex items-center gap-1.5">
             <div class="flex items-center rounded-xl border px-1 h-9" style="background:var(--surface2);border-color:var(--border)">
@@ -166,7 +181,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
 
   /** @returns {number} */
   function getCartTotal() {
-    return getCartItems().reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+    return getCartItems().reduce((sum, item) => sum + resolveItemPrice(item) * Number(item.quantity || 0), 0);
   }
 
   /** @returns {void} */

@@ -33,6 +33,8 @@
  * @property {(filter: string) => string} translateFilter
  * @property {(group: KioskGroup) => string} translateGroup
  * @property {(item: MenuItem, source?: string) => void} showItemConfirmModal
+ * @property {() => Record<string, unknown> | null} [getActivePromotionOffer]
+ * @property {(offer: Record<string, unknown>) => void} [onPromotionPick]
  * @property {() => void} updateKioskCartSummary
  * @property {(groupId: string, filter: string) => void} onCategorySwitchRepeat
  */
@@ -56,6 +58,8 @@ export function createKioskMenuController({
   translateFilter,
   translateGroup,
   showItemConfirmModal,
+  getActivePromotionOffer,
+  onPromotionPick,
   updateKioskCartSummary,
   onCategorySwitchRepeat,
 }) {
@@ -225,6 +229,42 @@ export function createKioskMenuController({
       fragment.appendChild(empty);
       ui.menuGrid.appendChild(fragment);
       return;
+    }
+
+    const activeOffer = typeof getActivePromotionOffer === 'function' ? getActivePromotionOffer() : null;
+    if (activeOffer && Number(activeOffer?.pricing?.promotion_price || 0) > 0) {
+      const firstItemId = Array.isArray(activeOffer.item_ids) ? activeOffer.item_ids[0] : '';
+      const offerItem = items.find(item => item.id === firstItemId) || items.find(item => activeOffer.categories?.includes?.(item.category));
+      if (offerItem) {
+        const visual = getMenuVisual(offerItem);
+        const ad = activeOffer.ad || {};
+        const pricing = activeOffer.pricing || {};
+        const promotionPrice = Number(pricing.promotion_price || 0);
+        const originalPrice = Number(pricing.original_price || offerItem.price || 0);
+        const card = document.createElement('div');
+        card.className = 'kiosk-menu-row kiosk-promotion-card';
+        card.innerHTML = `
+          <div class="kiosk-menu-photo">
+            <img src="${visual.image}" alt="${escapeHTML(offerItem.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+            <span class="menu-photo-fallback">${visual.emoji}</span>
+          </div>
+          <div class="kiosk-menu-copy">
+            <span class="kiosk-promotion-badge">${escapeHTML(ad.headline || (activeOffer.member_only ? '會員限定' : '活動優惠'))}</span>
+            <h3>${escapeHTML(ad.copy || activeOffer.title || offerItem.name)}</h3>
+            <strong><span class="kiosk-promotion-original">$${originalPrice}</span> $${promotionPrice}</strong>
+          </div>
+          <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(ad.cta || translate('addToCart'))}">${escapeHTML(ad.cta || '加入優惠')}</button>`;
+        card.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
+          event.stopPropagation();
+          if (typeof onPromotionPick === 'function') onPromotionPick(activeOffer);
+          else showItemConfirmModal(offerItem);
+        });
+        card.addEventListener('click', () => {
+          if (typeof onPromotionPick === 'function') onPromotionPick(activeOffer);
+          else showItemConfirmModal(offerItem);
+        });
+        fragment.appendChild(card);
+      }
     }
 
     items.forEach(item => {

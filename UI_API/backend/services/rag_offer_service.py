@@ -60,6 +60,23 @@ def _as_int(value: Any, default: int) -> int:
         return default
 
 
+def _as_optional_int(value: Any, minimum: int = 0, maximum: int = 9999) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return max(minimum, min(maximum, number))
+
+
+def _first_filled(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def _default_timezone_name() -> str:
     return str(config.get("PROMOTION_DEFAULT_TIMEZONE", "Asia/Taipei") or "Asia/Taipei").strip() or "Asia/Taipei"
 
@@ -171,6 +188,26 @@ def _normalize_offer(row: dict, path: Path, index: int, menu_items: list[dict], 
         1,
         _as_int(row.get("category_score_boost"), int(config.get("RECOMMENDATION_RAG_CATEGORY_WEIGHT", 2))),
     )
+    pricing_raw = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
+    promotion_price = _as_optional_int(_first_filled(row.get("promotion_price"), pricing_raw.get("promotion_price")))
+    original_price = _as_optional_int(_first_filled(row.get("original_price"), pricing_raw.get("original_price")))
+    pricing = {}
+    if promotion_price is not None:
+        pricing = {
+            "type": str(row.get("pricing_type") or pricing_raw.get("type") or "add_on_fixed_price").strip(),
+            "original_price": original_price,
+            "promotion_price": promotion_price,
+            "currency": str(row.get("currency") or pricing_raw.get("currency") or "TWD").strip() or "TWD",
+        }
+    ad_raw = row.get("ad") if isinstance(row.get("ad"), dict) else {}
+    ad_cta = _first_filled(row.get("ad_cta"), ad_raw.get("cta"))
+    ad = {
+        "headline": str(row.get("ad_headline") or ad_raw.get("headline") or "").strip(),
+        "copy": str(row.get("ad_copy") or ad_raw.get("copy") or "").strip(),
+        "cta": str(ad_cta or "加入優惠").strip(),
+    }
+    if not (ad["headline"] or ad["copy"] or ad_cta):
+        ad = {}
 
     return {
         "offer_id": offer_id,
@@ -184,6 +221,8 @@ def _normalize_offer(row: dict, path: Path, index: int, menu_items: list[dict], 
         "required_cart_item_ids": required_cart_item_ids,
         "score_boost": score_boost,
         "category_score_boost": category_score_boost,
+        "pricing": pricing,
+        "ad": ad,
         "starts_at": str(row.get("starts_at") or row.get("valid_from") or ""),
         "ends_at": str(row.get("ends_at") or row.get("valid_until") or ""),
         "timezone": str(row.get("timezone") or _default_timezone_name()),
@@ -224,7 +263,13 @@ def format_offer_prompt_section(offers: list[dict], *, audience: str = "guest", 
     for offer in visible_offers[:limit]:
         scope = "會員專屬" if offer.get("member_only") else "一般活動"
         targets = ", ".join(offer.get("item_ids") or offer.get("categories") or [])
-        lines.append(f"- {offer.get('title', '')}｜{scope}｜適用品項/分類：{targets}")
+        pricing = offer.get("pricing") if isinstance(offer.get("pricing"), dict) else {}
+        price_text = ""
+        if pricing.get("promotion_price"):
+            price_text = f"｜優惠價：${pricing.get('promotion_price')}"
+            if pricing.get("original_price"):
+                price_text += f"（原價 ${pricing.get('original_price')}）"
+        lines.append(f"- {offer.get('title', '')}｜{scope}｜適用品項/分類：{targets}{price_text}")
     lines.append("優惠、折扣、加購價與活動期間只能依據本段已列出的 verified offers；沒有列出的優惠不可自行編造。")
     lines.append("若顧客詢問未列出的優惠，請回答目前沒有查到可確認的活動，並以現場公告或結帳畫面為準。")
     return "\n".join(lines)

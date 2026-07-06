@@ -40,7 +40,7 @@
         "aliases": [
             "豬肉滿福堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -56,7 +56,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/sausage-mcmuffin_832x822:nutrition-calculator-tile",
         "official_name": "豬肉滿福堡"
     },
@@ -101,7 +100,7 @@
         "aliases": [
             "無敵豬肉滿福堡加蛋"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/mega-mcmuffin_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -117,7 +116,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mega-mcmuffin_832x822:nutrition-calculator-tile",
         "official_name": "無敵豬肉滿福堡加蛋"
     },
@@ -131,7 +129,7 @@
         "aliases": [
             "青蔬滿福堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/muffin-with-vegetables_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -147,7 +145,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/muffin-with-vegetables_832x822:nutrition-calculator-tile",
         "official_name": "青蔬滿福堡"
     },
@@ -161,7 +158,7 @@
         "aliases": [
             "吉事蛋堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -177,7 +174,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger_832x822:nutrition-calculator-tile",
         "official_name": "吉事蛋堡"
     },
@@ -191,7 +187,7 @@
         "aliases": [
             "豬肉蛋堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-sausage_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -207,7 +203,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-sausage_832x822:nutrition-calculator-tile",
         "official_name": "豬肉蛋堡"
     },
@@ -221,7 +216,7 @@
         "aliases": [
             "火腿蛋堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-canadian-bacon_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -237,7 +232,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/egg-burger-with-canadian-bacon_832x822:nutrition-calculator-tile",
         "official_name": "火腿蛋堡"
     },
@@ -251,7 +245,7 @@
         "aliases": [
             "豬肉鬆餅"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220豬肉鬆餅832x822_3:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -267,7 +261,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220豬肉鬆餅832x822_3:nutrition-calculator-tile",
         "official_name": "豬肉鬆餅"
     },
@@ -314,7 +307,7 @@
             "雞塊鬆餅大早餐",
             "鷄塊鬆餅大早餐"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/grand-breakfast_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -330,7 +323,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/grand-breakfast_832x822:nutrition-calculator-tile",
         "official_name": "鷄塊鬆餅大早餐"
     },
@@ -344,7 +336,7 @@
         "aliases": [
             "番茄嫩蛋焙果堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/bagel-burger-with-cheese_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -360,7 +352,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/bagel-burger-with-cheese_832x822:nutrition-calculator-tile",
         "official_name": "番茄嫩蛋焙果堡"
     },
@@ -374,7 +365,7 @@
         "aliases": [
             "現烤焙果"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/plain-bagel_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -390,7 +381,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/plain-bagel_832x822:nutrition-calculator-tile",
         "official_name": "現烤焙果"
     },
@@ -404,7 +394,7 @@
         "aliases": [
             "蕈菇嫩蛋焙果堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/早餐蕈菇嫩蛋焙果堡1206:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -420,7 +410,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/早餐蕈菇嫩蛋焙果堡1206:nutrition-calculator-tile",
         "official_name": "蕈菇嫩蛋焙果堡"
     },
@@ -569,7 +558,7 @@
         "aliases": [
             "原味可頌"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -586,7 +575,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
         "official_name": "原味可頌"
     },
@@ -600,7 +588,7 @@
         "aliases": [
             "巧克力榛果可頌"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -617,7 +605,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
         "official_name": "巧克力榛果可頌"
     },
@@ -631,7 +618,7 @@
         "aliases": [
             "肉桂捲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -648,7 +635,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
         "official_name": "肉桂捲"
     },
@@ -666,7 +652,7 @@
             "麥香鷄+可樂(小)",
             "麥香鷄+可樂(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_01_麥香鷄_可樂(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -682,7 +668,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_01_麥香鷄_可樂(小)-:nutrition-calculator-tile",
         "official_name": "麥香鷄+可樂(小)"
     },
@@ -698,7 +683,7 @@
             "吉事漢堡+紅茶(熱)",
             "紅茶(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_02_吉事漢堡_紅茶(熱):nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -714,7 +699,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_02_吉事漢堡_紅茶(熱):nutrition-calculator-tile",
         "official_name": "吉事漢堡+紅茶(熱)"
     },
@@ -735,7 +719,7 @@
             "麥克鷄塊(4塊)+無糖綠茶(冰)(小)",
             "麥克鷄塊(4塊)+無糖綠茶(冰)(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -751,7 +735,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-1:nutrition-calculator-tile",
         "official_name": "麥克鷄塊(4塊)+無糖綠茶(冰)(小)"
     },
@@ -768,7 +751,7 @@
             "勁辣香鷄翅(一份兩塊)+雪碧(小)",
             "雪碧(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_04_勁辣香鷄翅(一份兩塊)-_雪碧(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -784,7 +767,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_04_勁辣香鷄翅(一份兩塊)-_雪碧(小)-:nutrition-calculator-tile",
         "official_name": "勁辣香鷄翅(一份兩塊)+雪碧(小)"
     },
@@ -802,7 +784,7 @@
             "薯條(小)+無糖紅茶(冰)(小)",
             "馬鈴薯條"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_07_薯條小檸檬風味紅茶:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -818,7 +800,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_07_薯條小檸檬風味紅茶:nutrition-calculator-tile",
         "official_name": "薯條(小)+無糖紅茶(冰)(小)"
     },
@@ -834,7 +815,7 @@
             "大蛋捲冰淇淋+無糖綠茶(冰)(小)",
             "無糖綠茶(冰)(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/大蛋捲冰淇淋無糖綠茶冰_no-shadow1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -850,7 +831,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/大蛋捲冰淇淋無糖綠茶冰_no-shadow1:nutrition-calculator-tile",
         "official_name": "大蛋捲冰淇淋+無糖綠茶(冰)(小)"
     },
@@ -866,7 +846,7 @@
             "蘋果派",
             "蘋果派+可樂(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_09_蘋果派_可樂(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -882,7 +862,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_09_蘋果派_可樂(小)-:nutrition-calculator-tile",
         "official_name": "蘋果派+可樂(小)"
     },
@@ -899,7 +878,7 @@
             "原味麥脆鷄腿(1塊)+雪碧(小)",
             "雪碧(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/原味麥脆鷄腿(1塊)_雪碧(小)_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -915,7 +894,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/原味麥脆鷄腿(1塊)_雪碧(小)_832x822:nutrition-calculator-tile",
         "official_name": "原味麥脆鷄腿(1塊)+雪碧(小)​"
     },
@@ -932,7 +910,7 @@
             "辣味麥脆鷄腿(1塊)",
             "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/一塊麥脆鷄腿辣味檸檬紅茶:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -948,7 +926,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/一塊麥脆鷄腿辣味檸檬紅茶:nutrition-calculator-tile",
         "official_name": "辣味麥脆鷄腿(1塊)+檸檬風味紅茶(冰)(小)​"
     },
@@ -964,7 +941,7 @@
             "麥克雙牛堡",
             "麥克雙牛堡+檸檬風味紅茶(冰)(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_10_麥克雙牛堡_檸檬風味紅茶(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -980,7 +957,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_10_麥克雙牛堡_檸檬風味紅茶(小)-:nutrition-calculator-tile",
         "official_name": "麥克雙牛堡+檸檬風味紅茶(冰)(小)"
     },
@@ -997,7 +973,7 @@
             "麥香魚+雪碧(小)",
             "麥香魚+雪碧(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_11_麥香魚_雪碧(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1013,7 +989,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_11_麥香魚_雪碧(小)-:nutrition-calculator-tile",
         "official_name": "麥香魚+雪碧(小)"
     },
@@ -1034,7 +1009,7 @@
             "麥克鷄塊(6塊)+可樂(小)",
             "麥克鷄塊(6塊)+可樂(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_12_六塊麥克鷄塊_可樂(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1050,7 +1025,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_12_六塊麥克鷄塊_可樂(小)-:nutrition-calculator-tile",
         "official_name": "麥克鷄塊(6塊)+可樂(小)"
     },
@@ -1067,7 +1041,7 @@
             "OREO冰炫風＋檸檬風味紅茶(冰)(小)",
             "檸檬風味紅茶(冰)(小)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_13_OREO冰炫風_檸檬風味紅茶(小)-:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1083,7 +1057,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_1129_13_OREO冰炫風_檸檬風味紅茶(小)-:nutrition-calculator-tile",
         "official_name": "OREO冰炫風＋檸檬風味紅茶(冰)(小)"
     },
@@ -1620,7 +1593,7 @@
             "帕瑪森主廚雞腿堡",
             "帕瑪森主廚鷄腿堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1637,7 +1610,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
         "official_name": "帕瑪森主廚鷄腿堡"
     },
@@ -1684,7 +1656,7 @@
             "蕈菇主廚雞腿堡",
             "蕈菇主廚鷄腿堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1701,7 +1673,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
         "official_name": "蕈菇主廚鷄腿堡"
     },
@@ -1715,7 +1686,7 @@
         "aliases": [
             "藜麥沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1732,7 +1703,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥沙拉"
     },
@@ -1746,7 +1716,7 @@
         "aliases": [
             "藜麥鱈魚沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1763,7 +1733,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥鱈魚沙拉"
     },
@@ -1811,7 +1780,7 @@
             "藜麥辣脆雞沙拉",
             "藜麥辣脆鷄沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1828,7 +1797,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥辣脆鷄沙拉"
     },
@@ -1941,7 +1909,7 @@
             "帕瑪森主廚雞腿堡",
             "帕瑪森主廚鷄腿堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -1958,7 +1926,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_帕瑪森主廚鷄腿堡-1:nutrition-calculator-tile",
         "official_name": "帕瑪森主廚鷄腿堡"
     },
@@ -2005,7 +1972,7 @@
             "蕈菇主廚雞腿堡",
             "蕈菇主廚鷄腿堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2022,7 +1989,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_蕈菇主廚鷄腿堡-1:nutrition-calculator-tile",
         "official_name": "蕈菇主廚鷄腿堡"
     },
@@ -2036,7 +2002,7 @@
         "aliases": [
             "藜麥沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2053,7 +2019,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥沙拉"
     },
@@ -2067,7 +2032,7 @@
         "aliases": [
             "藜麥鱈魚沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2084,7 +2049,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥鱈魚沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥鱈魚沙拉"
     },
@@ -2132,7 +2096,7 @@
             "藜麥辣脆雞沙拉",
             "藜麥辣脆鷄沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2149,7 +2113,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/藜麥辣脆鷄沙拉_75dpi_IT:nutrition-calculator-tile",
         "official_name": "藜麥辣脆鷄沙拉"
     },
@@ -2165,7 +2128,7 @@
             "經典配餐：中薯",
             "經典配餐：中薯+$38冷/熱飲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1119經典配餐_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2181,7 +2144,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1119經典配餐_832x822:nutrition-calculator-tile",
         "official_name": "經典配餐：中薯+$38冷/熱飲"
     },
@@ -2197,7 +2159,7 @@
             "清爽配餐：四季沙拉",
             "清爽配餐：四季沙拉+$38冷/熱飲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/24pp-evm_清爽配餐_832x822_IT-Resized:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2213,7 +2175,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/24pp-evm_清爽配餐_832x822_IT-Resized:nutrition-calculator-tile",
         "official_name": "清爽配餐：四季沙拉+$38冷/熱飲"
     },
@@ -2230,7 +2191,7 @@
             "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)",
             "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_chicken-mccrispy-side-order:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2246,7 +2207,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_BA_chicken-mccrispy-side-order:nutrition-calculator-tile",
         "official_name": "勁脆配餐：麥脆鷄腿一塊(棒腿或大腿)+$38冷/熱飲"
     },
@@ -2264,7 +2224,7 @@
             "炫冰配餐：OREO冰炫風+小薯+$38冷/熱飲",
             "炫冰配餐：OREO冰炫風+小薯+$38冷/熱飲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry-fries-side-order_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2280,7 +2240,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry-fries-side-order_832x822:nutrition-calculator-tile",
         "official_name": "炫冰配餐：OREO冰炫風+小薯+$38冷/熱飲"
     },
@@ -2301,7 +2260,7 @@
             "雞塊",
             "麥克雞塊"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1119豪吃配餐_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2317,7 +2276,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1119豪吃配餐_832x822:nutrition-calculator-tile",
         "official_name": "豪吃配餐：六塊麥克鷄塊+小薯+$38冷/熱飲"
     },
@@ -2332,7 +2290,7 @@
             "麥脆雞腿分享盒(6塊)",
             "麥脆鷄腿分享盒(6塊)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2348,7 +2306,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
         "official_name": "麥脆鷄腿分享盒(6塊)"
     },
@@ -2366,7 +2323,7 @@
             "麥克雞塊分享盒(20塊)",
             "麥克鷄塊分享盒(20塊)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2382,7 +2339,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box_832x822:nutrition-calculator-tile",
         "official_name": "麥克鷄塊分享盒(20塊)"
     },
@@ -2400,7 +2356,7 @@
             "麥克雞塊分享盒(30塊)",
             "麥克鷄塊分享盒(30塊)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2416,7 +2372,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-sharing-box-6-pieces_832x822:nutrition-calculator-tile",
         "official_name": "麥克鷄塊分享盒(30塊)"
     },
@@ -2431,7 +2386,7 @@
             "雞塊雞腿分享盒",
             "鷄塊鷄腿分享盒"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-n-mccrispy-sharing-box_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2447,7 +2402,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-n-mccrispy-sharing-box_832x822:nutrition-calculator-tile",
         "official_name": "鷄塊鷄腿分享盒"
     },
@@ -2462,7 +2416,7 @@
             "勁辣香雞翅分享盒",
             "勁辣香鷄翅分享盒"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-sharing-box_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2478,7 +2432,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-sharing-box_832x822:nutrition-calculator-tile",
         "official_name": "勁辣香鷄翅分享盒"
     },
@@ -2497,7 +2450,7 @@
             "雞塊",
             "麥克雞塊"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1024四塊麥克鷄塊餐組happymeal:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2513,7 +2466,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1024四塊麥克鷄塊餐組happymeal:nutrition-calculator-tile",
         "official_name": "四塊麥克鷄塊Happy Meal"
     },
@@ -2528,7 +2480,7 @@
             "漢堡Happy Meal",
             "漢堡Happy Meal"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1024漢堡餐組:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2544,7 +2496,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1024漢堡餐組:nutrition-calculator-tile",
         "official_name": "漢堡Happy Meal"
     },
@@ -2559,7 +2510,7 @@
             "陽光鱈魚堡Happy Meal",
             "陽光鱈魚堡Happy Meal"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces-happy-meal_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2575,7 +2526,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces-happy-meal_832x822:nutrition-calculator-tile",
         "official_name": "陽光鱈魚堡Happy Meal"
     },
@@ -2590,7 +2540,7 @@
             "coffee",
             "金選美式咖啡(冰)-大杯"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2606,7 +2556,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
         "official_name": "金選美式咖啡(冰)-大杯"
     },
@@ -2621,7 +2570,7 @@
             "coffee",
             "金選美式咖啡(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選美式熱:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2637,7 +2586,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選美式熱:nutrition-calculator-tile",
         "official_name": "金選美式咖啡(熱)​"
     },
@@ -2652,7 +2600,7 @@
             "coffee",
             "金選美式咖啡(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2668,7 +2616,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/金選美式咖啡(冰)-大杯_260416v5:nutrition-calculator-tile",
         "official_name": "金選美式咖啡(冰)-大杯"
     },
@@ -2684,7 +2631,7 @@
             "拿鐵",
             "金選那堤(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤熱:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2700,7 +2647,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤熱:nutrition-calculator-tile",
         "official_name": "金選那堤(熱)​"
     },
@@ -2716,7 +2662,7 @@
             "拿鐵",
             "金選那堤(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤冰:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2732,7 +2678,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0415金選咖啡_金選那堤冰:nutrition-calculator-tile",
         "official_name": "金選那堤(冰)​"
     },
@@ -2747,7 +2692,7 @@
             "coffee",
             "義式濃縮咖啡(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524義式濃縮咖啡:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2763,7 +2708,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524義式濃縮咖啡:nutrition-calculator-tile",
         "official_name": "義式濃縮咖啡(熱)"
     },
@@ -2778,7 +2722,7 @@
             "coffee",
             "經典美式咖啡(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典美式咖啡:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2794,7 +2738,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524經典美式咖啡:nutrition-calculator-tile",
         "official_name": "經典美式咖啡(熱)"
     },
@@ -2874,7 +2817,7 @@
             "拿鐵",
             "經典那堤(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典那堤:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2890,7 +2833,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典那堤:nutrition-calculator-tile",
         "official_name": "經典那堤(冰)"
     },
@@ -2904,7 +2846,7 @@
         "aliases": [
             "經典卡布奇諾(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/別具滋味頁_經典卡布奇諾(熱)_832x8222023:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2920,7 +2862,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/別具滋味頁_經典卡布奇諾(熱)_832x8222023:nutrition-calculator-tile",
         "official_name": "經典卡布奇諾(熱)"
     },
@@ -2934,7 +2875,7 @@
         "aliases": [
             "經典卡布奇諾(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典卡布奇諾:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2950,7 +2891,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0524冰經典卡布奇諾:nutrition-calculator-tile",
         "official_name": "經典卡布奇諾(冰)"
     },
@@ -2964,7 +2904,7 @@
         "aliases": [
             "蜂蜜紅茶(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜紅茶冰_0321n3:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -2980,7 +2920,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/860x822_蜂蜜紅茶冰_0321n3:nutrition-calculator-tile",
         "official_name": "蜂蜜紅茶(冰)"
     },
@@ -2994,7 +2933,7 @@
         "aliases": [
             "蜂蜜奶茶(熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/honey-milk-tea-hot_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3010,7 +2949,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/honey-milk-tea-hot_832x822:nutrition-calculator-tile",
         "official_name": "蜂蜜奶茶(熱)"
     },
@@ -3056,7 +2994,7 @@
         "aliases": [
             "焦糖奶茶(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_別具滋味產品圖_焦糖奶茶冰n1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3072,7 +3010,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_別具滋味產品圖_焦糖奶茶冰n1:nutrition-calculator-tile",
         "official_name": "焦糖奶茶(冰)"
     },
@@ -3086,7 +3023,7 @@
         "aliases": [
             "原味可頌"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3103,7 +3040,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant_832x822:nutrition-calculator-tile",
         "official_name": "原味可頌"
     },
@@ -3117,7 +3053,7 @@
         "aliases": [
             "巧克力榛果可頌"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3134,7 +3070,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/croissant-chocolate_832x822:nutrition-calculator-tile",
         "official_name": "巧克力榛果可頌"
     },
@@ -3148,7 +3083,7 @@
         "aliases": [
             "肉桂捲"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3165,7 +3100,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cinnamon-swirl_832x822:nutrition-calculator-tile",
         "official_name": "肉桂捲"
     },
@@ -3179,7 +3113,7 @@
         "aliases": [
             "紅茶 (熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-0309:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3195,7 +3129,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_1-0309:nutrition-calculator-tile",
         "official_name": "紅茶 (熱)"
     },
@@ -3209,7 +3142,7 @@
         "aliases": [
             "奶茶 (熱)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_2:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3225,7 +3158,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_2:nutrition-calculator-tile",
         "official_name": "奶茶 (熱)"
     },
@@ -3239,7 +3171,7 @@
         "aliases": [
             "奶茶(冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-milk-tea_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3255,7 +3187,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-milk-tea_832x822:nutrition-calculator-tile",
         "official_name": "奶茶(冰)"
     },
@@ -3269,7 +3200,7 @@
         "aliases": [
             "台灣鮮榨柳丁汁(瓶裝)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/taiwan-fresh-orange-juice_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3285,7 +3216,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/taiwan-fresh-orange-juice_832x822:nutrition-calculator-tile",
         "official_name": "台灣鮮榨柳丁汁(瓶裝)"
     },
@@ -3299,7 +3229,7 @@
         "aliases": [
             "鮮乳(盒裝)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/milk_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3315,7 +3245,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/milk_832x822:nutrition-calculator-tile",
         "official_name": "鮮乳(盒裝)"
     },
@@ -3329,7 +3258,7 @@
         "aliases": [
             "Evian 礦泉水"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/0602Evian礦泉水832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3345,7 +3274,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/0602Evian礦泉水832x822:nutrition-calculator-tile",
         "official_name": "Evian 礦泉水"
     },
@@ -3423,7 +3351,7 @@
         "aliases": [
             "雪碧"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雪碧2023:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3439,7 +3367,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_雪碧2023:nutrition-calculator-tile",
         "official_name": "雪碧"
     },
@@ -3453,7 +3380,7 @@
         "aliases": [
             "檸檬風味紅茶 (冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-lemon-flavor_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3469,7 +3396,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-lemon-flavor_832x822:nutrition-calculator-tile",
         "official_name": "檸檬風味紅茶 (冰)"
     },
@@ -3483,7 +3409,7 @@
         "aliases": [
             "無糖紅茶 (冰)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-sugar-free_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3499,7 +3425,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/iced-black-tea-sugar-free_832x822:nutrition-calculator-tile",
         "official_name": "無糖紅茶 (冰)"
     },
@@ -3545,7 +3470,7 @@
         "aliases": [
             "麥克雙牛堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_3:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3561,7 +3486,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/832x822_3:nutrition-calculator-tile",
         "official_name": "麥克雙牛堡"
     },
@@ -3575,7 +3499,7 @@
         "aliases": [
             "漢堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/hamburger_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3591,7 +3515,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/hamburger_832x822:nutrition-calculator-tile",
         "official_name": "漢堡"
     },
@@ -3605,7 +3528,7 @@
         "aliases": [
             "吉事漢堡"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/cheese-burger_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3621,7 +3544,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/cheese-burger_832x822:nutrition-calculator-tile",
         "official_name": "吉事漢堡"
     },
@@ -3700,7 +3622,7 @@
             "原味麥脆雞腿(棒腿)",
             "原味麥脆鷄腿(棒腿)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3716,7 +3638,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
         "official_name": "原味麥脆鷄腿(棒腿)"
     },
@@ -3731,7 +3652,7 @@
             "原味麥脆雞腿(大腿)",
             "原味麥脆鷄腿(大腿)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220原味大腿832x822_1:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3747,7 +3668,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220原味大腿832x822_1:nutrition-calculator-tile",
         "official_name": "原味麥脆鷄腿(大腿)"
     },
@@ -3795,7 +3715,7 @@
             "辣味麥脆雞腿(棒腿)",
             "辣味麥脆鷄腿(棒腿)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3811,7 +3731,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-mccrispy-drumstick-1-pieces-0321:nutrition-calculator-tile",
         "official_name": "辣味麥脆鷄腿(棒腿)"
     },
@@ -3826,7 +3745,7 @@
             "辣味麥脆雞腿(大腿)",
             "辣味麥脆鷄腿(大腿)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/辣味麥脆鷄腿大腿_無影_75dpi:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3842,7 +3761,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/辣味麥脆鷄腿大腿_無影_75dpi:nutrition-calculator-tile",
         "official_name": "辣味麥脆鷄腿(大腿)"
     },
@@ -3922,7 +3840,7 @@
             "勁辣香雞翅(6塊)",
             "勁辣香鷄翅(6塊)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-6-pieces_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -3938,7 +3856,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/spicy-chicken-wing-6-pieces_832x822:nutrition-calculator-tile",
         "official_name": "勁辣香鷄翅(6塊)"
     },
@@ -3984,7 +3901,7 @@
         "aliases": [
             "玉米杯"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/planp玉米杯_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4000,7 +3917,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/planp玉米杯_832x822:nutrition-calculator-tile",
         "official_name": "玉米杯"
     },
@@ -4014,7 +3930,7 @@
         "aliases": [
             "四季沙拉"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/planp四季沙拉_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4030,7 +3946,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/planp四季沙拉_832x822:nutrition-calculator-tile",
         "official_name": "四季沙拉"
     },
@@ -4044,7 +3959,7 @@
         "aliases": [
             "水果袋"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/sliced-apple_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4060,7 +3975,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/sliced-apple_832x822:nutrition-calculator-tile",
         "official_name": "水果袋"
     },
@@ -4106,7 +4020,7 @@
         "aliases": [
             "蛋捲冰淇淋"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4122,7 +4036,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone_832x822:nutrition-calculator-tile",
         "official_name": "蛋捲冰淇淋"
     },
@@ -4136,7 +4049,7 @@
         "aliases": [
             "大蛋捲冰淇淋"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone-large_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4152,7 +4065,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/ice-cream-cone-large_832x822:nutrition-calculator-tile",
         "official_name": "大蛋捲冰淇淋"
     },
@@ -4167,7 +4079,7 @@
             "OREO冰炫風",
             "OREO冰炫風"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4183,7 +4095,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/mcflurry_832x822:nutrition-calculator-tile",
         "official_name": "OREO冰炫風"
     },
@@ -4197,7 +4108,7 @@
         "aliases": [
             "雙倍OREO冰炫風"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/1220doubleoreo832822-0321:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4213,7 +4124,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/1220doubleoreo832822-0321:nutrition-calculator-tile",
         "official_name": "雙倍OREO冰炫風"
     },
@@ -4227,7 +4137,7 @@
         "aliases": [
             "奶昔(香草風味)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/251117_香草奶昔:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4243,7 +4153,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/251117_香草奶昔:nutrition-calculator-tile",
         "official_name": "奶昔(香草風味)"
     },
@@ -4257,7 +4166,7 @@
         "aliases": [
             "奶昔(草莓風味)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/251117_草莓奶昔:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4273,7 +4182,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/251117_草莓奶昔:nutrition-calculator-tile",
         "official_name": "奶昔(草莓風味)"
     },
@@ -4292,7 +4200,7 @@
             "麥克鷄塊(4塊)",
             "麥克鷄塊(4塊)"
         ],
-        "price": 0,
+        "price": 100,
         "image": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces_832x822:nutrition-calculator-tile",
         "image_source": "https://www.mcdonalds.com/tw/zh-tw/full-menu.html",
         "available_categories": [
@@ -4308,7 +4216,6 @@
             "language": "zh-TW",
             "source": "McDonald's Taiwan full menu"
         },
-        "price_pending": true,
         "official_image_url": "https://s7d1.scene7.com/is/image/mcdonalds/chicken-mcnuggets-4-pieces_832x822:nutrition-calculator-tile",
         "official_name": "麥克鷄塊(4塊)"
     },

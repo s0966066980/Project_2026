@@ -1532,6 +1532,30 @@
     line-height: 1;
     font-weight: 950;
   }
+  .kiosk-promotion-card {
+    border-color: #ffc72c;
+    background:
+      linear-gradient(135deg, rgba(255, 199, 44, 0.24), rgba(255, 255, 255, 0.94) 46%),
+      #fff;
+    box-shadow: 0 12px 28px rgba(218, 41, 28, 0.1);
+  }
+  .kiosk-promotion-badge {
+    display: inline-flex;
+    width: fit-content;
+    margin-bottom: 6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #da291c;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 950;
+  }
+  .kiosk-promotion-original {
+    margin-right: 6px;
+    color: #9a9a9a;
+    font-size: 13px;
+    text-decoration: line-through;
+  }
   .kiosk-add-btn {
     width: clamp(54px, 6vw, 68px);
     height: clamp(54px, 6vw, 68px);
@@ -1716,6 +1740,19 @@
   .cart-shell.kiosk-cart-open .cart-item p:nth-child(2) {
     font-size: clamp(22px, 2.8vw, 34px) !important;
     color: #242424 !important;
+  }
+  .cart-original-price {
+    margin-right: 8px;
+    color: #9a9a9a;
+    font-size: 0.72em;
+    text-decoration: line-through;
+  }
+  .cart-promotion-note {
+    display: block;
+    margin-top: 4px;
+    color: #128257;
+    font-size: 12px;
+    font-weight: 900;
   }
   .cart-shell.kiosk-cart-open .cart-item .rounded-xl {
     height: clamp(52px, 6.4vh, 64px) !important;

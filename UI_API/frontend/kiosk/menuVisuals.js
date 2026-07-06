@@ -9,6 +9,17 @@
 // 純函式，無模組狀態（語言由呼叫端以參數傳入）。
 // =========================================================
 
+export const STORE_PRICE_FALLBACK = 100;
+
+/**
+ * @param {MenuItem | { price?: unknown }} item
+ * @returns {number}
+ */
+export function resolveItemPrice(item) {
+  const price = Number(item?.price || 0);
+  return price > 0 ? price : STORE_PRICE_FALLBACK;
+}
+
 /**
  * @param {MenuItem} item
  * @returns {MenuVisual & { tag: string, icon: string }}
@@ -52,7 +63,5 @@ export function getMenuVisual(item) {
  * @returns {string}
  */
 export function formatItemPrice(item, lang = 'zh') {
-  const price = Number(item.price || 0);
-  if (price > 0) return `$${price}`;
-  return lang === 'en' ? 'Store Price' : '依店價';
+  return `$${resolveItemPrice(item)}`;
 }

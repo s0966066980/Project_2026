@@ -1474,6 +1474,25 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
         <div class="promotion-field-hint">可作為搭配情境條件，例如購物車已有主餐時才提高點心推薦分數。</div>
         <div class="setting-row">
+          <label class="setting-label">加購價格</label>
+          <div class="promotion-pair">
+            <input id="promotion-original-price" class="setting-input" type="number" min="0" max="9999" placeholder="原價，例如 45">
+            <input id="promotion-promotion-price" class="setting-input" type="number" min="1" max="9999" placeholder="優惠價，例如 30">
+          </div>
+        </div>
+        <div class="promotion-field-hint">若填寫優惠價，Kiosk 會在活動卡與購物車自動套用此價格；留空代表只做推薦加權與 RAG 說明。</div>
+        <div class="setting-row">
+          <label class="setting-label">活動廣告詞</label>
+          <div class="promotion-pair">
+            <input id="promotion-ad-headline" class="setting-input" type="text" placeholder="會員限定">
+            <input id="promotion-ad-cta" class="setting-input" type="text" placeholder="加入優惠">
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <textarea id="promotion-ad-copy" class="setting-input" rows="2" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="主餐加購薯條只要 $30"></textarea>
+        </div>
+        <div class="promotion-field-hint" style="margin-left:0;margin-top:-12px">這段會顯示在 Kiosk 活動卡，請保持簡短明確。</div>
+        <div class="setting-row">
           <label class="setting-label">加權</label>
           <div class="promotion-pair">
             <input id="promotion-score-boost" class="setting-input" type="number" min="1" max="20" value="4" placeholder="品項">

@@ -5,7 +5,7 @@
 import * as api from '../shared/apiClient.js';
 import { state } from './state.js';
 import { getRequiredRuntimeDependency } from './runtime.js';
-import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
+import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
 
 const $ = (id) => document.getElementById(id);
 let memberPhoneNumber = '';
@@ -117,7 +117,7 @@ export function renderMemberMenuHeader() {
 function addItemToCart(item) {
   // cart.js 的 addToCart(item) 接收單一 item 物件（以 item.id 為 key），不是位置參數。
   // 帶上 image（常點有；歷史訂單品項無，cart.js 會依 MCD id 推導本地圖）。
-  getRequiredRuntimeDependency('cartManager').addToCart({ id: item.id, name: item.name, price: Number(item.price || 0), image: item.image || '' });
+  getRequiredRuntimeDependency('cartManager').addToCart({ id: item.id, name: item.name, price: resolveItemPrice(item), image: item.image || '' });
 }
 
 function renderUsualsGrid() {

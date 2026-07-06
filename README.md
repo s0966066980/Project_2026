@@ -50,6 +50,7 @@ Project_2026/
 - Admin 後台：設定、會員、RAG、結構化活動、推薦事件、健康檢查。
 - 會員推薦：根據會員點餐紀錄、常點品項、互動事件與活動資料產生推薦上下文。
 - 整體推薦：結合熱門品項、供應狀態、活動與 RAG verified offer。
+- 結構化活動：Admin 可設定會員限定活動、推薦加權、加購優惠價與 Kiosk 活動廣告詞。
 - 語音模式：支援語音點餐，並可帶入會員與推薦上下文。
 - RAG 知識庫：支援 Markdown、TXT、JSON、CSV 來源；目前文件政策以 README 與 TXT/JSON/CSV 為主。
 - PostgreSQL：會員與推薦事件可升級到 PostgreSQL backend。

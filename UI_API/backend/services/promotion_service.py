@@ -99,6 +99,23 @@ def _as_int(value: Any, default: int = 1, minimum: int = 1, maximum: int = 20) -
     return max(minimum, min(maximum, number))
 
 
+def _as_optional_int(value: Any, *, minimum: int = 0, maximum: int = 9999) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return max(minimum, min(maximum, number))
+
+
+def _first_filled(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def _parse_date(value: Any) -> str:
     text = _safe_text(value, 40)
     if not text:
@@ -213,6 +230,35 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
     if errors:
         return None, errors
 
+    pricing_raw = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
+    pricing_type = _safe_text(raw.get("pricing_type") or pricing_raw.get("type") or "none", 40)
+    original_price = _as_optional_int(_first_filled(raw.get("original_price"), pricing_raw.get("original_price")))
+    promotion_price = _as_optional_int(_first_filled(raw.get("promotion_price"), pricing_raw.get("promotion_price")))
+    pricing = {}
+    if promotion_price is not None:
+        if promotion_price <= 0:
+            errors.append("promotion_price 必須大於 0")
+        if original_price is not None and original_price < promotion_price:
+            errors.append("original_price 不可小於 promotion_price")
+        pricing = {
+            "type": pricing_type if pricing_type != "none" else "add_on_fixed_price",
+            "original_price": original_price,
+            "promotion_price": promotion_price,
+            "currency": _safe_text(raw.get("currency") or pricing_raw.get("currency") or "TWD", 12),
+        }
+    if errors:
+        return None, errors
+
+    ad_raw = raw.get("ad") if isinstance(raw.get("ad"), dict) else {}
+    ad_cta = _first_filled(raw.get("ad_cta"), ad_raw.get("cta"))
+    ad = {
+        "headline": _safe_text(raw.get("ad_headline") or ad_raw.get("headline"), 80),
+        "copy": _safe_text(raw.get("ad_copy") or ad_raw.get("copy"), 160),
+        "cta": _safe_text(ad_cta or "加入優惠", 40),
+    }
+    if not (ad["headline"] or ad["copy"] or ad_cta):
+        ad = {}
+
     source_id = _safe_text(raw.get("source_id") or f"promotion_{offer_id}", 120)
     content = _safe_text(raw.get("content") or raw.get("description"), 1000)
     record = {
@@ -234,6 +280,8 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
             raw.get("category_score_boost"),
             int(config.get("RECOMMENDATION_RAG_CATEGORY_WEIGHT", 2)),
         ),
+        "pricing": pricing,
+        "ad": ad,
         "content": content,
         "metadata": {
             "category": _safe_text((raw.get("metadata") or {}).get("category") if isinstance(raw.get("metadata"), dict) else "", 80) or "promotion",

@@ -88,6 +88,10 @@ def _recommendation_metadata(item: dict, rank: int = 1, experiment: dict | None 
                 "offer_id": offer.get("offer_id", ""),
                 "title": offer.get("title", ""),
                 "member_only": bool(offer.get("member_only", False)),
+                "item_ids": offer.get("item_ids") if isinstance(offer.get("item_ids"), list) else [],
+                "categories": offer.get("categories") if isinstance(offer.get("categories"), list) else [],
+                "pricing": offer.get("pricing") if isinstance(offer.get("pricing"), dict) else {},
+                "ad": offer.get("ad") if isinstance(offer.get("ad"), dict) else {},
             }
             for offer in item.get("offers", [])
             if isinstance(offer, dict)
@@ -329,6 +333,10 @@ async def generate_three(session_id: str, ollama_semaphore, cart_ids: list[str] 
                     "offer_id": offer.get("offer_id", ""),
                     "title": offer.get("title", ""),
                     "member_only": bool(offer.get("member_only", False)),
+                    "item_ids": offer.get("item_ids") if isinstance(offer.get("item_ids"), list) else [],
+                    "categories": offer.get("categories") if isinstance(offer.get("categories"), list) else [],
+                    "pricing": offer.get("pricing") if isinstance(offer.get("pricing"), dict) else {},
+                    "ad": offer.get("ad") if isinstance(offer.get("ad"), dict) else {},
                 }
                 for offer in item.get("offers", [])
                 if isinstance(offer, dict)

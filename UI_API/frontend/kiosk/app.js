@@ -13,7 +13,7 @@ import {
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { createRealtimeClient } from '../shared/realtimeClient.js';
-import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
+import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
 import { createKioskMenuController } from './controllers/kioskMenuController.js';
 import { state } from './state.js';
 import { configureKioskRuntime } from './runtime.js';
@@ -280,6 +280,48 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
+function findPromotionTargetItem(offer = {}) {
+  const itemIds = Array.isArray(offer.item_ids) ? offer.item_ids : [];
+  const categories = Array.isArray(offer.categories) ? offer.categories : [];
+  return findMenuItems(itemIds)[0] || state.menuData.find(item => categories.includes(item.category)) || null;
+}
+
+function applyPromotionPricing(item = {}, offer = {}) {
+  const pricing = offer.pricing && typeof offer.pricing === 'object' ? offer.pricing : {};
+  const promotionPrice = Number(pricing.promotion_price || 0);
+  if (!promotionPrice) return { ...item };
+  return {
+    ...item,
+    price: promotionPrice,
+    original_price: Number(pricing.original_price || resolveItemPrice(item)),
+    applied_offer_id: offer.offer_id || '',
+    offer_ids: [offer.offer_id].filter(Boolean),
+    promotion_title: offer.title || '',
+  };
+}
+
+function bestPricedOfferForItem(item = {}) {
+  const offers = Array.isArray(item.offers) ? item.offers : [];
+  return offers.find(offer => Number(offer?.pricing?.promotion_price || 0) > 0) || null;
+}
+
+function getActivePromotionOffer() {
+  return state.activePromotionOffer;
+}
+
+function handlePromotionPick(offer = {}) {
+  const item = findPromotionTargetItem(offer);
+  if (!item) return;
+  const promotionItem = applyPromotionPricing(item, offer);
+  trackedAddToCart(promotionItem, {
+    source: 'promotion',
+    offer_id: offer.offer_id || '',
+    offer_ids: [offer.offer_id].filter(Boolean),
+    promotion_price: promotionItem.price,
+    original_price: promotionItem.original_price || resolveItemPrice(item),
+  });
+}
+
 export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
 
 const kioskMenuController = createKioskMenuController({
@@ -295,6 +337,8 @@ const kioskMenuController = createKioskMenuController({
   translateFilter: (filter) => kioskFilterLabel(kioskLang, filter),
   translateGroup: (group) => kioskGroupLabel(kioskLang, group),
   showItemConfirmModal,
+  getActivePromotionOffer,
+  onPromotionPick: handlePromotionPick,
   updateKioskCartSummary,
   onCategorySwitchRepeat(groupId, filter) {
     interactionState.categorySwitchCount += 1;
@@ -343,23 +387,26 @@ configureKioskRuntime({
 function trackedAddToCart(item, metadata = {}) {
   state.lastValidOrderActionAt = Date.now();
   state.lastCartAddAt = Date.now();
+  const offer = metadata.offer_id ? null : bestPricedOfferForItem(item);
+  const cartItem = offer ? applyPromotionPricing(item, offer) : item;
   if (metadata.source === 'ai_push') sessionAiPushCartCount++;
-  if (item?.id) state.sessionCartSources.push({ id: item.id, source: metadata.source || 'manual' });
-  if (['ai_push', 'assist_recommend', 'choice_hesitation'].includes(metadata.source || '')) {
-    reportRecommendationEvent('recommendation_added_to_cart', item, {
+  if (cartItem?.id) state.sessionCartSources.push({ id: cartItem.id, source: metadata.source || 'manual' });
+  if (['ai_push', 'assist_recommend', 'choice_hesitation', 'promotion'].includes(metadata.source || '')) {
+    reportRecommendationEvent('recommendation_added_to_cart', cartItem, {
       surface: metadata.source,
       source: metadata.source,
       quantity: 1,
-      metadata: { cart_source: metadata.source },
+      offer_ids: metadata.offer_ids || cartItem.offer_ids || [],
+      metadata: { cart_source: metadata.source, offer_id: metadata.offer_id || cartItem.applied_offer_id || '' },
     });
   }
   hideChoiceHesitationModal();
-  cartManager.addToCart(item);
+  cartManager.addToCart(cartItem);
   trackInteractionEvent({
     event_type: 'cart_edit',
-    button_id: item?.id ? `menu_${item.id}` : 'add_to_cart',
+    button_id: cartItem?.id ? `menu_${cartItem.id}` : 'add_to_cart',
     cart_edit_count: 1,
-    metadata: { action: 'add', item_id: item?.id || '', ...metadata }
+    metadata: { action: 'add', item_id: cartItem?.id || '', ...metadata }
   });
 }
 
@@ -459,13 +506,31 @@ const aiRecommendationController = (() => {
 
   function renderRecommendation(item, pushText, recommendation = {}) {
     if (!item || !$('aiPushBar')) return;
+    const recommendationOffers = Array.isArray(recommendation.offers) ? recommendation.offers : [];
+    const displayItem = {
+      ...item,
+      offer_ids: recommendation.offer_ids || item.offer_ids || [],
+      offers: recommendationOffers,
+      rank: recommendation.rank || item.rank || 1,
+      score: recommendation.score || item.score || 0,
+      reasons: recommendation.reasons || item.reasons || [],
+      strategy: recommendation.strategy || item.strategy || '',
+      experiment_id: recommendation.experiment_id || item.experiment_id || '',
+      variant_id: recommendation.variant_id || item.variant_id || '',
+      source: recommendation.source || item.source || 'ai_push',
+    };
+    const pricedOffer = recommendationOffers.find(offer => Number(offer?.pricing?.promotion_price || 0) > 0);
+    if (pricedOffer) {
+      state.activePromotionOffer = pricedOffer;
+      if (state.kioskScreen === 'menu') renderMenu();
+    }
     const visual = getMenuVisual(item);
     if (currentRecommendationItem?.id && currentRecommendationItem.id !== item.id) {
       markCurrentRecommendationIgnored('replaced_by_new_ai_push');
     }
-    currentRecommendationItem = item;
+    currentRecommendationItem = displayItem;
     if (item.id) state.sessionPushedIds.add(item.id);
-    currentRecommendationRecord = reportRecommendationEvent('recommendation_shown', item, {
+    currentRecommendationRecord = reportRecommendationEvent('recommendation_shown', displayItem, {
       surface: 'ai_push',
       source: recommendation.source || 'ai_push',
       rank: recommendation.rank || 1,
@@ -491,7 +556,7 @@ const aiRecommendationController = (() => {
 
     if (nameElement) nameElement.textContent = item.name || '';
     const priceElement = $('aiPushItemPrice');
-    if (priceElement) priceElement.textContent = formatItemPrice(item, kioskLang);
+    if (priceElement) priceElement.textContent = formatItemPrice(displayItem, kioskLang);
     if (textElement) textElement.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
 
     if (imageElement) {
@@ -527,7 +592,7 @@ const aiRecommendationController = (() => {
 
   // 本地隨機備選（Ollama 失敗時使用），excludeCurrent=true 排除目前品項
   function pickRandomRecommendation(excludeCurrent = true) {
-    const priced = state.menuData.filter(m => m && m.id && Number(m.price || 0) > 0);
+    const priced = state.menuData.filter(m => m && m.id && resolveItemPrice(m) > 0);
     if (!priced.length) return pickDefaultRecommendation();
     const pool = excludeCurrent && currentRecommendationItem?.id
       ? priced.filter(m => m.id !== currentRecommendationItem.id)
@@ -716,7 +781,7 @@ useDomReady(() => {
 
 function updateKioskCartSummary() {
   const items = cartManager?.getCartItems ? cartManager.getCartItems() : [];
-  const total = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+  const total = items.reduce((sum, item) => sum + resolveItemPrice(item) * Number(item.quantity || 0), 0);
   const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   if (ui.kioskBottomCount) ui.kioskBottomCount.textContent = String(quantity);
   if (ui.kioskBottomTotal) ui.kioskBottomTotal.textContent = `$${total}`;
@@ -1290,11 +1355,9 @@ function renderOrderConfirm() {
 
   ui.confirmOrderList.innerHTML = items.map(item => {
     const quantity = Number(item.quantity || 0);
-    const price = Number(item.price || 0);
+    const price = resolveItemPrice(item);
     const visual = getMenuVisual(item);
-    const lineLabel = price > 0
-      ? `$${price * quantity}`
-      : (kioskLang === 'en' ? 'Store Price' : '依店價');
+    const lineLabel = `$${price * quantity}`;
     return `
       <div class="order-summary-item">
         <div class="order-summary-photo">
@@ -1448,7 +1511,7 @@ async function finishOrder(cartIds, button, loadingText) {
   orderData.cartItems = rawItems.map(item => ({
     name: item.name || item.id || '',
     quantity:  Number(item.qty || item.quantity || 1),
-    price: Number(item.price || 0),
+    price: resolveItemPrice(item),
   }));
 
   showCompletionOverlay(orderData);

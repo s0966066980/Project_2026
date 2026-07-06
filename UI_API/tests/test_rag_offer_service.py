@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 MENU = [
     {"id": "MCD001", "name": "大麥克套餐", "price": 155, "category": "超值全餐"},
-    {"id": "MCD012", "name": "薯條(中)", "price": 45, "category": "點心"},
+    {"id": "MCD115", "name": "薯條", "price": 45, "category": "點心"},
 ]
 
 
@@ -35,7 +35,18 @@ def test_load_active_offers_filters_and_validates_menu_targets(tmp_path, monkeyp
             "offer_id": "member_fries",
             "title": "會員薯條活動",
             "member_only": True,
-            "item_ids": ["MCD012", "NOT_IN_MENU"],
+            "item_ids": ["MCD115", "NOT_IN_MENU"],
+            "pricing": {
+                "type": "add_on_fixed_price",
+                "original_price": 45,
+                "promotion_price": 30,
+                "currency": "TWD",
+            },
+            "ad": {
+                "headline": "會員限定",
+                "copy": "主餐加購薯條只要 $30",
+                "cta": "加入優惠",
+            },
             "score_boost": 8,
             "valid_from": "2026-07-01",
             "valid_until": "2026-07-31",
@@ -61,10 +72,12 @@ def test_load_active_offers_filters_and_validates_menu_targets(tmp_path, monkeyp
 
     assert len(offers) == 1
     assert offers[0]["offer_id"] == "member_fries"
-    assert offers[0]["item_ids"] == ["MCD012"]
+    assert offers[0]["item_ids"] == ["MCD115"]
     assert offers[0]["member_only"] is True
     assert offers[0]["score_boost"] == 8
     assert offers[0]["timezone"] == "Asia/Taipei"
+    assert offers[0]["pricing"]["promotion_price"] == 30
+    assert offers[0]["ad"]["copy"] == "主餐加購薯條只要 $30"
 
 
 def test_date_only_promotion_uses_local_timezone_until_end_of_day(tmp_path, monkeypatch):
@@ -113,11 +126,13 @@ def test_format_offer_prompt_section_hides_member_only_offer_for_guest():
     offers = [{
         "title": "會員薯條活動",
         "member_only": True,
-        "item_ids": ["MCD012"],
+        "item_ids": ["MCD115"],
+        "pricing": {"original_price": 45, "promotion_price": 30},
     }]
 
     assert rag_offer_service.format_offer_prompt_section(offers, audience="guest") == ""
     section = rag_offer_service.format_offer_prompt_section(offers, audience="member")
     assert "已驗證 RAG 優惠" in section
     assert "會員薯條活動" in section
+    assert "$30" in section
     assert "不可自行編造" in section

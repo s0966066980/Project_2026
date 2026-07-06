@@ -4,7 +4,7 @@ import json
 
 MENU = [
     {"id": "MCD001", "name": "大麥克套餐", "category": "超值全餐", "price": 155},
-    {"id": "MCD012", "name": "薯條(中)", "category": "點心", "price": 45},
+    {"id": "MCD115", "name": "薯條", "category": "點心", "price": 45},
 ]
 
 
@@ -29,7 +29,18 @@ def test_save_promotion_writes_validated_json(tmp_path, monkeypatch):
         "member_only": False,
         "item_ids": ["MCD001"],
         "categories": ["超值全餐"],
-        "required_cart_item_ids": ["MCD012"],
+        "required_cart_item_ids": ["MCD115"],
+        "pricing": {
+            "type": "add_on_fixed_price",
+            "original_price": 45,
+            "promotion_price": 30,
+            "currency": "TWD",
+        },
+        "ad": {
+            "headline": "會員限定",
+            "copy": "主餐加購薯條只要 $30",
+            "cta": "加入優惠",
+        },
         "score_boost": 5,
         "category_score_boost": 3,
         "content": "活動期間推薦指定套餐。",
@@ -43,6 +54,8 @@ def test_save_promotion_writes_validated_json(tmp_path, monkeypatch):
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert saved["status"] == "active"
     assert saved["timezone"] == "Asia/Taipei"
+    assert saved["pricing"]["promotion_price"] == 30
+    assert saved["ad"]["copy"] == "主餐加購薯條只要 $30"
     assert saved["metadata"]["status"] == "active"
     assert service.list_promotions()[0]["offer_id"] == "summer_combo_2026"
 
@@ -84,7 +97,7 @@ def test_update_status_and_delete_promotion(tmp_path, monkeypatch):
         "title": "會員薯條活動",
         "status": "draft",
         "member_only": True,
-        "item_ids": ["MCD012"],
+        "item_ids": ["MCD115"],
     })
     assert errors == []
 
@@ -111,7 +124,7 @@ def test_update_status_handles_legacy_filename_that_differs_from_offer_id(tmp_pa
         "status": "draft",
         "timezone": "Asia/Taipei",
         "member_only": True,
-        "item_ids": ["MCD012"],
+        "item_ids": ["MCD115"],
         "categories": ["點心"],
         "metadata": {"status": "draft"},
     }], ensure_ascii=False), encoding="utf-8")

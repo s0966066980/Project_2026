@@ -1,7 +1,7 @@
 // =========================================================
 // 猶豫彈窗：被動語音命中關鍵詞時推薦單品（由 app.js 的被動語音流程驅動）。
 // =========================================================
-import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
+import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
 import { state } from './state.js';
 import { getRequiredRuntimeDependency } from './runtime.js';
 import { KIOSK_GROUPS } from './constants/kiosk.js';
@@ -27,7 +27,7 @@ export function hideChoiceHesitationModal(resetIdle = false) {
 }
 
 export function getChoiceHesitationCandidates() {
-  const pricedItems = state.menuData.filter(item => item && item.id && Number(item.price || 0) > 0);
+  const pricedItems = state.menuData.filter(item => item && item.id && resolveItemPrice(item) > 0);
   if (!pricedItems.length) return [];
   if (state.kioskScreen === 'menu') {
     const group = KIOSK_GROUPS.find(row => row.id === state.kioskActiveGroup);

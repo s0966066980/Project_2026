@@ -1297,6 +1297,17 @@ function getPromotionPayload() {
     item_ids: splitCsv(val('promotion-item-ids')),
     categories: splitCsv(val('promotion-categories')),
     required_cart_item_ids: splitCsv(val('promotion-required-items')),
+    pricing: {
+      type: 'add_on_fixed_price',
+      original_price: val('promotion-original-price') ? parseInt(val('promotion-original-price'), 10) : null,
+      promotion_price: val('promotion-promotion-price') ? parseInt(val('promotion-promotion-price'), 10) : null,
+      currency: 'TWD',
+    },
+    ad: {
+      headline: val('promotion-ad-headline'),
+      copy: val('promotion-ad-copy'),
+      cta: val('promotion-ad-cta') || '加入優惠',
+    },
     score_boost: parseInt(val('promotion-score-boost') || '4', 10),
     category_score_boost: parseInt(val('promotion-category-score-boost') || '2', 10),
     content: val('promotion-content'),
@@ -1317,6 +1328,13 @@ function setPromotionForm(row = {}) {
   setVal('promotion-item-ids', joinCsv(row.item_ids || row.items));
   setVal('promotion-categories', joinCsv(row.categories || row.category));
   setVal('promotion-required-items', joinCsv(row.required_cart_item_ids || row.required_items));
+  const pricing = row.pricing && typeof row.pricing === 'object' ? row.pricing : {};
+  const ad = row.ad && typeof row.ad === 'object' ? row.ad : {};
+  setVal('promotion-original-price', pricing.original_price ?? '');
+  setVal('promotion-promotion-price', pricing.promotion_price ?? '');
+  setVal('promotion-ad-headline', ad.headline || '');
+  setVal('promotion-ad-copy', ad.copy || '');
+  setVal('promotion-ad-cta', ad.cta || '加入優惠');
   setVal('promotion-score-boost', row.score_boost ?? 4);
   setVal('promotion-category-score-boost', row.category_score_boost ?? 2);
   setVal('promotion-content', row.content || row.description || '');
@@ -1369,6 +1387,10 @@ function renderPromotionList() {
     .sort((a, b) => String(a.status || '').localeCompare(String(b.status || '')) || String(a.offer_id || '').localeCompare(String(b.offer_id || '')))
     .forEach(row => {
       const status = String(row.status || row.metadata?.status || 'draft').toLowerCase();
+      const pricing = row.pricing && typeof row.pricing === 'object' ? row.pricing : {};
+      const priceText = pricing.promotion_price
+        ? `加購價 $${pricing.promotion_price}${pricing.original_price ? `（原價 $${pricing.original_price}）` : ''}`
+        : '未設定加購價';
       const card = document.createElement('div');
       card.className = 'promotion-card';
       card.innerHTML = `<div class="promotion-card-head">`
@@ -1379,6 +1401,7 @@ function renderPromotionList() {
         + `<span>${row.member_only ? '會員限定' : '一般活動'}</span>`
         + `<span>${escHtml(row.valid_from || '未設定')} - ${escHtml(row.valid_until || '未設定')}｜${escHtml(row.timezone || 'Asia/Taipei')}</span>`
         + `<span>${escHtml(promotionScope(row))}</span>`
+        + `<span>${escHtml(priceText)}</span>`
         + `</div>`
         + `<div class="promotion-actions"></div>`;
       const actions = card.querySelector('.promotion-actions');

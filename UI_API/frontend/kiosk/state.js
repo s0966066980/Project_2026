@@ -30,6 +30,7 @@ export const state = {
   sessionPushedIds: new Set(),
   sessionCartSources: [],   // [{id, source}] 記錄每筆加入來源
   sessionRecommendationEvents: new Map(),
+  activePromotionOffer: null,
   interactionModalTimer: null,
   lastValidOrderActionAt: 0,
   member: null,
