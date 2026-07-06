@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart POS Kiosk</title>
+<title>Smart Ordering Kiosk</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,7 @@
 </head>
 <body class="w-full min-h-screen font-sans antialiased bg-[#e2d7cf] text-[#242424] flex flex-col md:flex-row">
 
-<!-- ============ POS floating notices ============ -->
+<!-- ============ Kiosk floating notices ============ -->
 <div id="aiOverlayStack">
   <div id="floatPush"></div>
 </div>
@@ -183,8 +183,8 @@
   </div>
 </div>
 
-<!-- ============ POS 視圖 ============ -->
-<div id="view-pos" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
+<!-- ============ Kiosk 視圖 ============ -->
+<div id="view-kiosk" class="flex flex-col lg:flex-row w-full h-full relative overflow-hidden">
 
   <!-- 開始 overlay：image2=全螢幕背景；卡片與按鈕皆純 CSS 重建 -->
   <div id="startupOverlay" class="absolute inset-0 z-50 transition-opacity duration-500">
@@ -467,8 +467,8 @@
   </div>
 
   <!-- 左：菜單 -->
-  <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden pos-main">
-    <div class="pos-topbar px-6 md:px-12 py-6 flex justify-between items-center shrink-0">
+  <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden kiosk-main">
+    <div class="kiosk-topbar px-6 md:px-12 py-6 flex justify-between items-center shrink-0">
       <div class="kiosk-top-left">
         <button id="kioskBackBtn" class="kiosk-back-btn hidden" type="button" aria-label="返回">
           <i class="fas fa-arrow-left"></i>
@@ -555,7 +555,7 @@
 
 </div>
 
-<!-- 語音模式全螢幕 overlay（放在 view-pos 外層，避免被 overflow:hidden 裁切） -->
+<!-- 語音模式全螢幕 overlay（放在 view-kiosk 外層，避免被 overflow:hidden 裁切） -->
 <div id="voiceAssistOverlay" class="voice-assist-overlay hidden" aria-hidden="true">
   <div class="voice-assist-panel" role="dialog" aria-label="語音模式">
     <h2 id="voiceAssistOverlayTitle">語音模式</h2>
@@ -606,7 +606,7 @@
 </div>
 
 <audio id="ttsAudio" class="hidden"></audio>
-<script type="module" src="/static/pos/app.js"></script>
+<script type="module" src="/static/kiosk/app.js"></script>
 
 </body>
 </html>

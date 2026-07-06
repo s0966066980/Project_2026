@@ -195,7 +195,7 @@ def load_active_offers(menu_items: list[dict], *, now: datetime | None = None) -
     """Return active, menu-validated promotion signals.
 
     Invalid files or incomplete rows are ignored so RAG content issues do not
-    break POS recommendation flows.
+    break Kiosk recommendation flows.
     """
     if not config.get("RAG_ENABLED", False):
         return []

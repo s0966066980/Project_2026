@@ -2019,7 +2019,7 @@ function toggleVoiceWaitMode() {
 }
 window.toggleVoiceWaitMode = toggleVoiceWaitMode;
 
-// ── Admin WebSocket（接收 POS 通知）──────────────────────────────
+// ── Admin WebSocket（接收 Kiosk 通知）────────────────────────────
 function handleStaffNotify(event) {
   const p = event.payload || {};
   const kiosk          = p.kiosk_name     || '';

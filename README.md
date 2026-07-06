@@ -1,8 +1,8 @@
-# Smart Ordering POS 智慧點餐系統
+# Smart Ordering Kiosk 智慧自助點餐系統
 
 本專案是一套面向自助點餐機與門市後台的智慧點餐平台。核心應用位於 `UI_API/`，並可選擇串接 `Emotion-LLaMA/` 或 `R1-Omni/` 作為多模態情緒分析服務。
 
-目前系統已具備 POS 點餐、Admin 後台、會員手機登入、會員推薦、整體推薦、語音點餐、RAG 知識庫、結構化活動、推薦事件紀錄、PostgreSQL 儲存升級、健康檢查與本機啟動腳本。
+目前系統已具備 Kiosk 自助點餐、Admin 後台、會員手機登入、會員推薦、整體推薦、語音點餐、RAG 知識庫、結構化活動、推薦事件紀錄、PostgreSQL 儲存升級、健康檢查與本機啟動腳本。
 
 ## 專案現況分析
 
@@ -10,7 +10,7 @@
 
 ```text
 Project_2026/
-├── UI_API/           # 主要 FastAPI 應用、POS、Admin、RAG、測試
+├── UI_API/           # 主要 FastAPI 應用、Kiosk、Admin、RAG、測試
 ├── Emotion-LLaMA/    # 可選情緒分析模型服務
 ├── R1-Omni/          # 可選多模態情緒分析模型服務
 ├── scripts/          # 本機啟動、PostgreSQL 備份與還原
@@ -20,7 +20,7 @@ Project_2026/
 
 ### 核心分層
 
-- `frontend/pos`：顧客自助點餐端，負責菜單、購物車、會員登入、語音點餐、推薦顯示與結帳。
+- `frontend/kiosk`：顧客自助點餐端，負責菜單、購物車、會員登入、語音點餐、推薦顯示與結帳。
 - `frontend/admin`：門市後台，負責設定、會員管理、RAG、活動、推薦事件、健康檢查與測試工具。
 - `backend/routes`：API 入口，只處理 HTTP request / response、權限與呼叫 service。
 - `backend/services`：業務邏輯層，包含會員、推薦、RAG、語音、情緒分析、活動、事件與健康檢查。
@@ -38,15 +38,15 @@ Project_2026/
 
 ### 目前主要風險
 
-- `frontend/admin/admin.js`、`frontend/admin/admin.html`、`frontend/pos/app.js`、`frontend/shared/styles.css` 仍偏大，後續應拆模組。
-- Admin 與 POS 雖已分目錄，但前端狀態與 API 呼叫仍可再抽象化。
+- `frontend/admin/admin.js`、`frontend/admin/admin.html`、`frontend/kiosk/app.js`、`frontend/shared/styles.css` 仍偏大，後續應拆模組。
+- Admin 與 Kiosk 雖已分目錄，但前端狀態與 API 呼叫仍可再抽象化。
 - RAG、推薦、活動與會員上下文已整合，但仍需要更完整的商用監控與回歸測試。
 - Emotion-LLaMA / R1-Omni 屬大型模型服務，商用部署時應獨立 process 或容器。
 - 第三方模型與資料授權需要在商用前逐項確認。
 
 ## 功能總覽
 
-- POS 自助點餐：菜單瀏覽、購物車、會員手機登入、結帳與訂單完成流程。
+- Kiosk 自助點餐：菜單瀏覽、購物車、會員手機登入、結帳與訂單完成流程。
 - Admin 後台：設定、會員、RAG、結構化活動、推薦事件、健康檢查。
 - 會員推薦：根據會員點餐紀錄、常點品項、互動事件與活動資料產生推薦上下文。
 - 整體推薦：結合熱門品項、供應狀態、活動與 RAG verified offer。
@@ -113,8 +113,8 @@ bash scripts/start_r1_omni.sh
 預設網址：
 
 ```text
-POS:   http://127.0.0.1:9000/pos
-Admin: http://127.0.0.1:9001/admin
+Kiosk: http://127.0.0.1:9000/kiosk
+Admin:  http://127.0.0.1:9001/admin
 ```
 
 ## 常用環境變數
@@ -122,7 +122,7 @@ Admin: http://127.0.0.1:9001/admin
 | 變數 | 用途 |
 | --- | --- |
 | `APP_ENV` | `development`、`staging`、`production` |
-| `APP_PORT` | POS / API port |
+| `APP_PORT` | Kiosk / API port |
 | `ADMIN_PORT` | Admin port |
 | `SECURITY_ENFORCED` | 是否強制 token 驗證 |
 | `ADMIN_API_TOKEN` | Admin API token |

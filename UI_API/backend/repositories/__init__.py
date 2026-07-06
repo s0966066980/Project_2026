@@ -1,2 +1,1 @@
-"""Filesystem-backed repositories for Smart Kiosk POS."""
-
+"""Filesystem-backed repositories for Smart Ordering Kiosk."""

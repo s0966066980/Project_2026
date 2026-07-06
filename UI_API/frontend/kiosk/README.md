@@ -1,6 +1,6 @@
-# POS frontend 模組說明
+# Kiosk frontend 模組說明
 
-`frontend/pos/` 是顧客自助點餐端。
+`frontend/kiosk/` 是顧客自助點餐端。
 
 ## 主要功能
 
@@ -14,8 +14,8 @@
 
 ## 主要檔案
 
-- `index.html`：POS 頁面。
-- `app.js`：POS 主協調器。
+- `index.html`：Kiosk 頁面。
+- `app.js`：Kiosk 主協調器。
 - `cart.js`：購物車。
 - `member.js`：會員流程。
 - `voice.js`：語音點餐。

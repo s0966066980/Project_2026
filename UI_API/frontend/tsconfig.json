@@ -22,10 +22,10 @@
     "shared/realtimeClient.js",
     "shared/hooks/useDomEvents.js",
     "shared/components/VisibilityDisplay.js",
-    "pos/runtime.js",
-    "pos/cart.js",
-    "pos/controllers/kioskMenuController.js",
-    "pos/constants/kiosk.js",
-    "pos/menuVisuals.js"
+    "kiosk/runtime.js",
+    "kiosk/cart.js",
+    "kiosk/controllers/kioskMenuController.js",
+    "kiosk/constants/kiosk.js",
+    "kiosk/menuVisuals.js"
   ]
 }

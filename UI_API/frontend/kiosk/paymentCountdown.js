@@ -83,7 +83,7 @@ function startPaymentCountdown() {
 }
 
 function capturePaymentEmotion() {
-  if (!getRequiredRuntimeDependency('isPosMode')()) return;
+  if (!getRequiredRuntimeDependency('isKioskMode')()) return;
   const blob = capturePreEventClip();
   if (!blob) return;
   state.paymentEmotionPromise = api.analyzeEmotionEvent(getRequiredRuntimeDependency('sessionId'), 'payment_timeout', blob)

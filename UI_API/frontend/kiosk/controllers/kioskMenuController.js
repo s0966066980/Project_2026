@@ -38,7 +38,7 @@
  */
 
 /**
- * Owns POS kiosk menu loading, category navigation, filtering, and DOM rendering.
+ * Owns Kiosk menu loading, category navigation, filtering, and DOM rendering.
  * The main app passes dependencies in so this controller stays reusable and easy to test.
  *
  * @param {KioskMenuControllerOptions} options
@@ -99,8 +99,8 @@ export function createKioskMenuController({
 
   function renderKioskCategories() {
     state.kioskScreen = 'categories';
-    document.getElementById('view-pos')?.classList.remove('kiosk-screen-menu');
-    document.getElementById('view-pos')?.classList.add('kiosk-screen-categories');
+    document.getElementById('view-kiosk')?.classList.remove('kiosk-screen-menu');
+    document.getElementById('view-kiosk')?.classList.add('kiosk-screen-categories');
     state.kioskActiveGroup = '';
     state.kioskActiveFilter = '全部';
     ui.menuGrid.innerHTML = '';
@@ -190,8 +190,8 @@ export function createKioskMenuController({
   }
 
   function renderKioskMenuItems() {
-    document.getElementById('view-pos')?.classList.remove('kiosk-screen-categories');
-    document.getElementById('view-pos')?.classList.add('kiosk-screen-menu');
+    document.getElementById('view-kiosk')?.classList.remove('kiosk-screen-categories');
+    document.getElementById('view-kiosk')?.classList.add('kiosk-screen-menu');
     const group = groups.find(candidate => candidate.id === state.kioskActiveGroup) || groups[1] || groups[0];
     if (!group) return;
     const filters = subFiltersForGroup(group.id);

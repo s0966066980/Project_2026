@@ -28,7 +28,7 @@ def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
     print(f"   🔊 TTS          : {tts_provider}")
     print(f"   👁️  Emotion-LLaMA: {emotion_stat}")
     print()
-    print(f"🖥️ POS local URL:   http://{local_host}:{pos_port}/pos")
+    print(f"🖥️ Kiosk local URL: http://{local_host}:{pos_port}/kiosk")
     print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
 
 
@@ -69,7 +69,7 @@ def maybe_start_ngrok(pos_port: int):
 
         if tunnel_url:
             public_url = tunnel_url.rstrip("/")
-            print(f"🖥️  POS:    {public_url}/pos"
+            print(f"🖥️  Kiosk:  {public_url}/kiosk"
                   + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
             print(f"🛠️  Admin:  {public_url}/admin"
                   + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
@@ -130,4 +130,3 @@ def run_dev_servers(app):
         for thread in threads:
             thread.join(timeout=5)
         print("ℹ️ API Server stopped.")
-

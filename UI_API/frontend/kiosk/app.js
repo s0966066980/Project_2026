@@ -16,7 +16,7 @@ import { createRealtimeClient } from '../shared/realtimeClient.js';
 import { getMenuVisual, formatItemPrice } from './menuVisuals.js';
 import { createKioskMenuController } from './controllers/kioskMenuController.js';
 import { state } from './state.js';
-import { configurePointOfSaleRuntime } from './runtime.js';
+import { configureKioskRuntime } from './runtime.js';
 import {
   KIOSK_GROUPS,
   kioskFilterLabel,
@@ -34,14 +34,15 @@ import { showMemberChoice, renderMemberMenuHeader } from './member.js';
 const APP_MODE = (() => {
   const path = window.location.pathname;
   if (window.location.port === '9001') return 'admin';
-  if (window.location.port === '9000') return 'pos';
+  if (window.location.port === '9000') return 'kiosk';
   if (path.startsWith('/admin')) return 'admin';
-  if (path.startsWith('/pos')) return 'pos';
-  return 'pos';
+  if (path.startsWith('/kiosk') || path.startsWith('/pos')) return 'kiosk';
+  return 'kiosk';
 })();
 
 export function isAdminMode() { return APP_MODE === 'admin'; }
-export function isPosMode() { return APP_MODE === 'pos'; }
+export function isKioskMode() { return APP_MODE === 'kiosk'; }
+export function isPosMode() { return isKioskMode(); }
 
 // =========================================================
 // Controller 狀態
@@ -50,7 +51,7 @@ export function isPosMode() { return APP_MODE === 'pos'; }
 function buildSessionId() {
   const requested = new URLSearchParams(window.location.search).get('session_id');
   const safeRequested = String(requested || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
-  return safeRequested || ('pos_' + Math.random().toString(36).substr(2, 9));
+  return safeRequested || ('kiosk_' + Math.random().toString(36).substr(2, 9));
 }
 
 export const sessionId = buildSessionId();
@@ -60,7 +61,7 @@ let sessionAiPushCartCount = 0;
 let lastInterventionEventAt = 0;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
-let posRealtime = null;
+let kioskRealtime = null;
 let passiveAudioStream = null;
 let passiveAudioRecorder = null;
 let passiveRecordingTimer = null;
@@ -223,7 +224,7 @@ function saveFeatures(f) {
 }
 
 
-function applyFeaturesToPOS() {
+function applyFeaturesToKiosk() {
   const f = getFeatures();
   const center = document.getElementById('centerPanel');
   // 語音協助按鈕只出現在底部導覽列，不出現在購物車、付款、完成頁。
@@ -243,15 +244,16 @@ function updateVoiceAssistVisibility() {
   const voiceAssistMod = document.getElementById('mod-voice-assist');
   if (!voiceAssistMod) return;
   const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
-  const visible = getFeatures().voiceAssist && isPosMode() && !isCartScreenOpen() && !paymentOpen && !orderCompleted;
+  const visible = getFeatures().voiceAssist && isKioskMode() && !isCartScreenOpen() && !paymentOpen && !orderCompleted;
   voiceAssistMod.classList.toggle('hidden', !visible);
 }
 
-export function isPosActive() {
-  return isSystemRunning && !orderCompleted && ui.posView && !ui.posView.classList.contains('hidden');
+export function isKioskActive() {
+  return isSystemRunning && !orderCompleted && ui.kioskView && !ui.kioskView.classList.contains('hidden');
 }
+export function isPosActive() { return isKioskActive(); }
 
-function clearPOSFloatingUI() {
+function clearKioskFloatingUI() {
   clearAllPushCards();
   closeVoiceBubble();
   hideVoiceAssistOverlay();
@@ -263,9 +265,9 @@ function clearPOSFloatingUI() {
 
 function switchMainView(view) {
   if (view === 'admin' && !isAdminMode()) return;
-  switchMainViewUI(view, { clearPOSFloatingUI, applyFeaturesToPOS, loadMenu });
+  switchMainViewUI(view, { clearKioskFloatingUI, applyFeaturesToKiosk, loadMenu });
   if (view !== 'admin') {
-    startPosRealtime();
+    startKioskRealtime();
   }
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
@@ -316,13 +318,15 @@ const {
 
 export const itemMatchesSubFilter = kioskMenuController.itemMatchesSubFilter;
 
-configurePointOfSaleRuntime({
+configureKioskRuntime({
   cartManager,
   clearAllPushCards,
   getFeatures,
   getKioskLang,
   getRuntimeSettings,
   isAdminMode,
+  isKioskActive,
+  isKioskMode,
   isPosActive,
   isPosMode,
   itemMatchesSubFilter,
@@ -407,7 +411,7 @@ export function clearAllPushCards() {
 }
 
 export function showPushNotice(text) {
-  if (!isPosActive() || !ui.floatPush) return;
+  if (!isKioskActive() || !ui.floatPush) return;
   ui.floatPush.replaceChildren();
   const card = document.createElement('div');
   card.className = 'push-card push-notice';
@@ -439,7 +443,7 @@ const aiRecommendationController = (() => {
     if (!$('aiPushBar')) return false;
     const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
     const cartOpen    = Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
-    return Boolean(isPosActive() && !document.hidden && !isVoiceAssistantActive() && !paymentOpen && !cartOpen && state.menuData.length);
+    return Boolean(isKioskActive() && !document.hidden && !isVoiceAssistantActive() && !paymentOpen && !cartOpen && state.menuData.length);
   }
 
   function markCurrentRecommendationIgnored(reason = 'replaced') {
@@ -812,7 +816,7 @@ function showPaymentScreen() {
   setInteractionPage('payment_page', { source: 'checkout_button' });
   hideChoiceHesitationModal();
   aiRecommendationController.stop();
-  clearPOSFloatingUI();
+  clearKioskFloatingUI();
   updateVoiceAssistVisibility();
 }
 
@@ -823,7 +827,7 @@ function hidePaymentScreen() {
 }
 
 // =========================================================
-// POS 互動障礙事件追蹤
+// Kiosk 互動障礙事件追蹤
 // =========================================================
 function currentPageId() {
   if (ui.adminView && !ui.adminView.classList.contains('hidden')) return 'admin_page';
@@ -927,9 +931,9 @@ function handleRealtimeInteractionIntervention(event = {}) {
 }
 
 
-function startPosRealtime() {
-  if (!posRealtime) {
-    posRealtime = createRealtimeClient('pos', sessionId, {
+function startKioskRealtime() {
+  if (!kioskRealtime) {
+    kioskRealtime = createRealtimeClient('pos', sessionId, {
       human_reply: handleRealtimeHumanReply,
       interaction_intervention: handleRealtimeInteractionIntervention,
       settings_changed: handleRealtimeSettingsChanged,
@@ -938,7 +942,7 @@ function startPosRealtime() {
 }
 
 function initRealtimeClients() {
-  if (isPosMode()) startPosRealtime();
+  if (isKioskMode()) startKioskRealtime();
 }
 
 function applyIntervention(intervention = {}, barrierResult = {}) {
@@ -1133,7 +1137,7 @@ function startPageDwellWatcher() {
   if (isAdminMode()) return;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
   pageDwellTimer = setInterval(() => {
-    if (!isSystemRunning || !isPosActive()) return;
+    if (!isSystemRunning || !isKioskActive()) return;
     const pageId = currentPageId();
     if (pageId !== interactionState.pageId) setInteractionPage(pageId);
     if (getDwellTimeSec() > 30 && interactionState.lastReportedDwellPage !== pageId) {
@@ -1178,9 +1182,9 @@ async function runPosStartup() {
     const needAudio = Boolean(f.voiceAssist);
     const needVideo = Boolean(getRuntimeSettings().EMOTION_LLAMA_ENABLED);
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
-    if (!mediaReady && needAudio) console.warn('Media permission unavailable; POS flow continues without rolling buffer.');
+    if (!mediaReady && needAudio) console.warn('Media permission unavailable; Kiosk flow continues without rolling buffer.');
     await loadMenu();
-    applyFeaturesToPOS();
+    applyFeaturesToKiosk();
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
     isSystemRunning = true;
@@ -1369,7 +1373,7 @@ function setConfirmButtonsDisabled(disabled) {
 
 function showCompletionOverlay(orderData = {}) {
   try {
-    switchMainView('pos');
+    switchMainView('kiosk');
     closeOrderConfirmModal();
     hidePaymentScreen();
 
@@ -1425,7 +1429,7 @@ function showCompletionOverlay(orderData = {}) {
 async function finishOrder(cartIds, button, loadingText) {
   orderCompleted = true;
   updateVoiceAssistVisibility();
-  clearPOSFloatingUI();
+  clearKioskFloatingUI();
   hideChoiceHesitationModal();
   aiRecommendationController.stop();
   const originalHTML = button?.innerHTML || '';
@@ -1483,7 +1487,7 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   isSystemRunning = false;
   orderCompleted = false;
   totalClickCount = 0;
-  clearPOSFloatingUI();
+  clearKioskFloatingUI();
   hideChoiceHesitationModal();
   stopPassiveListener();
   aiRecommendationController.stop();
@@ -1661,7 +1665,7 @@ document.addEventListener('pointerdown', (e) => {
 // =========================================================
 
 export function triggerEmotionCapture(eventType) {
-  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
+  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isKioskMode()) return;
   const blob = capturePreEventClip(); // 同步，不再 await
   if (!blob) return;
   api.analyzeEmotionEvent(sessionId, eventType, blob).catch(e => {
@@ -1670,7 +1674,7 @@ export function triggerEmotionCapture(eventType) {
 }
 
 export async function triggerEmotionCaptureAndWait(eventType) {
-  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isPosMode()) return;
+  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isKioskMode()) return;
   const blob = capturePreEventClip(); // 同步
   if (!blob) return;
   try {
@@ -1852,7 +1856,7 @@ let totalClickCount = 0;
 const ASSIST_CLICK_THRESHOLD = 50;
 
 document.addEventListener('pointerdown', () => {
-  if (!isPosActive() || orderCompleted) return;
+  if (!isKioskActive() || orderCompleted) return;
   if (document.getElementById('assistModal')?.classList.contains('hidden') === false) return;
   totalClickCount++;
   if (totalClickCount >= ASSIST_CLICK_THRESHOLD) {
@@ -2005,7 +2009,7 @@ function showChoiceHesitationRecommendation(item) {
 }
 
 function handlePassiveVoiceHit(result) {
-  if (!isPosActive() || orderCompleted || isVoiceAssistantActive()) return;
+  if (!isKioskActive() || orderCompleted || isVoiceAssistantActive()) return;
   if (Date.now() - state.passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
   const item = state.menuData.find(m => m.id === result.item?.id) || result.item;
   if (!item) return;
@@ -2019,7 +2023,7 @@ function showHesitationForItem(item) {
     console.log('[PassiveVoice] 猶豫彈跳視窗已顯示，略過');
     return;
   }
-  if (!isSystemRunning || orderCompleted || !isPosActive()) {
+  if (!isSystemRunning || orderCompleted || !isKioskActive()) {
     console.log('[PassiveVoice] showHesitationForItem 被系統狀態攔截');
     return;
   }
@@ -2045,6 +2049,6 @@ if (isAdminMode()) {
 } else {
   applyKioskLanguage();
   cartManager.renderCart();
-  applyFeaturesToPOS();
+  applyFeaturesToKiosk();
   initRealtimeClients();
 }

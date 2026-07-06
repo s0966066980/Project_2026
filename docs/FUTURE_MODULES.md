@@ -8,8 +8,8 @@
 
 - `UI_API/frontend/admin/admin.js` 承載會員、RAG、活動、推薦事件、設定與健康檢查。
 - `UI_API/frontend/admin/admin.html` 同時承載多個後台區塊。
-- `UI_API/frontend/pos/app.js` 仍集中 POS 啟動、推薦、會員、語音、購物車與 checkout 協調。
-- `UI_API/frontend/shared/styles.css` 同時包含 POS、Admin 與共用樣式。
+- `UI_API/frontend/kiosk/app.js` 仍集中 Kiosk 啟動、推薦、會員、語音、購物車與 checkout 協調。
+- `UI_API/frontend/shared/styles.css` 同時包含 Kiosk、Admin 與共用樣式。
 
 ### 建議新增模組
 
@@ -22,7 +22,7 @@ UI_API/frontend/admin/modules/
 ├── healthAdmin.js
 └── settingsAdmin.js
 
-UI_API/frontend/pos/modules/
+UI_API/frontend/kiosk/modules/
 ├── menuController.js
 ├── cartController.js
 ├── memberSessionController.js
@@ -157,7 +157,7 @@ deploy/
 
 ```text
 UI_API/tests/browser/
-├── test_pos_startup.py
+├── test_kiosk_startup.py
 ├── test_member_login_flow.py
 ├── test_recommendation_card.py
 └── test_admin_rag_flow.py
@@ -165,7 +165,7 @@ UI_API/tests/browser/
 
 ### 功能方向
 
-- Playwright POS smoke test。
+- Playwright Kiosk smoke test。
 - Admin RAG rebuild smoke test。
 - 會員登入與 checkout 流程測試。
 - 推薦卡片曝光與事件紀錄測試。
@@ -173,7 +173,7 @@ UI_API/tests/browser/
 ## 建議執行順序
 
 1. 先拆 Admin 前端大型檔案。
-2. 再拆 POS 前端大型檔案。
+2. 再拆 Kiosk 前端大型檔案。
 3. 補推薦 metrics 與策略管理。
 4. 補 Admin 權限與操作稽核。
 5. 補 RAG 版本治理。

@@ -1,2 +1,1 @@
-"""Business services for Smart Kiosk POS."""
-
+"""Business services for Smart Ordering Kiosk."""

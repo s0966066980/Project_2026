@@ -1,7 +1,7 @@
 import { hideFlexElement, showFlexElement } from './components/VisibilityDisplay.js';
 
 export const ui = {
-  posView: document.getElementById('view-pos'),
+  kioskView: document.getElementById('view-kiosk'),
   adminView: document.getElementById('view-admin'),
   overlay: document.getElementById('startupOverlay'),
   adminNotificationBox: document.getElementById('adminNotificationBox'),
@@ -67,6 +67,8 @@ export const ui = {
   voiceLangBadge: document.getElementById('voiceLangBadge'),
 };
 
+ui.posView = ui.kioskView;
+
 export function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -75,13 +77,15 @@ export function escapeHTML(value) {
 
 export function switchMainView(view, callbacks = {}) {
   if (view === 'admin') {
+    callbacks.clearKioskFloatingUI?.();
     callbacks.clearPOSFloatingUI?.();
-    hideFlexElement(ui.posView);
+    hideFlexElement(ui.kioskView);
     showFlexElement(ui.adminView);
     callbacks.loadAdminData?.();
   } else {
     hideFlexElement(ui.adminView);
-    showFlexElement(ui.posView);
+    showFlexElement(ui.kioskView);
+    callbacks.applyFeaturesToKiosk?.();
     callbacks.applyFeaturesToPOS?.();
     callbacks.loadMenu?.();
   }

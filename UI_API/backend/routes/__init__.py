@@ -1,2 +1,1 @@
-"""API route modules for the Smart Kiosk POS backend."""
-
+"""API route modules for the Smart Ordering Kiosk backend."""

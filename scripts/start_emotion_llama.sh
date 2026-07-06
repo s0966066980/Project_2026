@@ -7,7 +7,7 @@
 #   2. Ubuntu 本機 PostgreSQL（可用 POSTGRES_ENABLED=false 關閉）
 #   3. Ollama (serve + 確認模型)            :11434
 #   4. Emotion-LLaMA /predict server        :7889
-#   5. UI_API 主服務 (POS + 後台)           :9000 / 9001
+#   5. UI_API 主服務 (Kiosk + 後台)         :9000 / 9001
 #
 # main.py 在前景執行；按 Ctrl-C 會把「本腳本啟動的」背景服務一起關掉
 # （原本就在跑的 Ollama / Emotion-LLaMA 不會被動到）。
@@ -28,7 +28,7 @@ MODEL_NAME="${MODEL_NAME:-qwen3.5:4b}"
 APP_PORT="${APP_PORT:-9000}"
 ADMIN_PORT="${ADMIN_PORT:-9001}"
 OPEN_BROWSER="${OPEN_BROWSER:-true}"
-POS_URL="http://127.0.0.1:${APP_PORT}/pos"
+KIOSK_URL="http://127.0.0.1:${APP_PORT}/kiosk"
 ADMIN_URL="http://127.0.0.1:${ADMIN_PORT}/admin"
 export APP_PORT ADMIN_PORT
 
@@ -63,10 +63,10 @@ open_browser() {
   fi
   if command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$ADMIN_URL" >/dev/null 2>&1 || true
-    xdg-open "$POS_URL" >/dev/null 2>&1 || true
+    xdg-open "$KIOSK_URL" >/dev/null 2>&1 || true
   elif command -v open >/dev/null 2>&1; then
     open "$ADMIN_URL" >/dev/null 2>&1 || true
-    open "$POS_URL" >/dev/null 2>&1 || true
+    open "$KIOSK_URL" >/dev/null 2>&1 || true
   fi
 }
 
@@ -123,7 +123,7 @@ if port_open "$APP_PORT" || port_open "$ADMIN_PORT"; then
   echo "⚠️  ${APP_PORT}/${ADMIN_PORT} 已被占用，主服務可能已在跑 —— 略過啟動 main.py。"
   echo "    若要重啟，請先停掉既有的 main.py。"
   echo ""
-  echo "👉 POS: $POS_URL   後台: $ADMIN_URL"
+  echo "👉 Kiosk: $KIOSK_URL   後台: $ADMIN_URL"
   echo "👉 RAG: 後台 > RAG 知識庫，可直接清空 Chroma 並重新讀取 rag_documents"
   echo "（Ctrl-C 結束本腳本並收掉自己啟動的背景服務）"
   open_browser
@@ -131,7 +131,7 @@ if port_open "$APP_PORT" || port_open "$ADMIN_PORT"; then
 else
   echo "🚀 啟動 UI_API 主服務 …"
   echo ""
-  echo "👉 POS: $POS_URL   後台: $ADMIN_URL"
+  echo "👉 Kiosk: $KIOSK_URL   後台: $ADMIN_URL"
   echo "👉 RAG: 後台 > RAG 知識庫，可直接清空 Chroma 並重新讀取 rag_documents"
   echo "（前景執行，Ctrl-C 結束全部）"
   echo "────────────────────────────────────────────"

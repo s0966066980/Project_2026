@@ -18,11 +18,15 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/")
     async def serve_frontend():
-        return FileResponse(f"{FRONTEND_DIR}/pos/index.html", headers=_NO_CACHE)
+        return FileResponse(f"{FRONTEND_DIR}/kiosk/index.html", headers=_NO_CACHE)
+
+    @router.get("/kiosk")
+    async def serve_kiosk():
+        return FileResponse(f"{FRONTEND_DIR}/kiosk/index.html", headers=_NO_CACHE)
 
     @router.get("/pos")
-    async def serve_pos():
-        return FileResponse(f"{FRONTEND_DIR}/pos/index.html", headers=_NO_CACHE)
+    async def serve_legacy_pos():
+        return FileResponse(f"{FRONTEND_DIR}/kiosk/index.html", headers=_NO_CACHE)
 
     @router.get("/admin")
     async def serve_admin():

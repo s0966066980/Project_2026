@@ -1,10 +1,10 @@
 # UI_API 模組說明
 
-`UI_API/` 是本專案的核心應用，包含 FastAPI 後端、POS 前端、Admin 後台、RAG 文件、菜單資料、runtime 設定與測試。
+`UI_API/` 是本專案的核心應用，包含 FastAPI 後端、Kiosk 前端、Admin 後台、RAG 文件、菜單資料、runtime 設定與測試。
 
 ## 模組責任
 
-- 提供 POS 與 Admin 靜態頁面。
+- 提供 Kiosk 與 Admin 靜態頁面。
 - 提供所有 API routes。
 - 管理會員、推薦、RAG、語音、情緒分析與事件紀錄。
 - 支援 JSON 與 PostgreSQL 儲存 backend。
@@ -17,7 +17,7 @@ UI_API/
 ├── main.py              # FastAPI 入口
 ├── config.py            # 環境變數與 runtime settings
 ├── backend/             # 後端 API、service、repository
-├── frontend/            # POS、Admin、shared frontend
+├── frontend/            # Kiosk、Admin、shared frontend
 ├── menu_data/           # 菜單資料
 ├── rag_documents/       # RAG 原始文件
 ├── learning_data/       # runtime 資料
@@ -38,7 +38,7 @@ UI_API/
 
 ## 前端分層
 
-- `frontend/pos`：顧客點餐端。
+- `frontend/kiosk`：顧客自助點餐端。
 - `frontend/admin`：門市後台。
 - `frontend/shared`：共用 API client、HTTP client、realtime client、UI helper 與樣式。
 
@@ -75,5 +75,5 @@ MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
 - routes 不放複雜業務邏輯。
 - services 不處理 HTTP 細節。
 - repositories 不反向 import services 或 routes。
-- POS 與 Admin 前端不互相 import。
+- Kiosk 與 Admin 前端不互相 import。
 - RAG 原始文件應維持可版本化與可重建。

@@ -30,7 +30,7 @@ bash scripts/restore_postgres.sh backups/postgres/<dump-file>.dump
 | `R1_PY` | R1-Omni Python interpreter |
 | `OLLAMA_BIN` | Ollama executable |
 | `MODEL_NAME` | Ollama 模型 |
-| `APP_PORT` | POS / API port |
+| `APP_PORT` | Kiosk / API port |
 | `ADMIN_PORT` | Admin port |
 | `OPEN_BROWSER` | 是否自動開啟瀏覽器 |
 | `POSTGRES_ENABLED` | 是否處理 PostgreSQL |

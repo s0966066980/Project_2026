@@ -9,7 +9,7 @@ import { getRequiredRuntimeDependency } from './runtime.js';
 
 function kt(key) { return getRequiredRuntimeDependency('kt')(key); }
 function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
-function isPosActive() { return getRequiredRuntimeDependency('isPosActive')(); }
+function isKioskActive() { return getRequiredRuntimeDependency('isKioskActive')(); }
 function getFeatures() { return getRequiredRuntimeDependency('getFeatures')(); }
 function getRuntimeSettings() { return getRequiredRuntimeDependency('getRuntimeSettings')(); }
 function getKioskLang() { return getRequiredRuntimeDependency('getKioskLang')(); }
@@ -100,7 +100,7 @@ export function closeVoiceBubble(stopAudio = true) {
 }
 
 function showVoiceBubble(data) {
-  if (!isPosActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
+  if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
   hideVoiceAssistOverlay();
   const lang = data.detected_lang || 'zh';
   const dialogue = data.dialogue || {

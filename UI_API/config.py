@@ -247,9 +247,9 @@ PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EMOTION_LLAMA_ENABLED",
     "EMOTION_LLAMA_CLIP_SEC",
-    "EMOTION_LLAMA_EVENT_VOICE",        # POS 需要：控制語音模式結束後是否觸發分析
-    "EMOTION_LLAMA_VOICE_WAIT_MODE",    # POS 需要：speed / analysis 兩種等待模式
-    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT",  # POS 需要：控制付款倒數逾時是否觸發分析
+    "EMOTION_LLAMA_EVENT_VOICE",        # Kiosk 需要：控制語音模式結束後是否觸發分析
+    "EMOTION_LLAMA_VOICE_WAIT_MODE",    # Kiosk 需要：speed / analysis 兩種等待模式
+    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT",  # Kiosk 需要：控制付款倒數逾時是否觸發分析
     "AI_PUSH_REFRESH_SEC",
     "PAYMENT_EMOTION_CLIP_SEC",
     "PASSIVE_VOICE_KEYWORDS",

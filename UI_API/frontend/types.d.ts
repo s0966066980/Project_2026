@@ -73,13 +73,15 @@ export interface RealtimeClient {
   readonly socket: WebSocket | null;
 }
 
-export interface PointOfSaleRuntime {
+export interface KioskRuntime {
   cartManager?: CartManager;
   clearAllPushCards?: () => void;
   getFeatures?: () => Record<string, unknown>;
   getKioskLang?: () => LanguageCode;
   getRuntimeSettings?: () => Record<string, unknown>;
   isAdminMode?: () => boolean;
+  isKioskActive?: () => boolean;
+  isKioskMode?: () => boolean;
   isPosActive?: () => boolean;
   isPosMode?: () => boolean;
   itemMatchesSubFilter?: (item: MenuItem, filter: string) => boolean;
@@ -92,6 +94,8 @@ export interface PointOfSaleRuntime {
   triggerEmotionCapture?: (eventType: string) => void;
   triggerEmotionCaptureAndWait?: (eventType: string) => Promise<void>;
 }
+
+export interface PointOfSaleRuntime extends KioskRuntime {}
 
 export interface CartManagerOptions {
   ui: {
