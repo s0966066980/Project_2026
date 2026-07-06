@@ -55,7 +55,7 @@
             "traffic": 50
         }
     ],
-    "MEMBER_STORAGE_BACKEND": "json",
+    "MEMBER_STORAGE_BACKEND": "postgres",
     "DATABASE_URL": "postgresql://ui_api_user:ui_api_password@127.0.0.1:5432/ui_api_migration_test",
     "MEMBER_SESSION_TTL_SEC": 86400,
     "ENABLE_MEMBER_DUAL_WRITE": false,
