@@ -305,11 +305,37 @@ function bestPricedOfferForItem(item = {}) {
   return offers.find(offer => Number(offer?.pricing?.promotion_price || 0) > 0) || null;
 }
 
+function findDisplayablePromotionOffer(offers = []) {
+  return offers.find(offer => (
+    Number(offer?.pricing?.promotion_price || 0) > 0 &&
+    findPromotionTargetItem(offer)
+  )) || null;
+}
+
+async function loadActivePromotionOffer() {
+  try {
+    const result = await api.getActivePromotions();
+    const offers = Array.isArray(result?.offers) ? result.offers : [];
+    state.activePromotionOffer = findDisplayablePromotionOffer(offers);
+    if (state.kioskScreen === 'menu') renderMenu();
+  } catch (error) {
+    console.warn('[active promotions failed]', error);
+    state.activePromotionOffer = null;
+  }
+}
+
 function getActivePromotionOffer() {
   return state.activePromotionOffer;
 }
 
 function handlePromotionPick(offer = {}) {
+  if (offer.member_only && !state.member) {
+    showMemberChoice((member) => {
+      renderMemberMenuHeader();
+      if (member) handlePromotionPick(offer);
+    });
+    return;
+  }
   const item = findPromotionTargetItem(offer);
   if (!item) return;
   const promotionItem = applyPromotionPricing(item, offer);
@@ -1249,6 +1275,7 @@ async function runPosStartup() {
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && needAudio) console.warn('Media permission unavailable; Kiosk flow continues without rolling buffer.');
     await loadMenu();
+    await loadActivePromotionOffer();
     applyFeaturesToKiosk();
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);

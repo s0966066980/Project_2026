@@ -234,7 +234,13 @@ export function createKioskMenuController({
     const activeOffer = typeof getActivePromotionOffer === 'function' ? getActivePromotionOffer() : null;
     if (activeOffer && Number(activeOffer?.pricing?.promotion_price || 0) > 0) {
       const firstItemId = Array.isArray(activeOffer.item_ids) ? activeOffer.item_ids[0] : '';
-      const offerItem = items.find(item => item.id === firstItemId) || items.find(item => activeOffer.categories?.includes?.(item.category));
+      const allItems = Array.isArray(state.menuData) ? state.menuData : [];
+      const offerItem = (
+        items.find(item => item.id === firstItemId) ||
+        items.find(item => activeOffer.categories?.includes?.(item.category)) ||
+        allItems.find(item => item.id === firstItemId) ||
+        allItems.find(item => activeOffer.categories?.includes?.(item.category))
+      );
       if (offerItem) {
         const visual = getMenuVisual(offerItem);
         const ad = activeOffer.ad || {};

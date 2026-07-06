@@ -15,6 +15,8 @@ export const API_BASE = (
 let publicSettingsRequest = null;
 /** @type {Promise<import('../types.d.ts').MenuItem[]> | null} */
 let menuRequest = null;
+/** @type {Promise<Record<string, unknown>> | null} */
+let activePromotionsRequest = null;
 
 /**
  * @param {unknown} value
@@ -117,6 +119,18 @@ export async function getMenu() {
       });
   }
   return menuRequest;
+}
+
+/** @returns {Promise<Record<string, unknown>>} */
+export async function getActivePromotions() {
+  if (!activePromotionsRequest) {
+    activePromotionsRequest = fetchJson(`${API_BASE}/api/promotions/active`, { headers: kioskHeaders() })
+      .catch(error => {
+        activePromotionsRequest = null;
+        throw error;
+      });
+  }
+  return activePromotionsRequest;
 }
 
 /**
