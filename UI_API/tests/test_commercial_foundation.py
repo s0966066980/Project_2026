@@ -17,6 +17,7 @@ def test_commercial_foundation_documents_exist() -> None:
         "docs/ARCHITECTURE.md",
         "docs/COMMERCIAL_GOVERNANCE.md",
         "docs/FUTURE_MODULES.md",
+        "docs/POSTGRESQL_MIGRATIONS.md",
         "docs/adr/README.md",
         "docs/adr/0001-modular-monolith-first.md",
         "docs/adr/0002-independent-frontend-deployment-boundaries.md",
@@ -125,8 +126,9 @@ def test_member_identity_adr_preserves_the_accepted_deferred_decision() -> None:
 
 def test_roadmap_describes_hardening_the_existing_migration_framework() -> None:
     roadmap = (REPOSITORY_ROOT / "docs/FUTURE_MODULES.md").read_text(encoding="utf-8")
+    migration_document = (REPOSITORY_ROOT / "docs/POSTGRESQL_MIGRATIONS.md").read_text(encoding="utf-8")
 
-    assert "完成與強化既有 Migration Framework" in roadmap
+    assert "| Migration framework |" not in roadmap
     for completion_requirement in (
         "PostgreSQL integration CI",
         "migration status",
@@ -136,4 +138,17 @@ def test_roadmap_describes_hardening_the_existing_migration_framework() -> None:
         "idempotency",
         "backup/recovery documentation",
     ):
-        assert completion_requirement in roadmap
+        assert completion_requirement in migration_document
+
+
+def test_ci_runs_postgres_migration_integration_without_external_services() -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    requirements = (REPOSITORY_ROOT / "UI_API/requirements-ci.txt").read_text(encoding="utf-8")
+
+    assert "postgres-migration:" in workflow
+    assert "image: postgres:16" in workflow
+    assert "postgres_migration_integration.py" in workflow
+    assert "manage_postgres_migrations.py status" in workflow
+    assert "manage_postgres_migrations.py validate" in workflow
+    assert "manage_postgres_migrations.py apply" in workflow
+    assert "psycopg[binary]==3.2.14" in requirements
