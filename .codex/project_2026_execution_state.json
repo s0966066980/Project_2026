@@ -2,19 +2,21 @@
   "plan_version": "2026-07-13",
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
-  "current_milestone": "1F",
+  "current_milestone": "1G",
   "status": "in_progress",
   "completed_milestones": [
     "1B.1",
     "1C",
     "1D",
-    "1E"
+    "1E",
+    "1F"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
     "1C": "f2aa1b9",
     "1D": "1dea61b",
-    "1E": "0ec58ba"
+    "1E": "0ec58ba",
+    "1F": "cf31694"
   },
   "verification": {
     "1B.1": {
@@ -70,14 +72,31 @@
       "shell": "PASS",
       "migration_clean": "PASS (0001-0005 checksums clean)",
       "scope_integrity": "PASS (zero violations)"
+    },
+    "1F": {
+      "target_tests": "PASS (7 Member identity tests; 18 commercial/documentation targets)",
+      "postgres_integration": "PASS (6 historical integrations plus 1F upgrade, backfill, rotation and anonymization)",
+      "full_json_backend": "PASS (243 passed)",
+      "ruff_affected_scope": "PASS",
+      "ruff_format_affected_scope": "PASS",
+      "mypy": "PASS (37 source files)",
+      "python_3_12_import": "PASS",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "migration_clean": "PASS (0001-0006 checksums clean)",
+      "scope_integrity": "PASS (zero violations)",
+      "member_identity_integrity": "PASS (zero violations)"
     }
   },
   "known_gaps": [
     "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset.",
     "PostgreSQL RLS is deferred until per-request database connection identity and an isolation test strategy exist.",
-    "JSON compatibility storage supports Default Scope only and is not a multi-tenant isolation boundary."
+    "JSON compatibility storage supports Default Scope only and is not a multi-tenant isolation boundary.",
+    "Member phone compatibility data remains until uuid_only production evidence supports a separate forward contract migration.",
+    "External Secret Manager/KMS wiring and legal/privacy approval remain deployment and human gates."
   ],
   "blocked_items": [],
-  "next_milestone": "1F",
-  "updated_at": "2026-07-13T20:21:28+08:00"
+  "next_milestone": "1G",
+  "updated_at": "2026-07-13T20:42:10+08:00"
 }
