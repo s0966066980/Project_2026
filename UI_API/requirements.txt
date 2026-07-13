@@ -2,6 +2,7 @@ fastapi
 argon2-cffi==25.1.0
 cryptography==49.0.0
 uvicorn
+websockets==16.0
 python-dotenv
 python-multipart
 requests
