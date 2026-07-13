@@ -6,7 +6,7 @@ from datetime import datetime
 
 import config
 from repositories import postgres_utils, recommendation_event_repository
-from services import observability_service, rag_alert_service, rag_document_service
+from services import observability_service, rag_alert_service, rag_document_service, shared_infrastructure_service
 from services.commercial_scope_readiness_service import validate_configured_commercial_scope
 
 
@@ -110,6 +110,7 @@ def build_readiness() -> dict:
         "database": _database_readiness(),
         "migration": _migration_readiness(),
         "commercial_scope": _scope_readiness(),
+        "shared_infrastructure": shared_infrastructure_service.readiness(),
     }
     ready = all(check.get("status") in {"ok", "skipped"} for check in required_checks.values())
     return {

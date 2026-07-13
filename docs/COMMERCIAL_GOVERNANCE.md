@@ -50,6 +50,8 @@ Production 不得啟用 demo/test/debug routes，不得使用預設密碼或共�
 - Secret 只來自 environment 或 Secret Manager。
 - Production 使用 HTTPS、明確 CORS allowlist、security headers 與最小權限。
 - Rate limit 在多 instance 環境使用共享儲存，例如 Redis。
+- Production shared security rate limit 缺少 Redis 設定時 startup fail fast，runtime unavailable 時 fail closed，不得 silent disable。
+- Redis key 不含完整 phone、credential 或 PII；cache/counter/lock 具 bounded TTL 與 tenant/store namespace。
 - Upload、webhook、URL、檔案路徑與 AI output 均做 schema、大小與權限驗證。
 - Dependency、container 與 Secret scanning 納入 CI/CD。
 - 建立漏洞分級、修補時限與 incident response owner。

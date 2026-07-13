@@ -5,6 +5,7 @@ uvicorn
 python-dotenv
 python-multipart
 requests
+redis==8.0.1
 psycopg[binary]
 google-genai
 pyngrok

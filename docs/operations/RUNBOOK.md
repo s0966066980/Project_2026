@@ -21,6 +21,10 @@ Check `checkout_attempts_total`, idempotency replay/conflict, PostgreSQL error c
 
 Check origin/auth denial and connection/disconnection metrics, then session cookie/credential state. Keep message payload out of logs. A realtime outage must not invalidate an already committed Order.
 
+## Redis Shared Infrastructure
+
+If `/ready` reports shared infrastructure failure, do not disable production security rate limiting to restore traffic. Check Redis service health, network/DNS, pool/timeout and secret injection without copying `REDIS_URL` into logs or tickets. Security rate limits and required correctness locks stay fail closed; noncritical cache may degrade to a miss. After recovery, verify ping, cross-instance counter, TTL and owner-token lock before restoring normal traffic.
+
 ## AI degraded
 
 Disable or bypass the affected provider adapter, retain deterministic menu/pricing/checkout, and monitor fallback. AI, RAG and emotion availability do not block `/ready` for basic checkout.

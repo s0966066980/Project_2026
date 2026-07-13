@@ -26,6 +26,8 @@ ALLOW_UNSAFE_PRODUCTION_ROUTES = _env_bool("ALLOW_UNSAFE_PRODUCTION_ROUTES", Fal
 ALLOW_POSTGRES_JSON_FALLBACK = _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False)
 MEMBER_IDENTITY_READ_MODE = os.getenv("MEMBER_IDENTITY_READ_MODE", "legacy").strip().lower() or "legacy"
 MEMBER_IDENTITY_DUAL_WRITE = _env_bool("MEMBER_IDENTITY_DUAL_WRITE", False)
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
+SHARED_RATE_LIMIT_ENABLED = _env_bool("SHARED_RATE_LIMIT_ENABLED", APP_ENV in ("production", "staging"))
 
 
 def is_production() -> bool:
@@ -66,6 +68,8 @@ def validate_startup_config() -> None:
         errors.append("MEMBER_STORAGE_BACKEND must be postgres in production")
     if not _token_configured(os.getenv("DATABASE_URL", "")):
         errors.append("DATABASE_URL must be configured in production")
+    if _env_bool("SHARED_RATE_LIMIT_ENABLED", True) and not _token_configured(os.getenv("REDIS_URL", "")):
+        errors.append("REDIS_URL must be configured when shared production rate limiting is enabled")
     if MEMBER_IDENTITY_READ_MODE not in {"legacy", "dual", "uuid_preferred", "uuid_only"}:
         errors.append("MEMBER_IDENTITY_READ_MODE is invalid")
     if MEMBER_IDENTITY_READ_MODE != "legacy" or MEMBER_IDENTITY_DUAL_WRITE:
@@ -497,6 +501,8 @@ def get(key, default=None):
         "DEFAULT_TENANT_ID": DEFAULT_TENANT_ID,
         "DEFAULT_STORE_ID": DEFAULT_STORE_ID,
         "DEFAULT_DEVICE_ID": DEFAULT_DEVICE_ID,
+        "REDIS_URL": REDIS_URL,
+        "SHARED_RATE_LIMIT_ENABLED": SHARED_RATE_LIMIT_ENABLED,
     }
     if key in runtime_values:
         return runtime_values[key] if runtime_values[key] not in (None, "") else default

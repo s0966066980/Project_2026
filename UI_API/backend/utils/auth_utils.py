@@ -5,7 +5,12 @@ import time
 from fastapi import HTTPException, Request, UploadFile
 
 import config
-from services import admin_identity_service, device_identity_service, observability_service
+from services import (
+    admin_identity_service,
+    device_identity_service,
+    observability_service,
+    shared_infrastructure_service,
+)
 from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
 from services.commercial_context_service import scope_from_admin_principal
 from utils.commercial_scope_config import resolve_commercial_scope
@@ -142,6 +147,29 @@ def check_rate_limit(
         return
     client_host = request.client.host if request.client else "unknown"
     subject = str(key or client_host)
+    use_shared = bool(config.get("SHARED_RATE_LIMIT_ENABLED", False)) or config.APP_ENV in {"staging", "production"}
+    if use_shared:
+        scope_context = resolve_commercial_scope()
+        resources = [f"ip:{scope}:{client_host}"]
+        if subject != client_host:
+            resources.append(f"subject:{scope}:{subject}")
+        try:
+            shared_results = [
+                shared_infrastructure_service.allow_rate_limit(
+                    scope_context.tenant_id,
+                    scope_context.store_id,
+                    resource,
+                    limit=resolved_limit,
+                    window_seconds=window_seconds,
+                )
+                for resource in resources
+            ]
+        except shared_infrastructure_service.SharedInfrastructureUnavailableError as exc:
+            raise HTTPException(status_code=503, detail="security rate limit is unavailable") from exc
+        if any(result is False for result in shared_results):
+            raise HTTPException(status_code=429, detail="rate limit exceeded")
+        if all(result is True for result in shared_results):
+            return
     now = time.monotonic()
     cutoff = now - window_seconds
     bucket_keys = [("ip", scope, client_host)]

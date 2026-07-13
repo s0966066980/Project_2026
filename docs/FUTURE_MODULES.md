@@ -22,7 +22,7 @@
 | 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |
 | 完成 | Frontend toolchain | Kiosk/Admin multi-entry build 與測試基線 | API contracts | Vite、TypeScript、Vitest、Playwright 已納入 CI |
 | 完成 | Frontend feature modules baseline | bounded extraction 與 boundary enforcement | Frontend toolchain | Kiosk bootstrap/Admin auth 已抽離，既有 feature modules 與 E2E 保持；後續逐 feature 演進 |
-| P1 | Redis shared infrastructure | 支援多 instance | Deployment | shared rate limit、cache、lock/queue |
+| 完成 | Redis shared infrastructure | multi-instance ephemeral coordination | Deployment | scoped rate limit/cache/lock adapter 與 fail-closed policy 已建立 |
 | P1 | Worker | 移出長時間與可重試工作 | Redis | RAG rebuild、報表、事件與 AI job 可觀測 |
 | P1 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、metrics |
 | P1 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | 統一 contract、健康檢查、fallback |
@@ -45,7 +45,7 @@
 ### Phase 2：工程化與營運
 
 1. Frontend toolchain 與 feature modules。
-3. Redis、Worker 與正式 deployment baseline。
+3. Worker 與正式 deployment baseline。
 4. Observability、SLO、backup/restore、runbook。
 
 ### Phase 3：AI 與知識治理

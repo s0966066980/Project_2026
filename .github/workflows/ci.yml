@@ -68,6 +68,7 @@ jobs:
           backend/repositories/member_session_repository.py
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
+          backend/repositories/redis_shared_adapter.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
           backend/routes/availability_routes.py
@@ -104,6 +105,7 @@ jobs:
           backend/services/rag_offer_service.py
           backend/services/recommendation_context_service.py
           backend/services/recommendation_event_service.py
+          backend/services/shared_infrastructure_service.py
           backend/services/recommendation_feedback_service.py
           backend/services/ai_push_service.py
           backend/services/voice_service.py
@@ -127,6 +129,7 @@ jobs:
           backend/repositories/interaction_event_repository.py
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
+          backend/repositories/redis_shared_adapter.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
           backend/routes/availability_routes.py
@@ -147,6 +150,7 @@ jobs:
           backend/services/member_pii_service.py
           backend/services/health_service.py
           backend/services/observability_service.py
+          backend/services/shared_infrastructure_service.py
           backend/services/commercial_context_service.py
           backend/utils
 
@@ -286,6 +290,41 @@ jobs:
 
       - name: Critical Kiosk and Admin smoke tests
         run: npm run test:e2e
+
+  redis-integration:
+    name: Redis shared infrastructure integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: UI_API
+    env:
+      APP_ENV: test
+      MEMBER_STORAGE_BACKEND: json
+      DATABASE_URL: ""
+      REDIS_URL: redis://127.0.0.1:6379/15
+      SHARED_RATE_LIMIT_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: UI_API/requirements-ci.txt
+      - name: Install CPU-only dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
+      - name: Verify shared cache, rate limit, scope, TTL and lock
+        run: pytest -q tests/redis_shared_integration.py
 
   shell:
     name: Shell syntax checks

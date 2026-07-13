@@ -14,6 +14,7 @@ ADR 用來保存長期、跨模組且難以回復的架構決策。ADR 是決策
 | [0006](0006-admin-identity-rbac.md) | Admin Identity 與 Tenant/Store Scoped RBAC | Accepted | 2026-07-13 |
 | [0007](0007-device-identity.md) | Per-device Kiosk Identity | Accepted | 2026-07-13 |
 | [0008](0008-order-checkout-boundary.md) | Order / Checkout Transaction Boundary | Accepted | 2026-07-13 |
+| [0009](0009-redis-shared-ephemeral-infrastructure.md) | Redis Shared Ephemeral Infrastructure | Accepted | 2026-07-13 |
 
 ## 狀態
 

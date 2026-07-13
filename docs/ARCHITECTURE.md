@@ -96,6 +96,8 @@ Admin Web ───────────────┤
 | `frontend/admin` | 營運設定、會員、活動、RAG、成效與健康 |
 | `frontend/shared` | 通用 API/realtime client、design token、UI primitive |
 
+Redis 經 `CachePort`、`RateLimitPort`、`DistributedLockPort` adapter 提供跨 instance 短期狀態；key 綁 tenant/store 並雜湊 resource。Redis 不是商業資料 Source of Truth，failure policy 依 security/cache/correctness 分別 fail closed、degrade、caller-declared。
+
 Kiosk/Admin 目前由 Vite multi-entry build 分別驗證，production HTML/DOM 與 FastAPI `/static` serving 保持原路徑；Vitest 保護 shared transport，Playwright 保護本機 critical flows。完整契約見 [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md)。
 
 Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 authentication state。
