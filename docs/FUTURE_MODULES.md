@@ -26,7 +26,7 @@
 | 完成 | Worker | 移出長時間與可重試工作 | PostgreSQL job/outbox | durable job contract、retry/DLQ、outbox consumer 與 metrics 已建立；RAG rebuild 等 handler 後續接上 |
 | 完成 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、schema metrics、prompt version 已建立 |
 | 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
-| P1 | RAG governance | 文件版本、審核、發布與 rollback | Worker、Object storage | 可追蹤版本與 rebuild 結果 |
+| 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
 | P1 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | exposure、click、conversion、experiment 分析 |
 | P2 | Object Storage | 管理文件、音訊、影片與匯出物 | Security/Privacy | lifecycle、encryption、signed access |
 | P2 | POS / Payment adapters | 串接正式交易系統 | Order state machine | provider contract、reconciliation、failure handling |
