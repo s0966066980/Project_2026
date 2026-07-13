@@ -10,6 +10,8 @@
 
 Milestone 1C 新增不可變的 `0003_admin_identity_rbac_foundation.sql`，以 expand-only table 建立 Admin user、role、permission、store assignment 與 revocable session。Password 與 raw session token 不屬於 migration seed data；permission catalog 與首位 Admin 由受信任 provisioning command 建立。
 
+Milestone 1D 新增不可變的 `0004_device_identity_foundation.sql`，建立 device credential、short-lived session 與 safe credential event。Migration 不 seed raw credential；credential 由具 `device_identity.manage` 的已驗證 Admin 對 active device issue，database 只保存 hash。
+
 ## Milestone 1B Scope Matrix
 
 | Table / Storage | Business Owner | Required Scope | Legacy Compatibility | Migration Strategy | Index |
@@ -84,6 +86,15 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - Schema、assignment 或 session 問題以新的 forward migration修正。Permission catalog 可由 `python backend/scripts/manage_admin_identity.py sync-permissions` idempotently 同步。
 - 建立首位管理者使用 `python backend/scripts/manage_admin_identity.py bootstrap --login <identity>`；password 由互動式 prompt 或 `ADMIN_BOOTSTRAP_PASSWORD` environment 提供，不放在 command history。
 - 確認正式 session login、permission denial、audit 與 revoke 後，production 關閉 legacy flag。
+
+### Milestone 1D Device Identity Roll-forward
+
+- Apply 0004 前完成 backup、0001–0003 clean validation 與 device ownership盤點。
+- 套用後先執行 `python backend/scripts/manage_admin_identity.py sync-permissions`，同步新增的 `device_identity.manage` machine name。
+- 先對每台 active Kiosk issue credential，在受控 channel 完成一次性 exchange，驗證 `DevicePrincipal` scope 與 WebSocket/checkout smoke。
+- Rotation 先建立 replacement，舊 credential 在 `DEVICE_CREDENTIAL_ROTATION_GRACE_SEC` 內可並行；cutover 確認後 revoke 舊 credential。
+- Application rollback 可暫時明確啟用 `ENABLE_LEGACY_KIOSK_TOKEN`；不得 drop identity tables、保存 raw credential 或改寫 0004 checksum。
+- Credential/session/event constraint 或資料問題使用新的 forward migration修正。
 
 ## Backup Before Migration
 

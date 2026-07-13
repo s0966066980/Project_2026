@@ -9,8 +9,11 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import config
-from models.device_identity import DevicePrincipal, DeviceSessionResult
+from models.admin_identity import AdminPrincipal
+from models.commercial_scope import CommercialScope
+from models.device_identity import DeviceCredentialIssue, DevicePrincipal, DeviceSessionResult
 from repositories import device_identity_repository, postgres_utils
+from services.admin_authorization_service import authorize_admin_action
 
 
 class DeviceAuthenticationError(ValueError):
@@ -22,6 +25,10 @@ def hash_device_secret(secret: str) -> str:
 
 
 def _new_device_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def _new_device_credential() -> str:
     return secrets.token_urlsafe(48)
 
 
@@ -55,12 +62,14 @@ def create_device_session(
         or str(row.get("device_status")) != "active"
         or not isinstance(row.get("expires_at"), datetime)
         or row["expires_at"] <= resolved_now
+        or (isinstance(row.get("rotation_valid_until"), datetime) and row["rotation_valid_until"] <= resolved_now)
         or not secrets.compare_digest(str(row.get("credential_hash") or ""), hash_device_secret(credential))
     )
     if invalid:
         if row is not None:
             _record_device_event("device_auth_failure", row, reason="invalid_credential")
         raise DeviceAuthenticationError("Invalid device credential")
+    assert row is not None
 
     session_id = uuid4()
     token = _new_device_token()
@@ -127,4 +136,110 @@ def legacy_device_principal(scope, *, now: datetime | None = None) -> DevicePrin
         issued_at=resolved_now,
         expires_at=resolved_now + timedelta(minutes=5),
         auth_method="legacy_token",
+    )
+
+
+def record_legacy_device_use(scope) -> None:
+    if not postgres_utils.use_postgres():
+        return
+    _record_device_event(
+        "legacy_device_token_used",
+        {
+            "tenant_id": scope.tenant_id,
+            "store_id": scope.store_id,
+            "device_id": scope.device_id,
+            "credential_id": None,
+        },
+        reason="deprecated_compatibility",
+    )
+
+
+def issue_device_credential(
+    principal: AdminPrincipal,
+    scope: CommercialScope,
+    device_id: UUID,
+    *,
+    now: datetime | None = None,
+) -> DeviceCredentialIssue:
+    authorize_admin_action(principal, "device_identity.manage", scope)
+    device = device_identity_repository.find_active_device(scope.tenant_id, scope.store_id, device_id)
+    if device is None:
+        raise ValueError("Device is not active in the authorized scope")
+    resolved_now = now or datetime.now(timezone.utc)
+    expires_at = resolved_now + timedelta(days=max(1, int(config.get("DEVICE_CREDENTIAL_TTL_DAYS", 90) or 90)))
+    credential_id = uuid4()
+    key_id = f"dev_{uuid4().hex}"
+    raw_credential = _new_device_credential()
+    record = device_identity_repository.create_device_credential(
+        credential_id=credential_id,
+        tenant_id=scope.tenant_id,
+        store_id=scope.store_id,
+        device_id=device_id,
+        key_id=key_id,
+        credential_hash=hash_device_secret(raw_credential),
+        issued_at=resolved_now,
+        expires_at=expires_at,
+    )
+    _record_device_event("device_credential_issued", record)
+    return DeviceCredentialIssue(credential_id, key_id, raw_credential, expires_at)
+
+
+def rotate_device_credential(
+    principal: AdminPrincipal,
+    scope: CommercialScope,
+    credential_id: UUID,
+    *,
+    now: datetime | None = None,
+) -> DeviceCredentialIssue:
+    authorize_admin_action(principal, "device_identity.manage", scope)
+    resolved_now = now or datetime.now(timezone.utc)
+    expires_at = resolved_now + timedelta(days=max(1, int(config.get("DEVICE_CREDENTIAL_TTL_DAYS", 90) or 90)))
+    grace_until = resolved_now + timedelta(
+        seconds=max(0, int(config.get("DEVICE_CREDENTIAL_ROTATION_GRACE_SEC", 300) or 300))
+    )
+    replacement_id = uuid4()
+    key_id = f"dev_{uuid4().hex}"
+    raw_credential = _new_device_credential()
+    replacement = device_identity_repository.rotate_device_credential(
+        old_credential_id=credential_id,
+        credential_id=replacement_id,
+        tenant_id=scope.tenant_id,
+        store_id=scope.store_id,
+        key_id=key_id,
+        credential_hash=hash_device_secret(raw_credential),
+        issued_at=resolved_now,
+        expires_at=expires_at,
+        rotation_valid_until=grace_until,
+    )
+    if replacement is None:
+        raise ValueError("Device credential is not active in the authorized scope")
+    _record_device_event("device_credential_rotated", replacement)
+    return DeviceCredentialIssue(replacement_id, key_id, raw_credential, expires_at)
+
+
+def revoke_device_credential(
+    principal: AdminPrincipal,
+    scope: CommercialScope,
+    credential_id: UUID,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    authorize_admin_action(principal, "device_identity.manage", scope)
+    record = device_identity_repository.find_scoped_device_credential(credential_id, scope.tenant_id, scope.store_id)
+    if record is None:
+        return False
+    revoked = device_identity_repository.revoke_device_credential(credential_id, now or datetime.now(timezone.utc))
+    if revoked:
+        _record_device_event("device_credential_revoked", record)
+    return revoked
+
+
+def touch_device_principal(principal: DevicePrincipal, app_version: str) -> None:
+    if principal.auth_method != "device_session":
+        return
+    safe_version = str(app_version or "").strip()[:64]
+    device_identity_repository.touch_device(
+        principal.device_id,
+        app_version=safe_version,
+        seen_at=datetime.now(timezone.utc),
     )

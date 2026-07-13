@@ -85,6 +85,8 @@ def require_kiosk_token(request: Request):
     cookie_name = str(config.get("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session"))
     session_principal = device_identity_service.authenticate_device_session(request.cookies.get(cookie_name, ""))
     if session_principal is not None:
+        if request.headers.get("X-App-Version"):
+            device_identity_service.touch_device_principal(session_principal, request.headers.get("X-App-Version", ""))
         request.state.device_principal = session_principal
         return session_principal
     token = request.headers.get("X-Kiosk-Token") or request.headers.get("X-Pos-Token") or _bearer_token(request)
@@ -97,6 +99,7 @@ def require_kiosk_token(request: Request):
     if not _constant_time_match(token, [expected, config.POS_DEMO_TOKEN]):
         raise HTTPException(status_code=403, detail="invalid kiosk token")
     principal = device_identity_service.legacy_device_principal(resolve_commercial_scope(request.headers))
+    device_identity_service.record_legacy_device_use(resolve_commercial_scope(request.headers))
     request.state.device_principal = principal
     return principal
 

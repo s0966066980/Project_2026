@@ -43,7 +43,7 @@ Browser
 
 - FastAPI 同時承擔 API、WebSocket、靜態前端與部分 background initialization。
 - `config.py` 同時包含 infrastructure 與 runtime business settings。
-- Admin 已建立 PostgreSQL identity、Argon2id password、revocable session 與 tenant/store scoped RBAC；舊 Admin token 僅保留 feature-flagged compatibility window。Kiosk device identity 尚未完成。
+- Admin 已建立 PostgreSQL identity、Argon2id password、revocable session 與 tenant/store scoped RBAC。Kiosk 已建立 per-device credential、short-lived session、rotation/revoke 與 typed principal；舊 Admin/Kiosk token 僅保留 feature-flagged compatibility window。
 - 已建立 Tenant → Store → Device hierarchy、Default Scope 與核心 PostgreSQL expand columns；nullable enforcement、JSON-only operational data 與 identity-based scope resolution 尚未完成。
 - 部分前端協調器與樣式檔仍偏大。
 - Rate limit、cache 與 background work 尚未形成分散式基礎設施。
@@ -132,6 +132,7 @@ member(UUID)
 - 手機號碼不作為長期公開 Domain ID；會員改用 UUID，PII 使用加密與 lookup hash。
 - Schema 變更採 versioned migration。
 - Admin scope 由 database-backed `AdminPrincipal` 解析；permission、tenant 與 store 由集中式 server policy 驗證。正式 browser session 使用 HttpOnly cookie，database 只保存 token hash。
+- Kiosk scope 由 database-backed `DevicePrincipal` 解析；credential 與 session 只保存 hash，rotation 具 overlap/cutover，revoke 只影響指定 device credential。
 - 破壞性變更使用 `expand → dual write/backfill → verify → switch read → contract`。
 
 ## 6. API 與相容性

@@ -3,14 +3,16 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "1D",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
-    "1C"
+    "1C",
+    "1D"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
-    "1C": "f2aa1b9"
+    "1C": "f2aa1b9",
+    "1D": "feat: establish per-device identity foundation"
   },
   "verification": {
     "1B.1": {
@@ -37,12 +39,27 @@
       "shell": "PASS",
       "migration_clean": "PASS (0001-0003 checksums clean)",
       "scope_integrity": "PASS"
+    },
+    "1D": {
+      "target_tests": "PASS (46 passed in identity/security/scope target matrix)",
+      "postgres_integration": "PASS (4 passed on a fresh PostgreSQL 16 database)",
+      "full_json_backend": "PASS (231 passed)",
+      "coverage": "PASS (85% across new Device identity modules)",
+      "ruff_gradual_ci_scope": "PASS",
+      "ruff_format_gradual_ci_scope": "PASS",
+      "mypy": "PASS (33 source files)",
+      "python_3_12_import": "PASS (covered by final backend gate)",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "migration_clean": "PASS (0001-0004 checksums clean)",
+      "scope_integrity": "PASS"
     }
   },
   "known_gaps": [
     "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset."
   ],
   "blocked_items": [],
-  "next_milestone": "1D",
-  "updated_at": "2026-07-13T19:41:38+08:00"
+  "next_milestone": "1E",
+  "updated_at": "2026-07-13T19:53:01+08:00"
 }

@@ -58,12 +58,15 @@ jobs:
           backend/models
           backend/repositories/postgres_utils.py
           backend/repositories/admin_identity_repository.py
+          backend/repositories/device_identity_repository.py
           backend/routes/admin_identity_routes.py
+          backend/routes/device_identity_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
+          backend/services/device_identity_service.py
           backend/utils
 
       - name: Ruff format check
@@ -76,12 +79,15 @@ jobs:
           backend/models
           backend/repositories/postgres_utils.py
           backend/repositories/admin_identity_repository.py
+          backend/repositories/device_identity_repository.py
           backend/routes/admin_identity_routes.py
+          backend/routes/device_identity_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
+          backend/services/device_identity_service.py
           backend/utils
 
       - name: Mypy gradual type check
@@ -146,6 +152,9 @@ jobs:
 
       - name: Verify Admin identity and RBAC foundation
         run: pytest -q tests/postgres_identity_integration.py
+
+      - name: Verify per-device identity foundation
+        run: pytest -q tests/postgres_device_identity_integration.py
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply

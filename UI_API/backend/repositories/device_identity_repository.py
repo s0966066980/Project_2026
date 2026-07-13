@@ -32,6 +32,155 @@ def find_device_credential(key_id: str) -> dict | None:
         return dict(row) if row is not None else None
 
 
+def find_active_device(tenant_id: object, store_id: object, device_id: object) -> dict | None:
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id AS device_id, tenant_id, store_id, status
+            FROM devices
+            WHERE id = %s AND store_id = %s AND tenant_id = %s AND status = 'active'
+            """,
+            (device_id, store_id, tenant_id),
+        )
+        row = cur.fetchone()
+        return dict(row) if row is not None else None
+
+
+def create_device_credential(**values: object) -> dict:
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO device_credentials (
+                id, tenant_id, store_id, device_id, key_id, credential_hash,
+                status, issued_at, expires_at, rotated_from_credential_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'active', %s, %s, %s)
+            RETURNING id AS credential_id, tenant_id, store_id, device_id,
+                      key_id, status, issued_at, expires_at
+            """,
+            (
+                values["credential_id"],
+                values["tenant_id"],
+                values["store_id"],
+                values["device_id"],
+                values["key_id"],
+                values["credential_hash"],
+                values["issued_at"],
+                values["expires_at"],
+                values.get("rotated_from_credential_id"),
+            ),
+        )
+        row = cur.fetchone()
+        conn.commit()
+    return dict(row)
+
+
+def find_scoped_device_credential(
+    credential_id: object,
+    tenant_id: object,
+    store_id: object,
+) -> dict | None:
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id AS credential_id, tenant_id, store_id, device_id, key_id,
+                   status, expires_at, revoked_at, rotation_valid_until
+            FROM device_credentials
+            WHERE id = %s AND tenant_id = %s AND store_id = %s
+            """,
+            (credential_id, tenant_id, store_id),
+        )
+        row = cur.fetchone()
+        return dict(row) if row is not None else None
+
+
+def rotate_device_credential(**values: object) -> dict | None:
+    """Create a replacement and set the old credential grace window atomically."""
+
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, tenant_id, store_id, device_id
+            FROM device_credentials
+            WHERE id = %s AND tenant_id = %s AND store_id = %s
+              AND status = 'active' AND revoked_at IS NULL AND expires_at > %s
+            FOR UPDATE
+            """,
+            (
+                values["old_credential_id"],
+                values["tenant_id"],
+                values["store_id"],
+                values["issued_at"],
+            ),
+        )
+        old = cur.fetchone()
+        if old is None:
+            return None
+        cur.execute(
+            """
+            INSERT INTO device_credentials (
+                id, tenant_id, store_id, device_id, key_id, credential_hash,
+                status, issued_at, expires_at, rotated_from_credential_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'active', %s, %s, %s)
+            RETURNING id AS credential_id, tenant_id, store_id, device_id,
+                      key_id, status, issued_at, expires_at
+            """,
+            (
+                values["credential_id"],
+                old["tenant_id"],
+                old["store_id"],
+                old["device_id"],
+                values["key_id"],
+                values["credential_hash"],
+                values["issued_at"],
+                values["expires_at"],
+                old["id"],
+            ),
+        )
+        replacement = cur.fetchone()
+        cur.execute(
+            "UPDATE device_credentials SET rotation_valid_until = %s, updated_at = NOW() WHERE id = %s",
+            (values["rotation_valid_until"], old["id"]),
+        )
+        conn.commit()
+    return dict(replacement)
+
+
+def revoke_device_credential(credential_id: object, revoked_at: datetime) -> bool:
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE device_credentials
+            SET status = 'revoked', revoked_at = COALESCE(revoked_at, %s), updated_at = NOW()
+            WHERE id = %s
+            RETURNING id
+            """,
+            (revoked_at, credential_id),
+        )
+        changed = cur.fetchone() is not None
+        if changed:
+            cur.execute(
+                "UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, %s) WHERE credential_id = %s",
+                (revoked_at, credential_id),
+            )
+        conn.commit()
+    return changed
+
+
+def touch_device(device_id: object, *, app_version: str, seen_at: datetime) -> None:
+    with _connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE devices
+            SET last_seen_at = %s,
+                app_version = CASE WHEN %s <> '' THEN %s ELSE app_version END,
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (seen_at, app_version, app_version, device_id),
+        )
+        conn.commit()
+
+
 def create_device_session(**values: object) -> dict:
     with _connection() as conn, conn.cursor() as cur:
         cur.execute(

@@ -16,6 +16,20 @@ STORE_ID = UUID("00000000-0000-4000-8000-000000000002")
 DEVICE_ID = UUID("00000000-0000-4000-8000-000000000003")
 
 
+def _admin_principal(*, permissions: tuple[str, ...] = ("device_identity.manage",)):
+    from models.admin_identity import AdminPrincipal
+
+    return AdminPrincipal(
+        user_id=uuid4(),
+        tenant_id=TENANT_ID,
+        allowed_store_ids=(STORE_ID,),
+        roles=("device-manager",),
+        permissions=permissions,
+        session_id=uuid4(),
+        auth_method="session",
+    )
+
+
 def test_device_identity_migration_is_scoped_and_forward_only() -> None:
     migration = ROOT / "UI_API/backend/schemas/migrations/0004_device_identity_foundation.sql"
     sql = migration.read_text(encoding="utf-8")
@@ -193,3 +207,69 @@ def test_legacy_kiosk_token_requires_explicit_compatibility_flag(monkeypatch: py
     with pytest.raises(HTTPException) as exc_info:
         auth_utils.require_kiosk_token(request)
     assert exc_info.value.status_code == 403
+
+
+def test_device_credential_issue_is_admin_authorized_and_hashes_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.commercial_scope import CommercialScope
+    from services import device_identity_service
+
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        device_identity_service.device_identity_repository,
+        "find_active_device",
+        lambda *_args: {"device_id": DEVICE_ID, "tenant_id": TENANT_ID, "store_id": STORE_ID},
+    )
+    monkeypatch.setattr(
+        device_identity_service.device_identity_repository,
+        "create_device_credential",
+        lambda **values: captured.update(values) or values,
+    )
+    monkeypatch.setattr(device_identity_service, "_new_device_credential", lambda: "raw-device-credential")
+    monkeypatch.setattr(device_identity_service, "_record_device_event", lambda *_args, **_kwargs: None)
+
+    issued = device_identity_service.issue_device_credential(
+        _admin_principal(), CommercialScope(TENANT_ID, STORE_ID), DEVICE_ID
+    )
+
+    assert issued.credential == "raw-device-credential"
+    assert captured["credential_hash"] == device_identity_service.hash_device_secret(issued.credential)
+    assert issued.credential not in str(captured)
+    assert captured["tenant_id"] == TENANT_ID
+    assert captured["store_id"] == STORE_ID
+
+
+def test_device_credential_issue_denies_missing_permission(monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.commercial_scope import CommercialScope
+    from services import device_identity_service
+    from services.admin_authorization_service import AdminAuthorizationError
+
+    monkeypatch.setattr(
+        device_identity_service.device_identity_repository,
+        "find_active_device",
+        lambda *_args: pytest.fail("repository must not run before authorization"),
+    )
+
+    with pytest.raises(AdminAuthorizationError):
+        device_identity_service.issue_device_credential(
+            _admin_principal(permissions=()), CommercialScope(TENANT_ID, STORE_ID), DEVICE_ID
+        )
+
+
+def test_production_can_disable_legacy_kiosk_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    import config
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
+    monkeypatch.setattr(config, "ENABLE_LEGACY_KIOSK_TOKEN", False)
+    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "")
+    monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "")
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["https://kiosk.example.com"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+    monkeypatch.setattr(config, "_env_bool", lambda _name, default=False: False)
+    monkeypatch.setenv("ADMIN_MEMBER_REF_SECRET", "member-ref-secret")
+    monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
+    monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
+    monkeypatch.setenv("DEFAULT_DEVICE_ID", str(DEVICE_ID))
+
+    config.validate_startup_config()
