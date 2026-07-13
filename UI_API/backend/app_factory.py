@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 from api.router import register_routes
+from api.v1.errors import register_v1_error_handlers
 from bootstrap.startup import background_init
 from core.constants import FRONTEND_DIR, STATIC_CACHE_PREFIX, TUNNEL_ORIGIN_REGEX
 from services import health_service, observability_service
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    register_v1_error_handlers(app)
 
     @app.get("/live", include_in_schema=False)
     async def live():

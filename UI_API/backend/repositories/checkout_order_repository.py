@@ -15,6 +15,42 @@ class CheckoutIdempotencyConflictError(ValueError):
     """An idempotency key was reused for a different safe request fingerprint."""
 
 
+def list_orders_scoped(
+    scope: CommercialScope,
+    *,
+    status: str = "",
+    offset: int = 0,
+    limit: int = 100,
+    sort_order: str = "desc",
+) -> tuple[list[dict], int]:
+    """Return a bounded, tenant/store-scoped Order summary page."""
+
+    if not postgres_utils.use_postgres():
+        return [], 0
+    normalized_status = str(status or "").strip().lower()
+    direction = "ASC" if sort_order == "asc" else "DESC"
+    safe_offset = max(0, int(offset))
+    safe_limit = max(1, min(int(limit), 100))
+    postgres_utils.init_schema()
+    where = "tenant_id = %s AND store_id = %s"
+    params: list[object] = [scope.tenant_id, scope.store_id]
+    if normalized_status:
+        where += " AND status = %s"
+        params.append(normalized_status)
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) AS total FROM orders WHERE {where}", tuple(params))
+        total = int((cur.fetchone() or {}).get("total") or 0)
+        cur.execute(
+            f"""SELECT id AS order_id, status, currency, total, created_at, member_id
+                FROM orders WHERE {where}
+                ORDER BY created_at {direction}, id {direction}
+                OFFSET %s LIMIT %s""",
+            (*params, safe_offset, safe_limit),
+        )
+        rows = [dict(row) for row in cur.fetchall()]
+    return rows, total
+
+
 def _jsonb(value: object):
     try:
         from psycopg.types.json import Jsonb

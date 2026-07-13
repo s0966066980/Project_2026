@@ -79,6 +79,7 @@ jobs:
           backend/routes/recommendation_event_routes.py
           backend/routes/realtime_routes.py
           backend/routes/voice_routes.py
+          backend/routes/v1_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/scripts/validate_commercial_scope.py
@@ -133,6 +134,7 @@ jobs:
           backend/routes/member_routes.py
           backend/routes/recommendation_event_routes.py
           backend/routes/realtime_routes.py
+          backend/routes/v1_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/scripts/validate_commercial_scope.py

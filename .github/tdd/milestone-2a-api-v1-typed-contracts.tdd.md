@@ -17,19 +17,28 @@ Result: **RED — 5 failed**. The failures prove the complete absence of `/api/v
 
 ## Boundary RED
 
-Pending auth, scope, validation, OpenAPI uniqueness and legacy compatibility evidence.
+在 GREEN 前的同一 contract suite 明確要求 auth metadata、scope、validation、OpenAPI uniqueness 與 legacy compatibility；所有 v1 assertion 因 route 尚不存在而失敗。
 
 ## GREEN
 
-Pending.
+Command: `pytest -q tests/test_api_v1_contracts.py`.
+
+Result: **GREEN — 5 passed** after the typed DTO, v1 router, safe error handler and scoped read adapters were added.
 
 ## Security Verification
 
-Pending.
+新增 auth failure safe-envelope 與 forged commercial-scope header regression。Credential 不回顯，scope 仍由 verified/default server principal 解析。
 
 ## Integration Verification
 
-Pending.
+- Target/security/documentation matrix: **PASS — 27 passed**.
+- PostgreSQL affected order-scope/readiness integrations: **PASS — 2 passed**.
+- Full JSON backend: **PASS — 263 passed**.
+- Ruff affected scope and Ruff format: **PASS**.
+- mypy: **PASS — 45 source files**.
+- Application import, migration checksum/clean state and commercial scope integrity: **PASS**.
+- Frontend typecheck/syntax and shell syntax: **PASS**.
+- Python 3.10 runtime: **NOT RUN locally** (runtime unavailable; retained in CI matrix).
 
 ## Known Limitations
 

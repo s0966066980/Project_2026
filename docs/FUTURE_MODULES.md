@@ -19,7 +19,7 @@
 | P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
 | P1 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、replay、backlog metrics |
 | P1 | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report |
-| P1 | API v1 contracts | 建立 typed、versioned API | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層 |
+| 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |
 | P1 | Frontend toolchain | 提升 Kiosk/Admin 可維護性 | API contracts | Vite、TypeScript、Vitest、Playwright |
 | P1 | Frontend feature modules | 拆分大型協調器與樣式 | Frontend toolchain | Kiosk/Admin boundary 清楚且回歸測試通過 |
 | P1 | Redis shared infrastructure | 支援多 instance | Deployment | shared rate limit、cache、lock/queue |
@@ -44,8 +44,7 @@
 
 ### Phase 2：工程化與營運
 
-1. API v1 contracts。
-2. Frontend toolchain 與 feature modules。
+1. Frontend toolchain 與 feature modules。
 3. Redis、Worker 與正式 deployment baseline。
 4. Observability、SLO、backup/restore、runbook。
 

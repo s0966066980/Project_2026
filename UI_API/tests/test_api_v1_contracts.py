@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-
 V1_PATHS = {
     "/api/v1/auth/me",
     "/api/v1/commercial-context",
@@ -81,6 +80,39 @@ def test_v1_collection_contract_has_pagination_filter_and_sort(monkeypatch) -> N
         "total": 0,
         "total_pages": 0,
     }
+
+
+def test_v1_auth_failure_is_safe_and_does_not_echo_credentials(monkeypatch) -> None:
+    from utils import auth_utils
+
+    client = _client(monkeypatch)
+    monkeypatch.setattr(auth_utils, "_security_enforced", lambda: True)
+    original_get = auth_utils.config.get
+    monkeypatch.setattr(
+        auth_utils.config,
+        "get",
+        lambda key, default=None: "expected-token" if key == "ADMIN_API_TOKEN" else original_get(key, default),
+    )
+    response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer should-never-echo"})
+    assert response.status_code in {401, 403}
+    payload = response.json()
+    assert payload["error"]["code"] in {"unauthorized", "forbidden"}
+    assert payload["meta"]["request_id"] == payload["error"]["request_id"]
+    assert "should-never-echo" not in str(payload)
+
+
+def test_v1_scope_ignores_unverified_commercial_headers(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    expected = client.get("/api/v1/commercial-context").json()["data"]
+    forged = client.get(
+        "/api/v1/commercial-context",
+        headers={
+            "X-Tenant-ID": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "X-Store-ID": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "X-Device-ID": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        },
+    ).json()["data"]
+    assert forged == expected
 
 
 def test_legacy_api_contract_remains_available(monkeypatch) -> None:

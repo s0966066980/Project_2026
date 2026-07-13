@@ -50,6 +50,7 @@ files = [
   "backend/repositories/checkout_order_repository.py",
   "backend/routes/admin_identity_routes.py",
   "backend/routes/device_identity_routes.py",
+  "backend/routes/v1_routes.py",
   "backend/scripts/manage_postgres_migrations.py",
   "backend/scripts/manage_admin_identity.py",
   "backend/scripts/validate_commercial_scope.py",

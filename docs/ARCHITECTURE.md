@@ -141,7 +141,8 @@ member(UUID)
 ## 6. API 與相容性
 
 - 現有 `/api/*`、`/kiosk`、`/admin` 與 WebSocket 在遷移期間保持相容。
-- 新公開 API 優先使用 `/api/v1/*`。
+- 新公開 API 使用 `/api/v1/*` typed DTO、統一 success/error envelope、唯一 operation ID 與 OpenAPI security metadata；詳細契約見 [API_V1.md](API_V1.md)。
+- `/api/v1` 的 commercial scope 由已驗證 principal 在 server-side 解析，不接受未驗證 scope header 覆寫。
 - Request/Response 使用明確 Pydantic schema。
 - 統一 error contract 應包含穩定 `code`、可讀 `message` 與 `request_id`。
 - 前端 API 呼叫逐步集中至 typed/generated client。

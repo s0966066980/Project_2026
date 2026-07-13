@@ -175,6 +175,11 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
         scope_b, "checkout-session", "checkout-key", fingerprint, priced
     )
     assert tenant_b_order["order_id"] != created["order_id"]
+    default_orders, default_total = checkout_order_repository.list_orders_scoped(LEGACY_DEFAULT_SCOPE)
+    tenant_b_orders, tenant_b_total = checkout_order_repository.list_orders_scoped(scope_b)
+    assert default_total == 2
+    assert tenant_b_total == 1
+    assert {row["order_id"] for row in default_orders}.isdisjoint({row["order_id"] for row in tenant_b_orders})
 
     priced["cart_items"][0]["name"] = "Changed Later"
     with psycopg.connect(scoped_url, row_factory=dict_row) as conn:
