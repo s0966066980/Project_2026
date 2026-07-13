@@ -17,6 +17,7 @@
 - Migration PR 必須說明 backup、restore、rollback 或 roll-forward。
 - 新 API request/response 與大型跨層 contract 使用 Pydantic model、TypedDict 或 dataclass，避免無型別 `dict` 擴散。
 - 商用資料逐步加入 `tenant_id`、`store_id`、`device_id` scope。
+- `0003_admin_identity_rbac_foundation.sql` 是 Admin identity/RBAC schema source；permission/user bootstrap 透過受信任 CLI 執行，不將 password 或 token seed 寫入 migration。
 - 會員長期使用 UUID；手機等 PII 的 migration 需搭配加密、lookup hash 與相容計畫。
 
 ## 驗證

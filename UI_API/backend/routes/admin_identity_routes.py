@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 import config
 from services import admin_identity_service
-from utils.auth_utils import require_admin_token
+from utils.auth_utils import check_rate_limit, require_admin_token
 from utils.commercial_scope_config import resolve_commercial_scope
 
 
@@ -33,6 +33,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
 
     @router.post("/login")
     async def login(payload: AdminLoginRequest, request: Request, response: Response):
+        check_rate_limit(request, "admin_login", limit=10, key=payload.login_identity.strip().lower())
         scope = resolve_commercial_scope(request.headers)
         try:
             result = await asyncio.to_thread(
@@ -67,5 +68,27 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     @router.get("/me")
     async def current_admin(request: Request):
         return {"principal": _principal_payload(require_admin_token(request))}
+
+    @router.post("/rotate")
+    async def rotate(request: Request, response: Response):
+        principal = require_admin_token(request)
+        if principal.auth_method != "session":
+            raise HTTPException(status_code=403, detail="legacy Admin authentication cannot rotate a session")
+        cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
+        result = await asyncio.to_thread(
+            admin_identity_service.rotate_admin_session,
+            request.cookies.get(cookie_name, ""),
+            resolve_commercial_scope(),
+        )
+        response.set_cookie(
+            key=cookie_name,
+            value=result.token,
+            expires=result.expires_at,
+            httponly=True,
+            secure=config.is_production(),
+            samesite="strict",
+            path="/",
+        )
+        return {"principal": _principal_payload(result.principal), "expires_at": result.expires_at.isoformat()}
 
     return router

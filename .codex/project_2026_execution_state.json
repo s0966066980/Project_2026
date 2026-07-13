@@ -3,12 +3,14 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "1C",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
-    "1B.1"
+    "1B.1",
+    "1C"
   ],
   "checkpoint_commits": {
-    "1B.1": "f116474"
+    "1B.1": "f116474",
+    "1C": "feat: establish admin identity and rbac foundation"
   },
   "verification": {
     "1B.1": {
@@ -20,12 +22,27 @@
       "shell": "PASS",
       "ruff_gradual_ci_scope": "PASS",
       "ruff_expanded_scope": "FAIL (pre-existing formatting and lint baseline outside the gradual CI scope)"
+    },
+    "1C": {
+      "target_tests": "PASS (90 passed in the final targeted security/documentation matrix)",
+      "postgres_integration": "PASS (3 passed on a fresh PostgreSQL 16 database)",
+      "full_json_backend": "PASS (219 passed)",
+      "coverage": "PASS (86% across new Admin identity/RBAC modules)",
+      "ruff_gradual_ci_scope": "PASS",
+      "ruff_format_gradual_ci_scope": "PASS",
+      "mypy": "PASS (29 source files)",
+      "python_3_12_import": "PASS",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "migration_clean": "PASS (0001-0003 checksums clean)",
+      "scope_integrity": "PASS"
     }
   },
   "known_gaps": [
     "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset."
   ],
   "blocked_items": [],
-  "next_milestone": "1C",
-  "updated_at": "2026-07-13T19:20:46+08:00"
+  "next_milestone": "1D",
+  "updated_at": "2026-07-13T19:41:38+08:00"
 }

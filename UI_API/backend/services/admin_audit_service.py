@@ -1,4 +1,5 @@
 """Admin audit logging for high-risk admin actions."""
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -8,9 +9,12 @@ from repositories import admin_audit_repository
 def _actor_from_request(request) -> str:
     if request is None:
         return "admin"
-    if request.headers.get("X-Admin-User"):
-        return request.headers.get("X-Admin-User")
-    if request.headers.get("X-Admin-Token") or str(request.headers.get("Authorization", "")).lower().startswith("bearer "):
+    principal = getattr(getattr(request, "state", None), "admin_principal", None)
+    if principal is not None:
+        return str(principal.user_id)
+    if request.headers.get("X-Admin-Token") or str(request.headers.get("Authorization", "")).lower().startswith(
+        "bearer "
+    ):
         return "admin"
     if request.headers.get("X-Kiosk-Token") or request.headers.get("X-Pos-Token"):
         return "kiosk"

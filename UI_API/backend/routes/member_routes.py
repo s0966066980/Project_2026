@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, Form, HTTPException, Query, Request, Response
 
 from services import admin_audit_service, member_service
-from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
+from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -88,12 +88,12 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/api/members")
     async def list_members(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "members.read")
         return await asyncio.to_thread(member_service.admin_list)
 
     @router.get("/api/members/export")
     async def export_members(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "members.export")
         content = await asyncio.to_thread(member_service.export_members_csv)
         audit = await asyncio.to_thread(
             admin_audit_service.record_admin_action,
@@ -114,12 +114,12 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/api/admin/audit_logs")
     async def list_admin_audits(request: Request, limit: int = Query(default=200, ge=1, le=5000)):
-        require_admin_token(request)
+        authorize_admin_request(request, "audit.read")
         return await asyncio.to_thread(admin_audit_service.list_admin_audits, limit)
 
     @router.get("/api/members/{member_ref}")
     async def member_detail(request: Request, member_ref: str):
-        require_admin_token(request)
+        authorize_admin_request(request, "members.read")
         detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
         if detail is None:
             raise HTTPException(status_code=404, detail="member not found")
@@ -127,7 +127,7 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.delete("/api/members/{member_ref}/records")
     async def member_clear_records(request: Request, member_ref: str):
-        require_admin_token(request)
+        authorize_admin_request(request, "members.delete")
         detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
         ok = await asyncio.to_thread(member_service.admin_clear_records, member_ref)
         if not ok:
@@ -144,7 +144,7 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.delete("/api/members/{member_ref}")
     async def member_delete(request: Request, member_ref: str):
-        require_admin_token(request)
+        authorize_admin_request(request, "members.delete")
         detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
         ok = await asyncio.to_thread(member_service.admin_delete_member, member_ref)
         if not ok:

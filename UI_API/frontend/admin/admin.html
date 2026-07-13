@@ -18,6 +18,25 @@ body {
   height: 100dvh;
   overflow: hidden;
 }
+.admin-auth-backdrop {
+  position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 28, 43, 0.72); padding: 20px;
+}
+.admin-auth-card {
+  width: min(380px, 100%); background: #fff; border-radius: 16px; padding: 28px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.25);
+}
+.admin-auth-card h1 { font-size: 20px; margin-bottom: 8px; }
+.admin-auth-card p { color: #5a6a8a; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
+.admin-auth-card label { display: block; font-size: 12px; font-weight: 700; margin: 12px 0 6px; }
+.admin-auth-card input {
+  width: 100%; border: 1.5px solid #dce3ef; border-radius: 8px; padding: 10px 12px; font: inherit;
+}
+.admin-auth-card button {
+  width: 100%; margin-top: 18px; border: 0; border-radius: 8px; padding: 11px 14px;
+  color: #fff; background: #3b7aee; font-weight: 800; cursor: pointer;
+}
+.admin-auth-error { min-height: 18px; margin-top: 10px; color: #b42318; font-size: 12px; }
 
 /* ── Sidebar ── */
 .sidebar {
@@ -797,6 +816,19 @@ tbody tr:hover td { background: #f8fafd; }
 </style>
 </head>
 <body>
+
+<div id="adminAuthBackdrop" class="admin-auth-backdrop" role="dialog" aria-modal="true" aria-labelledby="adminAuthTitle">
+  <form id="adminAuthForm" class="admin-auth-card">
+    <h1 id="adminAuthTitle">Admin 登入</h1>
+    <p>使用個人管理者帳號登入。Session 只保存在安全的 HttpOnly Cookie。</p>
+    <label for="adminLoginIdentity">登入帳號</label>
+    <input id="adminLoginIdentity" name="login_identity" autocomplete="username" maxlength="254" required>
+    <label for="adminLoginPassword">密碼</label>
+    <input id="adminLoginPassword" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
+    <button type="submit">登入</button>
+    <div id="adminAuthError" class="admin-auth-error" role="alert"></div>
+  </form>
+</div>
 
 <!-- ── Sidebar ── -->
 <aside class="sidebar">

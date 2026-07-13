@@ -1,11 +1,12 @@
 """推薦事件路由。"""
+
 import asyncio
 
 from fastapi import APIRouter, Body, Request
 
 from repositories import recommendation_event_repository
 from services import recommendation_event_service
-from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
+from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
 def create_router(deps: dict | None = None) -> APIRouter:
@@ -24,7 +25,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
     @router.get("/recommendation_events")
     async def get_recommendation_events(request: Request, session_id: str = "", limit: int = 200):
-        require_admin_token(request)
+        authorize_admin_request(request, "recommendations.read")
         events = await asyncio.to_thread(
             recommendation_event_repository.get_recommendation_events,
             session_id,
@@ -35,7 +36,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
     @router.delete("/recommendation_events")
     async def clear_recommendation_events(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "recommendations.write")
         count = await asyncio.to_thread(recommendation_event_repository.clear_recommendation_events)
         return {"status": "success", "cleared": count}
 

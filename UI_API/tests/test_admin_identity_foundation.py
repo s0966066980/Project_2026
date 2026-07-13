@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -63,6 +64,11 @@ def test_password_hash_is_argon2id_and_supports_verify_and_rehash() -> None:
     assert verify_admin_password(encoded, "correct horse battery staple") is True
     assert verify_admin_password(encoded, "wrong") is False
     assert admin_password_needs_rehash(encoded) is False
+
+    from argon2 import PasswordHasher
+
+    older_parameters = PasswordHasher(time_cost=1, memory_cost=8192, parallelism=1).hash("correct horse battery staple")
+    assert admin_password_needs_rehash(older_parameters) is True
 
 
 def test_session_token_hash_is_deterministic_and_never_plaintext() -> None:
@@ -238,3 +244,115 @@ def test_legacy_admin_token_requires_explicit_compatibility_flag(monkeypatch: py
     with pytest.raises(HTTPException) as exc_info:
         auth_utils.require_admin_token(request)
     assert exc_info.value.status_code == 403
+
+
+def test_admin_audit_actor_comes_from_verified_principal_not_client_header() -> None:
+    from starlette.requests import Request
+
+    from services import admin_audit_service
+
+    principal = _principal()
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "headers": [(b"x-admin-user", b"spoofed-user")],
+        }
+    )
+    request.state.admin_principal = principal
+
+    assert admin_audit_service._actor_from_request(request) == str(principal.user_id)
+    assert admin_audit_service._actor_from_request(request) != "spoofed-user"
+
+
+def test_permission_catalog_uses_stable_machine_names() -> None:
+    from models.admin_permissions import ADMIN_PERMISSION_NAMES
+
+    assert {
+        "members.read",
+        "members.delete",
+        "settings.write",
+        "rag.review",
+        "admin_identity.manage",
+    } <= ADMIN_PERMISSION_NAMES
+
+
+def test_production_can_disable_legacy_admin_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    import config
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
+    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "")
+    monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "kiosk-secret")
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["https://admin.example.com"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+    monkeypatch.setattr(config, "_env_bool", lambda _name, default=False: False)
+    monkeypatch.setenv("ADMIN_MEMBER_REF_SECRET", "member-ref-secret")
+    monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
+    monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
+    monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
+
+    config.validate_startup_config()
+
+
+def test_existing_admin_routes_use_central_permission_policy() -> None:
+    from models.admin_permissions import ADMIN_PERMISSION_NAMES
+
+    routes = ROOT / "UI_API/backend/routes"
+    offenders: list[str] = []
+    referenced_permissions: set[str] = set()
+    for path in routes.glob("*_routes.py"):
+        if path.name == "admin_identity_routes.py":
+            continue
+        source = path.read_text(encoding="utf-8")
+        if "require_admin_token" in source:
+            offenders.append(path.name)
+        referenced_permissions.update(
+            re.findall(r'(?:authorize_admin_request|require_permission)\([^\n]*?"([a-z_.]+)"', source)
+        )
+    assert offenders == []
+    assert referenced_permissions
+    assert referenced_permissions <= ADMIN_PERMISSION_NAMES
+
+
+def test_bootstrap_cli_never_accepts_password_as_command_line_argument() -> None:
+    source = (ROOT / "UI_API/backend/scripts/manage_admin_identity.py").read_text(encoding="utf-8")
+
+    assert 'add_argument("--password"' not in source
+    assert "getpass.getpass" in source
+    assert "ADMIN_BOOTSTRAP_PASSWORD" in source
+
+
+def test_role_assignment_is_permission_checked_and_audited(monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.commercial_scope import CommercialScope
+    from services import admin_access_service
+
+    principal = _principal(permissions=("admin_identity.manage",))
+    user_id = uuid4()
+    role_id = uuid4()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        admin_access_service.admin_identity_repository,
+        "assign_admin_role",
+        lambda **values: captured.update(values) or values,
+    )
+    monkeypatch.setattr(
+        admin_access_service.admin_audit_repository,
+        "append_admin_audit_scoped",
+        lambda record, scope: captured.update({"audit": record, "scope": scope}) or record,
+    )
+
+    result = admin_access_service.assign_admin_role(
+        principal,
+        CommercialScope(TENANT_ID, STORE_ID),
+        user_id=user_id,
+        role_id=role_id,
+        store_id=STORE_ID,
+    )
+
+    assert result["tenant_id"] == TENANT_ID
+    assert captured["audit"]["action"] == "admin_role_assignment_changed"
+    assert "password" not in str(captured["audit"]).lower()
+    assert "token" not in str(captured["audit"]).lower()

@@ -49,18 +49,9 @@ if (dateTextEl) {
   });
 }
 
-// ── Admin token helper ──
+// ── Admin session / legacy compatibility helper ──
 function adminToken() {
-  const params = new URLSearchParams(window.location.search);
-  const t = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
-  if (t) sessionStorage.setItem('admin_demo_token', t);
-  if (params.has('token') || params.has('admin_token')) {
-    params.delete('token');
-    params.delete('admin_token');
-    const query = params.toString();
-    history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
-  }
-  return t;
+  return sessionStorage.getItem('admin_demo_token') || '';
 }
 function adminHeaders(extra = {}) {
   const t = adminToken();
@@ -2161,8 +2152,41 @@ bindPromotionPickers();
 });
 document.getElementById('recommendationSessionFilter')?.addEventListener('input', renderRecommendationDashboard);
 
-// 先載入菜單對照表，再載入統計
-loadMenu().then(loadStats);
+async function bootstrapAdminSession() {
+  const backdrop = document.getElementById('adminAuthBackdrop');
+  try {
+    const response = await fetch(`${API}/api/admin/auth/me`, { headers: adminHeaders(), credentials: 'same-origin' });
+    if (!response.ok) throw new Error('authentication required');
+    if (backdrop) backdrop.style.display = 'none';
+    await loadMenu();
+    await loadStats();
+  } catch {
+    if (backdrop) backdrop.style.display = 'flex';
+  }
+}
+
+document.getElementById('adminAuthForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const identity = document.getElementById('adminLoginIdentity');
+  const password = document.getElementById('adminLoginPassword');
+  const error = document.getElementById('adminAuthError');
+  if (!(identity instanceof HTMLInputElement) || !(password instanceof HTMLInputElement)) return;
+  if (error) error.textContent = '';
+  const response = await fetch(`${API}/api/admin/auth/login`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ login_identity: identity.value, password: password.value }),
+  }).catch(() => null);
+  password.value = '';
+  if (!response?.ok) {
+    if (error) error.textContent = '登入失敗，請確認帳號與密碼。';
+    return;
+  }
+  await bootstrapAdminSession();
+});
+
+bootstrapAdminSession();
 // 只在統計頁可見時才自動重整
 setInterval(() => {
   const statsPage = document.getElementById('page-stats');

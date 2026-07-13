@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, Request
 
 from repositories import interaction_event_repository
-from utils.auth_utils import require_admin_token
+from utils.auth_utils import authorize_admin_request
 
 
 def create_router(deps: dict | None = None) -> APIRouter:
@@ -11,7 +11,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
     @router.get("/intervention_logs/{session_id}")
     async def get_intervention_logs(request: Request, session_id: str, limit: int = 200):
-        require_admin_token(request)
+        authorize_admin_request(request, "system.debug")
         logs = await asyncio.to_thread(
             interaction_event_repository.get_intervention_logs,
             session_id,

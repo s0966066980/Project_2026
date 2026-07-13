@@ -21,9 +21,8 @@ export function createRealtimeClient(clientType, sessionId, handlers = {}) {
   const demoToken = () => {
     const params = new URLSearchParams(window.location.search || '');
     const key = clientType === 'admin' ? 'admin_demo_token' : 'pos_demo_token';
-    const roleToken = clientType === 'admin'
-      ? params.get('admin_token')
-      : (params.get('kiosk_token') || params.get('pos_token'));
+    if (clientType === 'admin') return '';
+    const roleToken = params.get('kiosk_token') || params.get('pos_token');
     const token = roleToken || params.get('token') || params.get('ws_token') || sessionStorage.getItem(key) || '';
     if (token) sessionStorage.setItem(key, token);
     if (['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'].some(name => params.has(name))) {

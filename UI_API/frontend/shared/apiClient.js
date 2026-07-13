@@ -59,11 +59,7 @@ function parseVoiceStreamChunk(value) {
 
 /** @returns {string} */
 function demoToken() {
-  const params = new URLSearchParams(window.location.search || '');
-  const token = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
-  if (token) sessionStorage.setItem('admin_demo_token', token);
-  stripSensitiveTokenParams(params);
-  return token;
+  return sessionStorage.getItem('admin_demo_token') || '';
 }
 
 /**

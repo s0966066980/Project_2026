@@ -9,7 +9,7 @@ from services import interaction_event_service
 from services import intervention_pipeline_service
 from services import scenario_service
 from services import stats_service
-from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
+from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
 def create_router(deps: dict | None = None) -> APIRouter:
@@ -20,28 +20,27 @@ def create_router(deps: dict | None = None) -> APIRouter:
         require_kiosk_token(request)
         check_rate_limit(request, "interaction_event", limit=180)
         event = interaction_event_service.normalize_interaction_event(payload)
-        saved_event = await asyncio.to_thread(
-            interaction_event_repository.append_interaction_event, event
-        )
+        saved_event = await asyncio.to_thread(interaction_event_repository.append_interaction_event, event)
         if event.get("event_type") == "payment_staff_requested":
             metadata = event.get("metadata") or {}
             emotion = metadata.get("emotion") if isinstance(metadata.get("emotion"), dict) else None
             assist_response = (emotion or {}).get("assist_response", "") if emotion else ""
-            await event_bus.publish_to_admin("staff_notify", {
-                "session_id": event.get("session_id", ""),
-                "kiosk_name": config.get("KIOSK_NAME", "機台01"),
-                "reason": "payment_staff_requested",
-                "emotion": emotion,
-                "assist_response": assist_response,
-            })
+            await event_bus.publish_to_admin(
+                "staff_notify",
+                {
+                    "session_id": event.get("session_id", ""),
+                    "kiosk_name": config.get("KIOSK_NAME", "機台01"),
+                    "reason": "payment_staff_requested",
+                    "emotion": emotion,
+                    "assist_response": assist_response,
+                },
+            )
         return {"status": "success", "event": saved_event}
 
     @router.get("/interaction_events/{session_id}")
     async def get_interaction_events(request: Request, session_id: str, limit: int = 200):
-        require_admin_token(request)
-        events = await asyncio.to_thread(
-            interaction_event_repository.get_interaction_events, session_id, limit
-        )
+        authorize_admin_request(request, "operations.read")
+        events = await asyncio.to_thread(interaction_event_repository.get_interaction_events, session_id, limit)
         return {"status": "success", "session_id": session_id, "events": events}
 
     @router.post("/barrier_state")
@@ -51,9 +50,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
         check_rate_limit(request, "barrier_state", limit=120, key=session_id)
         ui_context = payload.get("ui_context") if isinstance(payload.get("ui_context"), dict) else {}
         speech_text = str(payload.get("speech_text") or "")
-        events = await asyncio.to_thread(
-            interaction_event_repository.get_recent_session_events, session_id
-        )
+        events = await asyncio.to_thread(interaction_event_repository.get_recent_session_events, session_id)
         pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
             session_id=session_id,
             ui_context=ui_context,
@@ -74,9 +71,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
         intervention_id = str(payload.get("intervention_id") or "")
         result = {key: value for key, value in payload.items() if key != "intervention_id"}
         if not result.get("scenario_id") and intervention_id:
-            logs = await asyncio.to_thread(
-                interaction_event_repository.get_intervention_logs, "", 3000
-            )
+            logs = await asyncio.to_thread(interaction_event_repository.get_intervention_logs, "", 3000)
             for log in reversed(logs):
                 if str(log.get("intervention_id") or "") != intervention_id:
                     continue
@@ -94,24 +89,20 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
     @router.get("/intervention_stats")
     async def get_intervention_stats(request: Request):
-        require_admin_token(request)
-        logs = await asyncio.to_thread(
-            interaction_event_repository.get_intervention_logs, "", 3000
-        )
-        events = await asyncio.to_thread(
-            interaction_event_repository.get_interaction_events, "", 3000
-        )
+        authorize_admin_request(request, "operations.read")
+        logs = await asyncio.to_thread(interaction_event_repository.get_intervention_logs, "", 3000)
+        events = await asyncio.to_thread(interaction_event_repository.get_interaction_events, "", 3000)
         return {"status": "success", **stats_service.build_intervention_stats(logs, events)}
 
     @router.delete("/intervention_logs")
     async def clear_intervention_logs(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         count = await asyncio.to_thread(interaction_event_repository.clear_intervention_logs)
         return {"status": "success", "cleared": count}
 
     @router.delete("/interaction_events")
     async def clear_interaction_events(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         count = await asyncio.to_thread(interaction_event_repository.clear_interaction_events)
         return {"status": "success", "cleared": count}
 

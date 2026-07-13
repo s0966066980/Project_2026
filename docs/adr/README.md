@@ -11,6 +11,7 @@ ADR 用來保存長期、跨模組且難以回復的架構決策。ADR 是決策
 | [0003](0003-ai-provider-port-adapter.md) | AI Provider 使用 Port / Adapter | Accepted | 2026-07-13 |
 | [0004](0004-member-identity-migration.md) | Member Identity 採 UUID 與相容遷移 | Accepted | 2026-07-13 |
 | [0005](0005-tenant-store-device-commercial-scope.md) | Tenant / Store / Device Commercial Scope | Accepted | 2026-07-13 |
+| [0006](0006-admin-identity-rbac.md) | Admin Identity 與 Tenant/Store Scoped RBAC | Accepted | 2026-07-13 |
 
 ## 狀態
 

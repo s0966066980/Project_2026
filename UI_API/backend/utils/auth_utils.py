@@ -32,13 +32,15 @@ def _constant_time_match(candidate: str, allowed: list[str]) -> bool:
 def require_admin_token(request: Request):
     expected = str(config.get("ADMIN_API_TOKEN", "") or config.ADMIN_DEMO_TOKEN or "")
     if not _security_enforced() and not config.is_demo_public_mode():
-        return
+        development_principal = admin_identity_service.legacy_admin_principal(resolve_commercial_scope(request.headers))
+        request.state.admin_principal = development_principal
+        return development_principal
     cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
     session_token = request.cookies.get(cookie_name, "") or _bearer_token(request)
-    principal = admin_identity_service.authenticate_admin_session(session_token)
-    if principal is not None:
-        request.state.admin_principal = principal
-        return principal
+    session_principal = admin_identity_service.authenticate_admin_session(session_token)
+    if session_principal is not None:
+        request.state.admin_principal = session_principal
+        return session_principal
     token = _bearer_token(request) or request.headers.get("X-Admin-Token")
     if not token:
         raise HTTPException(status_code=401, detail="admin authentication required")
@@ -66,6 +68,12 @@ def require_permission(permission: str):
     return dependency
 
 
+def authorize_admin_request(request: Request, permission: str):
+    """Authenticate and authorize an existing route without changing its public contract."""
+
+    return require_permission(permission)(request)
+
+
 def require_kiosk_token(request: Request):
     expected = str(config.get("KIOSK_DEVICE_TOKEN", "") or config.POS_DEMO_TOKEN or "")
     if not _security_enforced() and not config.is_demo_public_mode():
@@ -83,6 +91,8 @@ def websocket_token_allowed(client_type: str, token: str) -> bool:
     if not _security_enforced() and not config.is_demo_public_mode():
         return True
     if client_type == "admin":
+        if not bool(config.get("ENABLE_LEGACY_ADMIN_TOKEN", not config.is_production())):
+            return False
         allowed = [str(config.get("ADMIN_API_TOKEN", "") or ""), config.ADMIN_DEMO_TOKEN, config.WS_DEMO_TOKEN]
     else:
         allowed = [str(config.get("KIOSK_DEVICE_TOKEN", "") or ""), config.POS_DEMO_TOKEN, config.WS_DEMO_TOKEN]

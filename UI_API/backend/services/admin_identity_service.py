@@ -12,6 +12,7 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 import config
 from models.admin_identity import AdminPrincipal, AdminSessionResult
+from models.admin_permissions import ADMIN_PERMISSION_CATALOG
 from models.commercial_scope import CommercialScope
 from repositories import admin_audit_repository, admin_identity_repository, postgres_utils
 
@@ -92,6 +93,11 @@ def login_admin(login_identity: str, password: str, scope: CommercialScope) -> A
         _record_auth_event("admin_login_failure", scope, reason="invalid_credentials")
         raise AdminAuthenticationError("Invalid credentials")
 
+    if admin_password_needs_rehash(str(user["password_hash"])):
+        admin_identity_repository.update_admin_password_hash(
+            UUID(str(user["id"])), scope.tenant_id, hash_admin_password(password)
+        )
+
     now = datetime.now(timezone.utc)
     ttl_seconds = max(300, int(config.get("ADMIN_SESSION_TTL_SEC", 28800) or 28800))
     expires_at = now + timedelta(seconds=ttl_seconds)
@@ -138,6 +144,31 @@ def logout_admin(token: str, scope: CommercialScope) -> bool:
     return revoked
 
 
+def rotate_admin_session(token: str, scope: CommercialScope) -> AdminSessionResult:
+    principal = authenticate_admin_session(token)
+    if principal is None or principal.tenant_id != scope.tenant_id or scope.store_id not in principal.allowed_store_ids:
+        raise AdminAuthenticationError("Admin session is not valid")
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=max(300, int(config.get("ADMIN_SESSION_TTL_SEC", 28800) or 28800)))
+    raw_token = _new_session_token()
+    session_id = uuid4()
+    replaced = admin_identity_repository.rotate_admin_session(
+        old_token_hash=hash_admin_session_token(token),
+        new_session_id=session_id,
+        new_token_hash=hash_admin_session_token(raw_token),
+        issued_at=now,
+        expires_at=expires_at,
+    )
+    if replaced is None:
+        raise AdminAuthenticationError("Admin session is not valid")
+    principal_record = admin_identity_repository.load_admin_principal(session_id, now)
+    if principal_record is None:
+        raise AdminAuthenticationError("Admin session could not be rotated")
+    rotated_principal = _principal_from_record(principal_record)
+    _record_auth_event("admin_session_rotated", scope, user_id=rotated_principal.user_id)
+    return AdminSessionResult(token=raw_token, principal=rotated_principal, expires_at=expires_at)
+
+
 def legacy_admin_principal(scope: CommercialScope) -> AdminPrincipal:
     return AdminPrincipal(
         user_id=UUID("00000000-0000-4000-8000-000000000004"),
@@ -152,3 +183,13 @@ def legacy_admin_principal(scope: CommercialScope) -> AdminPrincipal:
 
 def record_legacy_admin_use(scope: CommercialScope) -> None:
     _record_auth_event("legacy_admin_token_used", scope, reason="deprecated_compatibility")
+
+
+def sync_admin_permission_catalog() -> dict[str, UUID]:
+    """Idempotently synchronize stable machine names during trusted provisioning."""
+
+    resolved: dict[str, UUID] = {}
+    for machine_name, description in ADMIN_PERMISSION_CATALOG:
+        row = admin_identity_repository.upsert_admin_permission(uuid4(), machine_name, description)
+        resolved[machine_name] = UUID(str(row["id"]))
+    return resolved

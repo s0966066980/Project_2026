@@ -7,7 +7,7 @@ from core.constants import FRONTEND_DIR
 from repositories import log_repository
 from realtime import event_bus
 from services import checkout_pricing_service, checkout_service, health_service, member_service, stats_service
-from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
+from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.parsing import parse_json_list, parse_non_negative_int
 
 
@@ -34,16 +34,15 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.delete("/api/session_stats")
     async def clear_session_stats(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         await asyncio.to_thread(log_repository.clear_session_logs)
         return {"status": "success"}
 
     @router.get("/api/session_stats")
     async def get_session_stats(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.read")
         logs = await asyncio.to_thread(log_repository.get_session_logs)
         return {"status": "success", **stats_service.compute_session_stats(logs)}
-
 
     @router.get("/api/public_settings")
     async def get_public_settings():
@@ -51,30 +50,32 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/api/settings")
     async def get_settings(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "settings.read")
         return config.load_settings()
 
     @router.get("/api/admin/health")
     async def get_admin_health(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.read")
         return await health_service.build_admin_health()
 
     @router.post("/api/settings")
     async def update_settings(request: Request, new_settings: dict = Body(...)):
-        require_admin_token(request)
+        authorize_admin_request(request, "settings.write")
         check_rate_limit(request, "admin_settings_update", limit=30)
         config.save_settings(new_settings)
         saved_settings = config.load_settings()
-        await event_bus.publish_event({
-            "type": "settings_changed",
-            "session_id": "",
-            "payload": {"settings": saved_settings},
-        })
+        await event_bus.publish_event(
+            {
+                "type": "settings_changed",
+                "session_id": "",
+                "payload": {"settings": saved_settings},
+            }
+        )
         return {"status": "success"}
 
     @router.get("/api/logs")
     async def get_logs(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.read")
         logs = await asyncio.to_thread(log_repository.get_session_logs)
         indexed_logs = []
         for idx, log in enumerate(logs):
@@ -94,13 +95,13 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.delete("/api/logs")
     async def clear_logs(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         await asyncio.to_thread(log_repository.clear_session_logs)
         return {"status": "success"}
 
     @router.delete("/api/logs/{log_index}")
     async def delete_log(request: Request, log_index: int):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         deleted = await asyncio.to_thread(log_repository.delete_session_log, log_index)
         return {"status": "success" if deleted else "not_found"}
 

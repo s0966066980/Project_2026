@@ -6,7 +6,7 @@ import database
 from models.promotion_models import PosPromotionBannerResponse
 from repositories import menu_repository
 from services import menu_validation_service, promotion_banner_service
-from utils.auth_utils import require_admin_token
+from utils.auth_utils import authorize_admin_request
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -23,7 +23,7 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/menu")
     async def update_menu(request: Request, new_menu: list = Body(...)):
-        require_admin_token(request)
+        authorize_admin_request(request, "settings.write")
         try:
             validated_menu = menu_validation_service.validate_menu_payload(new_menu)
         except menu_validation_service.MenuValidationError as exc:

@@ -8,6 +8,8 @@
 
 `backend/schemas/migrations/*.sql` 是正式 schema source of truth。`membership_postgres.sql` 僅為 legacy snapshot，不應與新 migration 平行手動維護。
 
+Milestone 1C 新增不可變的 `0003_admin_identity_rbac_foundation.sql`，以 expand-only table 建立 Admin user、role、permission、store assignment 與 revocable session。Password 與 raw session token 不屬於 migration seed data；permission catalog 與首位 Admin 由受信任 provisioning command 建立。
+
 ## Milestone 1B Scope Matrix
 
 | Table / Storage | Business Owner | Required Scope | Legacy Compatibility | Migration Strategy | Index |
@@ -73,6 +75,15 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 ### Partial Scope Handling
 
 0002 的標準支援路徑是未含 scope column 的正式 Milestone 1A schema。非標準、手動建立或只有部分 scope 的資料庫，升級前必須先完成資料盤點與備份。已套用的 0002 不得修改；發現 partial scope、orphan 或錯誤 ownership 時，使用新的 forward migration 修正，並以 `validate_commercial_scope.py --require-complete` 作為切換前 gate。
+
+### Milestone 1C Admin Identity Roll-forward
+
+- Apply 0003 前執行 backup、migration validate 與 commercial scope integrity validation。
+- 0003 只新增 table、constraint 與 index，不修改 0001/0002，也不刪除 legacy Admin token configuration。
+- Application rollback 可暫時重新啟用 `ENABLE_LEGACY_ADMIN_TOKEN`；不得 drop identity table 或改寫 0003 checksum。
+- Schema、assignment 或 session 問題以新的 forward migration修正。Permission catalog 可由 `python backend/scripts/manage_admin_identity.py sync-permissions` idempotently 同步。
+- 建立首位管理者使用 `python backend/scripts/manage_admin_identity.py bootstrap --login <identity>`；password 由互動式 prompt 或 `ADMIN_BOOTSTRAP_PASSWORD` environment 提供，不放在 command history。
+- 確認正式 session login、permission denial、audit 與 revoke 後，production 關閉 legacy flag。
 
 ## Backup Before Migration
 

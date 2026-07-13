@@ -1,4 +1,5 @@
 """Emotion-LLaMA 路由。"""
+
 import asyncio
 import os
 import tempfile
@@ -8,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from repositories import emotion_log_repository
 from services import emotion_service
-from utils.auth_utils import check_rate_limit, read_limited_upload, require_admin_token, require_kiosk_token
+from utils.auth_utils import authorize_admin_request, check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
 
@@ -55,13 +56,13 @@ def create_router(deps: dict) -> APIRouter:
     @router.get("/intervention_logs")
     async def get_intervention_logs(request: Request, limit: int = 200):
         """Admin 統計：取得 Emotion-LLaMA 介入紀錄。"""
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.read")
         logs = await asyncio.to_thread(emotion_log_repository.get_logs, limit)
         return {"status": "success", "logs": logs, "total": len(logs)}
 
     @router.delete("/intervention_logs")
     async def clear_intervention_logs(request: Request):
-        require_admin_token(request)
+        authorize_admin_request(request, "operations.write")
         count = await asyncio.to_thread(emotion_log_repository.clear_logs)
         return {"status": "success", "cleared": count}
 
