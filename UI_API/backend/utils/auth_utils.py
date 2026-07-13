@@ -5,7 +5,7 @@ import time
 from fastapi import HTTPException, Request, UploadFile
 
 import config
-from services import admin_identity_service
+from services import admin_identity_service, device_identity_service
 from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -77,14 +77,28 @@ def authorize_admin_request(request: Request, permission: str):
 def require_kiosk_token(request: Request):
     expected = str(config.get("KIOSK_DEVICE_TOKEN", "") or config.POS_DEMO_TOKEN or "")
     if not _security_enforced() and not config.is_demo_public_mode():
-        return
+        development_principal = device_identity_service.legacy_device_principal(
+            resolve_commercial_scope(request.headers)
+        )
+        request.state.device_principal = development_principal
+        return development_principal
+    cookie_name = str(config.get("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session"))
+    session_principal = device_identity_service.authenticate_device_session(request.cookies.get(cookie_name, ""))
+    if session_principal is not None:
+        request.state.device_principal = session_principal
+        return session_principal
     token = request.headers.get("X-Kiosk-Token") or request.headers.get("X-Pos-Token") or _bearer_token(request)
-    if not expected:
-        raise HTTPException(status_code=503, detail="kiosk auth is not configured")
     if not token:
-        raise HTTPException(status_code=401, detail="kiosk token required")
+        raise HTTPException(status_code=401, detail="device authentication required")
+    if not bool(config.get("ENABLE_LEGACY_KIOSK_TOKEN", not config.is_production())):
+        raise HTTPException(status_code=403, detail="legacy Kiosk token is disabled")
+    if not expected:
+        raise HTTPException(status_code=503, detail="legacy Kiosk auth is not configured")
     if not _constant_time_match(token, [expected, config.POS_DEMO_TOKEN]):
         raise HTTPException(status_code=403, detail="invalid kiosk token")
+    principal = device_identity_service.legacy_device_principal(resolve_commercial_scope(request.headers))
+    request.state.device_principal = principal
+    return principal
 
 
 def websocket_token_allowed(client_type: str, token: str) -> bool:
@@ -95,6 +109,8 @@ def websocket_token_allowed(client_type: str, token: str) -> bool:
             return False
         allowed = [str(config.get("ADMIN_API_TOKEN", "") or ""), config.ADMIN_DEMO_TOKEN, config.WS_DEMO_TOKEN]
     else:
+        if not bool(config.get("ENABLE_LEGACY_KIOSK_TOKEN", not config.is_production())):
+            return False
         allowed = [str(config.get("KIOSK_DEVICE_TOKEN", "") or ""), config.POS_DEMO_TOKEN, config.WS_DEMO_TOKEN]
     return _constant_time_match(token, allowed)
 

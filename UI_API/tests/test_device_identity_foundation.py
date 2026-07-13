@@ -158,7 +158,7 @@ def test_device_session_cookie_is_http_only_secure_and_not_in_body(monkeypatch: 
 
     response = TestClient(app).post(
         "/api/device/auth/session",
-        json={"key_id": "device-key", "credential": "one-time-secret"},
+        json={"key_id": "device-key", "credential": "one-time-secret-value"},
     )
 
     assert response.status_code == 200

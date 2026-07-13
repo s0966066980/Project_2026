@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import config
 from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
 from services import admin_identity_service
+from services import device_identity_service
 from utils.auth_utils import websocket_token_allowed
 
 
@@ -48,6 +49,10 @@ def _websocket_identity_allowed(websocket: WebSocket, client_type: str) -> bool:
     if client_type == "admin":
         cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
         if admin_identity_service.authenticate_admin_session(websocket.cookies.get(cookie_name, "")) is not None:
+            return True
+    else:
+        cookie_name = str(config.get("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session"))
+        if device_identity_service.authenticate_device_session(websocket.cookies.get(cookie_name, "")) is not None:
             return True
     return _token_allowed(client_type, websocket.query_params.get("token", ""))
 

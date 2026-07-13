@@ -9,6 +9,7 @@ from routes import (
     core_routes,
     debug_routes,
     demo_routes,
+    device_identity_routes,
     emotion_routes,
     interaction_routes,
     member_routes,
@@ -50,6 +51,7 @@ def _debug_routes_enabled() -> bool:
 
 ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("public", admin_identity_routes),
+    RouteRegistration("public", device_identity_routes),
     RouteRegistration("public", core_routes),
     RouteRegistration("public", menu_routes),
     RouteRegistration("admin", availability_routes),

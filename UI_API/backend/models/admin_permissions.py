@@ -17,6 +17,7 @@ ADMIN_PERMISSION_CATALOG: tuple[tuple[str, str], ...] = (
     ("rag.review", "Review and publish governed RAG content"),
     ("audit.read", "Read scoped Admin audit records"),
     ("admin_identity.manage", "Manage Admin users, roles, permissions, and sessions"),
+    ("device_identity.manage", "Issue, rotate, and revoke Kiosk device credentials"),
     ("system.debug", "Use explicitly enabled diagnostic endpoints"),
 )
 

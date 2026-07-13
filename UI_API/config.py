@@ -47,8 +47,8 @@ def validate_startup_config() -> None:
         errors.append("SECURITY_ENFORCED must be true in production")
     if ENABLE_LEGACY_ADMIN_TOKEN and not _token_configured(ADMIN_API_TOKEN):
         errors.append("ADMIN_API_TOKEN must be configured when legacy Admin authentication is enabled")
-    if not _token_configured(KIOSK_DEVICE_TOKEN):
-        errors.append("KIOSK_DEVICE_TOKEN must be configured in production")
+    if ENABLE_LEGACY_KIOSK_TOKEN and not _token_configured(KIOSK_DEVICE_TOKEN):
+        errors.append("KIOSK_DEVICE_TOKEN must be configured when legacy Kiosk authentication is enabled")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
         errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
     if _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False):
@@ -102,8 +102,11 @@ WS_DEMO_TOKEN = os.getenv("WS_DEMO_TOKEN", "")
 ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", ADMIN_DEMO_TOKEN)
 KIOSK_DEVICE_TOKEN = os.getenv("KIOSK_DEVICE_TOKEN", POS_DEMO_TOKEN)
 ENABLE_LEGACY_ADMIN_TOKEN = _env_bool("ENABLE_LEGACY_ADMIN_TOKEN", not is_production())
+ENABLE_LEGACY_KIOSK_TOKEN = _env_bool("ENABLE_LEGACY_KIOSK_TOKEN", not is_production())
 ADMIN_SESSION_COOKIE_NAME = os.getenv("ADMIN_SESSION_COOKIE_NAME", "admin_session")
 ADMIN_SESSION_TTL_SEC = int(os.getenv("ADMIN_SESSION_TTL_SEC", "28800"))
+DEVICE_SESSION_COOKIE_NAME = os.getenv("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session")
+DEVICE_SESSION_TTL_SEC = int(os.getenv("DEVICE_SESSION_TTL_SEC", "3600"))
 DEFAULT_TENANT_ID = os.getenv("DEFAULT_TENANT_ID", "")
 DEFAULT_STORE_ID = os.getenv("DEFAULT_STORE_ID", "")
 DEFAULT_DEVICE_ID = os.getenv("DEFAULT_DEVICE_ID", "")
@@ -456,8 +459,11 @@ def get(key, default=None):
         "KIOSK_DEVICE_TOKEN": KIOSK_DEVICE_TOKEN,
         "ALLOW_POSTGRES_JSON_FALLBACK": ALLOW_POSTGRES_JSON_FALLBACK,
         "ENABLE_LEGACY_ADMIN_TOKEN": ENABLE_LEGACY_ADMIN_TOKEN,
+        "ENABLE_LEGACY_KIOSK_TOKEN": ENABLE_LEGACY_KIOSK_TOKEN,
         "ADMIN_SESSION_COOKIE_NAME": ADMIN_SESSION_COOKIE_NAME,
         "ADMIN_SESSION_TTL_SEC": ADMIN_SESSION_TTL_SEC,
+        "DEVICE_SESSION_COOKIE_NAME": DEVICE_SESSION_COOKIE_NAME,
+        "DEVICE_SESSION_TTL_SEC": DEVICE_SESSION_TTL_SEC,
         "DEFAULT_TENANT_ID": DEFAULT_TENANT_ID,
         "DEFAULT_STORE_ID": DEFAULT_STORE_ID,
         "DEFAULT_DEVICE_ID": DEFAULT_DEVICE_ID,
