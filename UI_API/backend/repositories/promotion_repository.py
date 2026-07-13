@@ -1,12 +1,17 @@
 """JSON-backed structured promotion repository."""
+
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import config
+from models.commercial_scope import CommercialScope, is_legacy_store_scope
+from repositories import postgres_utils
+from utils.commercial_scope_config import resolve_commercial_scope
 
 
 def _documents_root() -> Path:
@@ -43,6 +48,24 @@ def load_json_rows(path: Path) -> list[dict]:
 
 
 def list_promotions() -> list[dict]:
+    return list_promotions_scoped(resolve_commercial_scope())
+
+
+def list_promotions_scoped(scope: CommercialScope) -> list[dict]:
+    if postgres_utils.use_postgres():
+        postgres_utils.init_schema()
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT payload FROM promotion_records
+                WHERE tenant_id = %s AND store_id = %s
+                ORDER BY updated_at DESC, promotion_id
+                """,
+                (scope.tenant_id, scope.store_id),
+            )
+            return [dict(row["payload"]) for row in cur.fetchall()]
+    if not is_legacy_store_scope(scope):
+        return []
     root = promotions_root()
     if not root.exists():
         return []
@@ -81,6 +104,32 @@ def find_promotion_path(promotion_id: str, *, is_valid_id) -> Path | None:
 
 
 def get_promotion(promotion_id: str, *, is_valid_id) -> dict | None:
+    return get_promotion_scoped(promotion_id, resolve_commercial_scope(), is_valid_id=is_valid_id)
+
+
+def get_promotion_scoped(
+    promotion_id: str,
+    scope: CommercialScope,
+    *,
+    is_valid_id,
+) -> dict | None:
+    normalized = str(promotion_id or "").strip()
+    if not is_valid_id(normalized):
+        return None
+    if postgres_utils.use_postgres():
+        postgres_utils.init_schema()
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT payload FROM promotion_records
+                WHERE tenant_id = %s AND store_id = %s AND promotion_id = %s
+                """,
+                (scope.tenant_id, scope.store_id, normalized),
+            )
+            row = cur.fetchone()
+        return dict(row["payload"]) if row else None
+    if not is_legacy_store_scope(scope):
+        return None
     path = find_promotion_path(promotion_id, is_valid_id=is_valid_id)
     if not path:
         return None
@@ -99,10 +148,75 @@ def save_promotion_at_path(path: Path, data: dict[str, Any]) -> dict:
 
 
 def save_promotion(promotion_id: str, data: dict[str, Any]) -> dict:
+    return save_promotion_scoped(promotion_id, data, resolve_commercial_scope())
+
+
+def save_promotion_scoped(
+    promotion_id: str,
+    data: dict[str, Any],
+    scope: CommercialScope,
+) -> dict:
+    record = dict(data)
+    if postgres_utils.use_postgres():
+        from psycopg.types.json import Jsonb
+
+        postgres_utils.init_schema()
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO promotion_records (
+                    id, tenant_id, store_id, promotion_id, status, payload
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id, store_id, promotion_id) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    payload = EXCLUDED.payload,
+                    updated_at = NOW()
+                RETURNING promotion_id
+                """,
+                (
+                    uuid4(),
+                    scope.tenant_id,
+                    scope.store_id,
+                    str(promotion_id),
+                    str(record.get("status") or "active"),
+                    Jsonb(record),
+                ),
+            )
+            conn.commit()
+        return record
+    if not is_legacy_store_scope(scope):
+        raise ValueError("JSON promotion storage only supports the legacy Default Scope")
     return save_promotion_at_path(promotion_path(promotion_id), data)
 
 
 def delete_promotion(promotion_id: str, *, is_valid_id) -> bool:
+    return delete_promotion_scoped(promotion_id, resolve_commercial_scope(), is_valid_id=is_valid_id)
+
+
+def delete_promotion_scoped(
+    promotion_id: str,
+    scope: CommercialScope,
+    *,
+    is_valid_id,
+) -> bool:
+    normalized = str(promotion_id or "").strip()
+    if not is_valid_id(normalized):
+        return False
+    if postgres_utils.use_postgres():
+        postgres_utils.init_schema()
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM promotion_records
+                WHERE tenant_id = %s AND store_id = %s AND promotion_id = %s
+                """,
+                (scope.tenant_id, scope.store_id, normalized),
+            )
+            deleted = bool(cur.rowcount > 0)
+            conn.commit()
+        return deleted
+    if not is_legacy_store_scope(scope):
+        return False
     path = find_promotion_path(promotion_id, is_valid_id=is_valid_id)
     if not path:
         return False

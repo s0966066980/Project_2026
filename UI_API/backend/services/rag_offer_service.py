@@ -11,6 +11,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import promotion_repository
 
 SUPPORTED_STATUS = {"", "active", "published", "enabled"}
@@ -210,7 +211,12 @@ def _normalize_offer(row: dict, path_name: str, index: int, menu_items: list[dic
     }
 
 
-def load_active_offers(menu_items: list[dict], *, now: datetime | None = None) -> list[dict]:
+def load_active_offers(
+    menu_items: list[dict],
+    *,
+    now: datetime | None = None,
+    scope: CommercialScope | None = None,
+) -> list[dict]:
     """Return active, menu-validated promotion signals.
 
     Invalid files or incomplete rows are ignored so RAG content issues do not
@@ -220,7 +226,12 @@ def load_active_offers(menu_items: list[dict], *, now: datetime | None = None) -
         return []
     current_time = now or datetime.now(timezone.utc)
     offers = []
-    for index, row in enumerate(promotion_repository.list_promotions()):
+    promotion_rows = (
+        promotion_repository.list_promotions_scoped(scope)
+        if scope
+        else promotion_repository.list_promotions()
+    )
+    for index, row in enumerate(promotion_rows):
         offer = _normalize_offer(row, str(row.get("path") or ""), index, menu_items, current_time)
         if offer:
             offers.append(offer)

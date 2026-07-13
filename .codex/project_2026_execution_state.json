@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "1E",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -54,12 +54,28 @@
       "shell": "PASS",
       "migration_clean": "PASS (0001-0004 checksums clean)",
       "scope_integrity": "PASS"
+    },
+    "1E": {
+      "contract_tests": "PASS (5 passed)",
+      "postgres_integration": "PASS (5 passed including 1D to 1E upgrade)",
+      "full_json_backend": "PASS (236 passed)",
+      "ruff_affected_scope": "PASS",
+      "ruff_format_production_scope": "PASS",
+      "mypy": "PASS (33 source files)",
+      "python_3_12_import": "PASS",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "migration_clean": "PASS (0001-0005 checksums clean)",
+      "scope_integrity": "PASS (zero violations)"
     }
   },
   "known_gaps": [
-    "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset."
+    "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset.",
+    "PostgreSQL RLS is deferred until per-request database connection identity and an isolation test strategy exist.",
+    "JSON compatibility storage supports Default Scope only and is not a multi-tenant isolation boundary."
   ],
   "blocked_items": [],
   "next_milestone": "1E",
-  "updated_at": "2026-07-13T19:53:01+08:00"
+  "updated_at": "2026-07-13T22:15:00+08:00"
 }

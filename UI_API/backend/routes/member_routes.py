@@ -3,6 +3,7 @@ import asyncio
 from fastapi import APIRouter, Form, HTTPException, Query, Request, Response
 
 from services import admin_audit_service, member_service
+from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
@@ -16,9 +17,10 @@ def create_router(deps: dict) -> APIRouter:
     # 登入），並對本端點做 per-IP / per-phone rate limit 與失敗稽核。
     @router.post("/api/member/login")
     async def member_login(request: Request, session_id: str = Form(...), phone: str = Form(...)):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         check_rate_limit(request, "member_login", limit=10, key=phone)
-        result = await asyncio.to_thread(member_service.login, session_id, phone)
+        result = await asyncio.to_thread(member_service.login, session_id, phone, scope)
         await asyncio.to_thread(
             admin_audit_service.record_admin_action,
             "member_login",
@@ -26,6 +28,7 @@ def create_router(deps: dict) -> APIRouter:
             target_id=member_service.mask_phone(member_service.normalize_phone(phone) or phone),
             request=request,
             metadata={"session_id": session_id, "found": bool(result.get("found"))},
+            scope=scope,
         )
         return result
 
@@ -38,7 +41,8 @@ def create_router(deps: dict) -> APIRouter:
         order_history_consent: bool = Form(default=True),
         personalization_consent: bool = Form(default=True),
     ):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         check_rate_limit(request, "member_register", limit=10, key=phone)
         result = await asyncio.to_thread(
             member_service.register,
@@ -48,6 +52,7 @@ def create_router(deps: dict) -> APIRouter:
             order_history_consent,
             personalization_consent,
             "kiosk",
+            scope,
         )
         await asyncio.to_thread(
             admin_audit_service.record_admin_action,
@@ -62,6 +67,7 @@ def create_router(deps: dict) -> APIRouter:
                 "order_history_consent": bool(order_history_consent),
                 "personalization_consent": bool(personalization_consent),
             },
+            scope=scope,
         )
         return result
 
@@ -73,7 +79,8 @@ def create_router(deps: dict) -> APIRouter:
         cart_total: str = Form(default="0"),
         reason: str = Form(default=""),
     ):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         check_rate_limit(request, "member_abandoned_order", limit=60, key=session_id)
         from utils.parsing import parse_int_from_decimal, parse_json_list
 
@@ -83,18 +90,21 @@ def create_router(deps: dict) -> APIRouter:
             parse_json_list(cart_ids, fallback_csv=True),
             parse_int_from_decimal(cart_total),
             reason,
+            scope,
         )
         return {"ok": bool(member), "member": member_service._public_member(member) if member else None}
 
     @router.get("/api/members")
     async def list_members(request: Request):
-        authorize_admin_request(request, "members.read")
-        return await asyncio.to_thread(member_service.admin_list)
+        principal = authorize_admin_request(request, "members.read")
+        scope = scope_from_admin_principal(principal)
+        return await asyncio.to_thread(member_service.admin_list, scope)
 
     @router.get("/api/members/export")
     async def export_members(request: Request):
-        authorize_admin_request(request, "members.export")
-        content = await asyncio.to_thread(member_service.export_members_csv)
+        principal = authorize_admin_request(request, "members.export")
+        scope = scope_from_admin_principal(principal)
+        content = await asyncio.to_thread(member_service.export_members_csv, scope)
         audit = await asyncio.to_thread(
             admin_audit_service.record_admin_action,
             "member_export",
@@ -114,22 +124,25 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/api/admin/audit_logs")
     async def list_admin_audits(request: Request, limit: int = Query(default=200, ge=1, le=5000)):
-        authorize_admin_request(request, "audit.read")
-        return await asyncio.to_thread(admin_audit_service.list_admin_audits, limit)
+        principal = authorize_admin_request(request, "audit.read")
+        scope = scope_from_admin_principal(principal)
+        return await asyncio.to_thread(admin_audit_service.list_admin_audits, limit, scope)
 
     @router.get("/api/members/{member_ref}")
     async def member_detail(request: Request, member_ref: str):
-        authorize_admin_request(request, "members.read")
-        detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
+        principal = authorize_admin_request(request, "members.read")
+        scope = scope_from_admin_principal(principal)
+        detail = await asyncio.to_thread(member_service.admin_detail, member_ref, scope)
         if detail is None:
             raise HTTPException(status_code=404, detail="member not found")
         return detail
 
     @router.delete("/api/members/{member_ref}/records")
     async def member_clear_records(request: Request, member_ref: str):
-        authorize_admin_request(request, "members.delete")
-        detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
-        ok = await asyncio.to_thread(member_service.admin_clear_records, member_ref)
+        principal = authorize_admin_request(request, "members.delete")
+        scope = scope_from_admin_principal(principal)
+        detail = await asyncio.to_thread(member_service.admin_detail, member_ref, scope)
+        ok = await asyncio.to_thread(member_service.admin_clear_records, member_ref, scope)
         if not ok:
             raise HTTPException(status_code=404, detail="member not found")
         audit = await asyncio.to_thread(
@@ -144,9 +157,10 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.delete("/api/members/{member_ref}")
     async def member_delete(request: Request, member_ref: str):
-        authorize_admin_request(request, "members.delete")
-        detail = await asyncio.to_thread(member_service.admin_detail, member_ref)
-        ok = await asyncio.to_thread(member_service.admin_delete_member, member_ref)
+        principal = authorize_admin_request(request, "members.delete")
+        scope = scope_from_admin_principal(principal)
+        detail = await asyncio.to_thread(member_service.admin_detail, member_ref, scope)
+        ok = await asyncio.to_thread(member_service.admin_delete_member, member_ref, scope)
         if not ok:
             raise HTTPException(status_code=404, detail="member not found")
         audit = await asyncio.to_thread(

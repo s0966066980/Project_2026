@@ -1,7 +1,7 @@
 # ADR-0005：Tenant / Store / Device Commercial Scope
 
 - Status: Accepted
-- Implementation Status: Foundation Implemented
+- Implementation Status: Contract Enforced
 - 日期：2026-07-13
 - Owner：Commercial Platform / Data / Security
 
@@ -50,7 +50,13 @@ Commercial scope 只可來自 server configuration，或未來通過驗證的 Ad
 - Scoped methods 可防止相同資料 ID 繞過 Tenant/Store filter。
 - Nullable legacy columns 代表 isolation foundation 尚未等同完整 tenant isolation；production enforcement 前仍需資料驗證與 contract migration。
 - Phone 仍是 global primary key，因此相同 phone 無法自然存在於不同 Tenant；此限制由 ADR-0004 Member UUID migration 解決。
-- Availability 與 interaction repository 目前是 JSON-only，故本 migration 不虛構第二套 PostgreSQL table；其正式 scoped persistence 留待後續 migration。
+- Foundation migration 0002 未虛構 availability/interaction schema；後續 0005 依正式 ownership matrix 建立 scoped PostgreSQL persistence，JSON 只保留 Default Scope compatibility。
+
+## Contract Enforcement Addendum
+
+Milestone 1E 以 forward migration `0005` 完成 core scope `NOT NULL`，並將 availability、settings version、promotion、interaction/intervention outcome 與 RAG ownership metadata 納入 PostgreSQL。Production caller 的 scope 由已驗證 Admin/Device principal 解析；未帶 scope 的方法只保留 Default Scope compatibility。
+
+PostgreSQL RLS 暫不啟用。Application 目前使用共用 database connection identity，無法讓 database policy可信地區分每個 Admin/Device request；在缺少 transaction-local identity 與 isolation integration strategy 時啟用 RLS 會造成錯誤安全感。現階段以 parameterized scoped query、composite FK、unique/index 與 integrity validator 強制邊界；未來導入 RLS 必須使用新 ADR 與 forward migration。
 
 ## Alternatives
 

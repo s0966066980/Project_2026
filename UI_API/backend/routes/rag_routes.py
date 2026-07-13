@@ -1,10 +1,10 @@
 """RAG 知識庫管理路由。"""
 
 from fastapi import APIRouter, Body, Request
-
 from realtime import event_bus
-from services import admin_audit_service, rag_alert_service, rag_document_service, rag_review_service
-from services import promotion_service
+
+from services import admin_audit_service, promotion_service, rag_alert_service, rag_document_service, rag_review_service
+from services.commercial_context_service import scope_from_admin_principal
 from services.rag_provider import get_rag
 from utils.auth_utils import authorize_admin_request, check_rate_limit
 
@@ -170,38 +170,43 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/promotions")
     async def list_promotions(request: Request):
-        authorize_admin_request(request, "rag.read")
-        promotions = promotion_service.list_promotions()
+        principal = authorize_admin_request(request, "rag.read")
+        scope = scope_from_admin_principal(principal)
+        promotions = promotion_service.list_promotions(scope)
         return {"status": "ok", "promotions": promotions, "total": len(promotions)}
 
     @router.post("/promotions")
     async def create_promotion(request: Request, payload: dict = Body(...)):
-        authorize_admin_request(request, "rag.write")
-        record, errors = promotion_service.save_promotion(payload)
+        principal = authorize_admin_request(request, "rag.write")
+        scope = scope_from_admin_principal(principal)
+        record, errors = promotion_service.save_promotion(payload, scope=scope)
         if errors:
             return {"status": "error", "errors": errors}
         return {"status": "ok", "promotion": record}
 
     @router.put("/promotions/{offer_id}")
     async def update_promotion(request: Request, offer_id: str, payload: dict = Body(...)):
-        authorize_admin_request(request, "rag.write")
-        record, errors = promotion_service.save_promotion(payload, existing_offer_id=offer_id)
+        principal = authorize_admin_request(request, "rag.write")
+        scope = scope_from_admin_principal(principal)
+        record, errors = promotion_service.save_promotion(payload, existing_offer_id=offer_id, scope=scope)
         if errors:
             return {"status": "error", "errors": errors}
         return {"status": "ok", "promotion": record}
 
     @router.patch("/promotions/{offer_id}/status")
     async def patch_promotion_status(request: Request, offer_id: str, payload: dict = Body(...)):
-        authorize_admin_request(request, "rag.write")
-        record, errors = promotion_service.update_promotion_status(offer_id, str(payload.get("status") or ""))
+        principal = authorize_admin_request(request, "rag.write")
+        scope = scope_from_admin_principal(principal)
+        record, errors = promotion_service.update_promotion_status(offer_id, str(payload.get("status") or ""), scope)
         if errors:
             return {"status": "error", "errors": errors}
         return {"status": "ok", "promotion": record}
 
     @router.delete("/promotions/{offer_id}")
     async def delete_promotion(request: Request, offer_id: str):
-        authorize_admin_request(request, "rag.write")
-        deleted = promotion_service.delete_promotion(offer_id)
+        principal = authorize_admin_request(request, "rag.write")
+        scope = scope_from_admin_principal(principal)
+        deleted = promotion_service.delete_promotion(offer_id, scope)
         return {"status": "ok" if deleted else "not_found", "deleted": deleted}
 
     @router.delete("/docs/{doc_id}")

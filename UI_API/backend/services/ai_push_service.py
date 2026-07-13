@@ -4,7 +4,9 @@ import re
 import time
 
 import ai_services
+
 import config
+from models.commercial_scope import CommercialScope
 from repositories import menu_repository
 from services import (
     rag_guard_service,
@@ -212,6 +214,7 @@ async def generate(
     exclude_ids: list[str] | None = None,
     num_predict_override: int | None = None,
     cart_ids: list[str] | None = None,
+    scope: CommercialScope | None = None,
 ) -> dict:
     """
     呼叫 Ollama 選出 1 個推薦餐點並生成促購短句。
@@ -236,6 +239,7 @@ async def generate(
         rag_top_k=2,
         surface="ai_push",
         menu_items=items,
+        scope=scope,
     )
     experiment = recommendation_experiment_service.assign(session_id)
     context["experiment"] = experiment
@@ -281,7 +285,12 @@ async def generate(
     }
 
 
-async def generate_three(session_id: str, ollama_semaphore, cart_ids: list[str] | None = None) -> list[dict]:
+async def generate_three(
+    session_id: str,
+    ollama_semaphore,
+    cart_ids: list[str] | None = None,
+    scope: CommercialScope | None = None,
+) -> list[dict]:
     """由統一推薦引擎一次選出三個不重複品項，再沿用單品推播文案格式。"""
     items = await _get_menu_cached()
     items_map = {i["id"]: i for i in items if i.get("id")}
@@ -290,6 +299,7 @@ async def generate_three(session_id: str, ollama_semaphore, cart_ids: list[str] 
         cart_ids=cart_ids,
         surface="assist_recommend",
         menu_items=items,
+        scope=scope,
     )
     experiment = recommendation_experiment_service.assign(session_id)
     context["experiment"] = experiment

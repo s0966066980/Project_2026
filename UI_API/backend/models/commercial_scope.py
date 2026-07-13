@@ -71,3 +71,15 @@ LEGACY_DEFAULT_SCOPE = CommercialScope(
     store_id=LEGACY_DEFAULT_STORE_ID,
     device_id=LEGACY_DEFAULT_DEVICE_ID,
 )
+
+
+def is_legacy_tenant_scope(scope: CommercialScope) -> bool:
+    return scope.tenant_id == LEGACY_DEFAULT_TENANT_ID
+
+
+def is_legacy_store_scope(scope: CommercialScope) -> bool:
+    return is_legacy_tenant_scope(scope) and scope.store_id == LEGACY_DEFAULT_STORE_ID
+
+
+def is_legacy_device_scope(scope: CommercialScope) -> bool:
+    return is_legacy_store_scope(scope) and scope.device_id == LEGACY_DEFAULT_DEVICE_ID

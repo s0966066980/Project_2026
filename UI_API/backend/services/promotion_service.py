@@ -4,6 +4,7 @@ Promotions are stored as JSON source documents under rag_documents/promotions.
 The recommendation engine reads the same files through rag_offer_service, so
 this service only validates and writes the source records.
 """
+
 from __future__ import annotations
 
 import re
@@ -12,8 +13,8 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import menu_repository, promotion_repository
-
 
 VALID_STATUSES = {"active", "draft", "inactive"}
 VALID_TYPE = "promotion"
@@ -133,15 +134,9 @@ def _parse_timezone(value: Any) -> str:
 
 def _menu_lookup() -> tuple[set[str], set[str]]:
     menu_rows = menu_repository.get_menu()
-    item_ids = {
-        str(item.get("id") or "").strip()
-        for item in menu_rows
-        if str(item.get("id") or "").strip()
-    }
+    item_ids = {str(item.get("id") or "").strip() for item in menu_rows if str(item.get("id") or "").strip()}
     categories = {
-        str(item.get("category") or "").strip()
-        for item in menu_rows
-        if str(item.get("category") or "").strip()
+        str(item.get("category") or "").strip() for item in menu_rows if str(item.get("category") or "").strip()
     }
     return item_ids, categories
 
@@ -206,7 +201,9 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         elif target_value not in valid_item_ids:
             errors.append(f"target_value 品項不存在：{target_value}")
     item_ids = [item_id for item_id in _as_list(raw.get("item_ids") or raw.get("items")) if item_id in valid_item_ids]
-    categories = [category for category in _as_list(raw.get("categories") or raw.get("category")) if category in valid_categories]
+    categories = [
+        category for category in _as_list(raw.get("categories") or raw.get("category")) if category in valid_categories
+    ]
     required_cart_item_ids = [
         item_id
         for item_id in _as_list(raw.get("required_cart_item_ids") or raw.get("required_items"))
@@ -216,7 +213,9 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         errors.append("至少需要一個有效 item_ids 或 categories")
 
     invalid_items = sorted(set(_as_list(raw.get("item_ids") or raw.get("items"))) - valid_item_ids)
-    invalid_required = sorted(set(_as_list(raw.get("required_cart_item_ids") or raw.get("required_items"))) - valid_item_ids)
+    invalid_required = sorted(
+        set(_as_list(raw.get("required_cart_item_ids") or raw.get("required_items"))) - valid_item_ids
+    )
     invalid_categories = sorted(set(_as_list(raw.get("categories") or raw.get("category"))) - valid_categories)
     if invalid_items:
         errors.append(f"item_ids 不存在：{', '.join(invalid_items[:8])}")
@@ -231,7 +230,9 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
     pricing_raw = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
     pricing_type = _safe_text(raw.get("pricing_type") or pricing_raw.get("type") or "none", 40)
     original_price = _as_optional_int(_first_filled(raw.get("original_price"), pricing_raw.get("original_price")))
-    promotion_price = _as_optional_int(_first_filled(raw.get("promo_price"), raw.get("promotion_price"), pricing_raw.get("promotion_price")))
+    promotion_price = _as_optional_int(
+        _first_filled(raw.get("promo_price"), raw.get("promotion_price"), pricing_raw.get("promotion_price"))
+    )
     pricing = {}
     if promotion_price is not None:
         if promotion_price <= 0:
@@ -311,39 +312,58 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         "created_at": _safe_text(raw.get("created_at"), 40) or now_text,
         "updated_at": now_text,
         "metadata": {
-            "category": _safe_text((raw.get("metadata") or {}).get("category") if isinstance(raw.get("metadata"), dict) else "", 80) or "promotion",
+            "category": _safe_text(
+                (raw.get("metadata") or {}).get("category") if isinstance(raw.get("metadata"), dict) else "", 80
+            )
+            or "promotion",
             "status": status,
         },
     }
     return record, []
 
 
-def list_promotions() -> list[dict]:
+def list_promotions(scope: CommercialScope | None = None) -> list[dict]:
+    if scope is not None:
+        return promotion_repository.list_promotions_scoped(scope)
     return promotion_repository.list_promotions()
 
 
-def get_promotion(offer_id: str) -> dict | None:
+def get_promotion(offer_id: str, scope: CommercialScope | None = None) -> dict | None:
     normalized = _safe_text(offer_id, 90)
     if not is_valid_promotion_id(normalized):
         return None
+    if scope is not None:
+        return promotion_repository.get_promotion_scoped(normalized, scope, is_valid_id=is_valid_promotion_id)
     return promotion_repository.get_promotion(normalized, is_valid_id=is_valid_promotion_id)
 
 
-def save_promotion(payload: dict, *, existing_offer_id: str = "") -> tuple[dict | None, list[str]]:
+def save_promotion(
+    payload: dict,
+    *,
+    existing_offer_id: str = "",
+    scope: CommercialScope | None = None,
+) -> tuple[dict | None, list[str]]:
     record, errors = validate_promotion_payload(payload, existing_offer_id=existing_offer_id)
     if errors or not record:
         return None, errors
     if existing_offer_id and record["offer_id"] != existing_offer_id:
         return None, ["不可修改 offer_id，請建立新活動"]
-    existing = get_promotion(record["offer_id"])
+    existing = get_promotion(record["offer_id"], scope)
     if existing and existing.get("created_at"):
         record["created_at"] = existing["created_at"]
-    promotion_repository.save_promotion(record["offer_id"], record)
+    if scope is None:
+        promotion_repository.save_promotion(record["offer_id"], record)
+    else:
+        promotion_repository.save_promotion_scoped(record["offer_id"], record, scope)
     return record, []
 
 
-def update_promotion_status(offer_id: str, status: str) -> tuple[dict | None, list[str]]:
-    record = get_promotion(offer_id)
+def update_promotion_status(
+    offer_id: str,
+    status: str,
+    scope: CommercialScope | None = None,
+) -> tuple[dict | None, list[str]]:
+    record = get_promotion(offer_id, scope)
     if not record:
         return None, ["找不到活動"]
     next_status = _safe_text(status, 20).lower()
@@ -357,18 +377,23 @@ def update_promotion_status(offer_id: str, status: str) -> tuple[dict | None, li
     record.pop("path", None)
     timezone_name = str(record.get("timezone") or _default_timezone())
     record["updated_at"] = datetime.now(ZoneInfo(timezone_name)).isoformat()
-    path = promotion_repository.find_promotion_path(offer_id, is_valid_id=is_valid_promotion_id)
-    if path:
-        promotion_repository.save_promotion_at_path(path, record)
-        record["path"] = path.name
+    if scope is not None:
+        promotion_repository.save_promotion_scoped(offer_id, record, scope)
     else:
-        promotion_repository.save_promotion(str(record.get("offer_id") or offer_id), record)
-        record["path"] = f"{record.get('offer_id') or offer_id}.json"
+        path = promotion_repository.find_promotion_path(offer_id, is_valid_id=is_valid_promotion_id)
+        if path:
+            promotion_repository.save_promotion_at_path(path, record)
+            record["path"] = path.name
+        else:
+            promotion_repository.save_promotion(str(record.get("offer_id") or offer_id), record)
+            record["path"] = f"{record.get('offer_id') or offer_id}.json"
     return record, []
 
 
-def delete_promotion(offer_id: str) -> bool:
+def delete_promotion(offer_id: str, scope: CommercialScope | None = None) -> bool:
     normalized = _safe_text(offer_id, 90)
     if not is_valid_promotion_id(normalized):
         return False
+    if scope is not None:
+        return promotion_repository.delete_promotion_scoped(normalized, scope, is_valid_id=is_valid_promotion_id)
     return promotion_repository.delete_promotion(normalized, is_valid_id=is_valid_promotion_id)

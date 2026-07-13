@@ -7,9 +7,9 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import menu_repository
 from services import promotion_service
-
 
 ACTIVE_PROMOTION_STATUSES = {"active", "published", "enabled"}
 
@@ -129,6 +129,7 @@ def price_checkout_cart(
     *,
     is_member: bool,
     now: datetime | None = None,
+    scope: CommercialScope | None = None,
 ) -> dict:
     menu_by_id = {
         str(item.get("id") or "").strip(): item
@@ -171,7 +172,11 @@ def price_checkout_cart(
         final_price = base_price
         promotion_title = ""
         if offer_id:
-            promotion = promotion_service.get_promotion(offer_id)
+            promotion = (
+                promotion_service.get_promotion(offer_id, scope)
+                if scope
+                else promotion_service.get_promotion(offer_id)
+            )
             if not promotion or not _promotion_is_active(promotion, current_time):
                 raise CartValidationError("promotion_not_active", "promotion is not active")
             if promotion.get("member_only") and not is_member:

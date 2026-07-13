@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from services import voice_service
+from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
@@ -21,7 +22,8 @@ def create_router(deps: dict) -> APIRouter:
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
     ):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         check_rate_limit(request, "voice_ask", limit=30, key=session_id)
         temp_path = None
         try:
@@ -35,6 +37,7 @@ def create_router(deps: dict) -> APIRouter:
                 audio_path=temp_path,
                 ollama_semaphore=deps["ollama_semaphore"],
                 multi_lang=multi_lang.lower() == "true",
+                scope=scope,
             )
         except HTTPException:
             raise
@@ -51,7 +54,8 @@ def create_router(deps: dict) -> APIRouter:
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
     ):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         check_rate_limit(request, "voice_stream", limit=30, key=session_id)
         media_bytes = await read_limited_upload(media)
         suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"
@@ -66,6 +70,7 @@ def create_router(deps: dict) -> APIRouter:
                     audio_path=temp_path,
                     ollama_semaphore=deps["ollama_semaphore"],
                     multi_lang=multi_lang.lower() == "true",
+                    scope=scope,
                 ):
                     yield chunk
             finally:

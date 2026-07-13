@@ -5,6 +5,7 @@
 import asyncio
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import menu_repository
 from services import (
     availability_service,
@@ -38,8 +39,17 @@ async def _rag_context(query: str, top_k: int | None = None) -> str:
         return ""
 
 
-async def _rag_offers(menu_items: list[dict]) -> list[dict]:
+async def _rag_offers(
+    menu_items: list[dict],
+    scope: CommercialScope | None = None,
+) -> list[dict]:
     try:
+        if scope:
+            return await asyncio.to_thread(
+                rag_offer_service.load_active_offers,
+                menu_items,
+                scope=scope,
+            )
         return await asyncio.to_thread(rag_offer_service.load_active_offers, menu_items)
     except Exception:
         return []
@@ -54,20 +64,34 @@ async def build_context(
     rag_top_k: int | None = None,
     surface: str = "",
     menu_items: list[dict] | None = None,
+    scope: CommercialScope | None = None,
 ) -> dict:
     menu_rows = menu_items if menu_items is not None else await asyncio.to_thread(menu_repository.get_menu)
-    member = await asyncio.to_thread(member_service.get_session_member, session_id)
+    member = await asyncio.to_thread(
+        member_service.get_session_member,
+        session_id,
+        *(() if scope is None else (scope,)),
+    )
     preferences = await asyncio.to_thread(member_preference_service.build_preference_summary, member)
     popular_items = await asyncio.to_thread(get_top_items, 3)
+    feedback_kwargs: dict[str, object] = {
+        "member_phone_masked": preferences.get("phone_masked", "")
+    }
+    if scope:
+        feedback_kwargs["scope"] = scope
     feedback = await asyncio.to_thread(
         recommendation_feedback_service.build_feedback_context,
         session_id,
-        member_phone_masked=preferences.get("phone_masked", ""),
+        **feedback_kwargs,
     )
-    availability = await asyncio.to_thread(availability_service.build_availability_context, menu_rows)
+    availability = (
+        await asyncio.to_thread(availability_service.build_availability_context, menu_rows, None, scope)
+        if scope
+        else await asyncio.to_thread(availability_service.build_availability_context, menu_rows)
+    )
     rag, offers = await asyncio.gather(
         _rag_context(rag_query, top_k=rag_top_k) if rag_query else asyncio.sleep(0, result=""),
-        _rag_offers(menu_rows),
+        _rag_offers(menu_rows, scope),
     )
     excluded_ids = [
         *(exclude_ids or []),

@@ -7,6 +7,7 @@ from fastapi import HTTPException, Request, UploadFile
 import config
 from services import admin_identity_service, device_identity_service
 from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
+from services.commercial_context_service import scope_from_admin_principal
 from utils.commercial_scope_config import resolve_commercial_scope
 
 _RATE_BUCKETS: dict[tuple[str, str, str], list[float]] = {}
@@ -61,7 +62,7 @@ def require_permission(permission: str):
     def dependency(request: Request):
         principal = require_admin_token(request)
         try:
-            return authorize_admin_action(principal, permission, resolve_commercial_scope(request.headers))
+            return authorize_admin_action(principal, permission, scope_from_admin_principal(principal))
         except AdminAuthorizationError as exc:
             raise HTTPException(status_code=403, detail="admin action is not allowed") from exc
 

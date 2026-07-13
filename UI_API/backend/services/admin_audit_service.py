@@ -3,7 +3,9 @@
 from datetime import datetime
 from uuid import uuid4
 
+from models.commercial_scope import CommercialScope
 from repositories import admin_audit_repository
+from services.commercial_context_service import scope_from_admin_principal
 
 
 def _actor_from_request(request) -> str:
@@ -38,6 +40,7 @@ def record_admin_action(
     target_id: str,
     request=None,
     metadata: dict | None = None,
+    scope: CommercialScope | None = None,
 ) -> dict:
     record = {
         "audit_id": f"aud_{uuid4().hex}",
@@ -51,8 +54,14 @@ def record_admin_action(
         },
         "created_at": datetime.now().isoformat(),
     }
+    principal = getattr(getattr(request, "state", None), "admin_principal", None)
+    resolved_scope = scope or (scope_from_admin_principal(principal) if principal is not None else None)
+    if resolved_scope is not None:
+        return admin_audit_repository.append_admin_audit_scoped(record, resolved_scope)
     return admin_audit_repository.append_admin_audit(record)
 
 
-def list_admin_audits(limit: int = 200) -> list:
+def list_admin_audits(limit: int = 200, scope: CommercialScope | None = None) -> list:
+    if scope is not None:
+        return admin_audit_repository.get_admin_audits_scoped(scope, limit=limit)
     return admin_audit_repository.get_admin_audits(limit=limit)

@@ -27,21 +27,35 @@ Result: **RED — 4 failed, 1 passed**. Intended failures prove the missing 0005
 
 ## Boundary RED
 
-Pending upgrade/data preservation/isolation/clean validation integration.
+The contract test initially failed four boundaries: no 0005 contract migration, no principal adapters, no scoped operational persistence, and incomplete validator coverage. A later full JSON run exposed one legacy route-test adapter returning `None` instead of a principal; the compatibility branch was kept unscoped only for that mocked legacy shape, while authenticated runtime paths remain scoped.
 
 ## GREEN
 
-Pending implementation.
+- `0005_commercial_scope_contract_enforcement.sql` contracts core ownership and adds formal operational tables.
+- Admin/Device principals are converted to `CommercialScope` before service/repository calls.
+- Availability, settings versions, promotions, interactions/outcomes and RAG ownership metadata use scoped PostgreSQL persistence.
+- Default Scope JSON adapters remain backward compatible; ownership-level helpers distinguish tenant/store/device compatibility.
+- Contract tests: **5 passed**. Full JSON backend: **236 passed**.
 
 ## Security Verification
 
-Pending principal-only scope, header override denial, repository filters, and no false RLS claim.
+- Scope comes from authenticated `AdminPrincipal` or `DevicePrincipal`; unverified scope headers remain ignored.
+- Parameterized repository filters and composite hierarchy foreign keys enforce ownership.
+- Integrity output contains only table/type/count and no PII or connection data.
+- RLS is explicitly deferred because the shared database identity cannot safely represent per-request identity; documentation does not claim RLS protection.
 
 ## Integration Verification
 
-Pending target/full JSON/PostgreSQL/static/frontend/shell gates.
+- PostgreSQL 1D → 1E upgrade/data preservation/isolation/reapply/clean test: **PASS**.
+- Full PostgreSQL integration matrix: **5 passed**.
+- Migration apply + `validate --require-clean`: **PASS**, five checksums clean.
+- `validate_commercial_scope.py --require-complete`: **PASS**, zero violations.
+- Ruff affected scope, Ruff format production scope, mypy and application import: **PASS**.
+- Frontend type/syntax and shell syntax: **PASS**.
+- Python 3.10 runtime: **NOT RUN locally** (runtime unavailable; retained in CI matrix).
 
 ## Known Limitations
 
 - PostgreSQL RLS is deferred until per-request database connection identity and a reliable RLS test strategy exist.
 - Full RAG lifecycle governance remains Milestone 3C; 1E only establishes scoped metadata persistence.
+- JSON compatibility storage is Default Scope only and does not provide multi-tenant or per-device isolation.

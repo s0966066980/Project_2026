@@ -1,12 +1,13 @@
 import asyncio
 
+import database
 from fastapi import APIRouter, Body, HTTPException, Request
 
-import database
 from models.promotion_models import PosPromotionBannerResponse
 from repositories import menu_repository
 from services import menu_validation_service, promotion_banner_service
-from utils.auth_utils import authorize_admin_request
+from services.commercial_context_service import scope_from_device_principal
+from utils.auth_utils import authorize_admin_request, require_kiosk_token
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -18,8 +19,14 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/promotions/pos-banner", response_model=PosPromotionBannerResponse)
     async def get_pos_promotion_banner(request: Request):
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
         surface = request.query_params.get("surface") or "pos_home_banner"
-        return await asyncio.to_thread(promotion_banner_service.get_pos_banner_response, surface=surface)
+        return await asyncio.to_thread(
+            promotion_banner_service.get_pos_banner_response,
+            surface=surface,
+            scope=scope,
+        )
 
     @router.post("/menu")
     async def update_menu(request: Request, new_menu: list = Body(...)):

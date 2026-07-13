@@ -5,7 +5,7 @@ import os
 import threading
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
+from models.commercial_scope import CommercialScope, CommercialScopeConflictError, is_legacy_store_scope
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -103,7 +103,7 @@ def append_admin_audit_scoped(record: dict, scope: CommercialScope) -> dict:
             raise
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         raise ValueError("JSON audit storage only supports the configured legacy default scope")
     with _lock:
         rows = _read()
@@ -136,7 +136,7 @@ def get_admin_audits_scoped(scope: CommercialScope, limit: int = 200) -> list:
                     return list(reversed(cur.fetchall()))
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         return []
     with _lock:
         rows = _read()

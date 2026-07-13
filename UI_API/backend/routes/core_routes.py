@@ -1,12 +1,14 @@
 import asyncio
+
 from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import FileResponse
+from realtime import event_bus
 
 import config
 from core.constants import FRONTEND_DIR
-from repositories import log_repository
-from realtime import event_bus
+from repositories import commercial_settings_repository, log_repository
 from services import checkout_pricing_service, checkout_service, health_service, member_service, stats_service
+from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.parsing import parse_json_list, parse_non_negative_int
 
@@ -45,13 +47,20 @@ def create_router(deps: dict) -> APIRouter:
         return {"status": "success", **stats_service.compute_session_stats(logs)}
 
     @router.get("/api/public_settings")
-    async def get_public_settings():
-        return config.load_public_settings()
+    async def get_public_settings(request: Request):
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
+        settings = commercial_settings_repository.get_settings_scoped(scope)
+        return {
+            key: settings.get(key, config.DEFAULT_SETTINGS.get(key))
+            for key in config.PUBLIC_SETTINGS_KEYS
+        }
 
     @router.get("/api/settings")
     async def get_settings(request: Request):
-        authorize_admin_request(request, "settings.read")
-        return config.load_settings()
+        principal = authorize_admin_request(request, "settings.read")
+        scope = scope_from_admin_principal(principal)
+        return commercial_settings_repository.get_settings_scoped(scope)
 
     @router.get("/api/admin/health")
     async def get_admin_health(request: Request):
@@ -60,10 +69,12 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/api/settings")
     async def update_settings(request: Request, new_settings: dict = Body(...)):
-        authorize_admin_request(request, "settings.write")
+        principal = authorize_admin_request(request, "settings.write")
+        scope = scope_from_admin_principal(principal)
         check_rate_limit(request, "admin_settings_update", limit=30)
-        config.save_settings(new_settings)
-        saved_settings = config.load_settings()
+        saved_settings = commercial_settings_repository.save_settings_scoped(
+            new_settings, scope, actor_id=principal.user_id
+        )
         await event_bus.publish_event(
             {
                 "type": "settings_changed",
@@ -116,24 +127,30 @@ def create_router(deps: dict) -> APIRouter:
         cart_sources: str = Form(default="[]"),
         cart_total: str = Form(default="0"),
     ):
-        require_kiosk_token(request)
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal) if principal is not None else None
         check_rate_limit(request, "checkout", limit=120, key=session_id)
         parsed_cart_ids = parse_json_list(cart_ids, fallback_csv=True)
         parsed_cart_items = parse_json_list(cart_items)
-        member = await asyncio.to_thread(member_service.get_session_member, session_id)
+        member = await asyncio.to_thread(
+            member_service.get_session_member,
+            session_id,
+            *(() if scope is None else (scope,)),
+        )
         try:
             priced_cart = await asyncio.to_thread(
                 checkout_pricing_service.price_checkout_cart,
                 parsed_cart_items,
                 parsed_cart_ids,
                 is_member=bool(member),
+                scope=scope,
             )
         except checkout_pricing_service.CartValidationError as exc:
             raise HTTPException(
                 status_code=422,
                 detail={"code": exc.code, "message": str(exc)},
             ) from exc
-        result = await checkout_service.process_checkout(
+        checkout_args = (
             session_id,
             parse_json_list(pushed_ids, fallback_csv=True),
             priced_cart["cart_ids"],
@@ -141,6 +158,10 @@ def create_router(deps: dict) -> APIRouter:
             parse_non_negative_int(ai_push_cart_count),
             parse_json_list(cart_sources),
             priced_cart["total"],
+        )
+        result = await checkout_service.process_checkout(
+            *checkout_args,
+            *(() if scope is None else (scope,)),
         )
         result["cart_total"] = priced_cart["total"]
         return result

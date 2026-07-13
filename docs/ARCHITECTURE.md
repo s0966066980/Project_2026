@@ -44,7 +44,7 @@ Browser
 - FastAPI 同時承擔 API、WebSocket、靜態前端與部分 background initialization。
 - `config.py` 同時包含 infrastructure 與 runtime business settings。
 - Admin 已建立 PostgreSQL identity、Argon2id password、revocable session 與 tenant/store scoped RBAC。Kiosk 已建立 per-device credential、short-lived session、rotation/revoke 與 typed principal；舊 Admin/Kiosk token 僅保留 feature-flagged compatibility window。
-- 已建立 Tenant → Store → Device hierarchy、Default Scope 與核心 PostgreSQL expand columns；nullable enforcement、JSON-only operational data 與 identity-based scope resolution 尚未完成。
+- Tenant → Store → Device 已完成 principal-derived scope enforcement；核心商業 scope 為 `NOT NULL`，availability、settings version、promotion、interaction/outcome 與 RAG ownership metadata 已有正式 PostgreSQL persistence。JSON 僅保留 Default Scope 開發／相容 adapter。
 - 部分前端協調器與樣式檔仍偏大。
 - Rate limit、cache 與 background work 尚未形成分散式基礎設施。
 

@@ -1,15 +1,15 @@
-import re
-import threading
 import csv
 import hashlib
 import hmac
 import io
+import re
+import threading
 from datetime import datetime, timedelta
 from itertools import combinations
 
 import config
-from repositories import member_repository, member_session_repository, menu_repository
-from repositories import recommendation_event_repository
+from models.commercial_scope import CommercialScope
+from repositories import member_repository, member_session_repository, menu_repository, recommendation_event_repository
 
 _session_member: dict[str, str] = {}
 _lock = threading.Lock()
@@ -98,14 +98,15 @@ def _member_ref(phone) -> str:
     return f"mem_{digest[:24]}"
 
 
-def _resolve_member(identifier) -> dict | None:
+def _resolve_member(identifier, scope: CommercialScope | None = None) -> dict | None:
     raw = str(identifier or "")
     normalized = normalize_phone(raw) or raw
-    member = member_repository.get_member(normalized)
+    member = member_repository.get_member_scoped(normalized, scope) if scope else member_repository.get_member(normalized)
     if member:
         return _with_member_commercial_defaults(member)
     if raw.startswith("mem_"):
-        for row in member_repository.get_all_members():
+        rows = member_repository.get_all_members_scoped(scope) if scope else member_repository.get_all_members()
+        for row in rows:
             if _member_ref(row.get("phone", "")) == raw:
                 return _with_member_commercial_defaults(row)
     return None
@@ -118,36 +119,55 @@ def _admin_member_identity(member: dict) -> dict:
     }
 
 
-def bind_session(session_id: str, phone: str) -> None:
+def _session_cache_key(session_id: str, scope: CommercialScope | None) -> str:
+    return f"{scope.tenant_id}:{scope.store_id}:{session_id}" if scope else session_id
+
+
+def bind_session(session_id: str, phone: str, scope: CommercialScope | None = None) -> None:
+    cache_key = _session_cache_key(session_id, scope)
     with _lock:
-        _session_member[session_id] = phone
+        _session_member[cache_key] = phone
+    if scope:
+        member_session_repository.bind_session_scoped(session_id, phone, scope)
+        return
     try:
         member_session_repository.bind_session(session_id, phone)
     except Exception:
         pass
 
 
-def clear_session(session_id: str) -> None:
+def clear_session(session_id: str, scope: CommercialScope | None = None) -> None:
+    cache_key = _session_cache_key(session_id, scope)
     with _lock:
-        _session_member.pop(session_id, None)
+        _session_member.pop(cache_key, None)
+    if scope:
+        member_session_repository.clear_session_scoped(session_id, scope)
+        return
     try:
         member_session_repository.clear_session(session_id)
     except Exception:
         pass
 
 
-def get_session_member(session_id: str) -> dict | None:
+def get_session_member(session_id: str, scope: CommercialScope | None = None) -> dict | None:
+    cache_key = _session_cache_key(session_id, scope)
     with _lock:
-        phone = _session_member.get(session_id)
+        phone = _session_member.get(cache_key)
     if not phone:
-        try:
-            phone = member_session_repository.get_session_phone(session_id)
-        except Exception:
-            phone = ""
+        if scope:
+            phone = member_session_repository.get_session_phone_scoped(session_id, scope)
+        else:
+            try:
+                phone = member_session_repository.get_session_phone(session_id)
+            except Exception:
+                phone = ""
         if phone:
             with _lock:
-                _session_member[session_id] = phone
-    return _with_member_commercial_defaults(member_repository.get_member(phone)) if phone else None
+                _session_member[cache_key] = phone
+    if not phone:
+        return None
+    member = member_repository.get_member_scoped(phone, scope) if scope else member_repository.get_member(phone)
+    return _with_member_commercial_defaults(member)
 
 
 def _public_member(member: dict) -> dict:
@@ -209,16 +229,16 @@ def _recent_item_ids(existing: list, ordered_item_ids: list[str], limit: int | N
     return rows
 
 
-def login(session_id: str, phone: str) -> dict:
+def login(session_id: str, phone: str, scope: CommercialScope | None = None) -> dict:
     norm = normalize_phone(phone)
     if not norm:
         return {"found": False, "error": "invalid_phone"}
-    member = member_repository.get_member(norm)
+    member = member_repository.get_member_scoped(norm, scope) if scope else member_repository.get_member(norm)
     if not member:
         return {"found": False}
     _mark_login_success(member)
-    member_repository.upsert_member(member)
-    bind_session(session_id, norm)
+    member_repository.upsert_member_scoped(member, scope) if scope else member_repository.upsert_member(member)
+    bind_session(session_id, norm, scope)
     return {"found": True, "member": _public_member(member)}
 
 
@@ -229,6 +249,7 @@ def register(
     order_history_consent: bool = True,
     personalization_consent: bool = True,
     consent_source: str = "kiosk",
+    scope: CommercialScope | None = None,
 ) -> dict:
     norm = normalize_phone(phone)
     if not norm:
@@ -237,7 +258,7 @@ def register(
     personalization_consent = _as_bool(personalization_consent)
     if not order_history_consent or not personalization_consent:
         return {"ok": False, "error": "consent_required"}
-    existing = member_repository.get_member(norm)
+    existing = member_repository.get_member_scoped(norm, scope) if scope else member_repository.get_member(norm)
     if existing:
         _with_member_commercial_defaults(existing)
         if not existing.get("consent_accepted_at"):
@@ -248,8 +269,8 @@ def register(
                 source=consent_source,
             )
         _mark_login_success(existing)
-        member_repository.upsert_member(existing)
-        bind_session(session_id, norm)
+        member_repository.upsert_member_scoped(existing, scope) if scope else member_repository.upsert_member(existing)
+        bind_session(session_id, norm, scope)
         return {"ok": True, "member": _public_member(existing)}
     nick = str(nickname or "").strip() or f"會員{norm[-4:]}"
     now = _now_iso()
@@ -277,8 +298,8 @@ def register(
         personalization_consent=personalization_consent,
         source=consent_source,
     )
-    member_repository.upsert_member(record)
-    bind_session(session_id, norm)
+    member_repository.upsert_member_scoped(record, scope) if scope else member_repository.upsert_member(record)
+    bind_session(session_id, norm, scope)
     return {"ok": True, "member": _public_member(record)}
 
 
@@ -447,12 +468,12 @@ def member_push_context(member: dict) -> str:
     return f"此顧客為會員{who}，常點：{names}。請在促購短句中自然帶入其偏好。"
 
 
-def _append_member_order(member: dict, order: dict) -> dict:
+def _append_member_order(member: dict, order: dict, scope: CommercialScope | None = None) -> dict:
     orders = list(member.get("orders") or [])
     orders.append(order)
     keep = int(config.get("MEMBER_ORDERS_KEEP", 20))
     member["orders"] = orders[-keep:]
-    member_repository.upsert_member(member)
+    member_repository.upsert_member_scoped(member, scope) if scope else member_repository.upsert_member(member)
     return member
 
 
@@ -542,10 +563,11 @@ def finalize_checkout(
     total,
     recommendation_success: bool,
     cart_items: list | None = None,
+    scope: CommercialScope | None = None,
 ) -> dict | None:
-    member = get_session_member(session_id)
+    member = get_session_member(session_id, scope)
     if not member:
-        clear_session(session_id)
+        clear_session(session_id, scope)
         return None
     timestamp = datetime.now().isoformat()
     member["visit_count"] = int(member.get("visit_count", 0)) + 1
@@ -562,13 +584,19 @@ def finalize_checkout(
         "recommendation_success": bool(recommendation_success),
         # Backward-compatible field for admin recommendation metrics.
         "is_success": bool(recommendation_success),
-    })
-    clear_session(session_id)
+    }, scope)
+    clear_session(session_id, scope)
     return member
 
 
-def record_abandoned_order(session_id: str, cart_ids: list, total, reason: str = "") -> dict | None:
-    member = get_session_member(session_id)
+def record_abandoned_order(
+    session_id: str,
+    cart_ids: list,
+    total,
+    reason: str = "",
+    scope: CommercialScope | None = None,
+) -> dict | None:
+    member = get_session_member(session_id, scope)
     normalized_cart_ids = [iid for iid in (cart_ids or []) if iid]
     if not member or not normalized_cart_ids:
         return None
@@ -582,13 +610,13 @@ def record_abandoned_order(session_id: str, cart_ids: list, total, reason: str =
         "cancel_reason": str(reason or ""),
         "recommendation_success": False,
         "is_success": False,
-    })
-    clear_session(session_id)
+    }, scope)
+    clear_session(session_id, scope)
     return member
 
 
-def admin_list() -> list:
-    members = member_repository.get_all_members()
+def admin_list(scope: CommercialScope | None = None) -> list:
+    members = member_repository.get_all_members_scoped(scope) if scope else member_repository.get_all_members()
     menu_by_id = _menu_by_id()
     rows = []
     for m in members:
@@ -616,8 +644,8 @@ def admin_list() -> list:
     return rows
 
 
-def admin_detail(phone) -> dict | None:
-    m = _resolve_member(phone)
+def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
+    m = _resolve_member(phone, scope)
     if not m:
         return None
     menu_by_id = _menu_by_id()
@@ -689,7 +717,7 @@ def admin_detail(phone) -> dict | None:
     }
 
 
-def export_members_csv() -> str:
+def export_members_csv(scope: CommercialScope | None = None) -> str:
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=[
         "phone_masked",
@@ -711,7 +739,8 @@ def export_members_csv() -> str:
     ])
     writer.writeheader()
     menu_by_id = _menu_by_id()
-    for member in member_repository.get_all_members():
+    members = member_repository.get_all_members_scoped(scope) if scope else member_repository.get_all_members()
+    for member in members:
         _with_member_commercial_defaults(member)
         metrics = _member_order_metrics(member)
         usuals = build_usuals(member, limit=5)
@@ -750,9 +779,9 @@ def export_members_csv() -> str:
     return output.getvalue()
 
 
-def admin_clear_records(phone) -> bool:
+def admin_clear_records(phone, scope: CommercialScope | None = None) -> bool:
     """清除會員的點餐紀錄（訂單、常點、消費統計），保留帳戶本身。"""
-    m = _resolve_member(phone)
+    m = _resolve_member(phone, scope)
     if not m:
         return False
     m["orders"] = []
@@ -764,13 +793,15 @@ def admin_clear_records(phone) -> bool:
     m["visit_count"] = 0
     m["total_spend"] = 0
     m["last_visit_at"] = ""
-    member_repository.upsert_member(m)
+    member_repository.upsert_member_scoped(m, scope) if scope else member_repository.upsert_member(m)
     return True
 
 
-def admin_delete_member(phone) -> bool:
+def admin_delete_member(phone, scope: CommercialScope | None = None) -> bool:
     """手動刪除整個會員帳戶。"""
-    m = _resolve_member(phone)
+    m = _resolve_member(phone, scope)
     if not m:
         return False
+    if scope:
+        return member_repository.delete_member_scoped(m.get("phone", ""), scope)
     return member_repository.delete_member(m.get("phone", ""))

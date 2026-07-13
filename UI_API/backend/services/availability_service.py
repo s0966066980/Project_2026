@@ -1,9 +1,10 @@
 """Build store availability context for recommendations and Admin."""
+
 from datetime import datetime, time
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import availability_repository, menu_repository
-
 
 BREAKFAST_CATEGORY = "早餐"
 
@@ -70,8 +71,16 @@ def _time_unavailable_ids(menu_items: list[dict], service_period: str) -> list[s
     return [_menu_id(item) for item in menu_items or [] if _menu_id(item) and _is_breakfast_item(item)]
 
 
-def _availability_base(menu_items: list[dict], now: datetime | None = None) -> dict:
-    settings = availability_repository.get_availability()
+def _availability_base(
+    menu_items: list[dict],
+    now: datetime | None = None,
+    scope: CommercialScope | None = None,
+) -> dict:
+    settings = (
+        availability_repository.get_availability_scoped(scope)
+        if scope is not None
+        else availability_repository.get_availability()
+    )
     valid_ids = _valid_menu_ids(menu_items)
     service_period = resolve_service_period(settings, now=now)
     sold_out_ids = _filter_known_ids(settings.get("sold_out_item_ids", []), valid_ids)
@@ -98,7 +107,11 @@ def _availability_base(menu_items: list[dict], now: datetime | None = None) -> d
     }
 
 
-def build_availability_context(menu_items: list[dict] | None = None, now: datetime | None = None) -> dict:
+def build_availability_context(
+    menu_items: list[dict] | None = None,
+    now: datetime | None = None,
+    scope: CommercialScope | None = None,
+) -> dict:
     if not config.get("RECOMMENDATION_AVAILABILITY_ENABLED", True):
         return {
             "enabled": False,
@@ -108,12 +121,12 @@ def build_availability_context(menu_items: list[dict] | None = None, now: dateti
             "low_stock_penalty": 0,
         }
     rows = menu_items if menu_items is not None else menu_repository.get_menu()
-    return {"enabled": True, **_availability_base(rows, now=now)}
+    return {"enabled": True, **_availability_base(rows, now=now, scope=scope)}
 
 
-def get_admin_state(now: datetime | None = None) -> dict:
+def get_admin_state(now: datetime | None = None, scope: CommercialScope | None = None) -> dict:
     menu_items = menu_repository.get_menu()
-    context = build_availability_context(menu_items, now=now)
+    context = build_availability_context(menu_items, now=now, scope=scope)
     sold_out_ids = set(context.get("sold_out_item_ids", []))
     low_stock_ids = set(context.get("low_stock_item_ids", []))
     disabled_ids = set(context.get("store_disabled_item_ids", []))
@@ -130,18 +143,20 @@ def get_admin_state(now: datetime | None = None) -> dict:
             status = "sold_out"
         elif item_id in low_stock_ids:
             status = "low_stock"
-        rows.append({
-            "id": item_id,
-            "name": str(item.get("name") or item_id),
-            "category": str(item.get("category") or ""),
-            "status": status,
-            "time_unavailable": item_id in time_unavailable_ids,
-            "available_categories": item.get("available_categories") or [],
-        })
+        rows.append(
+            {
+                "id": item_id,
+                "name": str(item.get("name") or item_id),
+                "category": str(item.get("category") or ""),
+                "status": status,
+                "time_unavailable": item_id in time_unavailable_ids,
+                "available_categories": item.get("available_categories") or [],
+            }
+        )
     return {**context, "items": rows}
 
 
-def save_admin_state(payload: dict) -> dict:
+def save_admin_state(payload: dict, scope: CommercialScope | None = None) -> dict:
     menu_items = menu_repository.get_menu()
     valid_ids = _valid_menu_ids(menu_items)
     source = payload if isinstance(payload, dict) else {}
@@ -153,5 +168,8 @@ def save_admin_state(payload: dict) -> dict:
         "low_stock_item_ids": _filter_known_ids(source.get("low_stock_item_ids", []), valid_ids),
         "store_disabled_item_ids": _filter_known_ids(source.get("store_disabled_item_ids", []), valid_ids),
     }
-    availability_repository.save_availability(row)
-    return get_admin_state()
+    if scope is None:
+        availability_repository.save_availability(row)
+    else:
+        availability_repository.save_availability_scoped(row, scope)
+    return get_admin_state(scope=scope)

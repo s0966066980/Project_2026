@@ -2,13 +2,13 @@
 
 負責正規化推薦生命週期事件，並在結帳時補上成交/忽略事件。
 """
+import time
 from collections import Counter, defaultdict
 from datetime import datetime
-import time
 
+from models.commercial_scope import CommercialScope
 from repositories import recommendation_event_repository
 from services import member_service
-
 
 EVENT_TYPES = {
     "recommendation_generated",
@@ -166,8 +166,8 @@ def _safe_ui_context(value) -> dict:
     return safe
 
 
-def _member_snapshot(session_id: str) -> dict:
-    member = member_service.get_session_member(session_id)
+def _member_snapshot(session_id: str, scope: CommercialScope | None = None) -> dict:
+    member = member_service.get_session_member(session_id, scope) if scope else member_service.get_session_member(session_id)
     if not member:
         return {
             "is_member": False,
@@ -186,7 +186,7 @@ def _surface_from_source(source: str, fallback: str = "") -> str:
     return RECOMMENDATION_CART_SOURCES.get(normalized, fallback or normalized or "unknown")
 
 
-def normalize_recommendation_event(payload: dict) -> dict:
+def normalize_recommendation_event(payload: dict, scope: CommercialScope | None = None) -> dict:
     raw = payload if isinstance(payload, dict) else {}
     session_id = _safe_text(raw.get("session_id") or "anonymous", 100)
     event_type = _safe_text(raw.get("event_type") or "recommendation_shown", 80)
@@ -223,14 +223,16 @@ def normalize_recommendation_event(payload: dict) -> dict:
         "ui_context": _safe_ui_context(raw.get("ui_context")),
         "timestamp": _safe_text(raw.get("timestamp"), 40) or _now_iso(),
     }
-    record.update(_member_snapshot(session_id))
+    record.update(_member_snapshot(session_id, scope))
     if record["is_member"]:
         record["audience"] = "member"
     return record
 
 
-def record_recommendation_event(payload: dict) -> dict:
-    event = normalize_recommendation_event(payload)
+def record_recommendation_event(payload: dict, scope: CommercialScope | None = None) -> dict:
+    event = normalize_recommendation_event(payload, scope)
+    if scope:
+        return recommendation_event_repository.append_recommendation_event_scoped(event, scope)
     return recommendation_event_repository.append_recommendation_event(event)
 
 
@@ -287,8 +289,13 @@ def record_checkout_recommendation_events(
     cart_items: list | None,
     cart_sources: list | None,
     pushed_ids: list | None,
+    scope: CommercialScope | None = None,
 ) -> list[dict]:
-    existing = recommendation_event_repository.get_recommendation_events(session_id, 5000)
+    existing = (
+        recommendation_event_repository.get_recommendation_events_scoped(scope, session_id, 5000)
+        if scope
+        else recommendation_event_repository.get_recommendation_events(session_id, 5000)
+    )
     latest_by_item = _latest_recommendation_by_item(existing)
     final_quantities = _cart_quantities(cart_ids, cart_items)
     final_ids = set(final_quantities)
@@ -320,7 +327,7 @@ def record_checkout_recommendation_events(
                 **_offer_metadata(base),
                 **_experiment_metadata(base),
             },
-        }))
+        }, scope))
 
     ignored_keys = {
         (event.get("recommendation_id"), event.get("item_id"))
@@ -351,8 +358,10 @@ def record_checkout_recommendation_events(
                 **_offer_metadata(event),
                 **_experiment_metadata(event),
             },
-        }))
+        }, scope))
 
+    if scope:
+        return recommendation_event_repository.append_recommendation_events_scoped(new_events, scope)
     return recommendation_event_repository.append_recommendation_events(new_events)
 
 

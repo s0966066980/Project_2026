@@ -6,8 +6,8 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import promotion_repository
-
 
 ACTIVE_STATUSES = {"active", "published", "enabled"}
 VALID_TARGET_TYPES = {"category", "item", "recommendation", "none"}
@@ -158,13 +158,24 @@ def _banner_item(row: dict) -> dict | None:
     }
 
 
-def get_active_pos_banners(*, now: datetime | None = None, limit: int = 10, surface: str = "pos_home_banner") -> list[dict]:
+def get_active_pos_banners(
+    *,
+    now: datetime | None = None,
+    limit: int = 10,
+    surface: str = "pos_home_banner",
+    scope: CommercialScope | None = None,
+) -> list[dict]:
     selected_surface = _text(surface, 80) or "pos_home_banner"
     if selected_surface not in VALID_SURFACES:
         selected_surface = "pos_home_banner"
     current_time = now or datetime.now(timezone.utc)
     rows = []
-    for row in promotion_repository.list_promotions():
+    promotion_rows = (
+        promotion_repository.list_promotions_scoped(scope)
+        if scope
+        else promotion_repository.list_promotions()
+    )
+    for row in promotion_rows:
         if not _is_active_banner(row, current_time, surface=selected_surface):
             continue
         item = _banner_item(row)
@@ -174,5 +185,10 @@ def get_active_pos_banners(*, now: datetime | None = None, limit: int = 10, surf
     return [item for _, __, item in rows[: max(1, limit)]]
 
 
-def get_pos_banner_response(*, now: datetime | None = None, surface: str = "pos_home_banner") -> dict:
-    return {"items": get_active_pos_banners(now=now, surface=surface)}
+def get_pos_banner_response(
+    *,
+    now: datetime | None = None,
+    surface: str = "pos_home_banner",
+    scope: CommercialScope | None = None,
+) -> dict:
+    return {"items": get_active_pos_banners(now=now, surface=surface, scope=scope)}

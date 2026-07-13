@@ -1,13 +1,13 @@
 """Short-term recommendation feedback derived from recommendation events."""
 from __future__ import annotations
 
+import time
 from collections import Counter
 from datetime import datetime
-import time
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import recommendation_event_repository
-
 
 NEGATIVE_EVENTS = {"recommendation_ignored"}
 POSITIVE_EVENTS = {
@@ -62,7 +62,12 @@ def _relevant(event: dict, session_id: str, member_phone_masked: str) -> bool:
     return False
 
 
-def build_feedback_context(session_id: str, *, member_phone_masked: str = "") -> dict:
+def build_feedback_context(
+    session_id: str,
+    *,
+    member_phone_masked: str = "",
+    scope: CommercialScope | None = None,
+) -> dict:
     if not config.get("RECOMMENDATION_IGNORE_FEEDBACK_ENABLED", True):
         return empty_feedback_context()
 
@@ -71,7 +76,11 @@ def build_feedback_context(session_id: str, *, member_phone_masked: str = "") ->
     window_seconds = int(config.get("RECOMMENDATION_IGNORE_WINDOW_MINUTES", 45) or 45) * 60
     limit = int(config.get("RECOMMENDATION_FEEDBACK_EVENT_LIMIT", 500) or 500)
     now = time.time()
-    events = recommendation_event_repository.get_recommendation_events("", limit)
+    events = (
+        recommendation_event_repository.get_recommendation_events_scoped(scope, "", limit)
+        if scope
+        else recommendation_event_repository.get_recommendation_events("", limit)
+    )
 
     item_counts: Counter[str] = Counter()
     offer_counts: Counter[str] = Counter()

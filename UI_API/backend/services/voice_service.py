@@ -11,8 +11,10 @@ import time
 from typing import AsyncGenerator
 
 import ai_services
-import config
 import database
+
+import config
+from models.commercial_scope import CommercialScope
 from repositories import menu_repository, session_repository
 from services import (
     rag_guard_service,
@@ -94,6 +96,7 @@ async def _build_voice_context(
     session_id: str,
     user_text: str,
     detected_lang: str,
+    scope: CommercialScope | None = None,
 ) -> tuple[str, str, list]:
     """組合語音 LLM 的 system_prompt 與 user_prompt。
 
@@ -125,6 +128,7 @@ async def _build_voice_context(
         rag_query=user_text,
         surface="voice",
         menu_items=menu_items,
+        scope=scope,
     )
     rag_context = recommendation_context.get("rag", {}).get("context", "")
     offer_section = rag_offer_service.format_offer_prompt_section(
@@ -166,6 +170,7 @@ async def handle_voice(
     audio_path: str,
     ollama_semaphore,
     multi_lang: bool = True,
+    scope: CommercialScope | None = None,
 ) -> dict:
     # ── 1. STT ────────────────────────────────────────────────────
     stt = get_stt()
@@ -192,7 +197,7 @@ async def handle_voice(
 
     # ── 2. Ollama LLM ─────────────────────────────────────────────
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang
+        session_id, user_text, detected_lang, scope
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -260,6 +265,7 @@ async def handle_voice_stream(
     audio_path: str,
     ollama_semaphore,
     multi_lang: bool = True,
+    scope: CommercialScope | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """
     串流版：STT → LLM 串流 → 逐句 TTS。
@@ -288,7 +294,7 @@ async def handle_voice_stream(
 
     # ── Context + System prompt（與 handle_voice 共用組裝邏輯） ──────────
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang
+        session_id, user_text, detected_lang, scope
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")

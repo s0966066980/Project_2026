@@ -9,7 +9,11 @@ import os
 import threading
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
+from models.commercial_scope import (
+    CommercialScope,
+    CommercialScopeConflictError,
+    is_legacy_store_scope,
+)
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -207,7 +211,7 @@ def append_recommendation_event_scoped(event: dict, scope: CommercialScope) -> d
             raise
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     record = dict(event or {})
@@ -230,7 +234,7 @@ def append_recommendation_events_scoped(events: list[dict], scope: CommercialSco
             raise
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     records = [dict(event or {}) for event in events if isinstance(event, dict)]
@@ -253,7 +257,7 @@ def get_recommendation_events_scoped(
             return _postgres_get_events(scope, session_id, limit)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         return []
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     if session_id:
@@ -275,7 +279,7 @@ def clear_recommendation_events_scoped(scope: CommercialScope) -> int:
             return _postgres_clear_events(scope)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_store_scope(scope):
         return 0
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     count = len(rows)

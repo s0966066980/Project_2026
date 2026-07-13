@@ -4,7 +4,11 @@ import threading
 from datetime import datetime
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
+from models.commercial_scope import (
+    CommercialScope,
+    CommercialScopeConflictError,
+    is_legacy_tenant_scope,
+)
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -375,7 +379,7 @@ def get_all_members_scoped(scope: CommercialScope) -> list:
             return _postgres_get_all_members(scope)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_tenant_scope(scope):
         return []
     with _lock:
         return _read()
@@ -391,7 +395,7 @@ def get_member_scoped(phone: str, scope: CommercialScope) -> dict | None:
             return _postgres_get_member(phone, scope)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_tenant_scope(scope):
         return None
     key = str(phone or "")
     with _lock:
@@ -413,7 +417,7 @@ def upsert_member_scoped(record: dict, scope: CommercialScope) -> dict:
             raise
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_tenant_scope(scope):
         raise ValueError("JSON member storage only supports the configured legacy default scope")
     key = str(record.get("phone") or "")
     with _lock:
@@ -440,7 +444,7 @@ def delete_member_scoped(phone: str, scope: CommercialScope) -> bool:
             return _postgres_delete_member(phone, scope)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
-    if scope != LEGACY_DEFAULT_SCOPE:
+    if not is_legacy_tenant_scope(scope):
         return False
     key = str(phone or "")
     with _lock:

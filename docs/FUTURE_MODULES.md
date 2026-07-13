@@ -16,7 +16,6 @@
 
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
-| P0 | Tenant / Store / Device enforcement | 強化已建立的 hierarchy 與 Default Scope | Commercial scope foundation | nullable scope 清零、identity resolver、完整 PostgreSQL operational data 與 isolation gate |
 | P0 | Member UUID / PII | 移除 phone 作為長期 Domain PK | Migration、Key management | UUID、加密、lookup hash、backfill、驗證 |
 | P0 | Order / Checkout hardening | 穩定商業交易邊界 | Catalog、Promotion | server pricing、狀態機、idempotency、失敗恢復 |
 | P0 | Commercial observability | 建立正式營運監控 | Deployment | metrics、trace、alert、SLO、runbook |

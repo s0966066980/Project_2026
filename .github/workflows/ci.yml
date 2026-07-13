@@ -59,14 +59,43 @@ jobs:
           backend/repositories/postgres_utils.py
           backend/repositories/admin_identity_repository.py
           backend/repositories/device_identity_repository.py
+          backend/repositories/availability_repository.py
+          backend/repositories/commercial_settings_repository.py
+          backend/repositories/interaction_event_repository.py
+          backend/repositories/promotion_repository.py
+          backend/repositories/rag_asset_scope_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
+          backend/routes/availability_routes.py
+          backend/routes/ai_push_routes.py
+          backend/routes/core_routes.py
+          backend/routes/interaction_routes.py
+          backend/routes/menu_routes.py
+          backend/routes/member_routes.py
+          backend/routes/recommendation_event_routes.py
+          backend/routes/voice_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
+          backend/scripts/validate_commercial_scope.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
           backend/services/device_identity_service.py
+          backend/services/commercial_context_service.py
+          backend/services/admin_audit_service.py
+          backend/services/availability_service.py
+          backend/services/checkout_pricing_service.py
+          backend/services/checkout_service.py
+          backend/services/intervention_pipeline_service.py
+          backend/services/member_service.py
+          backend/services/promotion_banner_service.py
+          backend/services/promotion_service.py
+          backend/services/rag_offer_service.py
+          backend/services/recommendation_context_service.py
+          backend/services/recommendation_event_service.py
+          backend/services/recommendation_feedback_service.py
+          backend/services/ai_push_service.py
+          backend/services/voice_service.py
           backend/utils
 
       - name: Ruff format check
@@ -80,14 +109,25 @@ jobs:
           backend/repositories/postgres_utils.py
           backend/repositories/admin_identity_repository.py
           backend/repositories/device_identity_repository.py
+          backend/repositories/availability_repository.py
+          backend/repositories/commercial_settings_repository.py
+          backend/repositories/interaction_event_repository.py
+          backend/repositories/promotion_repository.py
+          backend/repositories/rag_asset_scope_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
+          backend/routes/availability_routes.py
+          backend/routes/interaction_routes.py
+          backend/routes/member_routes.py
+          backend/routes/recommendation_event_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
+          backend/scripts/validate_commercial_scope.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
           backend/services/device_identity_service.py
+          backend/services/commercial_context_service.py
           backend/utils
 
       - name: Mypy gradual type check
@@ -155,6 +195,9 @@ jobs:
 
       - name: Verify per-device identity foundation
         run: pytest -q tests/postgres_device_identity_integration.py
+
+      - name: Verify commercial scope contract enforcement
+        run: pytest -q tests/postgres_scope_contract_integration.py
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply

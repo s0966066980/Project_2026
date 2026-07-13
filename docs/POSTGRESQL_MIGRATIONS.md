@@ -12,6 +12,8 @@ Milestone 1C 新增不可變的 `0003_admin_identity_rbac_foundation.sql`，以 
 
 Milestone 1D 新增不可變的 `0004_device_identity_foundation.sql`，建立 device credential、short-lived session 與 safe credential event。Migration 不 seed raw credential；credential 由具 `device_identity.manage` 的已驗證 Admin 對 active device issue，database 只保存 hash。
 
+Milestone 1E 新增 `0005_commercial_scope_contract_enforcement.sql`。標準 0001–0004 資料先經完整性 validator 驗證，再收緊 core scope `NOT NULL`，並建立 store availability、versioned settings、promotion、interaction/intervention outcome 與 RAG asset ownership metadata。Route scope 只由已驗證 `AdminPrincipal`／`DevicePrincipal` 解析。
+
 ## Milestone 1B Scope Matrix
 
 | Table / Storage | Business Owner | Required Scope | Legacy Compatibility | Migration Strategy | Index |
@@ -26,6 +28,21 @@ Milestone 1D 新增不可變的 `0004_device_identity_foundation.sql`，建立 d
 | availability / interaction JSON | Store / Device target | 尚無正式 PostgreSQL table | Default Scope only | 不虛構第二套 schema；後續 migration | N/A |
 
 Nullable scope 是 expand 階段，不代表完整 tenant isolation。進入 enforcement 前必須驗證無 null/orphan rows、切換所有 production callers 至 scoped method，再以新 migration 收緊 constraint。
+
+## Milestone 1E Contract Scope Matrix
+
+| Table | Owner / Required Scope | Contract |
+| --- | --- | --- |
+| `members` | Tenant | `tenant_id NOT NULL`；phone PK 暫留至 ADR-0004 |
+| `member_sessions`, `member_orders` | Tenant + Store + origin Device | ownership columns `NOT NULL` 與 composite FK |
+| `recommendation_events` | Tenant + Store + Device | ownership columns `NOT NULL`；query 必須帶 scope |
+| `admin_audit_logs` | Tenant + optional Store | tenant `NOT NULL`；store 保持 nullable 以支援 tenant-level audit |
+| `store_availability`, `promotion_records` | Store | composite Store/Tenant FK 與 scoped unique/index |
+| `commercial_settings_versions` | Tenant 或 Store | append-only version；partial unique index處理 nullable store |
+| `interaction_events`, `intervention_outcomes` | Device | composite Device/Store/Tenant FK |
+| `rag_asset_scopes` | Tenant 或 Store | 只存 ownership metadata，不存文件內容、prompt 或 embedding |
+
+PostgreSQL RLS 在 1E 明確延後：目前 application 使用共用 database identity，尚無可信的 per-request transaction identity，啟用 RLS 只會形成錯誤安全感。現階段 isolation boundary 是 verified principal → `CommercialScope` → parameterized repository filter + FK/constraint；待 connection identity 與 RLS integration test strategy 成熟後，以新 ADR/migration 導入。
 
 ## Migration Contract
 
@@ -95,6 +112,13 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - Rotation 先建立 replacement，舊 credential 在 `DEVICE_CREDENTIAL_ROTATION_GRACE_SEC` 內可並行；cutover 確認後 revoke 舊 credential。
 - Application rollback 可暫時明確啟用 `ENABLE_LEGACY_KIOSK_TOKEN`；不得 drop identity tables、保存 raw credential 或改寫 0004 checksum。
 - Credential/session/event constraint 或資料問題使用新的 forward migration修正。
+
+### Milestone 1E Scope Contract Roll-forward
+
+- Apply 0005 前先執行 backup、migration clean validation 與 `validate_commercial_scope.py --require-complete`；任何 null/orphan/hierarchy mismatch 都先用新的 forward repair migration 處理。
+- 0005 是 contract migration，不提供假的 down migration，也不得修改 0002–0004 checksum。
+- Application rollback 可暫時回到 Default Scope compatibility adapter，但已收緊的 ownership column 不應放寬或刪除。
+- 大型 production table 的 lock duration 必須先在 staging 以 production-like volume 演練；超出 maintenance budget 時拆成新的 expand/backfill/validate/contract migrations。
 
 ## Backup Before Migration
 
