@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "3B",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -18,7 +18,8 @@
     "2D",
     "2E",
     "2F",
-    "3A"
+    "3A",
+    "3B"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -220,6 +221,11 @@
       "ruff_affected_scope": "PASS",
       "frontend": "NOT RUN (no frontend change)",
       "postgres_integration": "NOT RUN (no schema change)"
+    },
+    "3B": {
+      "target_tests": "PASS (5 multimodal evidence tests)",
+      "full_json_backend": "PASS (298 passed)",
+      "frontend": "NOT RUN (no frontend change)"
     }
   },
   "known_gaps": [
@@ -238,6 +244,6 @@
     "Isolated restore drill execute mode remains an operations exercise against a real backup target."
   ],
   "blocked_items": [],
-  "next_milestone": "3B",
-  "updated_at": "2026-07-13T22:08:47.796005+08:00"
+  "next_milestone": "3C",
+  "updated_at": "2026-07-13T22:10:19.891444+08:00"
 }

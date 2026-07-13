@@ -110,6 +110,7 @@ Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 au
 - Core domain 依賴能力導向 Port，不依賴 provider 名稱或 SDK。
 - Timeout、retry、circuit breaker、fallback 與 response normalization 應由 gateway/adapter 管理。
 - Text LLM 經 `services/llm_gateway_service.py`：`LLMRequest`/`LLMResponse`、model policy（local/cloud first/only）、safe retry、fallback、schema validation metrics 與 prompt version。Ollama/Gemini 既有 `ai_services` 函式作為 compatibility adapter；LLM 輸出不得直接成為交易決策。
+- Multimodal evidence 經 `services/multimodal_evidence_gateway.py`：統一 Evidence contract（provider/version/confidence/signals/quality/latency）；Emotion-LLaMA / R1-Omni / null adapter 可替換；模型失敗回傳 no-evidence 且不阻塞 Checkout。
 
 ## 5. 資料與身分演進
 
