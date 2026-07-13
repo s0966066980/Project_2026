@@ -120,7 +120,10 @@ def connect():
         from psycopg.rows import dict_row
     except Exception as exc:
         raise PostgresUnavailableError("psycopg is required for PostgreSQL storage") from exc
-    return psycopg.connect(url, row_factory=dict_row)
+    try:
+        return psycopg.connect(url, row_factory=dict_row)
+    except Exception as exc:
+        raise PostgresUnavailableError("Unable to connect to PostgreSQL") from exc
 
 
 def migration_files() -> list[Path]:
