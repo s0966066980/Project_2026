@@ -137,3 +137,81 @@ class SettingsDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     values: dict[str, JsonValue]
+
+
+class SettingsPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    values: dict[str, JsonValue]
+    expected_version: int | None = None
+    idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class AvailabilityPutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    reason: str = Field(default="", max_length=200)
+    idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class AvailabilityDTO(BaseModel):
+    item_id: str
+    available: bool
+    reason: str = ""
+
+
+class PromotionCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    offer_id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=200)
+    enabled: bool = True
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+    idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class RagDocumentCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str = Field(default="", max_length=120)
+    content: str = Field(min_length=1, max_length=200_000)
+    source: str = Field(default="api", max_length=100)
+    idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class RagDocumentActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1)
+    actor: str = Field(default="admin", max_length=100)
+
+
+class RagDocumentDTO(BaseModel):
+    document_id: str
+    version: int
+    status: str
+    checksum: str
+    content_ref: str = ""
+
+
+class FleetCommandRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command: str = Field(min_length=1, max_length=64)
+    expires_at: str = Field(min_length=1, max_length=64)
+    idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class FleetCommandDTO(BaseModel):
+    command_id: str
+    device_id: UUID
+    command: str
+    status: str
+
+
+class OrderTransitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_status: str = Field(min_length=1, max_length=64)
+    idempotency_key: str | None = Field(default=None, max_length=200)

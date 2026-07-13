@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "0be0257ff55aee167c8af165f5c3cd03870b9f15",
   "program": "production_integration",
-  "current_milestone": "7A",
+  "current_milestone": "8A",
   "status": "in_progress",
   "completed_milestones": [
     "5A",
@@ -13,7 +13,10 @@
     "6A",
     "6B",
     "6C",
-    "6D"
+    "6D",
+    "7A",
+    "7B",
+    "7C"
   ],
   "checkpoint_commits": {
     "5A": "b06d316cf332d3bcfbd38434aa0e93cd9db83e3d",
@@ -21,9 +24,12 @@
     "5C": "5a62f455ded28f69cd688f7ee88701279ae59109",
     "5D": "870ef6dba6c1cd3a096af3698efddf61b2c417ff",
     "6A": "3fac7d71e22168733248ee1e1addf1ad16744181",
-    "6B": "87139713715165223a0b2afc47b59a979cbb7c94",
-    "6C": "87139713715165223a0b2afc47b59a979cbb7c94",
-    "6D": "87139713715165223a0b2afc47b59a979cbb7c94"
+    "6B": "1c82c797da99f612063d6561424145a46caaaac4",
+    "6C": "1c82c797da99f612063d6561424145a46caaaac4",
+    "6D": "1c82c797da99f612063d6561424145a46caaaac4",
+    "7A": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c",
+    "7B": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c",
+    "7C": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c"
   },
   "verification": {
     "5A": {
@@ -76,6 +82,20 @@
       "target_tests": "PASS (recursive PII + idempotent sink)",
       "full_json_backend": "PASS (345 passed)",
       "postgres_integration": "NOT RUN locally"
+    },
+    "7A": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "target_tests": "PASS (v1 write openapi)",
+      "full_json_backend": "PASS (347)"
+    },
+    "7B": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "frontend_unit": "PASS (12)",
+      "typecheck": "PASS"
+    },
+    "7C": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "legacy_allowlist_freeze": "PASS (2 entries)"
     }
   },
   "known_gaps": [
@@ -93,6 +113,6 @@
     }
   ],
   "risk_register": [],
-  "next_milestone": "7A",
-  "updated_at": "2026-07-14T07:01:54.074546+08:00"
+  "next_milestone": "8A",
+  "updated_at": "2026-07-14T07:05:09.261810+08:00"
 }

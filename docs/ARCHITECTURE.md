@@ -104,6 +104,8 @@ Object storage（`services/object_storage_service.py`）以 Port/Adapter 管理 
 
 Kiosk/Admin 目前由 Vite multi-entry build 分別驗證，production HTML/DOM 與 FastAPI `/static` serving 保持原路徑；Vitest 保護 shared transport，Playwright 保護本機 critical flows。完整契約見 [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md)。
 
+API v1 write surface（7A）提供 typed PATCH/PUT/POST for settings、availability、promotions、RAG lifecycle、fleet commands、order transition；legacy `/api/*` 保留相容。Frontend `shared/api/v1Client` 支援 get/post/put/patch；`frontend/legacy-api-allowlist.json` 凍結殘餘 `fetch('/api/...')` 並以 Vitest 阻止擴張。
+
 Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 authentication state。
 
 ### AI 執行單元

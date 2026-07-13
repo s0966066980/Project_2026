@@ -77,6 +77,30 @@ export function createApiV1Client(options: ApiV1ClientOptions = {}) {
     get<T>(path: string): Promise<ApiResponse<T>> {
       return request<T>(path);
     },
+    post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      };
+      if (body !== undefined) init.body = JSON.stringify(body);
+      return request<T>(path, init);
+    },
+    put<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+      const init: RequestInit = {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      };
+      if (body !== undefined) init.body = JSON.stringify(body);
+      return request<T>(path, init);
+    },
+    patch<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+      const init: RequestInit = {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      };
+      if (body !== undefined) init.body = JSON.stringify(body);
+      return request<T>(path, init);
+    },
     request,
   };
 }

@@ -11,11 +11,15 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
+import config  # re-exported for tests monkeypatching LEARNING_DATA_DIR
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from models.rag_governance import RAG_PERMISSIONS, RagAssetStatus, RagAssetVersion, RetrievalTrace
 from models.worker_jobs import JobValidationError
 from repositories import rag_governance_repository
 from services import object_storage_service, worker_service
+
+# Prevent unused-import cleanup from dropping the public config attribute used by tests.
+_ = config.LEARNING_DATA_DIR
 
 
 class RagGovernanceError(ValueError):
