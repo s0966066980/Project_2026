@@ -55,11 +55,11 @@
             "traffic": 50
         }
     ],
-    "MEMBER_STORAGE_BACKEND": "postgres",
-    "DATABASE_URL": "postgresql://ui_api_user:ui_api_password@127.0.0.1:5432/ui_api_migration_test",
+    "MEMBER_STORAGE_BACKEND": "json",
+    "DATABASE_URL": "",
     "MEMBER_SESSION_TTL_SEC": 86400,
     "ENABLE_MEMBER_DUAL_WRITE": false,
-    "ADMIN_MEMBER_REF_SECRET": "local-admin-member-ref",
+    "ADMIN_MEMBER_REF_SECRET": "",
     "ADMIN_AUDIT_MAX_RECORDS": 5000,
     "MEMBER_CONSENT_VERSION": "2026-07-phone-login-v1",
     "MEMBER_PRIVACY_VERSION": "2026-07-privacy-v1",

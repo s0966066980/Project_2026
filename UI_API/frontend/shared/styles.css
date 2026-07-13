@@ -1171,7 +1171,7 @@
     font-weight: 900;
     z-index: 10;
   }
-  /* ── 開始按鈕：image3.png 高品質 kiosk 風格 ── */
+  /* ── 開始按鈕：高品質 kiosk 風格 ── */
   #startupOverlay #startSystemBtn {
     position: absolute !important;
     left: 50% !important;
@@ -1292,7 +1292,8 @@
     padding-bottom: calc(var(--bottom-nav-height) + var(--ai-recommend-height) + var(--ai-recommend-gap));
   }
   .kiosk-topbar {
-    height: clamp(104px, 14vh, 136px);
+    min-height: clamp(104px, 14vh, 136px);
+    height: auto;
     align-items: flex-start !important;
     padding: clamp(20px, 3vh, 28px) clamp(28px, 3.2vw, 42px) 14px !important;
     background: #fffdf9 !important;
@@ -1381,6 +1382,368 @@
     padding: clamp(20px, 3vh, 34px) clamp(30px, 3.4vw, 46px) clamp(16px, 2vh, 24px) !important;
     overflow-y: auto !important;
     scroll-padding-bottom: 16px;
+  }
+  .kiosk-topbar {
+    gap: clamp(14px, 1.6vw, 24px);
+  }
+  .kiosk-top-left {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: clamp(16px, 2vw, 28px);
+  }
+  .kiosk-title-block {
+    min-width: 0;
+  }
+  .kiosk-screen-categories .kiosk-title-block {
+    display: none !important;
+  }
+  .kiosk-screen-categories .kiosk-topbar {
+    min-height: clamp(276px, 31vh, 336px);
+    padding-bottom: clamp(18px, 2.2vh, 28px) !important;
+  }
+  .kiosk-screen-menu .kiosk-topbar {
+    min-height: clamp(104px, 14vh, 136px);
+  }
+  .kiosk-screen-menu .pos-promo-banner-root {
+    display: none !important;
+  }
+  .pos-promo-banner-root {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+  }
+  .cart-promo-banner-root {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .pos-promo-banner-root.hidden {
+    display: none !important;
+  }
+  .cart-promo-banner-root.hidden {
+    display: none !important;
+  }
+  .pos-promo-banner {
+    position: relative;
+    width: 100%;
+    min-height: clamp(232px, 26vh, 282px);
+    border: 2px solid rgba(242, 162, 38, 0.42);
+    border-radius: 24px;
+    padding: clamp(22px, 2.3vw, 32px) clamp(24px, 2.8vw, 38px);
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(440px, 0.76fr);
+    gap: clamp(20px, 2.2vw, 34px);
+    align-items: center;
+    text-align: left;
+    background:
+      radial-gradient(circle at 8% 84%, rgba(255, 194, 42, 0.34) 0 18%, transparent 18.5%),
+      linear-gradient(135deg, #fff1ad 0%, #fff7d9 48%, #ffe59a 100%);
+    box-shadow: 0 14px 32px rgba(72, 48, 18, 0.12);
+    color: #2b1b10;
+    cursor: pointer;
+  }
+  .pos-promo-banner::before,
+  .pos-promo-banner::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  .pos-promo-banner::before {
+    inset: 18px auto auto 63%;
+    width: 150px;
+    height: 58px;
+    opacity: 0.42;
+    background-image: radial-gradient(#ffb322 4px, transparent 5px);
+    background-size: 20px 18px;
+  }
+  .pos-promo-banner::after {
+    right: 10px;
+    top: 18px;
+    width: 150px;
+    height: 100px;
+    background: repeating-linear-gradient(-45deg, rgba(244, 149, 28, 0.38) 0 12px, transparent 12px 24px);
+    clip-path: polygon(22% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .pos-promo-shape {
+    position: absolute;
+    pointer-events: none;
+  }
+  .pos-promo-dot-pattern {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 140px;
+    height: 64px;
+    opacity: 0.26;
+    background-image: radial-gradient(#f2ac27 4px, transparent 5px);
+    background-size: 18px 18px;
+    pointer-events: none;
+  }
+  .pos-promo-shape-left {
+    left: 0;
+    bottom: 0;
+    width: 150px;
+    height: 86px;
+    border-radius: 50%;
+    background: rgba(255, 194, 42, 0.62);
+  }
+  .pos-promo-shape-right {
+    right: 50px;
+    bottom: 20px;
+    width: 84px;
+    height: 42px;
+    opacity: 0.45;
+    background: repeating-linear-gradient(-45deg, #f5a623 0 6px, transparent 6px 13px);
+  }
+  .pos-promo-copy,
+  .pos-promo-side,
+  .pos-promo-price,
+  .pos-promo-action {
+    position: relative;
+    z-index: 1;
+  }
+  .pos-promo-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(8px, 0.9vh, 12px);
+  }
+  .pos-promo-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 7px 16px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #f36b59, #da291c);
+    color: #fff;
+    font-size: clamp(15px, 1.35vw, 21px);
+    font-weight: 950;
+    box-shadow: 0 8px 18px rgba(218, 41, 28, 0.22);
+    transform: rotate(-3deg);
+  }
+  .pos-promo-copy h2 {
+    margin: 0;
+    color: #301a0b;
+    font-size: clamp(30px, 3.25vw, 50px);
+    line-height: 1.04;
+    font-weight: 950;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+  }
+  .pos-promo-subtitle {
+    margin: 0;
+    color: #4b2b12;
+    font-size: clamp(18px, 1.72vw, 27px);
+    line-height: 1.22;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+  }
+  .pos-promo-description {
+    margin: 0;
+    max-width: 96%;
+    color: #6b4422;
+    font-size: clamp(14px, 1.06vw, 17px);
+    line-height: 1.34;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+  .pos-promo-side {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(180px, 0.88fr) minmax(210px, 1fr);
+    gap: clamp(12px, 1.3vw, 20px);
+    align-items: center;
+  }
+  .pos-promo-price {
+    border-left: 0;
+    border-right: 2px dashed rgba(242, 151, 36, 0.58);
+    padding: 0 clamp(12px, 1.4vw, 18px) 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pos-promo-original {
+    color: #8d8073;
+    font-size: clamp(15px, 1.25vw, 20px);
+    font-weight: 850;
+    text-decoration: line-through;
+  }
+  .pos-promo-price strong {
+    color: #d7281c;
+    font-size: clamp(34px, 3.2vw, 52px);
+    line-height: 0.9;
+    font-weight: 950;
+  }
+  .pos-promo-price strong span {
+    display: inline-flex;
+    margin-right: 8px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    background: #da291c;
+    color: #fff;
+    font-size: clamp(14px, 1.1vw, 18px);
+    vertical-align: middle;
+  }
+  .pos-promo-price em {
+    width: fit-content;
+    border-radius: 999px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, #fb5c4a, #d7281c);
+    color: #fff;
+    font-size: clamp(15px, 1.25vw, 20px);
+    font-weight: 950;
+    font-style: normal;
+  }
+  .pos-promo-action {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .pos-promo-date-card {
+    min-height: 96px;
+    border: 2px solid rgba(242, 151, 36, 0.86);
+    border-radius: 18px;
+    padding: 13px 15px;
+    background: rgba(255, 255, 255, 0.54);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+  }
+  .pos-promo-date-card span {
+    color: #2f2119;
+    font-size: clamp(13px, 1.05vw, 16px);
+    font-weight: 900;
+  }
+  .pos-promo-date-card span i {
+    color: #f39813;
+    margin-right: 8px;
+  }
+  .pos-promo-date-card strong {
+    color: #2b1b10;
+    font-size: clamp(18px, 1.55vw, 24px);
+    font-weight: 950;
+  }
+  .pos-promo-date-card small {
+    color: #cc251a;
+    font-size: clamp(11px, 0.95vw, 14px);
+    font-weight: 850;
+  }
+  .pos-promo-cta {
+    align-self: flex-end;
+    border-radius: 999px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #f39813, #ea7b00);
+    color: #fff;
+    font-size: clamp(15px, 1.16vw, 19px);
+    font-weight: 950;
+    box-shadow: 0 8px 18px rgba(211, 91, 0, 0.22);
+  }
+  .pos-promo-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: -28px;
+    position: relative;
+    z-index: 2;
+  }
+  .pos-promo-dots button {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 0;
+  }
+  .pos-promo-dots button.active {
+    background: #d7281c;
+  }
+  .cart-promo-banner-root .pos-promo-banner {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 10px 24px rgba(72, 48, 18, 0.1);
+  }
+  .cart-promo-banner-root .pos-promo-copy {
+    gap: 6px;
+  }
+  .cart-promo-banner-root .pos-promo-badge {
+    padding: 5px 11px;
+    border-radius: 6px;
+    font-size: 12px;
+    transform: none;
+  }
+  .cart-promo-banner-root .pos-promo-copy h2 {
+    font-size: 24px;
+    line-height: 1.08;
+  }
+  .cart-promo-banner-root .pos-promo-subtitle {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+  .cart-promo-banner-root .pos-promo-description {
+    display: none;
+  }
+  .cart-promo-banner-root .pos-promo-side {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .cart-promo-banner-root .pos-promo-price {
+    border-right: 0;
+    border-top: 2px dashed rgba(242, 151, 36, 0.55);
+    padding: 10px 0 0;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .cart-promo-banner-root .pos-promo-original {
+    font-size: 13px;
+  }
+  .cart-promo-banner-root .pos-promo-price strong {
+    font-size: 30px;
+  }
+  .cart-promo-banner-root .pos-promo-price strong span {
+    font-size: 12px;
+  }
+  .cart-promo-banner-root .pos-promo-price em {
+    font-size: 13px;
+    padding: 5px 10px;
+  }
+  .cart-promo-banner-root .pos-promo-date-card {
+    display: none;
+  }
+  .cart-promo-banner-root .pos-promo-cta {
+    align-self: stretch;
+    text-align: center;
+    font-size: 15px;
+    padding: 10px 14px;
+  }
+  .cart-promo-banner-root .pos-promo-dots {
+    margin-top: -18px;
+  }
+  @media (max-width: 1120px) {
+    .kiosk-screen-categories .kiosk-topbar {
+      min-height: clamp(342px, 48vh, 430px);
+    }
+    .pos-promo-banner {
+      grid-template-columns: 1fr;
+      min-height: 316px;
+    }
+    .pos-promo-side {
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch;
+    }
+    .pos-promo-price {
+      border-right: 2px dashed rgba(242, 151, 36, 0.55);
+      padding: 0 16px 0 0;
+    }
   }
   .kiosk-category-grid {
     display: grid;
@@ -1531,30 +1894,6 @@
     font-size: clamp(22px, 3vw, 36px);
     line-height: 1;
     font-weight: 950;
-  }
-  .kiosk-promotion-card {
-    border-color: #ffc72c;
-    background:
-      linear-gradient(135deg, rgba(255, 199, 44, 0.24), rgba(255, 255, 255, 0.94) 46%),
-      #fff;
-    box-shadow: 0 12px 28px rgba(218, 41, 28, 0.1);
-  }
-  .kiosk-promotion-badge {
-    display: inline-flex;
-    width: fit-content;
-    margin-bottom: 6px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    background: #da291c;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 950;
-  }
-  .kiosk-promotion-original {
-    margin-right: 6px;
-    color: #9a9a9a;
-    font-size: 13px;
-    text-decoration: line-through;
   }
   .kiosk-add-btn {
     width: clamp(54px, 6vw, 68px);

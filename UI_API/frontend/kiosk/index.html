@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>Smart Ordering Kiosk</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -473,19 +474,11 @@
         <button id="kioskBackBtn" class="kiosk-back-btn hidden" type="button" aria-label="返回">
           <i class="fas fa-arrow-left"></i>
         </button>
-        <div id="kioskLogo" class="kiosk-logo">M</div>
-        <div>
+        <section id="pos-promo-banner-root" class="pos-promo-banner-root hidden" aria-label="活動廣告"></section>
+        <div class="kiosk-title-block">
           <h2 id="kioskTitle" class="text-3xl md:text-4xl font-extrabold tracking-tight" style="color:var(--text)">請選擇餐點類別</h2>
           <p id="kioskSubtitle" class="text-sm mt-2" style="color:var(--text2)">選擇分類後開始點餐</p>
         </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <button id="kioskSearchBtn" class="kiosk-search-btn hidden" type="button">
-          <i class="fas fa-search"></i><span>搜尋<br>篩選</span>
-        </button>
-        <button id="kioskLangBtn" class="kiosk-lang-btn" type="button">
-          <i class="fas fa-globe"></i><span>中文</span><i class="fas fa-chevron-down"></i>
-        </button>
       </div>
     </div>
     <div class="menu-content flex-1 overflow-y-auto px-6 md:px-12 py-10 md:py-14 min-h-0">
@@ -504,6 +497,8 @@
 
   <!-- 右：購物車 -->
   <div class="cart-shell w-full lg:w-[370px] xl:w-[450px] flex flex-col z-30 shrink-0 h-[56vh] lg:h-full overflow-hidden p-4 gap-5">
+    <section id="cart-promo-banner-root" class="cart-promo-banner-root hidden" aria-label="購物車活動廣告"></section>
+
     <div class="cart-card flex-1 min-h-0 flex flex-col overflow-hidden">
       <div class="px-7 py-5 flex justify-between items-center shrink-0" style="border-bottom:1.5px solid var(--border)">
         <div class="flex items-center gap-4">

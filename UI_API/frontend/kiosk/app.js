@@ -15,6 +15,7 @@ import { createCartManager } from './cart.js';
 import { createRealtimeClient } from '../shared/realtimeClient.js';
 import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
 import { createKioskMenuController } from './controllers/kioskMenuController.js';
+import { createPromoBannerController } from './controllers/promoBannerController.js';
 import { state } from './state.js';
 import { configureKioskRuntime } from './runtime.js';
 import {
@@ -280,12 +281,6 @@ function findMenuItems(ids = []) {
     .filter(Boolean);
 }
 
-function findPromotionTargetItem(offer = {}) {
-  const itemIds = Array.isArray(offer.item_ids) ? offer.item_ids : [];
-  const categories = Array.isArray(offer.categories) ? offer.categories : [];
-  return findMenuItems(itemIds)[0] || state.menuData.find(item => categories.includes(item.category)) || null;
-}
-
 function applyPromotionPricing(item = {}, offer = {}) {
   const pricing = offer.pricing && typeof offer.pricing === 'object' ? offer.pricing : {};
   const promotionPrice = Number(pricing.promotion_price || 0);
@@ -300,52 +295,79 @@ function applyPromotionPricing(item = {}, offer = {}) {
   };
 }
 
+function promotionOfferFromBanner(promotion = {}) {
+  const promotionPrice = Number(promotion.promo_price || promotion.promotion_price || 0);
+  const originalPrice = Number(promotion.original_price || 0);
+  if (!promotionPrice) return null;
+  return {
+    offer_id: promotion.id || promotion.offer_id || '',
+    title: promotion.title || '',
+    pricing: {
+      type: 'add_on_fixed_price',
+      original_price: originalPrice || resolveItemPrice(promotion),
+      promotion_price: promotionPrice,
+      currency: 'TWD',
+    },
+  };
+}
+
+function promotionTargetItem(promotion = {}) {
+  const itemIds = Array.isArray(promotion.item_ids) ? promotion.item_ids : [];
+  const targetType = String(promotion.target_type || '').trim();
+  const targetValue = String(promotion.target_value || '').trim();
+  if (itemIds.length) return findMenuItems(itemIds)[0] || null;
+  if (targetType === 'item' && targetValue) return findMenuItems([targetValue])[0] || null;
+  if (targetType === 'category' && targetValue) {
+    return state.menuData.find(item => item.category === targetValue) || null;
+  }
+  return null;
+}
+
 function bestPricedOfferForItem(item = {}) {
   const offers = Array.isArray(item.offers) ? item.offers : [];
   return offers.find(offer => Number(offer?.pricing?.promotion_price || 0) > 0) || null;
 }
 
-function findDisplayablePromotionOffer(offers = []) {
-  return offers.find(offer => (
-    Number(offer?.pricing?.promotion_price || 0) > 0 &&
-    findPromotionTargetItem(offer)
-  )) || null;
+function showItemById(itemId = '', source = 'promotion_banner') {
+  const item = findMenuItems([itemId])[0];
+  if (item) showItemConfirmModal(item, source);
 }
 
-async function loadActivePromotionOffer() {
-  try {
-    const result = await api.getActivePromotions();
-    const offers = Array.isArray(result?.offers) ? result.offers : [];
-    state.activePromotionOffer = findDisplayablePromotionOffer(offers);
-    if (state.kioskScreen === 'menu') renderMenu();
-  } catch (error) {
-    console.warn('[active promotions failed]', error);
-    state.activePromotionOffer = null;
-  }
-}
-
-function getActivePromotionOffer() {
-  return state.activePromotionOffer;
-}
-
-function handlePromotionPick(offer = {}) {
-  if (offer.member_only && !state.member) {
+function handlePromotionCta(promotion = {}) {
+  if (promotion.member_only && !state.member) {
     showMemberChoice((member) => {
       renderMemberMenuHeader();
-      if (member) handlePromotionPick(offer);
+      if (member) handlePromotionCta(promotion);
     });
     return;
   }
-  const item = findPromotionTargetItem(offer);
-  if (!item) return;
-  const promotionItem = applyPromotionPricing(item, offer);
-  trackedAddToCart(promotionItem, {
-    source: 'promotion',
-    offer_id: offer.offer_id || '',
-    offer_ids: [offer.offer_id].filter(Boolean),
-    promotion_price: promotionItem.price,
-    original_price: promotionItem.original_price || resolveItemPrice(item),
-  });
+  const requiredIds = Array.isArray(promotion.required_cart_item_ids)
+    ? promotion.required_cart_item_ids
+    : [];
+  const cartIds = new Set(cartManager.getCartIds());
+  const missingRequiredId = requiredIds.find(id => !cartIds.has(id));
+  if (missingRequiredId) {
+    showPushNotice('此優惠需先將指定餐點加入購物車');
+    showItemById(missingRequiredId, 'promotion_requirement');
+    return;
+  }
+  const targetType = String(promotion.target_type || '').trim() || 'none';
+  const targetValue = String(promotion.target_value || '').trim();
+  const item = promotionTargetItem(promotion);
+  if (item) {
+    const offer = promotionOfferFromBanner(promotion);
+    const cartItem = offer ? applyPromotionPricing(item, offer) : item;
+    showItemConfirmModal(cartItem, 'promotion');
+    return;
+  }
+  if (targetType === 'category' && targetValue) {
+    const group = KIOSK_GROUPS.find(candidate => candidate.id === targetValue || candidate.label === targetValue || candidate.categories.includes(targetValue));
+    if (group) showMenuGroup(group.id);
+    return;
+  }
+  if (targetType === 'recommendation') {
+    aiRecommendationController.start();
+  }
 }
 
 export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
@@ -363,8 +385,6 @@ const kioskMenuController = createKioskMenuController({
   translateFilter: (filter) => kioskFilterLabel(kioskLang, filter),
   translateGroup: (group) => kioskGroupLabel(kioskLang, group),
   showItemConfirmModal,
-  getActivePromotionOffer,
-  onPromotionPick: handlePromotionPick,
   updateKioskCartSummary,
   onCategorySwitchRepeat(groupId, filter) {
     interactionState.categorySwitchCount += 1;
@@ -387,6 +407,40 @@ const {
 } = kioskMenuController;
 
 export const itemMatchesSubFilter = kioskMenuController.itemMatchesSubFilter;
+
+const promoBannerController = createPromoBannerController({
+  api,
+  root: ui.posPromoBannerRoot,
+  escapeHTML,
+  groups: KIOSK_GROUPS,
+  showMenuGroup,
+  showItemById,
+  surface: 'pos_home_banner',
+  variant: 'home',
+  onPromotionCta: handlePromotionCta,
+  onRecommendationTarget: () => aiRecommendationController.start(),
+});
+
+const cartPromoBannerController = createPromoBannerController({
+  api: {
+    ...api,
+    async getPosPromotionBanners(surface) {
+      const response = await api.getPosPromotionBanners(surface);
+      const items = Array.isArray(response?.items) ? response.items : [];
+      if (items.length || surface !== 'kiosk_cart_banner') return response;
+      return api.getPosPromotionBanners('pos_home_banner');
+    },
+  },
+  root: ui.cartPromoBannerRoot,
+  escapeHTML,
+  groups: KIOSK_GROUPS,
+  showMenuGroup,
+  showItemById,
+  surface: 'kiosk_cart_banner',
+  variant: 'cart',
+  onPromotionCta: handlePromotionCta,
+  onRecommendationTarget: () => aiRecommendationController.start(),
+});
 
 configureKioskRuntime({
   cartManager,
@@ -545,11 +599,6 @@ const aiRecommendationController = (() => {
       variant_id: recommendation.variant_id || item.variant_id || '',
       source: recommendation.source || item.source || 'ai_push',
     };
-    const pricedOffer = recommendationOffers.find(offer => Number(offer?.pricing?.promotion_price || 0) > 0);
-    if (pricedOffer) {
-      state.activePromotionOffer = pricedOffer;
-      if (state.kioskScreen === 'menu') renderMenu();
-    }
     const visual = getMenuVisual(item);
     if (currentRecommendationItem?.id && currentRecommendationItem.id !== item.id) {
       markCurrentRecommendationIgnored('replaced_by_new_ai_push');
@@ -822,14 +871,8 @@ function updateKioskCartSummary() {
 function applyKioskLanguage() {
   const startupLangText = document.querySelector('#startupLangBtn span');
   if (startupLangText) startupLangText.textContent = kt('langButton');
-  const langText = document.querySelector('#kioskLangBtn span');
-  if (langText) langText.textContent = kt('langButton');
   const startBtnLabel = document.getElementById('startBtnLabel');
   if (startBtnLabel) startBtnLabel.textContent = kioskLang === 'en' ? 'Start Order' : '開始點餐';
-  if (ui.kioskSearchBtn) {
-    const span = ui.kioskSearchBtn.querySelector('span');
-    if (span) span.innerHTML = kt('searchFilter');
-  }
   if (ui.kioskHomeBtn) {
     const span = ui.kioskHomeBtn.querySelector('span');
     if (span) span.textContent = kt('home');
@@ -1275,7 +1318,8 @@ async function runPosStartup() {
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && needAudio) console.warn('Media permission unavailable; Kiosk flow continues without rolling buffer.');
     await loadMenu();
-    await loadActivePromotionOffer();
+    promoBannerController.load();
+    cartPromoBannerController.load();
     applyFeaturesToKiosk();
     ui.overlay.style.opacity = '0';
     setTimeout(() => { ui.overlay.classList.add('hidden'); }, 500);
@@ -1310,9 +1354,6 @@ ui.startBtn?.addEventListener('pointerdown', () => {
   });
 });
 
-document.getElementById('kioskLangBtn')?.addEventListener('click', () => {
-  setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
-});
 document.getElementById('startupLangBtn')?.addEventListener('click', () => {
   setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
 });
@@ -1388,7 +1429,8 @@ function renderOrderConfirm() {
     return `
       <div class="order-summary-item">
         <div class="order-summary-photo">
-          <img src="${visual.image}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.parentElement.innerHTML='${visual.emoji}'">
+          ${visual.image ? `<img src="${escapeHTML(visual.image)}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+          <span class="menu-photo-fallback" style="display:${visual.image ? 'none' : 'flex'}">${escapeHTML(visual.emoji || '🍔')}</span>
         </div>
         <div class="order-summary-name">${escapeHTML(item.name)}</div>
         <div class="order-summary-meta">
@@ -1413,21 +1455,27 @@ async function writeCheckoutLog(cartIds = []) {
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
     const res = await api.submitCheckout(formData, ctrl.signal);
-    if (res && res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return { orderNumber: data.order_number ?? 0, sessionId: data.session_id || sessionId };
+    if (!res?.ok) {
+      const payload = await res?.json().catch(() => ({}));
+      const detail = payload?.detail;
+      const message = typeof detail === 'string'
+        ? detail
+        : (detail?.message || `checkout failed (${res?.status || 'network'})`);
+      throw new Error(message);
     }
-  } catch (err) {
+    const data = await res.json().catch(() => ({}));
+    return { orderNumber: data.order_number ?? 0, sessionId: data.session_id || sessionId };
+  } catch (error) {
     trackInteractionEvent({
       event_type: 'payment_failed',
       button_id: 'confirmPayBtn',
       payment_fail_count: 1,
-      metadata: { reason: err?.message || 'checkout_log_failed' }
+      metadata: { reason: error?.message || 'checkout_log_failed' }
     });
+    throw error;
   } finally {
     clearTimeout(tid);
   }
-  return { orderNumber: 0, sessionId };
 }
 
 function saveAbandonedOrder(reason) {
@@ -1529,7 +1577,14 @@ async function finishOrder(cartIds, button, loadingText) {
   let orderData = {};
   try {
     orderData = (await writeCheckoutLog(cartIds)) || {};
-  } catch { /* silent */ }
+  } catch (error) {
+    orderCompleted = false;
+    setConfirmButtonsDisabled(false);
+    updateVoiceAssistVisibility();
+    if (button) button.innerHTML = originalHTML;
+    showPushNotice(`結帳失敗：${error?.message || '請稍後再試'}`);
+    return;
+  }
 
   if (button) button.innerHTML = originalHTML;
 

@@ -1,10 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 
 import database
+from models.promotion_models import PosPromotionBannerResponse
 from repositories import menu_repository
-from services import rag_offer_service
+from services import menu_validation_service, promotion_banner_service
 from utils.auth_utils import require_admin_token
 
 
@@ -15,18 +16,22 @@ def create_router(deps: dict) -> APIRouter:
     async def get_menu():
         return await asyncio.to_thread(menu_repository.get_menu)
 
-    @router.get("/promotions/active")
-    async def get_active_promotions(request: Request):
-        menu_items = await asyncio.to_thread(menu_repository.get_menu)
-        offers = await asyncio.to_thread(rag_offer_service.load_active_offers, menu_items)
-        return {"status": "ok", "offers": offers, "total": len(offers)}
+    @router.get("/promotions/pos-banner", response_model=PosPromotionBannerResponse)
+    async def get_pos_promotion_banner(request: Request):
+        surface = request.query_params.get("surface") or "pos_home_banner"
+        return await asyncio.to_thread(promotion_banner_service.get_pos_banner_response, surface=surface)
 
     @router.post("/menu")
     async def update_menu(request: Request, new_menu: list = Body(...)):
         require_admin_token(request)
-        if not isinstance(new_menu, list):
-            return {"status": "error", "message": "menu payload must be a list"}
-        await asyncio.to_thread(database.update_menu, new_menu)
-        return {"status": "success", "count": len(new_menu)}
+        try:
+            validated_menu = menu_validation_service.validate_menu_payload(new_menu)
+        except menu_validation_service.MenuValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": str(exc), "index": exc.index, "field": exc.field},
+            ) from exc
+        await asyncio.to_thread(database.update_menu, validated_menu)
+        return {"status": "success", "count": len(validated_menu)}
 
     return router

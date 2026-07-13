@@ -26,6 +26,11 @@ export function createRealtimeClient(clientType, sessionId, handlers = {}) {
       : (params.get('kiosk_token') || params.get('pos_token'));
     const token = roleToken || params.get('token') || params.get('ws_token') || sessionStorage.getItem(key) || '';
     if (token) sessionStorage.setItem(key, token);
+    if (['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'].some(name => params.has(name))) {
+      ['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'].forEach(name => params.delete(name));
+      const query = params.toString();
+      history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }
     return token;
   };
 

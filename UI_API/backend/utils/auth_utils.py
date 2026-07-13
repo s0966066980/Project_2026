@@ -1,11 +1,14 @@
 import secrets
+import threading
 import time
 
 from fastapi import HTTPException, Request, UploadFile
 
 import config
 
-_RATE_BUCKETS: dict[tuple[str, str], list[float]] = {}
+_RATE_BUCKETS: dict[tuple[str, str, str], list[float]] = {}
+_RATE_LOCK = threading.Lock()
+_LAST_RATE_CLEANUP = 0.0
 
 
 def _security_enforced() -> bool:
@@ -34,7 +37,6 @@ def require_admin_token(request: Request):
     token = (
         _bearer_token(request)
         or request.headers.get("X-Admin-Token")
-        or request.query_params.get("token")
     )
     if not expected:
         raise HTTPException(status_code=503, detail="admin auth is not configured")
@@ -52,8 +54,6 @@ def require_kiosk_token(request: Request):
         request.headers.get("X-Kiosk-Token")
         or request.headers.get("X-Pos-Token")
         or _bearer_token(request)
-        or request.query_params.get("kiosk_token")
-        or request.query_params.get("token")
     )
     if not expected:
         raise HTTPException(status_code=503, detail="kiosk auth is not configured")
@@ -86,14 +86,43 @@ def check_rate_limit(
     if resolved_limit <= 0:
         return
     client_host = request.client.host if request.client else "unknown"
-    bucket_key = (scope, key or client_host)
+    subject = str(key or client_host)
     now = time.monotonic()
     cutoff = now - window_seconds
-    hits = [hit for hit in _RATE_BUCKETS.get(bucket_key, []) if hit >= cutoff]
-    if len(hits) >= resolved_limit:
-        raise HTTPException(status_code=429, detail="rate limit exceeded")
-    hits.append(now)
-    _RATE_BUCKETS[bucket_key] = hits
+    bucket_keys = [("ip", scope, client_host)]
+    if subject != client_host:
+        bucket_keys.append(("subject", scope, subject))
+
+    global _LAST_RATE_CLEANUP
+    with _RATE_LOCK:
+        cleanup_interval = max(1, int(config.get("RATE_LIMIT_CLEANUP_INTERVAL_SEC", 60) or 60))
+        max_buckets = max(100, int(config.get("RATE_LIMIT_MAX_BUCKETS", 10_000) or 10_000))
+        if now - _LAST_RATE_CLEANUP >= cleanup_interval or len(_RATE_BUCKETS) >= max_buckets:
+            stale_keys = [
+                bucket_key
+                for bucket_key, bucket_hits in _RATE_BUCKETS.items()
+                if not bucket_hits or bucket_hits[-1] < cutoff
+            ]
+            for bucket_key in stale_keys:
+                _RATE_BUCKETS.pop(bucket_key, None)
+            if len(_RATE_BUCKETS) >= max_buckets:
+                oldest_keys = sorted(
+                    _RATE_BUCKETS,
+                    key=lambda bucket_key: _RATE_BUCKETS[bucket_key][-1] if _RATE_BUCKETS[bucket_key] else 0,
+                )[: len(_RATE_BUCKETS) - max_buckets + 1]
+                for bucket_key in oldest_keys:
+                    _RATE_BUCKETS.pop(bucket_key, None)
+            _LAST_RATE_CLEANUP = now
+
+        resolved_hits = {
+            bucket_key: [hit for hit in _RATE_BUCKETS.get(bucket_key, []) if hit >= cutoff]
+            for bucket_key in bucket_keys
+        }
+        if any(len(hits) >= resolved_limit for hits in resolved_hits.values()):
+            raise HTTPException(status_code=429, detail="rate limit exceeded")
+        for bucket_key, hits in resolved_hits.items():
+            hits.append(now)
+            _RATE_BUCKETS[bucket_key] = hits
 
 
 async def read_limited_upload(media: UploadFile, max_bytes: int | None = None) -> bytes:

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 
 def _paths(app: FastAPI) -> set[str]:
-    return {getattr(route, "path", "") for route in app.routes}
+    return set(app.openapi().get("paths", {}))
 
 
 def _patch_route_config(monkeypatch, api_router, values):

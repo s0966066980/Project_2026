@@ -1,14 +1,14 @@
 import asyncio
-from fastapi import APIRouter, Body, Form, Request
+from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 import config
 from core.constants import FRONTEND_DIR
 from repositories import log_repository
 from realtime import event_bus
-from services import checkout_service, health_service, stats_service
+from services import checkout_pricing_service, checkout_service, health_service, member_service, stats_service
 from utils.auth_utils import check_rate_limit, require_admin_token, require_kiosk_token
-from utils.parsing import parse_int_from_decimal, parse_json_list, parse_non_negative_int
+from utils.parsing import parse_json_list, parse_non_negative_int
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -39,7 +39,8 @@ def create_router(deps: dict) -> APIRouter:
         return {"status": "success"}
 
     @router.get("/api/session_stats")
-    async def get_session_stats():
+    async def get_session_stats(request: Request):
+        require_admin_token(request)
         logs = await asyncio.to_thread(log_repository.get_session_logs)
         return {"status": "success", **stats_service.compute_session_stats(logs)}
 
@@ -116,14 +117,31 @@ def create_router(deps: dict) -> APIRouter:
     ):
         require_kiosk_token(request)
         check_rate_limit(request, "checkout", limit=120, key=session_id)
-        return await checkout_service.process_checkout(
+        parsed_cart_ids = parse_json_list(cart_ids, fallback_csv=True)
+        parsed_cart_items = parse_json_list(cart_items)
+        member = await asyncio.to_thread(member_service.get_session_member, session_id)
+        try:
+            priced_cart = await asyncio.to_thread(
+                checkout_pricing_service.price_checkout_cart,
+                parsed_cart_items,
+                parsed_cart_ids,
+                is_member=bool(member),
+            )
+        except checkout_pricing_service.CartValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": exc.code, "message": str(exc)},
+            ) from exc
+        result = await checkout_service.process_checkout(
             session_id,
             parse_json_list(pushed_ids, fallback_csv=True),
-            parse_json_list(cart_ids, fallback_csv=True),
-            parse_json_list(cart_items),
+            priced_cart["cart_ids"],
+            priced_cart["cart_items"],
             parse_non_negative_int(ai_push_cart_count),
             parse_json_list(cart_sources),
-            parse_int_from_decimal(cart_total),
+            priced_cart["total"],
         )
+        result["cart_total"] = priced_cart["total"]
+        return result
 
     return router

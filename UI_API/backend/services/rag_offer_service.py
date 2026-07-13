@@ -6,27 +6,15 @@ documents from rag_documents/promotions and returns menu-safe offer signals.
 """
 from __future__ import annotations
 
-import json
-import os
 from datetime import datetime, time, timezone
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from repositories import promotion_repository
 
 SUPPORTED_STATUS = {"", "active", "published", "enabled"}
 DISABLED_STATUS = {"example", "draft", "inactive", "disabled", "archived"}
-
-
-def _documents_root() -> Path:
-    configured = Path(config.RAG_DOCUMENTS_DIR)
-    base = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    return configured.resolve() if configured.is_absolute() else (base / configured).resolve()
-
-
-def _promotions_root() -> Path:
-    return _documents_root() / "promotions"
 
 
 def _as_list(value: Any) -> list[str]:
@@ -130,15 +118,6 @@ def _menu_lookup(menu_items: list[dict]) -> tuple[set[str], set[str]]:
     return item_ids, categories
 
 
-def _load_json_rows(path: Path) -> list[dict]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    rows = data if isinstance(data, list) else [data]
-    return [row for row in rows if isinstance(row, dict)]
-
-
 def _is_active(row: dict, now: datetime) -> bool:
     metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
     status = str(row.get("status") or metadata.get("status") or "").strip().lower()
@@ -158,7 +137,7 @@ def _is_active(row: dict, now: datetime) -> bool:
     return True
 
 
-def _normalize_offer(row: dict, path: Path, index: int, menu_items: list[dict], now: datetime) -> dict | None:
+def _normalize_offer(row: dict, path_name: str, index: int, menu_items: list[dict], now: datetime) -> dict | None:
     if str(row.get("type") or row.get("source_type") or "promotion").strip() != "promotion":
         return None
     if not _is_active(row, now):
@@ -180,7 +159,8 @@ def _normalize_offer(row: dict, path: Path, index: int, menu_items: list[dict], 
         return None
 
     metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
-    source_id = str(row.get("source_id") or metadata.get("source_id") or f"{path.stem}_{index}").strip()
+    path_stem = path_name.rsplit(".", 1)[0] if path_name else f"promotion_{index}"
+    source_id = str(row.get("source_id") or metadata.get("source_id") or f"{path_stem}_{index}").strip()
     offer_id = str(row.get("offer_id") or source_id).strip()
     title = str(row.get("title") or row.get("name") or offer_id).strip()
     score_boost = max(1, _as_int(row.get("score_boost"), int(config.get("RECOMMENDATION_RAG_OFFER_WEIGHT", 4))))
@@ -226,7 +206,7 @@ def _normalize_offer(row: dict, path: Path, index: int, menu_items: list[dict], 
         "starts_at": str(row.get("starts_at") or row.get("valid_from") or ""),
         "ends_at": str(row.get("ends_at") or row.get("valid_until") or ""),
         "timezone": str(row.get("timezone") or _default_timezone_name()),
-        "path": path.name,
+        "path": path_name,
     }
 
 
@@ -238,16 +218,12 @@ def load_active_offers(menu_items: list[dict], *, now: datetime | None = None) -
     """
     if not config.get("RAG_ENABLED", False):
         return []
-    root = _promotions_root()
-    if not root.exists():
-        return []
     current_time = now or datetime.now(timezone.utc)
     offers = []
-    for path in sorted(root.glob("*.json")):
-        for index, row in enumerate(_load_json_rows(path)):
-            offer = _normalize_offer(row, path, index, menu_items, current_time)
-            if offer:
-                offers.append(offer)
+    for index, row in enumerate(promotion_repository.list_promotions()):
+        offer = _normalize_offer(row, str(row.get("path") or ""), index, menu_items, current_time)
+        if offer:
+            offers.append(offer)
     return offers
 
 

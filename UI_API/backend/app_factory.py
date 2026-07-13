@@ -34,6 +34,22 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
     @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = (
+            "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        )
+        response.headers["Permissions-Policy"] = (
+            "camera=(self), microphone=(self), geolocation=()"
+        )
+        if config.is_production() and request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+    @app.middleware("http")
     async def no_cache_static(request: Request, call_next):
         response = await call_next(request)
         if request.url.path.startswith(STATIC_CACHE_PREFIX):

@@ -15,7 +15,7 @@ def test_kiosk_routes_serve_kiosk_frontend():
         assert "/static/kiosk/app.js" in response.text
 
 
-def test_kiosk_active_promotions_route_returns_valid_offers(monkeypatch):
+def test_kiosk_pos_banner_route_returns_active_banners(monkeypatch):
     from routes import menu_routes
 
     app = FastAPI()
@@ -23,25 +23,24 @@ def test_kiosk_active_promotions_route_returns_valid_offers(monkeypatch):
     client = TestClient(app)
 
     monkeypatch.setattr(
-        menu_routes.menu_repository,
-        "get_menu",
-        lambda: [{"id": "MCD115", "name": "薯條", "price": 45, "category": "點心"}],
-    )
-    monkeypatch.setattr(
-        menu_routes.rag_offer_service,
-        "load_active_offers",
-        lambda menu_items: [{
-            "offer_id": "member_fries",
-            "item_ids": ["MCD115"],
-            "pricing": {"original_price": 45, "promotion_price": 30},
-            "ad": {"headline": "會員限定", "copy": "主餐加購薯條只要 $30", "cta": "加入優惠"},
+        menu_routes.promotion_banner_service,
+        "get_pos_banner_response",
+        lambda **kwargs: {"items": [{
+            "id": "summer_combo_001",
+            "badge": "限時優惠",
+            "title": "夏日超值套餐",
+            "subtitle": "雙層牛肉吉士堡 + 中薯 + 中可",
+            "original_price": 189,
+            "promo_price": 149,
+            "rotation_seconds": 6,
         }],
+        },
     )
 
-    response = client.get("/api/promotions/active")
+    response = client.get("/api/promotions/pos-banner")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "ok"
-    assert payload["total"] == 1
-    assert payload["offers"][0]["pricing"]["promotion_price"] == 30
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["id"] == "summer_combo_001"
+    assert payload["items"][0]["promo_price"] == 149

@@ -54,6 +54,12 @@ function adminToken() {
   const params = new URLSearchParams(window.location.search);
   const t = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
   if (t) sessionStorage.setItem('admin_demo_token', t);
+  if (params.has('token') || params.has('admin_token')) {
+    params.delete('token');
+    params.delete('admin_token');
+    const query = params.toString();
+    history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+  }
   return t;
 }
 function adminHeaders(extra = {}) {
@@ -70,8 +76,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '狀態統計', settings: '功能設定', recommendations: '推薦成效', availability: '供應狀態', health: '維運健康', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
-    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
+    const titles  = { stats: '狀態統計', settings: '功能設定', recommendations: '推薦成效', promotions: '活動管理', availability: '供應狀態', health: '維運健康', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
+    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', promotions: 'fa-ticket-alt', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -84,9 +90,10 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'stats') loadStats();
     if (page === 'settings') loadSettings();
     if (page === 'recommendations') loadRecommendationEvents();
+    if (page === 'promotions') { loadPromotions(); preparePromotionPickers(); }
     if (page === 'availability') loadAvailability();
     if (page === 'health') loadAdminHealth();
-    if (page === 'rag') { loadRagSettings(); loadRagHealth(); loadRagAlerts(); loadPromotions(); loadRagReviews(); loadRagDocs(); }
+    if (page === 'rag') { loadRagSettings(); loadRagHealth(); loadRagAlerts(); loadRagReviews(); loadRagDocs(); }
     if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
     if (page === 'members') loadMembers();
     if (page === 'test') { loadOllamaModels(); loadVoicePromptDefault(); }
@@ -128,7 +135,7 @@ async function loadStats() {
   if (statsLoadPromise) return statsLoadPromise;
   statsLoadPromise = (async () => {
   try {
-    const res = await fetch(`${API}/api/session_stats`);
+    const res = await fetch(`${API}/api/session_stats`, { headers: adminHeaders() });
     const data = await res.json();
     if (data.status !== 'success') throw new Error('api error');
 
@@ -1290,9 +1297,15 @@ function getPromotionPayload() {
     offer_id: val('promotion-offer-id'),
     title: val('promotion-title'),
     status: val('promotion-status') || 'draft',
+    enabled: val('promotion-enabled') !== 'false',
+    surface: val('promotion-surface') || 'recommendation',
+    priority: parseInt(val('promotion-priority') || '0', 10),
+    rotation_seconds: parseInt(val('promotion-rotation-seconds') || '6', 10),
     member_only: val('promotion-member-only') === 'true',
     valid_from: val('promotion-valid-from'),
     valid_until: val('promotion-valid-until'),
+    start_at: val('promotion-valid-from'),
+    end_at: val('promotion-valid-until'),
     timezone: val('promotion-timezone') || 'Asia/Taipei',
     item_ids: splitCsv(val('promotion-item-ids')),
     categories: splitCsv(val('promotion-categories')),
@@ -1303,11 +1316,21 @@ function getPromotionPayload() {
       promotion_price: val('promotion-promotion-price') ? parseInt(val('promotion-promotion-price'), 10) : null,
       currency: 'TWD',
     },
+    original_price: val('promotion-original-price') ? parseInt(val('promotion-original-price'), 10) : null,
+    promo_price: val('promotion-promotion-price') ? parseInt(val('promotion-promotion-price'), 10) : null,
+    save_text: val('promotion-save-text'),
     ad: {
       headline: val('promotion-ad-headline'),
       copy: val('promotion-ad-copy'),
-      cta: val('promotion-ad-cta') || '加入優惠',
+      cta: val('promotion-ad-cta') || '立即查看',
     },
+    badge: val('promotion-ad-headline'),
+    subtitle: val('promotion-ad-copy'),
+    cta_text: val('promotion-ad-cta') || '立即查看',
+    target_type: val('promotion-target-type') || 'none',
+    target_value: val('promotion-target-value'),
+    theme: val('promotion-theme') || 'gold',
+    legal_text: val('promotion-legal-text'),
     score_boost: parseInt(val('promotion-score-boost') || '4', 10),
     category_score_boost: parseInt(val('promotion-category-score-boost') || '2', 10),
     content: val('promotion-content'),
@@ -1321,9 +1344,13 @@ function setPromotionForm(row = {}) {
   setVal('promotion-offer-id', row.offer_id || '');
   setVal('promotion-title', row.title || row.name || '');
   setVal('promotion-status', formStatus);
+  setVal('promotion-enabled', row.enabled === false ? 'false' : 'true');
+  setVal('promotion-surface', row.surface || 'recommendation');
+  setVal('promotion-priority', row.priority ?? 0);
+  setVal('promotion-rotation-seconds', row.rotation_seconds ?? 6);
   setVal('promotion-member-only', row.member_only ? 'true' : 'false');
-  setVal('promotion-valid-from', row.valid_from || row.starts_at || '');
-  setVal('promotion-valid-until', row.valid_until || row.ends_at || '');
+  setVal('promotion-valid-from', row.start_at || row.valid_from || row.starts_at || '');
+  setVal('promotion-valid-until', row.end_at || row.valid_until || row.ends_at || '');
   setVal('promotion-timezone', row.timezone || 'Asia/Taipei');
   setVal('promotion-item-ids', joinCsv(row.item_ids || row.items));
   setVal('promotion-categories', joinCsv(row.categories || row.category));
@@ -1332,9 +1359,14 @@ function setPromotionForm(row = {}) {
   const ad = row.ad && typeof row.ad === 'object' ? row.ad : {};
   setVal('promotion-original-price', pricing.original_price ?? '');
   setVal('promotion-promotion-price', pricing.promotion_price ?? '');
-  setVal('promotion-ad-headline', ad.headline || '');
-  setVal('promotion-ad-copy', ad.copy || '');
-  setVal('promotion-ad-cta', ad.cta || '加入優惠');
+  setVal('promotion-save-text', row.save_text || '');
+  setVal('promotion-ad-headline', row.badge || ad.headline || '');
+  setVal('promotion-ad-copy', row.subtitle || ad.copy || '');
+  setVal('promotion-ad-cta', row.cta_text || ad.cta || '立即查看');
+  setVal('promotion-target-type', row.target_type || 'none');
+  setVal('promotion-target-value', row.target_value || '');
+  setVal('promotion-theme', row.theme || 'gold');
+  setVal('promotion-legal-text', row.legal_text || '');
   setVal('promotion-score-boost', row.score_boost ?? 4);
   setVal('promotion-category-score-boost', row.category_score_boost ?? 2);
   setVal('promotion-content', row.content || row.description || '');
@@ -1346,6 +1378,97 @@ function resetPromotionForm() {
   setPromotionForm({});
   const offerInput = g('promotion-offer-id');
   if (offerInput) offerInput.disabled = false;
+}
+
+function appendCsvValue(inputId, value) {
+  const input = g(inputId);
+  const nextValue = String(value || '').trim();
+  if (!input || !nextValue) return;
+  const values = splitCsv(input.value);
+  if (!values.includes(nextValue)) values.push(nextValue);
+  input.value = values.join(', ');
+}
+
+function promotionCategoriesFromMenu() {
+  return Array.from(new Set(
+    Object.values(menuCache)
+      .map(item => String(item.category || '').trim())
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+}
+
+function fillSelect(selectId, rows, valueOf, labelOf) {
+  const select = g(selectId);
+  if (!select) return;
+  select.textContent = '';
+  rows.forEach(row => {
+    const option = document.createElement('option');
+    option.value = valueOf(row);
+    option.textContent = labelOf(row);
+    select.appendChild(option);
+  });
+}
+
+function fillPromotionTargetPicker() {
+  const targetType = val('promotion-target-type') || 'none';
+  if (targetType === 'category') {
+    fillSelect('promotion-target-picker', promotionCategoriesFromMenu(), row => row, row => row);
+    return;
+  }
+  if (targetType === 'item') {
+    fillSelect(
+      'promotion-target-picker',
+      Object.values(menuCache),
+      row => row.id || '',
+      row => `${row.id || ''}｜${row.name || row.id || ''}`
+    );
+    return;
+  }
+  fillSelect('promotion-target-picker', [{ id: '', name: '此目標類型不需要 target_value' }], row => row.id, row => row.name);
+}
+
+async function preparePromotionPickers() {
+  await loadMenu();
+  const menuRows = Object.values(menuCache);
+  fillSelect('promotion-item-picker', menuRows, row => row.id || '', row => `${row.id || ''}｜${row.name || row.id || ''}`);
+  fillSelect('promotion-required-picker', menuRows, row => row.id || '', row => `${row.id || ''}｜${row.name || row.id || ''}`);
+  fillSelect('promotion-category-picker', promotionCategoriesFromMenu(), row => row, row => row);
+  fillPromotionTargetPicker();
+}
+
+function bindPromotionPickers() {
+  document.querySelectorAll('[data-promotion-picker]').forEach(button => {
+    button.addEventListener('click', async () => {
+      await preparePromotionPickers();
+      const key = button.getAttribute('data-promotion-picker') || '';
+      document.querySelectorAll('.promotion-picker-panel').forEach(panel => panel.classList.remove('open'));
+      g(`promotion-picker-${key}`)?.classList.add('open');
+    });
+  });
+  document.querySelectorAll('[data-promotion-insert]').forEach(button => {
+    button.addEventListener('click', () => {
+      const key = button.getAttribute('data-promotion-insert') || '';
+      const mappings = {
+        items: ['promotion-item-picker', 'promotion-item-ids'],
+        categories: ['promotion-category-picker', 'promotion-categories'],
+        required: ['promotion-required-picker', 'promotion-required-items'],
+        target: ['promotion-target-picker', 'promotion-target-value'],
+      };
+      const mapping = mappings[key];
+      if (!mapping) return;
+      const select = g(mapping[0]);
+      const value = select?.value || '';
+      if (key === 'target') {
+        setVal(mapping[1], value);
+      } else {
+        appendCsvValue(mapping[1], value);
+      }
+    });
+  });
+  g('promotion-target-type')?.addEventListener('change', async () => {
+    await preparePromotionPickers();
+    g('promotion-picker-target')?.classList.add('open');
+  });
 }
 
 function promotionScope(row) {
@@ -1388,9 +1511,12 @@ function renderPromotionList() {
     .forEach(row => {
       const status = String(row.status || row.metadata?.status || 'draft').toLowerCase();
       const pricing = row.pricing && typeof row.pricing === 'object' ? row.pricing : {};
-      const priceText = pricing.promotion_price
-        ? `加購價 $${pricing.promotion_price}${pricing.original_price ? `（原價 $${pricing.original_price}）` : ''}`
+      const promoPrice = row.promo_price || pricing.promotion_price;
+      const originalPrice = row.original_price || pricing.original_price;
+      const priceText = promoPrice
+        ? `優惠價 $${promoPrice}${originalPrice ? `（原價 $${originalPrice}）` : ''}`
         : '未設定加購價';
+      const surfaceText = row.surface === 'pos_home_banner' ? `POS Banner｜優先級 ${row.priority || 0}` : '推薦 / RAG';
       const card = document.createElement('div');
       card.className = 'promotion-card';
       card.innerHTML = `<div class="promotion-card-head">`
@@ -1399,9 +1525,11 @@ function renderPromotionList() {
         + `</div>`
         + `<div class="promotion-meta">`
         + `<span>${row.member_only ? '會員限定' : '一般活動'}</span>`
-        + `<span>${escHtml(row.valid_from || '未設定')} - ${escHtml(row.valid_until || '未設定')}｜${escHtml(row.timezone || 'Asia/Taipei')}</span>`
+        + `<span>${escHtml(surfaceText)}</span>`
+        + `<span>${escHtml(row.start_at || row.valid_from || '未設定')} - ${escHtml(row.end_at || row.valid_until || '未設定')}｜${escHtml(row.timezone || 'Asia/Taipei')}</span>`
         + `<span>${escHtml(promotionScope(row))}</span>`
         + `<span>${escHtml(priceText)}</span>`
+        + `<span>${escHtml(row.badge || row.ad?.headline || '未設定 Banner 標籤')}</span>`
         + `</div>`
         + `<div class="promotion-actions"></div>`;
       const actions = card.querySelector('.promotion-actions');
@@ -1426,6 +1554,14 @@ function renderPromotionList() {
 async function savePromotion() {
   const editingId = val('promotion-editing-id');
   const payload = getPromotionPayload();
+  if (!payload.title) {
+    promotionNotice('儲存失敗：活動名稱不可為空', false);
+    return;
+  }
+  if (payload.start_at && payload.end_at && payload.start_at > payload.end_at) {
+    promotionNotice('儲存失敗：結束時間不可早於開始時間', false);
+    return;
+  }
   const url = editingId
     ? `${API}/api/rag/promotions/${encodeURIComponent(editingId)}`
     : `${API}/api/rag/promotions`;
@@ -2011,6 +2147,7 @@ document.getElementById('availabilitySaveBtn')?.addEventListener('click', saveAv
 document.getElementById('availabilitySearch')?.addEventListener('input', renderAvailabilityRows);
 document.getElementById('availabilityStatusFilter')?.addEventListener('change', renderAvailabilityRows);
 document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
+bindPromotionPickers();
 [
   'recommendationEventTypeFilter',
   'recommendationSurfaceFilter',

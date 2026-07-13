@@ -47,6 +47,7 @@ def test_admin_token_required_when_security_is_enforced(monkeypatch):
     assert client.get("/admin-only", headers={"X-Admin-Token": "wrong"}).status_code == 403
     assert client.get("/admin-only", headers={"X-Admin-Token": "admin-secret"}).json() == {"ok": True}
     assert client.get("/admin-only", headers={"Authorization": "Bearer admin-secret"}).json() == {"ok": True}
+    assert client.get("/admin-only?token=admin-secret").status_code == 401
 
 
 def test_kiosk_token_required_when_security_is_enforced(monkeypatch):
@@ -55,6 +56,7 @@ def test_kiosk_token_required_when_security_is_enforced(monkeypatch):
     assert client.post("/kiosk-only").status_code == 401
     assert client.post("/kiosk-only", headers={"X-Kiosk-Token": "wrong"}).status_code == 403
     assert client.post("/kiosk-only", headers={"X-Kiosk-Token": "kiosk-secret"}).json() == {"ok": True}
+    assert client.post("/kiosk-only?kiosk_token=kiosk-secret").status_code == 401
 
 
 def test_upload_size_limit_returns_413(monkeypatch):
@@ -94,7 +96,7 @@ def test_production_route_gating(monkeypatch):
     monkeypatch.setattr(route_registry.config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
     app = FastAPI()
     api_router.register_routes(app, deps={"ollama_semaphore": object()})
-    paths = {getattr(route, "path", "") for route in app.routes}
+    paths = set(app.openapi().get("paths", {}))
 
     assert "/api/public_settings" in paths
     assert "/api/demo/trigger_scenario" not in paths
@@ -151,8 +153,9 @@ def test_production_startup_accepts_safe_config(monkeypatch):
     monkeypatch.setattr(config, "CORS_ORIGINS", ["https://example.com"])
     monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
     monkeypatch.setattr(config, "_env_bool", lambda name, default=False: False)
+    monkeypatch.setenv("ADMIN_MEMBER_REF_SECRET", "member-ref-secret")
 
     app = app_factory.create_app()
-    paths = {getattr(route, "path", "") for route in app.routes}
+    paths = set(app.openapi().get("paths", {}))
     assert "/api/public_settings" in paths
     assert "/api/demo/trigger_scenario" not in paths

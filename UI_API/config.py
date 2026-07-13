@@ -47,6 +47,8 @@ def validate_startup_config() -> None:
         errors.append("ADMIN_API_TOKEN must be configured in production")
     if not _token_configured(KIOSK_DEVICE_TOKEN):
         errors.append("KIOSK_DEVICE_TOKEN must be configured in production")
+    if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
+        errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
     if "*" in CORS_ORIGINS:
         errors.append("CORS_ORIGINS must not contain wildcard '*' in production")
     if not ALLOW_UNSAFE_PRODUCTION_ROUTES:
@@ -168,7 +170,7 @@ DEFAULT_SETTINGS = {
     "DATABASE_URL": os.getenv("DATABASE_URL", ""),  # PostgreSQL 連線字串
     "MEMBER_SESSION_TTL_SEC": int(os.getenv("MEMBER_SESSION_TTL_SEC", "86400")),
     "ENABLE_MEMBER_DUAL_WRITE": os.getenv("ENABLE_MEMBER_DUAL_WRITE", "false").lower() in ("1", "true", "yes", "on"),
-    "ADMIN_MEMBER_REF_SECRET": os.getenv("ADMIN_MEMBER_REF_SECRET", "local-admin-member-ref"),
+    "ADMIN_MEMBER_REF_SECRET": os.getenv("ADMIN_MEMBER_REF_SECRET", ""),
     "ADMIN_AUDIT_MAX_RECORDS": int(os.getenv("ADMIN_AUDIT_MAX_RECORDS", "5000")),
     "MEMBER_CONSENT_VERSION": os.getenv("MEMBER_CONSENT_VERSION", "2026-07-phone-login-v1"),
     "MEMBER_PRIVACY_VERSION": os.getenv("MEMBER_PRIVACY_VERSION", "2026-07-privacy-v1"),

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>AI 推播系統 · Admin</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -288,12 +289,45 @@ tbody tr:hover td { background: #f8fafd; }
 }
 @media (max-width:900px) { .settings-grid { grid-template-columns:1fr; } }
 /* ── RAG page ── */
-#page-rag {
+#page-rag,
+#page-promotions {
   display: grid;
   grid-template-columns: 380px 1fr;
   grid-template-rows: 1fr;
   gap: 24px;
   overflow: hidden;
+}
+.promotion-picker-panel {
+  display:none;
+  margin-top:8px;
+  margin-left:134px;
+  padding:10px;
+  border:1px solid #dfe6f2;
+  border-radius:10px;
+  background:#f8fafd;
+  gap:8px;
+  grid-template-columns:minmax(0,1fr) auto;
+}
+.promotion-picker-panel.open { display:grid; }
+.promotion-picker-panel select {
+  min-width:0;
+}
+.promotion-picker-panel button {
+  border:1px solid #cfd8ea;
+  background:#fff;
+  border-radius:8px;
+  padding:0 12px;
+  color:#2d3a55;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.promotion-picker-panel button:hover {
+  color:#3b7aee;
+  border-color:#3b7aee;
+}
+.promotion-list.expanded {
+  max-height:none;
 }
 .rag-left {
   display: flex;
@@ -457,7 +491,7 @@ tbody tr:hover td { background: #f8fafd; }
 }
 .promotion-actions button:hover { background:#edf2ff; color:#3b7aee; }
 .promotion-actions button.danger:hover { background:#feecec; color:#c0392b; border-color:#f5c6c0; }
-@media (max-width:1000px) { #page-rag { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+@media (max-width:1000px) { #page-rag, #page-promotions { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
 @media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
 /* ── 語音對話展開列 ── */
 .voice-badge {
@@ -779,6 +813,9 @@ tbody tr:hover td { background: #f8fafd; }
     </button>
     <button class="nav-item" data-page="recommendations" type="button">
       <i class="fas fa-bullseye"></i> 推薦成效
+    </button>
+    <button class="nav-item" data-page="promotions" type="button">
+      <i class="fas fa-ticket-alt"></i> 活動管理
     </button>
     <button class="nav-item" data-page="availability" type="button">
       <i class="fas fa-store"></i> 供應狀態
@@ -1369,6 +1406,185 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
   </div>
 
+  <!-- Promotions page -->
+  <div class="content" id="page-promotions" style="display:none">
+    <div class="rag-left">
+      <div class="card promotion-form">
+        <div class="card-title"><i class="fas fa-ticket-alt"></i> 結構化活動管理</div>
+        <div class="promotion-help">
+          <b>活動會同步影響 Kiosk 廣告、推薦與語音優惠回答</b>
+          <ul>
+            <li>首頁 Banner 與右側購物車廣告都由這裡的結構化欄位產生，不在前端硬編碼文案。</li>
+            <li>若設定品項 ID 與優惠價，Kiosk 點擊 CTA 後會帶入該品項並套用優惠價格。</li>
+            <li>RAG 只引用已建立的活動內容，避免 AI 生成無來源優惠。</li>
+          </ul>
+        </div>
+        <input id="promotion-editing-id" type="hidden" value="">
+        <div class="setting-row">
+          <label class="setting-label">Offer ID</label>
+          <input id="promotion-offer-id" class="setting-input" type="text" placeholder="summer_combo_2026">
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">活動名稱</label>
+          <input id="promotion-title" class="setting-input" type="text" placeholder="夏季套餐推薦">
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">狀態 / 啟用</label>
+          <div class="promotion-pair">
+            <select id="promotion-status" class="setting-input">
+              <option value="draft">草稿</option>
+              <option value="active">啟用</option>
+              <option value="inactive">停用</option>
+            </select>
+            <select id="promotion-enabled" class="setting-input">
+              <option value="true">啟用</option>
+              <option value="false">停用</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">顯示位置 / 優先</label>
+          <div class="promotion-pair">
+            <select id="promotion-surface" class="setting-input">
+              <option value="recommendation">推薦 / RAG</option>
+              <option value="pos_home_banner">Kiosk 首頁 Banner</option>
+              <option value="kiosk_cart_banner">Kiosk 購物車右側廣告</option>
+            </select>
+            <input id="promotion-priority" class="setting-input" type="number" min="0" max="1000" value="0" placeholder="優先級">
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">輪播秒數 / 會員</label>
+          <div class="promotion-pair">
+            <input id="promotion-rotation-seconds" class="setting-input" type="number" min="2" max="120" value="6" placeholder="每幾秒切換">
+            <select id="promotion-member-only" class="setting-input">
+              <option value="false">一般活動</option>
+              <option value="true">會員限定</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">開始 / 結束</label>
+          <div class="promotion-pair">
+            <input id="promotion-valid-from" class="setting-input" type="text" placeholder="2026-06-01T00:00:00+08:00">
+            <input id="promotion-valid-until" class="setting-input" type="text" placeholder="2026-06-30T23:59:59+08:00">
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">活動時區</label>
+          <input id="promotion-timezone" class="setting-input" type="text" value="Asia/Taipei" placeholder="Asia/Taipei">
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">品項 ID</label>
+          <div class="promotion-pair">
+            <input id="promotion-item-ids" class="setting-input" type="text" placeholder="MCD115">
+            <button class="refresh-btn" data-promotion-picker="items" type="button">選擇品項</button>
+          </div>
+        </div>
+        <div id="promotion-picker-items" class="promotion-picker-panel">
+          <select id="promotion-item-picker" class="setting-input"></select>
+          <button data-promotion-insert="items" type="button">帶入</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">分類</label>
+          <div class="promotion-pair">
+            <input id="promotion-categories" class="setting-input" type="text" placeholder="點心">
+            <button class="refresh-btn" data-promotion-picker="categories" type="button">選擇分類</button>
+          </div>
+        </div>
+        <div id="promotion-picker-categories" class="promotion-picker-panel">
+          <select id="promotion-category-picker" class="setting-input"></select>
+          <button data-promotion-insert="categories" type="button">帶入</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">需先有品項</label>
+          <div class="promotion-pair">
+            <input id="promotion-required-items" class="setting-input" type="text" placeholder="可留空，例如主餐 ID">
+            <button class="refresh-btn" data-promotion-picker="required" type="button">選擇品項</button>
+          </div>
+        </div>
+        <div id="promotion-picker-required" class="promotion-picker-panel">
+          <select id="promotion-required-picker" class="setting-input"></select>
+          <button data-promotion-insert="required" type="button">帶入</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">加購價格</label>
+          <div class="promotion-pair">
+            <input id="promotion-original-price" class="setting-input" type="number" min="0" max="9999" placeholder="原價，例如 45">
+            <input id="promotion-promotion-price" class="setting-input" type="number" min="1" max="9999" placeholder="優惠價，例如 30">
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">省下金額</label>
+          <input id="promotion-save-text" class="setting-input" type="text" placeholder="現省 $15">
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Banner 文案</label>
+          <div class="promotion-pair">
+            <input id="promotion-ad-headline" class="setting-input" type="text" placeholder="活動標籤，例如 會員限定">
+            <input id="promotion-ad-cta" class="setting-input" type="text" placeholder="CTA，例如 加入優惠">
+          </div>
+        </div>
+        <textarea id="promotion-ad-copy" class="setting-input" rows="2" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="副標題，例如 主餐加購薯條只要 $30"></textarea>
+        <div class="setting-row">
+          <label class="setting-label">Banner 目標</label>
+          <div class="promotion-pair">
+            <select id="promotion-target-type" class="setting-input">
+              <option value="none">不跳轉</option>
+              <option value="category">分類</option>
+              <option value="item">品項</option>
+              <option value="recommendation">推薦</option>
+            </select>
+            <input id="promotion-target-value" class="setting-input" type="text" placeholder="分類名稱或品項 ID">
+          </div>
+        </div>
+        <div id="promotion-picker-target" class="promotion-picker-panel">
+          <select id="promotion-target-picker" class="setting-input"></select>
+          <button data-promotion-insert="target" type="button">帶入</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">主題 / 備註</label>
+          <div class="promotion-pair">
+            <select id="promotion-theme" class="setting-input">
+              <option value="gold">gold</option>
+              <option value="red">red</option>
+              <option value="dark">dark</option>
+              <option value="simple">simple</option>
+            </select>
+            <input id="promotion-legal-text" class="setting-input" type="text" placeholder="活動依門市供應狀態為準">
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">加權</label>
+          <div class="promotion-pair">
+            <input id="promotion-score-boost" class="setting-input" type="number" min="1" max="20" value="4" placeholder="品項">
+            <input id="promotion-category-score-boost" class="setting-input" type="number" min="1" max="20" value="2" placeholder="分類">
+          </div>
+        </div>
+        <textarea id="promotion-content" class="setting-input" rows="4" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="描述活動限制、門市說明或客服回答需要知道的內容。"></textarea>
+        <div class="promotion-actions-row">
+          <button class="refresh-btn" onclick="savePromotion()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
+            <i class="fas fa-save"></i> 儲存活動
+          </button>
+          <button class="refresh-btn" onclick="resetPromotionForm()" type="button">
+            <i class="fas fa-undo"></i> 清空表單
+          </button>
+          <span id="promotion-notice" style="font-size:12px;display:none"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card rag-right">
+      <div class="card-title" style="flex-shrink:0">
+        <i class="fas fa-ticket-alt"></i> 已建立活動
+        <span id="promotion-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
+        <button class="refresh-btn" onclick="loadPromotions()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+      </div>
+      <div id="promotion-list" class="promotion-list expanded"></div>
+    </div>
+  </div>
+
   <!-- RAG page — inside .main, two-column full-panel layout -->
   <div class="content" id="page-rag" style="display:none">
 
@@ -1405,115 +1621,6 @@ tbody tr:hover td { background: #f8fafd; }
           <div class="rag-health-chip"><b>—</b><span>文件數</span></div>
         </div>
         <div class="rag-alert-list" id="rag-alert-list"></div>
-      </div>
-
-      <!-- 結構化活動管理 -->
-      <div class="card promotion-form">
-        <div class="card-title"><i class="fas fa-ticket-alt"></i> 結構化活動管理</div>
-        <div class="promotion-help">
-          <b>結構化活動會影響推薦與優惠回答</b>
-          <ul>
-            <li>活動會儲存為 `rag_documents/promotions/*.json`，安全重建 Chroma 後可被語音與 RAG 回答引用。</li>
-            <li>`啟用` 活動會依有效日期、會員限定、品項 ID 或分類，提升推薦引擎分數。</li>
-            <li>會員限定活動只會出現在會員 session；未列出的折扣與加購價不會被 AI 自行補充。</li>
-          </ul>
-        </div>
-        <input id="promotion-editing-id" type="hidden" value="">
-        <div class="setting-row">
-          <label class="setting-label">Offer ID</label>
-          <input id="promotion-offer-id" class="setting-input" type="text" placeholder="summer_combo_2026">
-        </div>
-        <div class="promotion-field-hint">活動唯一識別碼，只能使用英文、數字、底線或連字號；建立後不可直接改名。</div>
-        <div class="setting-row">
-          <label class="setting-label">活動名稱</label>
-          <input id="promotion-title" class="setting-input" type="text" placeholder="夏季套餐推薦">
-        </div>
-        <div class="promotion-field-hint">Admin、推薦事件與 RAG verified offers 會顯示這個名稱。</div>
-        <div class="setting-row">
-          <label class="setting-label">狀態</label>
-          <select id="promotion-status" class="setting-input">
-            <option value="draft">草稿</option>
-            <option value="active">啟用</option>
-            <option value="inactive">停用</option>
-          </select>
-        </div>
-        <div class="promotion-field-hint">草稿不會影響推薦；啟用才會依日期與範圍加權；停用會保留資料但不參與推薦。</div>
-        <div class="setting-row">
-          <label class="setting-label">會員限定</label>
-          <select id="promotion-member-only" class="setting-input">
-            <option value="false">否</option>
-            <option value="true">是</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">開始 / 結束</label>
-          <div class="promotion-pair">
-            <input id="promotion-valid-from" class="setting-input" type="date">
-            <input id="promotion-valid-until" class="setting-input" type="date">
-          </div>
-        </div>
-        <div class="promotion-field-hint">日期會依活動時區判斷整天有效；留空代表不限制開始或結束。</div>
-        <div class="setting-row">
-          <label class="setting-label">活動時區</label>
-          <input id="promotion-timezone" class="setting-input" type="text" value="Asia/Taipei" placeholder="Asia/Taipei">
-        </div>
-        <div class="promotion-field-hint">請使用 IANA timezone，例如 `Asia/Taipei`；錯誤時區會被檢查擋下。</div>
-        <div class="setting-row">
-          <label class="setting-label">品項 ID</label>
-          <input id="promotion-item-ids" class="setting-input" type="text" placeholder="MCD001, MCD012">
-        </div>
-        <div class="promotion-field-hint">只接受菜單內存在的品項 ID；可用逗號分隔多個品項。</div>
-        <div class="setting-row">
-          <label class="setting-label">分類</label>
-          <input id="promotion-categories" class="setting-input" type="text" placeholder="超值全餐, 點心">
-        </div>
-        <div class="promotion-field-hint">分類需存在於目前菜單；若未指定品項，至少要指定一個有效分類。</div>
-        <div class="setting-row">
-          <label class="setting-label">需先有品項</label>
-          <input id="promotion-required-items" class="setting-input" type="text" placeholder="可留空，例如 MCD001">
-        </div>
-        <div class="promotion-field-hint">可作為搭配情境條件，例如購物車已有主餐時才提高點心推薦分數。</div>
-        <div class="setting-row">
-          <label class="setting-label">加購價格</label>
-          <div class="promotion-pair">
-            <input id="promotion-original-price" class="setting-input" type="number" min="0" max="9999" placeholder="原價，例如 45">
-            <input id="promotion-promotion-price" class="setting-input" type="number" min="1" max="9999" placeholder="優惠價，例如 30">
-          </div>
-        </div>
-        <div class="promotion-field-hint">若填寫優惠價，Kiosk 會在活動卡與購物車自動套用此價格；留空代表只做推薦加權與 RAG 說明。</div>
-        <div class="setting-row">
-          <label class="setting-label">活動廣告詞</label>
-          <div class="promotion-pair">
-            <input id="promotion-ad-headline" class="setting-input" type="text" placeholder="會員限定">
-            <input id="promotion-ad-cta" class="setting-input" type="text" placeholder="加入優惠">
-          </div>
-        </div>
-        <div style="margin-bottom:12px">
-          <textarea id="promotion-ad-copy" class="setting-input" rows="2" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="主餐加購薯條只要 $30"></textarea>
-        </div>
-        <div class="promotion-field-hint" style="margin-left:0;margin-top:-12px">這段會顯示在 Kiosk 活動卡，請保持簡短明確。</div>
-        <div class="setting-row">
-          <label class="setting-label">加權</label>
-          <div class="promotion-pair">
-            <input id="promotion-score-boost" class="setting-input" type="number" min="1" max="20" value="4" placeholder="品項">
-            <input id="promotion-category-score-boost" class="setting-input" type="number" min="1" max="20" value="2" placeholder="分類">
-          </div>
-        </div>
-        <div class="promotion-field-hint">左側為指定品項加權，右側為分類加權；數字越高越容易被推薦。</div>
-        <div style="margin-bottom:12px">
-          <div class="section-title" style="margin-bottom:8px">活動說明</div>
-          <textarea id="promotion-content" class="setting-input" rows="4" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="描述活動限制、門市說明或客服回答需要知道的內容。"></textarea>
-        </div>
-        <div class="promotion-field-hint" style="margin-left:0;margin-top:-12px">這段會作為 verified offer 說明，語音回答優惠時只能引用已驗證內容。</div>
-        <div class="promotion-actions-row">
-          <button class="refresh-btn" onclick="savePromotion()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> 儲存活動
-          </button>
-          <button class="refresh-btn" onclick="resetPromotionForm()" type="button">
-            <i class="fas fa-undo"></i> 清空表單
-          </button>
-          <span id="promotion-notice" style="font-size:12px;display:none"></span>
-        </div>
       </div>
 
       <!-- 新增 / 更新知識文件 -->
@@ -1566,15 +1673,6 @@ tbody tr:hover td { background: #f8fafd; }
 
     <!-- ── 右欄：文件清單 ── -->
     <div class="card rag-right">
-      <div class="card-title" style="flex-shrink:0">
-        <i class="fas fa-ticket-alt"></i> 已建立活動
-        <span id="promotion-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
-        <button class="refresh-btn" onclick="loadPromotions()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
-          <i class="fas fa-sync-alt"></i> 重新整理
-        </button>
-      </div>
-      <div id="promotion-list" class="promotion-list"></div>
-
       <div class="card-title" style="flex-shrink:0">
         <i class="fas fa-clipboard-check"></i> 待審核文本
         <span id="rag-review-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>

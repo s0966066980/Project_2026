@@ -2,17 +2,16 @@
 #
 # 一鍵啟動：情緒模型 = Emotion-LLaMA
 #
-# 會依序拉起（缺哪個才補哪個，已在跑的不重啟）：
+# 會依序拉起（已在跑的不重啟）：
 #   1. 把後台 EMOTION_PROVIDER 設成 emotion_llama
-#   2. Ubuntu 本機 PostgreSQL（可用 POSTGRES_ENABLED=false 關閉）
-#   3. Ollama (serve + 確認模型)            :11434
-#   4. Emotion-LLaMA /predict server        :7889
-#   5. UI_API 主服務 (Kiosk + 後台)         :9000 / 9001
+#   2. Ollama serve                         :11434
+#   3. Emotion-LLaMA /predict server        :7889
+#   4. UI_API 主服務 (Kiosk + 後台)         :9000 / 9001
 #
 # main.py 在前景執行；按 Ctrl-C 會把「本腳本啟動的」背景服務一起關掉
 # （原本就在跑的 Ollama / Emotion-LLaMA 不會被動到）。
 #
-# 安裝依賴請先看 README.md 與各模組 README：
+# 安裝依賴請先看 README.md 與各模組 requirements.txt：
 #   UI_API backend  -> UI_API/requirements.txt
 #   Emotion-LLaMA   -> Emotion-LLaMA/requirements.txt
 #
@@ -24,7 +23,6 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UI_PY="${UI_PY:-/home/oliver/anaconda3/envs/emotion_ui/bin/python}"
 LLAMA_PY="${LLAMA_PY:-/home/oliver/anaconda3/envs/emotion_ollama/bin/python}"
 OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
-MODEL_NAME="${MODEL_NAME:-qwen3.5:4b}"
 APP_PORT="${APP_PORT:-9000}"
 ADMIN_PORT="${ADMIN_PORT:-9001}"
 OPEN_BROWSER="${OPEN_BROWSER:-true}"
@@ -34,9 +32,6 @@ export APP_PORT ADMIN_PORT
 
 LOG_DIR="$REPO/logs"
 mkdir -p "$LOG_DIR"
-
-# shellcheck source=scripts/lib_postgres.sh
-source "$REPO/scripts/lib_postgres.sh"
 
 # 記錄本腳本啟動的背景 PID，結束時收掉
 STARTED_PIDS=()
@@ -85,7 +80,6 @@ wait_for_port() {  # wait_for_port <port> <名稱> <秒數>
 
 # ── 1. 切換情緒模型為 emotion_llama ───────────────────────────
 echo "⚙️  設定 EMOTION_PROVIDER = emotion_llama …"
-prepare_local_postgres "$UI_PY" "$REPO"
 ( cd "$REPO/UI_API" && "$UI_PY" -c "import config; config.save_settings({'EMOTION_PROVIDER':'emotion_llama'})" )
 
 # ── 2. Ollama ─────────────────────────────────────────────────
@@ -97,11 +91,6 @@ else
   STARTED_PIDS+=("$!")
   wait_for_port 11434 "Ollama" 30
   echo "✓ Ollama 就緒"
-fi
-# 確認模型存在（缺了才拉，pull 已存在的模型會很快跳過）
-if ! "$OLLAMA_BIN" list 2>/dev/null | grep -q "${MODEL_NAME%%:*}"; then
-  echo "⬇️  拉取模型 $MODEL_NAME（首次較久）…"
-  "$OLLAMA_BIN" pull "$MODEL_NAME"
 fi
 
 # ── 3. Emotion-LLaMA /predict server (:7889) ──────────────────

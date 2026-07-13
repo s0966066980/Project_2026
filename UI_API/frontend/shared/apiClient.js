@@ -15,8 +15,16 @@ export const API_BASE = (
 let publicSettingsRequest = null;
 /** @type {Promise<import('../types.d.ts').MenuItem[]> | null} */
 let menuRequest = null;
-/** @type {Promise<Record<string, unknown>> | null} */
-let activePromotionsRequest = null;
+/** @type {Map<string, Promise<Record<string, unknown>>>} */
+const posPromotionBannersRequests = new Map();
+
+function stripSensitiveTokenParams(params) {
+  const sensitiveKeys = ['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'];
+  if (!sensitiveKeys.some(key => params.has(key))) return;
+  sensitiveKeys.forEach(key => params.delete(key));
+  const query = params.toString();
+  history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+}
 
 /**
  * @param {unknown} value
@@ -53,6 +61,7 @@ function demoToken() {
   const params = new URLSearchParams(window.location.search || '');
   const token = params.get('token') || params.get('admin_token') || sessionStorage.getItem('admin_demo_token') || '';
   if (token) sessionStorage.setItem('admin_demo_token', token);
+  stripSensitiveTokenParams(params);
   return token;
 }
 
@@ -80,6 +89,7 @@ function kioskToken() {
     sessionStorage.setItem('pos_demo_token', token);
     sessionStorage.setItem('kiosk_device_token', token);
   }
+  stripSensitiveTokenParams(params);
   return token;
 }
 
@@ -121,16 +131,21 @@ export async function getMenu() {
   return menuRequest;
 }
 
-/** @returns {Promise<Record<string, unknown>>} */
-export async function getActivePromotions() {
-  if (!activePromotionsRequest) {
-    activePromotionsRequest = fetchJson(`${API_BASE}/api/promotions/active`, { headers: kioskHeaders() })
+/**
+ * @param {string} [surface]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function getPosPromotionBanners(surface = 'pos_home_banner') {
+  const cacheKey = String(surface || 'pos_home_banner');
+  if (!posPromotionBannersRequests.has(cacheKey)) {
+    const params = new URLSearchParams({ surface });
+    posPromotionBannersRequests.set(cacheKey, fetchJson(`${API_BASE}/api/promotions/pos-banner?${params.toString()}`, { headers: kioskHeaders() })
       .catch(error => {
-        activePromotionsRequest = null;
+        posPromotionBannersRequests.delete(cacheKey);
         throw error;
-      });
+      }));
   }
-  return activePromotionsRequest;
+  return /** @type {Promise<Record<string, unknown>>} */ (posPromotionBannersRequests.get(cacheKey));
 }
 
 /**

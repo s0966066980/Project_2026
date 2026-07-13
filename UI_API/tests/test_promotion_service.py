@@ -56,8 +56,55 @@ def test_save_promotion_writes_validated_json(tmp_path, monkeypatch):
     assert saved["timezone"] == "Asia/Taipei"
     assert saved["pricing"]["promotion_price"] == 30
     assert saved["ad"]["copy"] == "主餐加購薯條只要 $30"
+    assert saved["surface"] == "recommendation"
+    assert saved["enabled"] is True
     assert saved["metadata"]["status"] == "active"
     assert service.list_promotions()[0]["offer_id"] == "summer_combo_2026"
+
+
+def test_save_pos_banner_allows_target_without_item_scope(tmp_path, monkeypatch):
+    service = _setup_service(tmp_path, monkeypatch)
+
+    record, errors = service.save_promotion({
+        "offer_id": "summer_banner_2026",
+        "title": "夏日超值套餐",
+        "status": "active",
+        "surface": "pos_home_banner",
+        "priority": 100,
+        "badge": "限時優惠",
+        "subtitle": "雙層牛肉吉士堡 + 中薯 + 中可",
+        "start_at": "2026-07-01T00:00:00+08:00",
+        "end_at": "2026-07-31T23:59:59+08:00",
+        "original_price": 189,
+        "promo_price": 149,
+        "save_text": "現省 $40",
+        "target_type": "category",
+        "target_value": "超值全餐",
+        "theme": "gold",
+    })
+
+    assert errors == []
+    assert record["surface"] == "pos_home_banner"
+    assert record["promo_price"] == 149
+    assert record["pricing"]["promotion_price"] == 149
+    assert record["target_value"] == "超值全餐"
+
+
+def test_save_promotion_rejects_end_before_start(tmp_path, monkeypatch):
+    service = _setup_service(tmp_path, monkeypatch)
+
+    record, errors = service.save_promotion({
+        "offer_id": "bad_dates",
+        "title": "錯誤日期",
+        "status": "active",
+        "surface": "pos_home_banner",
+        "start_at": "2026-07-31T23:59:59+08:00",
+        "end_at": "2026-07-01T00:00:00+08:00",
+        "target_type": "none",
+    })
+
+    assert record is None
+    assert any("end_at 不可早於 start_at" in error for error in errors)
 
 
 def test_save_promotion_rejects_invalid_targets(tmp_path, monkeypatch):

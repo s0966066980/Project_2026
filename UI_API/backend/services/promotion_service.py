@@ -6,59 +6,25 @@ this service only validates and writes the source records.
 """
 from __future__ import annotations
 
-import json
-import os
 import re
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
-from repositories import menu_repository
+from repositories import menu_repository, promotion_repository
 
 
 VALID_STATUSES = {"active", "draft", "inactive"}
 VALID_TYPE = "promotion"
 PROMOTION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{2,80}$")
+VALID_SURFACES = {"recommendation", "pos_home_banner", "kiosk_cart_banner"}
+VALID_TARGET_TYPES = {"category", "item", "recommendation", "none"}
+VALID_THEMES = {"gold", "red", "dark", "simple"}
 
 
-def _documents_root() -> Path:
-    configured = Path(config.RAG_DOCUMENTS_DIR)
-    base = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    return configured.resolve() if configured.is_absolute() else (base / configured).resolve()
-
-
-def _promotions_root() -> Path:
-    return _documents_root() / "promotions"
-
-
-def _promotion_path(offer_id: str) -> Path:
-    return _promotions_root() / f"{offer_id}.json"
-
-
-def _promotion_file_for_offer(offer_id: str) -> Path | None:
-    normalized = _safe_text(offer_id, 90)
-    if not PROMOTION_ID_PATTERN.match(normalized):
-        return None
-    direct_path = _promotion_path(normalized)
-    if direct_path.exists():
-        return direct_path
-    root = _promotions_root()
-    if not root.exists():
-        return None
-    for path in sorted(root.glob("*.json")):
-        record = _load_json(path)
-        if not record:
-            continue
-        candidates = {
-            str(record.get("offer_id") or "").strip(),
-            str(record.get("source_id") or "").strip(),
-            path.stem,
-        }
-        if normalized in candidates:
-            return path
-    return None
+def is_valid_promotion_id(value: str) -> bool:
+    return bool(PROMOTION_ID_PATTERN.match(str(value or "").strip()))
 
 
 def _safe_text(value: Any, limit: int = 400) -> str:
@@ -109,6 +75,16 @@ def _as_optional_int(value: Any, *, minimum: int = 0, maximum: int = 9999) -> in
     return max(minimum, min(maximum, number))
 
 
+def _as_optional_positive_int(value: Any, *, minimum: int = 1, maximum: int = 3600) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return max(minimum, min(maximum, number))
+
+
 def _first_filled(*values: Any) -> Any:
     for value in values:
         if value not in (None, ""):
@@ -125,6 +101,21 @@ def _parse_date(value: Any) -> str:
         return text
     datetime.fromisoformat(text.replace("Z", "+00:00"))
     return text
+
+
+def _parse_datetime(value: Any, *, timezone_name: str, end_of_day: bool = False) -> datetime | None:
+    text = _safe_text(value, 40)
+    if not text:
+        return None
+    local_timezone = ZoneInfo(timezone_name)
+    if len(text) == 10:
+        parsed_date = datetime.strptime(text, "%Y-%m-%d").date()
+        parsed_time = time.max if end_of_day else time.min
+        return datetime.combine(parsed_date, parsed_time, tzinfo=local_timezone)
+    parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_timezone)
+    return parsed
 
 
 def _default_timezone() -> str:
@@ -155,28 +146,11 @@ def _menu_lookup() -> tuple[set[str], set[str]]:
     return item_ids, categories
 
 
-def _load_json(path: Path) -> dict:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if isinstance(data, list):
-        return dict(data[0]) if data and isinstance(data[0], dict) else {}
-    return dict(data) if isinstance(data, dict) else {}
-
-
-def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f".json.{os.getpid()}.tmp")
-    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, path)
-
-
 def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") -> tuple[dict | None, list[str]]:
     raw = payload if isinstance(payload, dict) else {}
-    offer_id = _safe_text(raw.get("offer_id") or existing_offer_id, 90)
+    offer_id = _safe_text(raw.get("offer_id") or raw.get("id") or existing_offer_id, 90)
     errors = []
-    if not PROMOTION_ID_PATTERN.match(offer_id):
+    if not is_valid_promotion_id(offer_id):
         errors.append("offer_id 必須為 3-81 字元，只能使用英數、底線或連字號，且需以英數開頭")
 
     title = _safe_text(raw.get("title") or raw.get("name"), 120)
@@ -194,19 +168,43 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         errors.append(str(exc))
 
     try:
-        valid_from = _parse_date(raw.get("valid_from") or raw.get("starts_at"))
+        start_at = _parse_date(raw.get("start_at") or raw.get("starts_at") or raw.get("valid_from"))
     except ValueError:
-        valid_from = ""
-        errors.append("valid_from 日期格式錯誤，請使用 YYYY-MM-DD 或 ISO datetime")
+        start_at = ""
+        errors.append("start_at 日期格式錯誤，請使用 YYYY-MM-DD 或 ISO datetime")
     try:
-        valid_until = _parse_date(raw.get("valid_until") or raw.get("ends_at"))
+        end_at = _parse_date(raw.get("end_at") or raw.get("ends_at") or raw.get("valid_until"))
     except ValueError:
-        valid_until = ""
-        errors.append("valid_until 日期格式錯誤，請使用 YYYY-MM-DD 或 ISO datetime")
-    if valid_from and valid_until and valid_from > valid_until:
-        errors.append("valid_from 不可晚於 valid_until")
+        end_at = ""
+        errors.append("end_at 日期格式錯誤，請使用 YYYY-MM-DD 或 ISO datetime")
+    try:
+        start_dt = _parse_datetime(start_at, timezone_name=timezone_name) if start_at else None
+        end_dt = _parse_datetime(end_at, timezone_name=timezone_name, end_of_day=True) if end_at else None
+    except ValueError:
+        start_dt = None
+        end_dt = None
+        errors.append("活動日期格式錯誤，請使用 YYYY-MM-DD 或 ISO datetime")
+    if start_dt and end_dt and start_dt > end_dt:
+        errors.append("end_at 不可早於 start_at")
 
     valid_item_ids, valid_categories = _menu_lookup()
+    surface = _safe_text(raw.get("surface") or "recommendation", 40)
+    if surface not in VALID_SURFACES:
+        errors.append("surface 必須為 recommendation、pos_home_banner 或 kiosk_cart_banner")
+    target_type = _safe_text(raw.get("target_type") or "none", 40)
+    if target_type not in VALID_TARGET_TYPES:
+        errors.append("target_type 必須為 category、item、recommendation 或 none")
+    target_value = _safe_text(raw.get("target_value"), 120)
+    if target_type == "category":
+        if not target_value:
+            errors.append("target_type 為 category 時 target_value 不可為空")
+        elif target_value not in valid_categories:
+            errors.append(f"target_value 分類不存在：{target_value}")
+    if target_type == "item":
+        if not target_value:
+            errors.append("target_type 為 item 時 target_value 不可為空")
+        elif target_value not in valid_item_ids:
+            errors.append(f"target_value 品項不存在：{target_value}")
     item_ids = [item_id for item_id in _as_list(raw.get("item_ids") or raw.get("items")) if item_id in valid_item_ids]
     categories = [category for category in _as_list(raw.get("categories") or raw.get("category")) if category in valid_categories]
     required_cart_item_ids = [
@@ -214,7 +212,7 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         for item_id in _as_list(raw.get("required_cart_item_ids") or raw.get("required_items"))
         if item_id in valid_item_ids
     ]
-    if not item_ids and not categories:
+    if not item_ids and not categories and surface != "pos_home_banner":
         errors.append("至少需要一個有效 item_ids 或 categories")
 
     invalid_items = sorted(set(_as_list(raw.get("item_ids") or raw.get("items"))) - valid_item_ids)
@@ -233,7 +231,7 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
     pricing_raw = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
     pricing_type = _safe_text(raw.get("pricing_type") or pricing_raw.get("type") or "none", 40)
     original_price = _as_optional_int(_first_filled(raw.get("original_price"), pricing_raw.get("original_price")))
-    promotion_price = _as_optional_int(_first_filled(raw.get("promotion_price"), pricing_raw.get("promotion_price")))
+    promotion_price = _as_optional_int(_first_filled(raw.get("promo_price"), raw.get("promotion_price"), pricing_raw.get("promotion_price")))
     pricing = {}
     if promotion_price is not None:
         if promotion_price <= 0:
@@ -250,28 +248,55 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         return None, errors
 
     ad_raw = raw.get("ad") if isinstance(raw.get("ad"), dict) else {}
-    ad_cta = _first_filled(raw.get("ad_cta"), ad_raw.get("cta"))
+    ad_cta = _first_filled(raw.get("cta_text"), raw.get("ad_cta"), ad_raw.get("cta"))
+    badge = _safe_text(raw.get("badge") or raw.get("ad_headline") or ad_raw.get("headline"), 80)
+    subtitle = _safe_text(raw.get("subtitle") or raw.get("ad_copy") or ad_raw.get("copy"), 160)
     ad = {
-        "headline": _safe_text(raw.get("ad_headline") or ad_raw.get("headline"), 80),
-        "copy": _safe_text(raw.get("ad_copy") or ad_raw.get("copy"), 160),
+        "headline": badge,
+        "copy": subtitle,
         "cta": _safe_text(ad_cta or "加入優惠", 40),
     }
     if not (ad["headline"] or ad["copy"] or ad_cta):
         ad = {}
 
+    theme = _safe_text(raw.get("theme") or "gold", 24)
+    if theme not in VALID_THEMES:
+        errors.append("theme 必須為 gold、red、dark 或 simple")
+    if errors:
+        return None, errors
+
     source_id = _safe_text(raw.get("source_id") or f"promotion_{offer_id}", 120)
     content = _safe_text(raw.get("content") or raw.get("description"), 1000)
+    now_text = datetime.now(ZoneInfo(timezone_name)).isoformat()
     record = {
+        "id": offer_id,
         "type": VALID_TYPE,
         "offer_id": offer_id,
         "source_id": source_id,
         "source_type": "promotion",
+        "enabled": _as_bool(_first_filled(raw.get("enabled"), True)),
+        "surface": surface,
+        "priority": _as_int(raw.get("priority"), default=0, minimum=0, maximum=1000),
+        "rotation_seconds": _as_optional_positive_int(raw.get("rotation_seconds"), minimum=2, maximum=120),
         "status": status,
         "title": title,
-        "valid_from": valid_from,
-        "valid_until": valid_until,
+        "subtitle": subtitle,
+        "description": content,
+        "valid_from": start_at,
+        "valid_until": end_at,
+        "start_at": start_at,
+        "end_at": end_at,
         "timezone": timezone_name,
         "member_only": _as_bool(raw.get("member_only")),
+        "badge": badge,
+        "original_price": original_price,
+        "promo_price": promotion_price,
+        "save_text": _safe_text(raw.get("save_text"), 40),
+        "cta_text": _safe_text(ad_cta or "加入優惠", 40),
+        "target_type": target_type,
+        "target_value": target_value,
+        "theme": theme,
+        "legal_text": _safe_text(raw.get("legal_text"), 180),
         "item_ids": item_ids,
         "categories": categories,
         "required_cart_item_ids": required_cart_item_ids,
@@ -283,6 +308,8 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
         "pricing": pricing,
         "ad": ad,
         "content": content,
+        "created_at": _safe_text(raw.get("created_at"), 40) or now_text,
+        "updated_at": now_text,
         "metadata": {
             "category": _safe_text((raw.get("metadata") or {}).get("category") if isinstance(raw.get("metadata"), dict) else "", 80) or "promotion",
             "status": status,
@@ -292,30 +319,14 @@ def validate_promotion_payload(payload: dict, *, existing_offer_id: str = "") ->
 
 
 def list_promotions() -> list[dict]:
-    root = _promotions_root()
-    if not root.exists():
-        return []
-    rows = []
-    for path in sorted(root.glob("*.json")):
-        record = _load_json(path)
-        if not record:
-            continue
-        record["path"] = path.name
-        rows.append(record)
-    return rows
+    return promotion_repository.list_promotions()
 
 
 def get_promotion(offer_id: str) -> dict | None:
     normalized = _safe_text(offer_id, 90)
-    if not PROMOTION_ID_PATTERN.match(normalized):
+    if not is_valid_promotion_id(normalized):
         return None
-    path = _promotion_file_for_offer(normalized)
-    if not path:
-        return None
-    record = _load_json(path)
-    if record:
-        record["path"] = path.name
-    return record or None
+    return promotion_repository.get_promotion(normalized, is_valid_id=is_valid_promotion_id)
 
 
 def save_promotion(payload: dict, *, existing_offer_id: str = "") -> tuple[dict | None, list[str]]:
@@ -324,7 +335,10 @@ def save_promotion(payload: dict, *, existing_offer_id: str = "") -> tuple[dict 
         return None, errors
     if existing_offer_id and record["offer_id"] != existing_offer_id:
         return None, ["不可修改 offer_id，請建立新活動"]
-    _write_json(_promotion_path(record["offer_id"]), record)
+    existing = get_promotion(record["offer_id"])
+    if existing and existing.get("created_at"):
+        record["created_at"] = existing["created_at"]
+    promotion_repository.save_promotion(record["offer_id"], record)
     return record, []
 
 
@@ -335,28 +349,26 @@ def update_promotion_status(offer_id: str, status: str) -> tuple[dict | None, li
     next_status = _safe_text(status, 20).lower()
     if next_status not in VALID_STATUSES:
         return None, ["status 必須為 active、draft 或 inactive"]
-    path = _promotion_file_for_offer(offer_id)
-    if not path:
-        return None, ["找不到活動"]
     record["status"] = next_status
+    record["enabled"] = next_status == "active"
     metadata = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
     metadata["status"] = next_status
     record["metadata"] = metadata
     record.pop("path", None)
-    _write_json(path, record)
-    record["path"] = path.name
+    timezone_name = str(record.get("timezone") or _default_timezone())
+    record["updated_at"] = datetime.now(ZoneInfo(timezone_name)).isoformat()
+    path = promotion_repository.find_promotion_path(offer_id, is_valid_id=is_valid_promotion_id)
+    if path:
+        promotion_repository.save_promotion_at_path(path, record)
+        record["path"] = path.name
+    else:
+        promotion_repository.save_promotion(str(record.get("offer_id") or offer_id), record)
+        record["path"] = f"{record.get('offer_id') or offer_id}.json"
     return record, []
 
 
 def delete_promotion(offer_id: str) -> bool:
     normalized = _safe_text(offer_id, 90)
-    if not PROMOTION_ID_PATTERN.match(normalized):
+    if not is_valid_promotion_id(normalized):
         return False
-    path = _promotion_file_for_offer(normalized)
-    if not path:
-        return False
-    try:
-        path.unlink()
-        return True
-    except FileNotFoundError:
-        return False
+    return promotion_repository.delete_promotion(normalized, is_valid_id=is_valid_promotion_id)
