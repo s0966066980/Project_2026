@@ -1,20 +1,17 @@
 """Admin audit log repository with JSON default and optional PostgreSQL backend."""
+
 import json
 import os
 import threading
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
 ADMIN_AUDIT_PATH = os.path.join(config.LEARNING_DATA_DIR, "admin_audit_logs.json")
 
 _lock = threading.Lock()
-
-
-class CommercialScopeConflictError(ValueError):
-    pass
 
 
 def _max_records() -> int:
@@ -37,7 +34,7 @@ def _write(rows: list) -> list:
     parent = os.path.dirname(ADMIN_AUDIT_PATH)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    trimmed = list(rows[-_max_records():])
+    trimmed = list(rows[-_max_records() :])
     tmp_path = f"{ADMIN_AUDIT_PATH}.{os.getpid()}.{threading.get_ident()}.tmp"
     with open(tmp_path, "w", encoding="utf-8") as handle:
         json.dump(trimmed, handle, ensure_ascii=False, indent=4)
@@ -55,6 +52,7 @@ def _jsonb(value, default):
 
 def _postgres_append(record: dict, scope: CommercialScope) -> dict:
     postgres_utils.init_schema()
+    store_id = None if "store_id" in record and record.get("store_id") is None else scope.store_id
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -72,12 +70,13 @@ def _postgres_append(record: dict, scope: CommercialScope) -> dict:
                     metadata = EXCLUDED.metadata,
                     created_at = EXCLUDED.created_at
                 WHERE admin_audit_logs.tenant_id = EXCLUDED.tenant_id
+                  AND admin_audit_logs.store_id IS NOT DISTINCT FROM EXCLUDED.store_id
                 RETURNING audit_id
                 """,
                 (
                     str(record.get("audit_id") or ""),
                     scope.tenant_id,
-                    scope.store_id,
+                    store_id,
                     str(record.get("actor") or ""),
                     str(record.get("action") or ""),
                     str(record.get("target_type") or ""),
@@ -102,8 +101,8 @@ def append_admin_audit_scoped(record: dict, scope: CommercialScope) -> dict:
             return _postgres_append(dict(record or {}), scope)
         except CommercialScopeConflictError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         raise ValueError("JSON audit storage only supports the configured legacy default scope")
     with _lock:
@@ -135,8 +134,8 @@ def get_admin_audits_scoped(scope: CommercialScope, limit: int = 200) -> list:
                         (scope.tenant_id, scope.store_id, safe_limit),
                     )
                     return list(reversed(cur.fetchall()))
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return []
     with _lock:

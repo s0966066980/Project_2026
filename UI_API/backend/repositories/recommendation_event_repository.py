@@ -3,12 +3,13 @@
 推薦事件比一般互動事件更結構化，獨立保存方便後續統計：
 曝光、點擊、加入購物車、成交、忽略。
 """
+
 import json
 import os
 import threading
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -18,10 +19,6 @@ MAX_RECORDS = 5000
 _cache_lock = threading.Lock()
 _write_lock = threading.Lock()
 _cache: dict[str, tuple[float | None, list]] = {}
-
-
-class CommercialScopeConflictError(ValueError):
-    pass
 
 
 def _read_list(path: str) -> list:
@@ -118,6 +115,7 @@ def _postgres_append_events(events: list[dict], scope: CommercialScope) -> list[
                         timestamp = EXCLUDED.timestamp
                     WHERE recommendation_events.tenant_id = EXCLUDED.tenant_id
                       AND recommendation_events.store_id = EXCLUDED.store_id
+                      AND recommendation_events.device_id IS NOT DISTINCT FROM EXCLUDED.device_id
                     RETURNING event_id
                     """,
                     (
@@ -207,8 +205,8 @@ def append_recommendation_event_scoped(event: dict, scope: CommercialScope) -> d
             return records[0] if records else dict(event or {})
         except CommercialScopeConflictError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
@@ -230,8 +228,8 @@ def append_recommendation_events_scoped(events: list[dict], scope: CommercialSco
             return _postgres_append_events(events, scope)
         except CommercialScopeConflictError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
@@ -253,8 +251,8 @@ def get_recommendation_events_scoped(
     if postgres_utils.use_postgres():
         try:
             return _postgres_get_events(scope, session_id, limit)
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return []
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
@@ -275,8 +273,8 @@ def clear_recommendation_events_scoped(scope: CommercialScope) -> int:
     if postgres_utils.use_postgres():
         try:
             return _postgres_clear_events(scope)
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return 0
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)

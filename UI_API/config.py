@@ -23,6 +23,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower() or "development"
 SECURITY_ENFORCED = _env_bool("SECURITY_ENFORCED", APP_ENV in ("production", "staging"))
 ALLOW_UNSAFE_PRODUCTION_ROUTES = _env_bool("ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+ALLOW_POSTGRES_JSON_FALLBACK = _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False)
 
 
 def is_production() -> bool:
@@ -50,6 +51,8 @@ def validate_startup_config() -> None:
         errors.append("KIOSK_DEVICE_TOKEN must be configured in production")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
         errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
+    if _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False):
+        errors.append("ALLOW_POSTGRES_JSON_FALLBACK must be false in production")
     for scope_key in ("DEFAULT_TENANT_ID", "DEFAULT_STORE_ID", "DEFAULT_DEVICE_ID"):
         scope_value = str(os.getenv(scope_key, "") or "").strip()
         if not scope_value:
@@ -448,6 +451,7 @@ def get(key, default=None):
         "SECURITY_ENFORCED": is_security_enforced(),
         "ADMIN_API_TOKEN": ADMIN_API_TOKEN,
         "KIOSK_DEVICE_TOKEN": KIOSK_DEVICE_TOKEN,
+        "ALLOW_POSTGRES_JSON_FALLBACK": ALLOW_POSTGRES_JSON_FALLBACK,
         "DEFAULT_TENANT_ID": DEFAULT_TENANT_ID,
         "DEFAULT_STORE_ID": DEFAULT_STORE_ID,
         "DEFAULT_DEVICE_ID": DEFAULT_DEVICE_ID,

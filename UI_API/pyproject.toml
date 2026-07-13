@@ -46,6 +46,8 @@ files = [
   "backend/models",
   "backend/repositories/postgres_utils.py",
   "backend/scripts/manage_postgres_migrations.py",
+  "backend/scripts/validate_commercial_scope.py",
   "backend/services/commercial_scope_service.py",
+  "backend/services/commercial_scope_readiness_service.py",
   "backend/utils",
 ]

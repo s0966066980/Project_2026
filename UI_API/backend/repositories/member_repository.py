@@ -4,17 +4,13 @@ import threading
 from datetime import datetime
 
 import config
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope, CommercialScopeConflictError
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
 MEMBERS_PATH = os.path.join(config.LEARNING_DATA_DIR, "members.json")
 
 _lock = threading.Lock()
-
-
-class CommercialScopeConflictError(ValueError):
-    pass
 
 
 def _read() -> list:
@@ -81,13 +77,15 @@ def _order_item_rows(order: dict) -> list[dict]:
                 unit_price = int(float(item.get("price") or 0))
             except Exception:
                 unit_price = 0
-            rows.append({
-                "item_id": item_id,
-                "item_name": str(item.get("name") or ""),
-                "category": str(item.get("category") or ""),
-                "quantity": max(1, quantity),
-                "unit_price": unit_price,
-            })
+            rows.append(
+                {
+                    "item_id": item_id,
+                    "item_name": str(item.get("name") or ""),
+                    "category": str(item.get("category") or ""),
+                    "quantity": max(1, quantity),
+                    "unit_price": unit_price,
+                }
+            )
         if rows:
             return rows
 
@@ -281,13 +279,15 @@ def _postgres_record_from_rows(member_row: dict, preference_row: dict | None, or
         "orders": [],
     }
     if preference_row:
-        record.update({
-            "item_freq": preference_row.get("item_freq") or {},
-            "category_freq": preference_row.get("category_freq") or {},
-            "pair_freq": preference_row.get("pair_freq") or {},
-            "recent_item_ids": preference_row.get("recent_item_ids") or [],
-            "preference_updated_at": str(preference_row.get("preference_updated_at") or ""),
-        })
+        record.update(
+            {
+                "item_freq": preference_row.get("item_freq") or {},
+                "category_freq": preference_row.get("category_freq") or {},
+                "pair_freq": preference_row.get("pair_freq") or {},
+                "recent_item_ids": preference_row.get("recent_item_ids") or [],
+                "preference_updated_at": str(preference_row.get("preference_updated_at") or ""),
+            }
+        )
     record["orders"] = [
         {
             "session_id": str(row.get("session_id") or ""),
@@ -373,8 +373,8 @@ def get_all_members_scoped(scope: CommercialScope) -> list:
     if postgres_utils.use_postgres():
         try:
             return _postgres_get_all_members(scope)
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return []
     with _lock:
@@ -389,8 +389,8 @@ def get_member_scoped(phone: str, scope: CommercialScope) -> dict | None:
     if postgres_utils.use_postgres():
         try:
             return _postgres_get_member(phone, scope)
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return None
     key = str(phone or "")
@@ -411,8 +411,8 @@ def upsert_member_scoped(record: dict, scope: CommercialScope) -> dict:
             return _postgres_upsert_member(record, scope)
         except CommercialScopeConflictError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         raise ValueError("JSON member storage only supports the configured legacy default scope")
     key = str(record.get("phone") or "")
@@ -438,8 +438,8 @@ def delete_member_scoped(phone: str, scope: CommercialScope) -> bool:
     if postgres_utils.use_postgres():
         try:
             return _postgres_delete_member(phone, scope)
-        except Exception:
-            pass
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
     if scope != LEGACY_DEFAULT_SCOPE:
         return False
     key = str(phone or "")

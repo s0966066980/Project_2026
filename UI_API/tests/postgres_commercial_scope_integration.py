@@ -23,6 +23,7 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
 
     from models.commercial_scope import LEGACY_DEFAULT_SCOPE
     from repositories import (
+        admin_audit_repository,
         member_repository,
         member_session_repository,
         postgres_utils,
@@ -175,6 +176,35 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
             "INSERT INTO members (phone, nickname, tenant_id) VALUES (%s, %s, %s)",
             ("0987654321", "Tenant B Member", tenant_b),
         )
+        default_store_b = UUID("11111111-1111-4111-8111-111111111111")
+        default_device_b = UUID("22222222-2222-4222-8222-222222222222")
+        default_device_c = UUID("33333333-3333-4333-8333-333333333333")
+        conn.execute(
+            "INSERT INTO stores (id, tenant_id, code, name, timezone, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                default_store_b,
+                LEGACY_DEFAULT_SCOPE.tenant_id,
+                "legacy-store-b",
+                "Default Store B",
+                "Asia/Taipei",
+                "active",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO devices (id, tenant_id, store_id, code, name, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (default_device_b, LEGACY_DEFAULT_SCOPE.tenant_id, default_store_b, "kiosk-b", "Kiosk B", "active"),
+        )
+        conn.execute(
+            "INSERT INTO devices (id, tenant_id, store_id, code, name, status) VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                default_device_c,
+                LEGACY_DEFAULT_SCOPE.tenant_id,
+                LEGACY_DEFAULT_SCOPE.store_id,
+                "kiosk-c",
+                "Kiosk C",
+                "active",
+            ),
+        )
         conn.commit()
 
     default_member = member_repository.get_member_scoped("0912345678", LEGACY_DEFAULT_SCOPE)
@@ -204,6 +234,44 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
     assert member_session_repository.get_session_phone_scoped("tenant-b-session", tenant_b_scope) == "0987654321"
     assert member_session_repository.get_session_phone_scoped("tenant-b-session", LEGACY_DEFAULT_SCOPE) == ""
 
+    default_store_b_scope = type(LEGACY_DEFAULT_SCOPE)(
+        LEGACY_DEFAULT_SCOPE.tenant_id,
+        default_store_b,
+        default_device_b,
+    )
+    default_device_c_scope = type(LEGACY_DEFAULT_SCOPE)(
+        LEGACY_DEFAULT_SCOPE.tenant_id,
+        LEGACY_DEFAULT_SCOPE.store_id,
+        default_device_c,
+    )
+    audit_record = {
+        "audit_id": "shared-audit",
+        "actor": "store-a",
+        "action": "original",
+        "target_type": "promotion",
+        "target_id": "promo-a",
+        "metadata": {"source": "store-a"},
+        "created_at": "2026-07-13T00:00:00",
+    }
+    admin_audit_repository.append_admin_audit_scoped(audit_record, LEGACY_DEFAULT_SCOPE)
+    with pytest.raises(admin_audit_repository.CommercialScopeConflictError):
+        admin_audit_repository.append_admin_audit_scoped(
+            {**audit_record, "actor": "store-b", "action": "overwrite"},
+            default_store_b_scope,
+        )
+    tenant_audit = {**audit_record, "audit_id": "tenant-audit", "store_id": None, "action": "tenant-original"}
+    admin_audit_repository.append_admin_audit_scoped(tenant_audit, LEGACY_DEFAULT_SCOPE)
+    admin_audit_repository.append_admin_audit_scoped(
+        {**tenant_audit, "action": "tenant-updated"},
+        LEGACY_DEFAULT_SCOPE,
+    )
+
+    member_session_repository.bind_session_scoped("shared-session", "0912345678", LEGACY_DEFAULT_SCOPE)
+    with pytest.raises(member_session_repository.CommercialScopeConflictError):
+        member_session_repository.bind_session_scoped("shared-session", "0912345678", default_device_c_scope)
+    with pytest.raises(member_session_repository.CommercialScopeConflictError):
+        member_session_repository.bind_session_scoped("shared-session", "0912345678", default_store_b_scope)
+
     recommendation_event_repository.append_recommendation_event_scoped(
         {
             "event_id": "tenant-b-event",
@@ -222,13 +290,44 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
             {"event_id": "legacy-event", "session_id": "cross-tenant"},
             tenant_b_scope,
         )
+    recommendation_event_repository.append_recommendation_event_scoped(
+        {
+            "event_id": "shared-event",
+            "session_id": "device-a-session",
+            "event_type": "recommendation_shown",
+            "metadata": {"device": "a"},
+            "timestamp": "2026-07-13T00:00:00",
+        },
+        LEGACY_DEFAULT_SCOPE,
+    )
+    with pytest.raises(recommendation_event_repository.CommercialScopeConflictError):
+        recommendation_event_repository.append_recommendation_event_scoped(
+            {"event_id": "shared-event", "session_id": "device-b-session", "event_type": "overwritten"},
+            default_device_c_scope,
+        )
 
     with psycopg.connect(scoped_url, row_factory=dict_row) as conn:
         scoped_session = conn.execute("SELECT * FROM member_sessions WHERE session_id = 'tenant-b-session'").fetchone()
         scoped_event = conn.execute("SELECT * FROM recommendation_events WHERE event_id = 'tenant-b-event'").fetchone()
         scoped_order = conn.execute("SELECT * FROM member_orders WHERE phone = '0977777777'").fetchone()
+        audit = conn.execute("SELECT * FROM admin_audit_logs WHERE audit_id = 'shared-audit'").fetchone()
+        tenant_audit_row = conn.execute("SELECT * FROM admin_audit_logs WHERE audit_id = 'tenant-audit'").fetchone()
+        shared_session = conn.execute("SELECT * FROM member_sessions WHERE session_id = 'shared-session'").fetchone()
+        shared_event = conn.execute("SELECT * FROM recommendation_events WHERE event_id = 'shared-event'").fetchone()
         assert scoped_session["origin_device_id"] == device_b
         assert scoped_event["device_id"] == device_b
         assert scoped_order["tenant_id"] == tenant_b
         assert scoped_order["store_id"] == store_b
         assert scoped_order["origin_device_id"] == device_b
+        assert audit["actor"] == "store-a"
+        assert audit["action"] == "original"
+        assert audit["target_id"] == "promo-a"
+        assert audit["metadata"] == {"source": "store-a"}
+        assert audit["created_at"] == "2026-07-13T00:00:00"
+        assert tenant_audit_row["store_id"] is None
+        assert tenant_audit_row["action"] == "tenant-updated"
+        assert shared_session["origin_device_id"] == LEGACY_DEFAULT_SCOPE.device_id
+        assert shared_event["device_id"] == LEGACY_DEFAULT_SCOPE.device_id
+        assert shared_event["session_id"] == "device-a-session"
+        assert shared_event["event_type"] == "recommendation_shown"
+        assert shared_event["metadata"] == {"device": "a"}

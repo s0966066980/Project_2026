@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
 from uuid import UUID
 
 import pytest
@@ -52,14 +51,99 @@ def test_production_rejects_postgres_json_fallback_at_startup(monkeypatch: pytes
         config.validate_startup_config()
 
 
+def test_postgres_read_and_write_fail_closed_without_json_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.commercial_scope import LEGACY_DEFAULT_SCOPE
+    from repositories import member_repository, postgres_utils
+
+    monkeypatch.setattr(member_repository.postgres_utils, "use_postgres", lambda: True)
+    monkeypatch.setattr(member_repository, "_postgres_get_member", lambda *_args: (_ for _ in ()).throw(RuntimeError()))
+    monkeypatch.setattr(
+        member_repository, "_postgres_upsert_member", lambda *_args: (_ for _ in ()).throw(RuntimeError())
+    )
+    monkeypatch.setattr(member_repository, "_read", lambda: (_ for _ in ()).throw(AssertionError("JSON read")))
+    monkeypatch.setattr(member_repository, "_write", lambda _rows: (_ for _ in ()).throw(AssertionError("JSON write")))
+    monkeypatch.setattr(postgres_utils, "allow_postgres_json_fallback", lambda: False)
+
+    with pytest.raises(postgres_utils.PostgresOperationError):
+        member_repository.get_member_scoped("0912345678", LEGACY_DEFAULT_SCOPE)
+    with pytest.raises(postgres_utils.PostgresOperationError):
+        member_repository.upsert_member_scoped({"phone": "0912345678"}, LEGACY_DEFAULT_SCOPE)
+
+
+def test_development_fallback_is_explicit_and_scope_conflicts_are_never_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScopeConflictError
+    from repositories import postgres_utils, recommendation_event_repository
+
+    monkeypatch.setattr(recommendation_event_repository.postgres_utils, "use_postgres", lambda: True)
+    monkeypatch.setattr(postgres_utils, "allow_postgres_json_fallback", lambda: True)
+    monkeypatch.setattr(
+        recommendation_event_repository, "_postgres_get_events", lambda *_args: (_ for _ in ()).throw(RuntimeError())
+    )
+    monkeypatch.setattr(recommendation_event_repository, "_read_list", lambda _path: [{"event_id": "json"}])
+
+    assert recommendation_event_repository.get_recommendation_events_scoped(LEGACY_DEFAULT_SCOPE) == [
+        {"event_id": "json"}
+    ]
+
+    monkeypatch.setattr(
+        recommendation_event_repository,
+        "_postgres_append_events",
+        lambda *_args: (_ for _ in ()).throw(CommercialScopeConflictError("collision")),
+    )
+    with pytest.raises(CommercialScopeConflictError):
+        recommendation_event_repository.append_recommendation_event_scoped({"event_id": "shared"}, LEGACY_DEFAULT_SCOPE)
+
+
 @pytest.mark.parametrize(
     ("row", "message"),
     [
         (None, "tenant"),
-        ({"tenant_status": "inactive", "store_tenant_id": UUID(int=1), "store_status": "active", "device_tenant_id": UUID(int=1), "device_store_id": UUID(int=2), "device_status": "active"}, "tenant"),
-        ({"tenant_status": "active", "store_tenant_id": UUID(int=2), "store_status": "active", "device_tenant_id": UUID(int=1), "device_store_id": UUID(int=2), "device_status": "active"}, "store"),
-        ({"tenant_status": "active", "store_tenant_id": UUID(int=1), "store_status": "active", "device_tenant_id": UUID(int=1), "device_store_id": UUID(int=3), "device_status": "active"}, "device"),
-        ({"tenant_status": "active", "store_tenant_id": UUID(int=1), "store_status": "active", "device_tenant_id": UUID(int=1), "device_store_id": UUID(int=2), "device_status": "inactive"}, "device"),
+        (
+            {
+                "tenant_status": "inactive",
+                "store_tenant_id": UUID(int=1),
+                "store_status": "active",
+                "device_tenant_id": UUID(int=1),
+                "device_store_id": UUID(int=2),
+                "device_status": "active",
+            },
+            "tenant",
+        ),
+        (
+            {
+                "tenant_status": "active",
+                "store_tenant_id": UUID(int=2),
+                "store_status": "active",
+                "device_tenant_id": UUID(int=1),
+                "device_store_id": UUID(int=2),
+                "device_status": "active",
+            },
+            "store",
+        ),
+        (
+            {
+                "tenant_status": "active",
+                "store_tenant_id": UUID(int=1),
+                "store_status": "active",
+                "device_tenant_id": UUID(int=1),
+                "device_store_id": UUID(int=3),
+                "device_status": "active",
+            },
+            "device",
+        ),
+        (
+            {
+                "tenant_status": "active",
+                "store_tenant_id": UUID(int=1),
+                "store_status": "active",
+                "device_tenant_id": UUID(int=1),
+                "device_store_id": UUID(int=2),
+                "device_status": "inactive",
+            },
+            "device",
+        ),
     ],
 )
 def test_configured_scope_readiness_rejects_missing_inactive_or_mismatched_hierarchy(
@@ -148,7 +232,9 @@ def test_configured_scope_readiness_returns_typed_result_for_active_hierarchy(
     assert result.is_ready is True
 
 
-def test_integrity_validator_emits_only_aggregate_machine_readable_counts(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+def test_integrity_validator_emits_only_aggregate_machine_readable_counts(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
     from backend.scripts import validate_commercial_scope
 
     monkeypatch.setattr(

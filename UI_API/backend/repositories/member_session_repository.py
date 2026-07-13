@@ -3,9 +3,10 @@
 JSON 模式維持既有記憶體 session 行為；PostgreSQL 模式會把
 `session_id -> phone` 寫入 member_sessions，讓多 worker / 重啟後可恢復。
 """
+
 from datetime import datetime
 
-from models.commercial_scope import CommercialScope
+from models.commercial_scope import CommercialScope, CommercialScopeConflictError
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -37,6 +38,7 @@ def bind_session_scoped(session_id: str, phone: str, scope: CommercialScope) -> 
                     cleared_at = ''
                 WHERE member_sessions.tenant_id = EXCLUDED.tenant_id
                   AND member_sessions.store_id = EXCLUDED.store_id
+                  AND member_sessions.origin_device_id IS NOT DISTINCT FROM EXCLUDED.origin_device_id
                 RETURNING session_id
                 """,
                 (
@@ -50,7 +52,7 @@ def bind_session_scoped(session_id: str, phone: str, scope: CommercialScope) -> 
                 ),
             )
             if cur.fetchone() is None:
-                raise ValueError("Session ID is already owned by another commercial scope")
+                raise CommercialScopeConflictError("Session ID is already owned by another commercial scope")
         conn.commit()
 
 

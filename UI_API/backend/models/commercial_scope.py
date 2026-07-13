@@ -8,6 +8,12 @@ LEGACY_DEFAULT_STORE_ID = UUID("00000000-0000-4000-8000-000000000002")
 LEGACY_DEFAULT_DEVICE_ID = UUID("00000000-0000-4000-8000-000000000003")
 
 
+class CommercialScopeConflictError(ValueError):
+    """A globally unique commercial identifier belongs to another scope."""
+
+    pass
+
+
 def new_commercial_id() -> UUID:
     """Generate application-owned Tenant, Store, or Device identifiers."""
 

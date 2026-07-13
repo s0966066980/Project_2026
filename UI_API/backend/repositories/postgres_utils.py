@@ -99,12 +99,30 @@ class MigrationValidationError(PostgresUnavailableError):
     pass
 
 
+class PostgresOperationError(PostgresUnavailableError):
+    pass
+
+
 def storage_backend() -> str:
     return str(config.get("MEMBER_STORAGE_BACKEND", "json") or "json").strip().lower()
 
 
 def use_postgres() -> bool:
     return storage_backend() == "postgres"
+
+
+def allow_postgres_json_fallback() -> bool:
+    """Allow JSON compatibility fallback only when development opts in explicitly."""
+
+    return str(config.APP_ENV).lower() == "development" and bool(config.get("ALLOW_POSTGRES_JSON_FALLBACK", False))
+
+
+def handle_postgres_failure(exc: Exception) -> None:
+    """Raise a safe, observable error unless explicit development fallback is enabled."""
+
+    if allow_postgres_json_fallback():
+        return
+    raise PostgresOperationError("PostgreSQL operation failed") from exc
 
 
 def database_url() -> str:

@@ -135,6 +135,9 @@ jobs:
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply
 
+      - name: Validate commercial scope integrity
+        run: python backend/scripts/validate_commercial_scope.py --require-complete
+
       - name: Validate clean migration state
         run: python backend/scripts/manage_postgres_migrations.py validate --require-clean
 

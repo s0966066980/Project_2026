@@ -70,6 +70,10 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - 若 validation 發現 orphan、lock 或 scope conflict，停止切換新 callers、保留資料，以新的 versioned migration roll-forward 修正；不得改寫 0002 checksum。
 - Reserved default names 可由未來 Admin 修改；migration 的 `ON CONFLICT DO NOTHING` 不會覆寫客製名稱。
 
+### Partial Scope Handling
+
+0002 的標準支援路徑是未含 scope column 的正式 Milestone 1A schema。非標準、手動建立或只有部分 scope 的資料庫，升級前必須先完成資料盤點與備份。已套用的 0002 不得修改；發現 partial scope、orphan 或錯誤 ownership 時，使用新的 forward migration 修正，並以 `validate_commercial_scope.py --require-complete` 作為切換前 gate。
+
 ## Backup Before Migration
 
 高風險或 production migration apply 前：
