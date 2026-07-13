@@ -1,49 +1,78 @@
-# UI_API backend 模組說明
+# UI_API Backend
 
-`backend/` 是 UI_API 的後端核心，負責 API、業務邏輯、資料存取、WebSocket、啟動流程與共用工具。
+`UI_API/backend/` 是核心後端，負責 API、application workflow、資料存取、WebSocket、啟動流程與共用基礎能力。
 
-## 主要結構
+## 結構
 
 ```text
 backend/
-├── api/             # router 組裝
-├── bootstrap/       # 啟動流程
-├── core/            # 共用常數與基礎工具
-├── models/          # dependency model
-├── prompts/         # 預設 prompt
-├── realtime/        # WebSocket 與事件匯流排
-├── repositories/    # JSON / PostgreSQL 資料存取
+├── api/             # Router registry 與應用組裝
+├── bootstrap/       # 啟動、初始化與開發 server
+├── core/            # 常數、async/settings 等基礎能力
+├── models/          # Dependency model
+├── prompts/         # 預設 Prompt
+├── realtime/        # WebSocket 與事件匯流
+├── repositories/    # JSON/PostgreSQL adapter
 ├── routes/          # FastAPI routes
-├── schemas/         # SQL schema 與資料結構
-├── scripts/         # migration / validation scripts
-├── services/        # 業務邏輯
-└── utils/           # 共用 helper
+├── schemas/         # DB schema、migration、跨層 contract
+├── scripts/         # Migration/validation 工具
+├── services/        # Application service 與業務規則
+└── utils/           # 通用 helper
 ```
 
-## 分層規則
+## 依賴方向
 
 ```text
-routes -> services -> repositories
+routes → services → repositories
 ```
 
-- routes 只處理 HTTP、權限、輸入輸出。
-- services 負責業務規則與流程。
-- repositories 負責資料讀寫。
-- utils 不應依賴 routes/services。
-- repositories 不應反向 import services。
+演進目標：
 
-## 主要功能
+```text
+Route/API
+   ↓
+Application Service
+   ↓
+Domain Policy
+   ↓
+Repository Port
+   ↓
+Infrastructure Adapter
+```
 
-- 會員登入、註冊、偏好、歷史訂單。
-- AI 推薦、推薦上下文、推薦事件。
-- RAG 文件管理、審核、offer guard。
+規則：
+
+- Route 不直接實作複雜推薦、價格、會員或 RAG 規則。
+- Service 不處理 HTTP status、Request/Response 或前端 rendering。
+- Repository 不 import service/route，不決定業務策略。
+- `utils` 必須保持通用，避免成為無邊界的共用雜物區。
+- 外部 LLM、STT、TTS、Emotion 與儲存逐步使用 Port/Adapter。
+- 新公開 API 優先使用 `/api/v1/*` 與 Pydantic schema；現有 `/api/*` 保持相容。
+
+## 主要能力
+
+- 會員、偏好、Session 與訂單歷史。
+- 菜單、活動、供應狀態、Checkout pricing。
+- AI 推薦、推薦上下文、事件與回饋。
+- RAG 文件、審核、offer guard 與告警。
 - 語音點餐、STT、TTS。
-- 情緒分析 provider。
-- 供應狀態、活動、健康檢查。
-- PostgreSQL migration 與備份支援。
+- Emotion-LLaMA / R1-Omni provider。
+- WebSocket、健康檢查、audit 與 observability。
+- PostgreSQL migration、備份與還原支援。
 
-## 維護重點
+## 驗證
 
-- 新 API 應先定義 route，再把核心邏輯放 service。
-- 新資料來源應建立 repository，不要在 service 直接讀寫檔案。
-- 新跨模組資料結構應放在 schemas 或明確 service response。
+依變更執行目標測試；需要完整回歸時：
+
+```bash
+cd UI_API
+MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
+```
+
+Core/API/utils 的 static check 範圍以 `.github/workflows/ci.yml` 為準。
+
+## 文件
+
+- [整體架構](../../docs/ARCHITECTURE.md)
+- [商業化治理](../../docs/COMMERCIAL_GOVERNANCE.md)
+- [後續模組](../../docs/FUTURE_MODULES.md)

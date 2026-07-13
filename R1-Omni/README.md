@@ -1,25 +1,31 @@
-# R1-Omni 模組說明
+# R1-Omni 多模態情緒服務
 
-`R1-Omni/` 是可選的多模態情緒分析服務，透過 `r1_omni_server.py` 提供與 UI_API 相容的 `/predict` HTTP 合約。
+`R1-Omni/` 是 Project_2026 的可選多模態情緒分析執行單元，透過 `r1_omni_server.py` 提供 UI_API 可使用的 HTTP 推論能力。
 
-## 模組責任
+## 責任
 
 - 載入本機 R1-Omni 模型權重。
-- 接收 UI_API 傳入的影片路徑與問題。
-- 回傳結構化情緒分析結果。
-- 作為 Emotion-LLaMA 的替代 provider。
+- 接收影片/多模態推論請求。
+- 回傳可正規化的情緒分析結果。
+- 作為 Emotion-LLaMA 的替代 Provider。
 
-## 主要結構
+不負責：
+
+- 寫入會員、訂單、活動或營運資料。
+- 直接決定推薦、價格、付款或介入結果。
+- 保存不必要的原始媒體或 PII。
+
+## 結構
 
 ```text
 R1-Omni/
-├── r1_omni_server.py       # /predict server
-├── humanomni/              # 模型推論程式
-├── models/                 # 本機模型權重
-├── scripts/                # R1-Omni 原始訓練/微調腳本
-├── src/                    # 原始子專案程式
-├── yamls/                  # 模型設定
-└── requirements.txt        # R1-Omni 依賴
+├── r1_omni_server.py
+├── humanomni/
+├── models/             # 本機權重，不提交 Git
+├── scripts/
+├── src/
+├── yamls/
+└── requirements.txt
 ```
 
 ## 安裝
@@ -30,11 +36,11 @@ conda activate r1omni
 pip install -r R1-Omni/requirements.txt
 ```
 
-GPU / CUDA 版本的 PyTorch 可能需要依照本機 CUDA 版本另外安裝。
+GPU/CUDA/PyTorch 版本需依部署環境確認。
 
 ## 啟動
 
-建議從專案根目錄使用腳本：
+建議：
 
 ```bash
 bash scripts/start_r1_omni.sh
@@ -43,22 +49,31 @@ bash scripts/start_r1_omni.sh
 單獨啟動：
 
 ```bash
-/home/oliver/anaconda3/envs/r1omni/bin/python R1-Omni/r1_omni_server.py --port 7890
+python R1-Omni/r1_omni_server.py --port 7890
 ```
 
-## API 合約
+## 現行 API 合約
 
 ```text
 POST /predict
-body: { video_path, question, skip_quality_check }
-return: { result: string }
+
+request:
+{ video_path, question, skip_quality_check }
+
+response:
+{ result: string }
 ```
 
-`result` 會被 UI_API 的 emotion service 解析成 facial、body、vocal、emotion、intensity 與 description。
+UI_API 會將 `result` 正規化為 facial、body、vocal、emotion、intensity 與 description 等欄位。長期應改為版本化且明確的結構化 response，避免依賴自由文字解析。
 
-## 維護重點
+## 整合與商用規則
 
-- 模型服務應獨立於 UI_API process。
-- 商用部署時建議使用獨立 GPU 節點或容器。
-- 模型權重與第三方授權需獨立確認。
-- 不建議把訓練資料或大型 checkpoint 納入一般應用部署包。
+- UI_API 透過 Emotion Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
+- 商用部署使用獨立 process、container 或 GPU node。
+- 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
+- 模型不可用時，核心點餐流程應可降級。
+- 不以未驗證的 client file path 作為長期跨服務 contract；正式部署應使用受控 upload/object reference。
+- 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
+- 影像、影片、音訊與情緒結果遵守最小收集、明確用途與保留政策。
+
+架構決策見 [`docs/adr/0003-ai-provider-port-adapter.md`](../docs/adr/0003-ai-provider-port-adapter.md)。

@@ -1,154 +1,163 @@
-# Project_2026 工程協作規範
+# Project_2026 Agent 協作規範
 
-本文件是 Repository 內所有人員與自動化 Agent 的共同工作契約。若子目錄未提供更具體的 `AGENTS.md`，本文件適用於整個 Repository。
+本文件是 Repository 內人員、Codex 與其他自動化 Agent 的預設工作契約。子目錄若有更具體的 `AGENTS.md`，以距離目標檔案最近的規則為準。
 
-## 專案架構
+## 1. 工作原則
 
-目前採用 **Modular Monolith First**：
+- 先讀目標檔案、鄰近模組與直接依賴；**局部任務不需要每次完整稽核整個 Repository**。
+- 優先做最小、可驗證、可回復的修改；禁止為了「整理架構」進行無關搬移或大量格式化。
+- README 描述已存在的事實；未完成項目放 `docs/FUTURE_MODULES.md`。
+- 重大且長期的架構選擇才新增 ADR；一般 refactor、rename 或小型實作不需要 ADR。
+- 有合理預設時直接執行，不重複要求確認；只有破壞性操作、需求衝突或缺少關鍵資訊時才停下詢問。
+
+## 2. 任務規模與預設流程
+
+### A. 局部文件、樣式或低風險修正
+
+1. 閱讀目標檔案與直接引用。
+2. 修改最小範圍。
+3. 執行最接近的語法或格式檢查。
+4. 回報：`Summary`、`Verification`、必要風險。
+
+不需要先輸出完整計畫、架構報告或全專案 dependency map。
+
+### B. 單一模組功能或 Bug
+
+1. 閱讀入口、service/controller、資料流與現有測試。
+2. 先建立可重現問題的測試或明確驗收條件。
+3. 修改單一責任範圍。
+4. 執行目標測試，再視影響擴大驗證。
+
+### C. 跨模組、公開 API、安全、資料庫或部署變更
+
+1. 先列出簡短計畫、影響範圍、相容策略與測試策略。
+2. 檢查 callers、資料契約、權限與 rollback/roll-forward。
+3. 更新受影響的 README、`docs/ARCHITECTURE.md`、治理文件或 ADR。
+4. 執行完整相關驗證。
+
+## 3. 現行架構邊界
+
+專案採 **Modular Monolith First**：
 
 ```text
 Kiosk Web ─┐
-           ├─ HTTPS / WebSocket ─ FastAPI Modular Monolith
+           ├─ HTTP / WebSocket ─ FastAPI Modular Monolith
 Admin Web ─┘                         ├─ JSON compatibility storage
-                                    ├─ PostgreSQL optional storage
+                                    ├─ PostgreSQL
                                     ├─ Ollama / Gemini
                                     └─ Emotion-LLaMA / R1-Omni
 ```
 
-主要目錄責任：
+責任分工：
 
-- `UI_API/backend/api`：Route registry 與應用組裝。
-- `UI_API/backend/routes`：HTTP/WebSocket transport、驗證、授權與 response mapping。
-- `UI_API/backend/services`：Application service 與業務流程。
-- `UI_API/backend/repositories`：JSON/PostgreSQL 資料存取 adapter。
-- `UI_API/backend/schemas`：資料庫 schema 與 migration。
-- `UI_API/frontend/kiosk`：顧客 Kiosk application。
-- `UI_API/frontend/admin`：營運 Admin application。
-- `UI_API/frontend/shared`：純通用 HTTP、realtime、design token 與 UI primitive。
-- `Emotion-LLaMA`、`R1-Omni`：外部模型執行單元；不得混入核心商業 domain。
-- `scripts`：本機啟動、資料庫備份與還原。
-- `docs`：架構決策與商業化計畫。
+- `UI_API/backend/routes`：HTTP/WebSocket、authentication、authorization、validation、response mapping。
+- `UI_API/backend/services`：Application workflow 與業務規則。
+- `UI_API/backend/repositories`：JSON/PostgreSQL 與其他資料來源 adapter。
+- `UI_API/backend/schemas`：資料庫 schema、migration 與跨層 contract。
+- `UI_API/frontend/kiosk`：顧客點餐流程。
+- `UI_API/frontend/admin`：營運與維運流程。
+- `UI_API/frontend/shared`：通用 client、realtime、design token、UI primitive；不得放 Kiosk/Admin 專屬 business state。
+- `Emotion-LLaMA`、`R1-Omni`：獨立模型執行單元，不得承擔核心商業資料寫入。
+- `scripts`：本機 orchestration 與資料庫維運。
+- `tools`：非 production path 的開發或一次性工具。
+- `docs`：架構決策、商用治理與後續模組規劃。
 
-長期目標目錄記錄於 `docs/architecture/TARGET_ARCHITECTURE.md`。禁止為了符合目標目錄進行 Big Bang 搬移。
+詳細架構見 `docs/ARCHITECTURE.md`。
 
-## 模組與依賴規則
+## 4. 依賴規則
 
-允許的依賴方向：
+允許方向：
 
 ```text
-API / Route
-  ↓
+Route / API
+    ↓
 Application Service
-  ↓
+    ↓
 Domain Policy
-  ↓
+    ↓
 Repository Port
-  ↓
+    ↓
 Infrastructure Adapter
 ```
 
-- Route 只處理 transport、authentication、authorization、validation 與 response。
-- Service 不得依賴 `fastapi.Request`、`Response` 或 HTTP status code。
+- Route 不放複雜業務邏輯。
+- Service 不依賴 `fastapi.Request`、`Response` 或 HTTP status code。
 - Repository 不得 import Service 或 Route。
-- Domain policy 不得直接依賴 FastAPI、資料庫 driver、Ollama/Gemini SDK 或情緒模型。
-- 外部 AI、儲存、realtime 與通知服務逐步以 Port/Adapter 隔離。
-- Kiosk 與 Admin 不得互相 import business state、page state、DOM state 或 authentication state。
-- Shared frontend 只能放 generic utility、contract、generated client、realtime client、design token 與 reusable primitive。
-- 舊 `/api/*` 必須保持 backward compatibility；新 contract 使用 `/api/v1/*` 與明確 Pydantic schema。
+- Domain policy 不直接依賴 FastAPI、database driver、Ollama/Gemini SDK 或情緒模型。
+- 外部 AI、STT、TTS、儲存、通知與 realtime 逐步以 Port/Adapter 隔離。
+- 舊 `/api/*` 保持相容；新公開 contract 優先使用 `/api/v1/*` 與明確 Pydantic schema。
+- Kiosk 與 Admin 不互相 import business state、page state、DOM state 或 authentication state。
 
-## CodeGraph 工作方式
+## 5. 程式與安全規則
 
-若 Repository root 或目標子專案存在 `.codegraph/`：
+### Python
 
-1. 理解或定位程式碼時，先使用 `codegraph explore "問題或 symbol"`。
-2. 再使用 `rg` 驗證文字引用或補充非程式資產。
-3. 修改跨模組 symbol 前，先檢查 callers 與 blast radius。
-4. `.codegraph/` 是本機索引，不得提交 Git。
+- 新 public function 優先加入型別註記。
+- 大型跨層資料契約使用 Pydantic model、TypedDict 或 dataclass，避免擴大無型別 `dict`。
+- Blocking I/O、模型推論與同步資料庫操作不得直接阻塞 event loop。
+- 不使用 bare `except` 隱藏錯誤。
+- 不以大量 `noqa`、`type: ignore` 或關閉規則讓檢查通過。
 
-## Python Style
+### JavaScript / TypeScript
 
-- 支援版本以 CI 設定為準；新語法不得超出 CI Python 版本。
-- Module、Class、Function、Variable 使用英文；文件與使用者訊息使用繁體中文。
-- 新 public function 應有型別註記；跨層資料契約優先使用 Pydantic model 或 TypedDict/dataclass。
-- 禁止新增大型無型別 `dict` contract。
-- I/O、外部 HTTP、模型推論與 blocking database call 不得阻塞 event loop。
-- 不得使用 bare `except` 隱藏錯誤；記錄錯誤時不得輸出 Secret、完整 PII 或原始模型敏感內容。
-- Ruff 與 mypy 採漸進式擴大範圍；不得用大量 `noqa`、`type: ignore` 或全域關閉規則掩蓋問題。
+- 現有 DOM contract 在明確 migration 前保持穩定。
+- 新模組優先 TypeScript 或 `// @ts-check` JavaScript。
+- API URL、credential handling 與通用錯誤處理集中於 client。
+- 未驗證資料不得直接寫入 `innerHTML`；優先使用 `textContent` 或明確 escaping。
+- 長期 credential 不得放在 URL 或 `localStorage`。
 
-## JavaScript / TypeScript Style
+### Security
 
-- 現有 DOM contract 在明確 migration ADR 前保持穩定。
-- 新模組優先 TypeScript 或 `// @ts-check` JavaScript，避免新增隱式 `any`。
-- 禁止 Kiosk 與 Admin 共用 feature controller 或 mutable business state。
-- API URL、錯誤處理與 credential handling 應集中到 application client，不得持續散落 raw `fetch`。
-- 使用 `textContent` 或明確 escaping；不得將未驗證資料直接放入 `innerHTML`。
-- 長期 credential 不得存入 URL 或 `localStorage`。
+- 不提交 Secret、Token、Password、私鑰、模型權重、真實會員資料或 production dump。
+- Authentication 與 authorization 必須由 server 強制執行。
+- PII log 預設遮罩；手機號碼不作為長期公開 Domain ID。
+- 新 input、upload、webhook 與 AI output 需檢查大小、型別、權限與信任邊界。
+- Schema 變更使用新的 versioned migration；已套用 migration 不直接改寫。
 
-## Testing Requirements
+## 6. 驗證矩陣
 
-行為修改必須新增或更新測試。合併前至少執行：
+依變更範圍執行，不必每次跑全部命令。
 
-```bash
-cd UI_API
-MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
+| 變更 | 最小驗證 |
+| --- | --- |
+| Markdown | 檢查相對連結、命令與路徑 |
+| Python route/service/repository | 目標 `pytest`；必要時擴大至 `pytest -q tests` |
+| Python core/API/utils | `ruff check`、`ruff format --check` 與對應測試 |
+| Typed Python 範圍 | `mypy` |
+| Frontend | `npm run typecheck`、`npm run syntax` |
+| Shell | `bash -n <changed-script>` |
+| Migration | migration tests、資料驗證與 recovery 說明 |
+| 關鍵 Kiosk/Admin 流程 | 對應 smoke/E2E；尚未建立時明確標示缺口 |
 
-cd frontend
-npm ci
-npm run typecheck
-npm run syntax
+完整 CI 基線以 `.github/workflows/ci.yml` 為準。
 
-cd ../..
-bash -n scripts/start_emotion_llama.sh
-bash -n scripts/start_r1_omni.sh
+## 7. Git 與交付
+
+- 保留既有使用者修改；禁止未經授權使用 `git reset --hard`、force push 或改寫共享歷史。
+- Commit/PR 只包含單一目的，不混入 cache、runtime data、模型、截圖或無關格式化。
+- 修改前確認 `git status`；提交前檢查 `git diff --check`。
+- 未執行的測試標示 `NOT RUN`，不得描述為通過。
+
+預設交付格式保持精簡：
+
+```text
+Summary
+Verification
+Risks / Follow-up（只有需要時）
 ```
 
-- Route 變更：Route/contract test。
-- Service 變更：Service test。
-- Repository 變更：JSON/PostgreSQL boundary test。
-- Migration 變更：forward、checksum、資料驗證與 rollback/recovery 文件。
-- 關鍵 Kiosk/Admin 流程後續由 Playwright smoke test 保護。
-- 未執行的測試必須標示 `NOT RUN`，不得描述為通過。
+只有跨模組、架構、安全、資料庫或部署變更，才增加：
 
-## Migration Rules
+```text
+Architecture Impact
+Migration / Compatibility
+Security Review
+```
 
-- 所有 schema 修改必須使用新的、不可變的 versioned migration。
-- 已套用 migration 不得修改；checksum mismatch 必須視為部署阻斷。
-- 採 expand → dual write/backfill → verify → switch read → contract。
-- 破壞性 migration 必須有備份、restore、rollback 或 roll-forward 計畫。
-- Milestone 0 不執行會員 phone PK、UUID、tenant 或 PII encryption migration。
+## 8. 禁止事項
 
-## Security Rules
-
-- 不得提交 Secret、Token、Password、私鑰、模型權重、真實會員資料或 production dump。
-- Infrastructure secret 只能來自 environment 或 Secret Manager。
-- Authentication 與 authorization 必須由 server 強制執行。
-- 新 Admin 權限需具 tenant/store scope；新 Kiosk credential 需可輪替並綁定 device。
-- PII log 預設遮罩；手機號碼不得作為長期公開 Domain ID。
-- 新 input、upload、webhook 與 AI output 都必須驗證大小、型別、權限與信任邊界。
-- CORS、rate limit、timeout、retry、idempotency 與 audit 根據風險明確設定。
-
-## Git Rules
-
-- `main` 必須保持可部署；功能工作使用明確 branch。
-- 每個 PR 只處理一個 Milestone 或單一明確目的。
-- Commit 不得混入 `.codegraph`、截圖、runtime data、cache、模型或無關格式化。
-- 禁止未經明確授權使用 `git reset --hard`、force push 或改寫共享歷史。
-- Commit 前檢查 `git status`、`git diff --check` 與測試結果。
-
-## Codex 工作流程
-
-1. 檢查 branch、status、最近提交與既有使用者修改。
-2. 閱讀實際程式碼與依賴圖；README 只作參考。
-3. 列出 findings、風險、修改檔案、不修改檔案、migration 與 test strategy。
-4. 使用小步驟與測試保護進行修改。
-5. 執行與風險相稱的完整驗證。
-6. 交付 Summary、Changed Files、Architecture Impact、Verification、Security Review、Remaining Risks 與 Next Milestone。
-
-## 禁止事項
-
-- 禁止 Big Bang Rewrite 或一次搬動長期目標全部目錄。
+- 禁止 Big Bang Rewrite。
 - 禁止未經 ADR 將 Modular Monolith 拆成大量 Microservices。
 - 禁止破壞 `/kiosk`、`/admin`、既有 `/api/*`、WebSocket、會員、推薦、RAG、語音或情緒流程。
+- 禁止為了讓 CI 通過而刪除功能、停用測試或加入大量 ignore。
 - 禁止在沒有 adapter 必要性的情況修改 Emotion-LLaMA 或 R1-Omni 核心模型。
-- 禁止以刪除功能、停用測試或大量 ignore 讓 CI 變綠。
-- 禁止未經 migration 直接修改 production database schema。

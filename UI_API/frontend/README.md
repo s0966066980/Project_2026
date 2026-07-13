@@ -1,22 +1,42 @@
-# UI_API frontend 模組說明
+# UI_API Frontend
 
-`frontend/` 是 UI_API 的瀏覽器端程式，包含 Kiosk、Admin、共用 API client、共用樣式與圖片資源。
+`UI_API/frontend/` 包含 Kiosk、Admin、共用 client、樣式與圖片資源。
 
-## 主要結構
+## 結構
 
 ```text
 frontend/
-├── admin/          # Admin 後台
-├── kiosk/         # Kiosk 顧客自助點餐端
-├── shared/         # 共用 API client / UI helper / style
+├── kiosk/          # 顧客自助點餐
+├── admin/          # 營運後台
+├── shared/         # 通用 API/realtime client、UI helper、style
 ├── menu_images/    # 菜單圖片
 ├── mcd_categories/ # 分類圖片
-└── package.json    # 前端工具
+├── package.json
+└── tsconfig.json
 ```
 
-## 維護規則
+## 邊界
 
-- Kiosk 與 Admin 不互相 import。
-- 共用 HTTP、API、realtime 與 UI helper 放在 `shared/`。
-- 大型畫面應拆成 modules，不要把所有 rendering 塞在單一檔案。
-- 前端變更後至少執行 `node --check`。
+- Kiosk 與 Admin 是不同 application boundary，不互相 import business state、page state、DOM state、authentication state 或 feature controller。
+- `shared/` 只放 generic HTTP/API/realtime client、contract、design token、UI primitive 與純 utility。
+- 新 API 呼叫優先集中到 client，不持續散落 raw `fetch`。
+- 現有 DOM id/class contract 在有明確 migration 與測試前保持穩定。
+- 大型畫面依 feature 拆 controller、rendering 與 state；不要只把程式搬到更多無責任邊界的檔案。
+- 未驗證資料使用 `textContent` 或明確 escaping，不直接寫入 `innerHTML`。
+- 長期 credential 不放 URL 或 `localStorage`。
+
+## 驗證
+
+```bash
+cd UI_API/frontend
+npm ci --ignore-scripts
+npm run typecheck
+npm run syntax
+```
+
+未來逐步導入 Vite、Vitest 與 Playwright；規劃見 [`docs/FUTURE_MODULES.md`](../../docs/FUTURE_MODULES.md)。
+
+## 子模組
+
+- [Kiosk](kiosk/README.md)
+- [Admin](admin/README.md)

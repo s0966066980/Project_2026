@@ -1,27 +1,53 @@
-# tests 模組說明
+# UI_API Tests
 
-`tests/` 放置 UI_API 後端測試。
+`UI_API/tests/` 保存 Backend 的 unit、route、repository、migration 與整合邊界測試。
 
-## 覆蓋範圍
+## 目前覆蓋
 
-- 會員服務與會員 routes。
+- 會員、Session、偏好與訂單。
 - 推薦上下文、推薦引擎、推薦事件與回饋。
+- 活動、優惠、Checkout pricing 與供應狀態。
 - RAG 文件、審核、offer guard 與告警。
-- 活動與供應狀態。
-- PostgreSQL migration。
-- 健康檢查與 observability。
-- 安全邊界與 feature flags。
+- PostgreSQL repository/migration。
+- 健康檢查、observability、feature flag 與安全邊界。
 
-## 執行方式
+## 執行
+
+完整 Backend tests：
 
 ```bash
 cd UI_API
 MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
 ```
 
-## 維護規則
+開發時優先跑目標測試：
 
-- 新 service 應補 service test。
-- 新 route 應補 route 或 integration test。
-- 新 repository 應補資料讀寫測試。
-- 修 bug 時應優先新增能重現問題的測試。
+```bash
+cd UI_API
+pytest -q tests/<target_test_file>.py
+```
+
+若修改共享 contract、authentication、checkout、會員資料或 repository，再擴大至完整測試。
+
+## 測試規則
+
+- Bug fix 優先新增可重現失敗的 regression test。
+- Route 變更新增 route/contract test。
+- Service 變更新增 service/use-case test。
+- Repository 變更同時驗證 JSON/PostgreSQL boundary（適用時）。
+- Migration 變更驗證版本、checksum、forward、資料結果與 recovery。
+- 外部 AI/HTTP 使用 fake、stub 或 mock；CI 不依賴 GPU、真實模型、外部 API 或 Secret。
+- 測試不得依賴執行順序、真實會員資料或未清理的本機 runtime 檔案。
+- 未執行的測試標示 `NOT RUN`，不得宣稱通過。
+
+## 後續
+
+優先補：
+
+- Kiosk Playwright smoke。
+- Admin Playwright smoke。
+- API v1 contract tests。
+- Checkout、promotion 與 recommendation 的跨層回歸。
+- PostgreSQL 真實整合與 backup/restore 演練。
+
+優先級見 [`docs/FUTURE_MODULES.md`](../../docs/FUTURE_MODULES.md)。

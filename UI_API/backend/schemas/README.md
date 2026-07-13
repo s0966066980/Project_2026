@@ -1,13 +1,29 @@
-# schemas 模組說明
+# Backend Schemas 與 Migration
 
-`schemas/` 放置資料庫 schema 與跨層資料結構。
+`UI_API/backend/schemas/` 保存資料庫 schema、migration 資產與逐步擴大的跨層資料契約。
 
 ## 目前內容
 
-- `membership_postgres.sql`：會員、推薦事件、供應狀態與 audit 相關 PostgreSQL schema。
+- `membership_postgres.sql`：會員、偏好、Session、訂單、推薦事件與 audit 等 PostgreSQL schema。
+- 其他 migration/validation 入口依 `backend/scripts/` 與測試為準。
 
-## 維護規則
+## 規則
 
-- 新資料表需有明確主鍵、索引與 created / updated 欄位。
-- migration 應可重複執行或有版本保護。
-- API request / response 若逐步擴大，建議新增 Python schema module 管理。
+- 新資料表使用明確主鍵、必要 foreign key/index，以及可排序的 `created_at`/`updated_at`。
+- 新 schema 變更使用新的 versioned migration；已套用 migration 不直接改寫。
+- Migration 應有版本保護、checksum/重複執行策略與資料驗證。
+- 破壞性變更採 `expand → dual write/backfill → verify → switch read → contract`。
+- Migration PR 必須說明 backup、restore、rollback 或 roll-forward。
+- 新 API request/response 與大型跨層 contract 使用 Pydantic model、TypedDict 或 dataclass，避免無型別 `dict` 擴散。
+- 商用資料逐步加入 `tenant_id`、`store_id`、`device_id` scope。
+- 會員長期使用 UUID；手機等 PII 的 migration 需搭配加密、lookup hash 與相容計畫。
+
+## 驗證
+
+至少執行對應 migration/repository tests；若影響既有會員或訂單資料，再執行完整 Backend tests。
+
+詳細治理見：
+
+- [架構](../../../docs/ARCHITECTURE.md)
+- [商業化治理](../../../docs/COMMERCIAL_GOVERNANCE.md)
+- [後續模組](../../../docs/FUTURE_MODULES.md)

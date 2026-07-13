@@ -1,191 +1,126 @@
 # Smart Ordering Kiosk 智慧自助點餐系統
 
-本專案是一套面向自助點餐機與門市後台的智慧點餐平台。核心應用位於 `UI_API/`，並可選擇串接 `Emotion-LLaMA/` 或 `R1-Omni/` 作為多模態情緒分析服務。
+Project_2026 是一套整合 Kiosk 自助點餐、Admin 營運後台、會員個人化、AI 推薦、語音互動、RAG 與多模態情緒分析的智慧點餐平台。
 
-目前系統已具備 Kiosk 自助點餐、Admin 後台、會員手機登入、會員推薦、整體推薦、語音點餐、RAG 知識庫、結構化活動、推薦事件紀錄、PostgreSQL 儲存升級、健康檢查與本機啟動腳本。
+目前採 **Modular Monolith First**：核心應用位於 `UI_API/`，以 FastAPI 提供 API、WebSocket 與現行前端入口；`Emotion-LLaMA/` 與 `R1-Omni/` 為可替換的外部模型執行單元。
 
-## 專案現況分析
+## 主要能力
 
-### 目前架構
+- Kiosk：菜單、購物車、會員登入、活動、AI 推薦、語音點餐、結帳與互動事件。
+- Admin：營運統計、會員、活動、供應狀態、推薦事件、RAG、模型設定與健康檢查。
+- Backend：routes → services → repositories 分層、JSON/PostgreSQL 儲存、WebSocket、audit 與 observability。
+- AI：Ollama/Gemini、STT/TTS、RAG、Emotion-LLaMA/R1-Omni provider。
+- 工程基線：GitHub Actions、Ruff、mypy、pytest、TypeScript typecheck 與 Shell syntax check。
+
+## Repository 結構
 
 ```text
 Project_2026/
-├── UI_API/           # 主要 FastAPI 應用、Kiosk、Admin、RAG、測試
-├── Emotion-LLaMA/    # 可選情緒分析模型服務
-├── R1-Omni/          # 可選多模態情緒分析模型服務
+├── UI_API/           # FastAPI、Kiosk、Admin、RAG、資料與測試
+├── Emotion-LLaMA/    # 可選情緒分析服務
+├── R1-Omni/          # 可選多模態情緒分析服務
 ├── scripts/          # 本機啟動、PostgreSQL 備份與還原
-├── tools/            # 非 production path 的 demo 與維運工具
-└── docs/             # 專案後續改善與模組規劃
+├── tools/            # 非 production path 的開發與維運工具
+├── docs/             # 架構決策、商用治理與後續模組規劃
+├── AGENTS.md         # 人員與 Codex 的工程協作規則
+└── .github/workflows/ci.yml
 ```
 
-### 核心分層
+## 快速開始
 
-- `frontend/kiosk`：顧客自助點餐端，負責菜單、購物車、會員登入、語音點餐、推薦顯示與結帳。
-- `frontend/admin`：門市後台，負責設定、會員管理、RAG、活動、推薦事件、健康檢查與測試工具。
-- `backend/routes`：API 入口，只處理 HTTP request / response、權限與呼叫 service。
-- `backend/services`：業務邏輯層，包含會員、推薦、RAG、語音、情緒分析、活動、事件與健康檢查。
-- `backend/repositories`：資料存取層，隔離 JSON 與 PostgreSQL。
-- `backend/schemas`：資料庫 schema 與跨層資料結構。
-- `rag_documents`：RAG 原始知識文件來源。
-
-### 架構優點
-
-- 後端已逐步形成 `routes -> services -> repositories` 的分層。
-- 會員資料已具備 JSON 與 PostgreSQL 切換路徑。
-- 推薦系統已開始整合會員偏好、活動、供應狀態、RAG verified offer 與事件紀錄。
-- Admin 已涵蓋商用營運會需要的維運面板：會員、RAG、活動、健康檢查與推薦事件。
-- 啟動腳本已可協助本機啟動 UI、Ollama、模型服務與 PostgreSQL。
-
-### 目前主要風險
-
-- `frontend/admin/admin.js`、`frontend/admin/admin.html`、`frontend/kiosk/app.js`、`frontend/shared/styles.css` 仍偏大，後續應拆模組。
-- Admin 與 Kiosk 雖已分目錄，但前端狀態與 API 呼叫仍可再抽象化。
-- RAG、推薦、活動與會員上下文已整合，但仍需要更完整的商用監控與回歸測試。
-- Emotion-LLaMA / R1-Omni 屬大型模型服務，商用部署時應獨立 process 或容器。
-- 第三方模型與資料授權需要在商用前逐項確認。
-
-## 功能總覽
-
-- Kiosk 自助點餐：菜單瀏覽、購物車、會員手機登入、結帳與訂單完成流程。
-- Admin 後台：設定、會員、RAG、結構化活動、推薦事件、健康檢查。
-- 會員推薦：根據會員點餐紀錄、常點品項、互動事件與活動資料產生推薦上下文。
-- 整體推薦：結合熱門品項、供應狀態、活動與 RAG verified offer。
-- 結構化活動：Admin 可設定會員限定活動、推薦加權、加購優惠價與 Kiosk 活動廣告詞。
-- 語音模式：支援語音點餐，並可帶入會員與推薦上下文。
-- RAG 知識庫：支援 Markdown、TXT、JSON、CSV 來源；目前文件政策以 README 與 TXT/JSON/CSV 為主。
-- PostgreSQL：會員與推薦事件可升級到 PostgreSQL backend。
-- 模型服務：可選 Emotion-LLaMA 或 R1-Omni 作為情緒分析 provider。
-
-## 模組 README
-
-- [UI_API](UI_API/README.md)
-- [UI_API backend](UI_API/backend/README.md)
-- [UI_API frontend](UI_API/frontend/README.md)
-- [UI_API RAG documents](UI_API/rag_documents/README.md)
-- [UI_API tests](UI_API/tests/README.md)
-- [Emotion-LLaMA](Emotion-LLaMA/README.md)
-- [R1-Omni](R1-Omni/README.md)
-- [scripts](scripts/README.md)
-- [tools](tools/README.md)
-- [docs](docs/README.md)
-
-後續改善與可新增模組請看 [docs/FUTURE_MODULES.md](docs/FUTURE_MODULES.md)。
-
-## 安裝
-
-依賴檔依子專案管理：
-
-| 子專案 | 依賴檔 |
-| --- | --- |
-| UI_API backend | `UI_API/requirements.txt` |
-| UI_API frontend | `UI_API/frontend/package.json` |
-| Emotion-LLaMA | `Emotion-LLaMA/requirements.txt` |
-| R1-Omni | `R1-Omni/requirements.txt` |
-
-建議環境：
+### 1. 建立環境
 
 ```bash
 conda create -n emotion_ui python=3.10 -y
 conda activate emotion_ui
 pip install -r UI_API/requirements.txt
+cp .env.example .env
 ```
 
-若使用前端檢查工具：
+依本機環境調整 `.env`，不要提交真實 Secret。
 
-```bash
-cd UI_API/frontend
-npm install
-```
+### 2. 啟動
 
-## 本機啟動
-
-使用 Emotion-LLaMA：
+Emotion-LLaMA：
 
 ```bash
 bash scripts/start_emotion_llama.sh
 ```
 
-使用 R1-Omni：
+R1-Omni：
 
 ```bash
 bash scripts/start_r1_omni.sh
 ```
 
-預設網址：
+預設入口：
 
 ```text
 Kiosk: http://127.0.0.1:9000/kiosk
-Admin:  http://127.0.0.1:9001/admin
+Admin: http://127.0.0.1:9001/admin
 ```
 
-## 常用環境變數
-
-| 變數 | 用途 |
-| --- | --- |
-| `APP_ENV` | `development`、`staging`、`production` |
-| `APP_PORT` | Kiosk / API port |
-| `ADMIN_PORT` | Admin port |
-| `SECURITY_ENFORCED` | 是否強制 token 驗證 |
-| `ADMIN_API_TOKEN` | Admin API token |
-| `KIOSK_DEVICE_TOKEN` | Kiosk device token |
-| `MEMBER_STORAGE_BACKEND` | `json` 或 `postgres` |
-| `DATABASE_URL` | PostgreSQL DSN |
-| `MODEL_NAME` | Ollama 模型名稱 |
-| `POSTGRES_ENABLED` | 啟動腳本是否處理 PostgreSQL |
-
-## PostgreSQL
-
-啟動腳本會使用 `scripts/lib_postgres.sh` 準備本機 PostgreSQL。預設連線資訊：
-
-```text
-POSTGRES_USER=ui_api_user
-POSTGRES_PASSWORD=ui_api_password
-POSTGRES_DB=ui_api_migration_test
-POSTGRES_HOST=127.0.0.1
-POSTGRES_PORT=5432
-```
-
-可手動備份與還原：
+只啟動核心應用：
 
 ```bash
-bash scripts/backup_postgres.sh
-bash scripts/restore_postgres.sh backups/postgres/<dump-file>.dump
+cd UI_API
+python main.py
 ```
 
-## 測試
+## 驗證
+
+Backend：
 
 ```bash
 cd UI_API
 MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
 ```
 
-前端語法檢查：
+Frontend：
 
 ```bash
-find UI_API/frontend -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+cd UI_API/frontend
+npm ci --ignore-scripts
+npm run typecheck
+npm run syntax
 ```
 
-腳本語法檢查：
+Shell：
 
 ```bash
 bash -n scripts/start_emotion_llama.sh
 bash -n scripts/start_r1_omni.sh
+bash -n scripts/lib_postgres.sh
+bash -n scripts/backup_postgres.sh
+bash -n scripts/restore_postgres.sh
 ```
 
-## 文件整理規則
+完整 CI 基線見 `.github/workflows/ci.yml`。
 
-本次文件整理後，專案只保留：
+## 文件導覽
 
-- 各模組 `README.md`
-- `docs/FUTURE_MODULES.md`
+- [工程協作規則](AGENTS.md)
+- [文件中心](docs/README.md)
+- [目前與目標架構](docs/ARCHITECTURE.md)
+- [架構決策 ADR](docs/adr/README.md)
+- [商業化治理](docs/COMMERCIAL_GOVERNANCE.md)
+- [後續模組規劃](docs/FUTURE_MODULES.md)
+- [UI_API](UI_API/README.md)
+- [Backend](UI_API/backend/README.md)
+- [Frontend](UI_API/frontend/README.md)
+- [Tests](UI_API/tests/README.md)
+- [RAG documents](UI_API/rag_documents/README.md)
+- [Scripts](scripts/README.md)
+- [Tools](tools/README.md)
+- [Emotion-LLaMA](Emotion-LLaMA/README.md)
+- [R1-Omni](R1-Omni/README.md)
 
-RAG 知識內容若不是 README，應使用 `.txt`、`.json` 或 `.csv`，避免文件散落成多份規劃檔。
+## 商用化原則
 
-## 商用前檢查
+- 保持 Modular Monolith，先建立清楚模組邊界，再依實際 scaling 與故障隔離需求拆服務。
+- 正式環境使用 PostgreSQL、受管 Secret、明確 CORS allowlist，並關閉 demo/test/debug routes。
+- Admin 身分、角色權限、多租戶/多門市、Kiosk device credential、PII 保護與 migration 需依 Roadmap 漸進導入。
+- UI_API、PostgreSQL、Redis/Worker 與大型 AI 模型應使用獨立 runtime 或容器。
+- 商用前逐項確認模型、資料集、圖片、品牌素材與第三方套件授權。
 
-- 使用 PostgreSQL backend。
-- 設定 production token 與 CORS allowlist。
-- 關閉 demo、test、debug routes。
-- 將 UI_API、Ollama、Emotion-LLaMA / R1-Omni 與 PostgreSQL 拆開部署。
-- 補上瀏覽器端 smoke test 與推薦流程回歸測試。
-- 逐項確認第三方模型、資料與圖片授權。
+具體門檻見 [docs/COMMERCIAL_GOVERNANCE.md](docs/COMMERCIAL_GOVERNANCE.md)。

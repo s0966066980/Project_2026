@@ -1,42 +1,56 @@
-# scripts 模組說明
+# Scripts
 
-`scripts/` 存放本機啟動與資料庫維運腳本。
+`scripts/` 保存本機啟動與 PostgreSQL 維運腳本。這些腳本是 development/demo orchestration，不是長期 production process manager。
 
 ## 主要腳本
 
 | 腳本 | 用途 |
 | --- | --- |
-| `start_emotion_llama.sh` | 啟動 UI_API、Ollama、Emotion-LLaMA 與 PostgreSQL 準備流程。 |
-| `start_r1_omni.sh` | 啟動 UI_API、Ollama、R1-Omni 與 PostgreSQL 準備流程。 |
-| `lib_postgres.sh` | PostgreSQL 初始化、migration 與連線檢查 helper。 |
-| `backup_postgres.sh` | PostgreSQL 備份。 |
-| `restore_postgres.sh` | PostgreSQL 還原。 |
+| `start_emotion_llama.sh` | 準備 PostgreSQL，啟動 Ollama、Emotion-LLaMA 與 UI_API |
+| `start_r1_omni.sh` | 準備 PostgreSQL，啟動 Ollama、R1-Omni 與 UI_API |
+| `lib_postgres.sh` | PostgreSQL 初始化、migration 與連線 helper |
+| `backup_postgres.sh` | 建立 PostgreSQL backup |
+| `restore_postgres.sh` | 還原指定 backup |
 
-## 使用方式
+## 使用
 
 ```bash
 bash scripts/start_emotion_llama.sh
 bash scripts/start_r1_omni.sh
+
 bash scripts/backup_postgres.sh
 bash scripts/restore_postgres.sh backups/postgres/<dump-file>.dump
 ```
 
-## 常用環境變數
+環境變數以 `.env.example` 與腳本內容為準，常用項目：
 
-| 變數 | 用途 |
-| --- | --- |
-| `UI_PY` | UI_API Python interpreter |
-| `LLAMA_PY` | Emotion-LLaMA Python interpreter |
-| `R1_PY` | R1-Omni Python interpreter |
-| `OLLAMA_BIN` | Ollama executable |
-| `MODEL_NAME` | Ollama 模型 |
-| `APP_PORT` | Kiosk / API port |
-| `ADMIN_PORT` | Admin port |
-| `OPEN_BROWSER` | 是否自動開啟瀏覽器 |
-| `POSTGRES_ENABLED` | 是否處理 PostgreSQL |
+- `UI_PY`
+- `LLAMA_PY`
+- `R1_PY`
+- `OLLAMA_BIN`
+- `MODEL_NAME`
+- `APP_HOST` / `APP_PORT` / `ADMIN_PORT`
+- `OPEN_BROWSER`
+- `POSTGRES_ENABLED`
+- `POSTGRES_*`
 
 ## 維護規則
 
-- 啟動腳本只負責本機 orchestration。
-- 商用部署應改用 systemd、Docker Compose 或正式 process manager。
-- 腳本變更後需執行 `bash -n scripts/*.sh`。
+- 使用 `set -euo pipefail` 或等價的明確錯誤處理（與既有腳本相容時）。
+- 所有路徑、Port、Interpreter 與 credential 可由環境設定，不硬編 production Secret。
+- 啟動的 child process 需在 Ctrl-C/失敗時正確清理。
+- 不以 `killall`/廣泛 process name 終止無關程序。
+- Backup/restore 操作需明確顯示目標，避免意外覆寫。
+- Production 應使用 Docker Compose、systemd、Kubernetes 或正式 process manager，並搭配 readiness、restart policy、log 與 Secret 管理。
+
+## 驗證
+
+只需檢查受影響腳本；完整基線：
+
+```bash
+bash -n scripts/start_emotion_llama.sh
+bash -n scripts/start_r1_omni.sh
+bash -n scripts/lib_postgres.sh
+bash -n scripts/backup_postgres.sh
+bash -n scripts/restore_postgres.sh
+```

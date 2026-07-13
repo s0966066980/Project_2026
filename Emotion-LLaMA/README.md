@@ -1,23 +1,29 @@
-# Emotion-LLaMA 模組說明
+# Emotion-LLaMA 模型服務
 
-`Emotion-LLaMA/` 是可選的情緒分析模型服務。UI_API 可透過啟動腳本將 `EMOTION_PROVIDER` 切換為 `emotion_llama`，並呼叫 Emotion-LLaMA 的 `/predict` 服務。
+`Emotion-LLaMA/` 是 Project_2026 的可選情緒分析執行單元。UI_API 可將 `EMOTION_PROVIDER` 設為 `emotion_llama`，透過 HTTP 呼叫模型服務。
 
-## 模組責任
+## 責任
 
-- 提供情緒分析模型推論能力。
-- 接收 UI_API 傳入的影片或影像分析請求。
-- 回傳可被 UI_API 解析的情緒描述。
-- 作為 POS 風險事件與情緒分析流程的可選模型 backend。
+- 載入 Emotion-LLaMA 模型與本機 checkpoint。
+- 接收影像/影片相關推論請求。
+- 回傳 UI_API 可正規化的情緒描述。
+- 提供模型層健康與錯誤資訊。
 
-## 主要結構
+不負責：
+
+- 寫入會員、訂單、活動或營運資料。
+- 決定推薦、價格、付款或介入的最終商業規則。
+- 保存不必要的原始影像、音訊或 PII。
+
+## 結構
 
 ```text
 Emotion-LLaMA/
-├── app_EmotionLlamaClient.py   # 推論服務入口
-├── eval_configs/               # 推論設定
-├── minigpt4/                   # 模型相關程式
-├── checkpoints/                # 本機模型權重
-└── requirements.txt            # Python 依賴
+├── app_EmotionLlamaClient.py
+├── eval_configs/
+├── minigpt4/
+├── checkpoints/        # 本機權重，不提交 Git
+└── requirements.txt
 ```
 
 ## 安裝
@@ -28,9 +34,11 @@ conda activate emotion_ollama
 pip install -r Emotion-LLaMA/requirements.txt
 ```
 
+GPU/CUDA/PyTorch 版本需依部署環境確認。
+
 ## 啟動
 
-建議從專案根目錄使用腳本：
+建議：
 
 ```bash
 bash scripts/start_emotion_llama.sh
@@ -40,12 +48,19 @@ bash scripts/start_emotion_llama.sh
 
 ```bash
 cd Emotion-LLaMA
-/home/oliver/anaconda3/envs/emotion_ollama/bin/python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
+python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 ```
 
-## 維護重點
+實際 Interpreter 可用腳本環境變數設定，避免在正式文件依賴單一使用者絕對路徑。
 
-- 模型服務不應直接寫入 UI_API 的業務資料。
-- 商用部署建議與 UI_API 分開 process 或容器。
-- 模型權重、資料集與原始專案授權需在商用前獨立確認。
-- 大型 checkpoint 不應放入 production image 的應用層。
+## 整合與商用規則
+
+- UI_API 應透過 Emotion Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
+- 商用部署使用獨立 process、container 或 GPU node。
+- 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
+- Request/response contract 需版本化並做 schema validation。
+- 模型不可用時，核心點餐流程應可降級，不得整體失效。
+- 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
+- 影像/影片保存需符合告知、同意、用途、最小收集與保留政策。
+
+架構決策見 [`docs/adr/0003-ai-provider-port-adapter.md`](../docs/adr/0003-ai-provider-port-adapter.md)。

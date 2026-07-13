@@ -1,48 +1,49 @@
-# RAG documents 模組說明
+# RAG Documents
 
-`rag_documents/` 是 RAG 知識庫的原始文件來源。Admin 後台可清空 Chroma 並重新讀取此目錄內容。
+`UI_API/rag_documents/` 保存 RAG 知識庫的原始來源。Admin 可觸發清空/重建流程；此目錄內容應可版本化、審核與重建。
 
 ## 重要規則
 
-後端 `rag_document_service` 會略過 `README.md`，因此本 README 只做說明，不會被寫入 Chroma。
+後端會略過本 `README.md`，因此本文件只做維護說明，不進入 Chroma。
 
-可被讀取的知識文件格式：
+支援格式：
 
 - `.txt`
 - `.json`
 - `.csv`
-- `.md`、`.markdown`
+- `.md` / `.markdown`
 
-本次文件整理後，為了避免規劃文件與知識文件混雜，RAG 知識內容優先使用 `.txt`、`.json`、`.csv`。
+為避免工程文件與知識內容混雜：
 
-## 主要目錄
+- FAQ、政策、菜單說明優先使用 TXT。
+- 活動、優惠與需要機器驗證的內容優先使用 JSON/CSV。
+- 工程架構、Roadmap、ADR 與治理文件只放 Repository `docs/`。
+
+## 目錄
 
 ```text
 rag_documents/
-├── faq/            # 常見問題
-├── menu/           # 菜單搭配與說明
-├── nutrition/      # 營養與過敏原
-├── promotions/     # 結構化活動與 verified offer
-└── store_policy/   # 門市規則
+├── faq/
+├── menu/
+├── nutrition/
+├── promotions/
+└── store_policy/
 ```
 
-## 已保留的知識內容
+## 內容規則
 
-- `faq/payment.txt`：支付與結帳常見問題。
-- `menu/pairing-guidance.txt`：菜單搭配推薦原則。
-- `store_policy/opening-hours.txt`：早餐與一般菜單供應時間。
-- `nutrition/example-allergen.csv`：過敏原示例。
-- `promotions/example-member-offer.json`：會員活動示例。
+- 每份內容需有明確 owner、來源與適用範圍。
+- 不發布未確認的價格、折扣、優惠、營業時間或過敏原資訊。
+- 活動/優惠使用結構化欄位，包含穩定 ID、目標品項/分類、條件、期間、狀態與時區。
+- AI 回覆仍需經菜單、活動與供應狀態白名單驗證。
+- 不放 Secret、真實會員資料、未授權素材或不必要 PII。
+- 商用環境需建立版本、review、publish、rebuild result 與 rollback 流程。
 
-## 重建方式
+## 重建
 
 1. 開啟 Admin。
 2. 進入 `RAG 知識庫`。
-3. 點擊 `清空 Chroma 並重新讀取 RAG 文件`。
+3. 執行重建。
+4. 確認文件數、索引版本、錯誤、耗時與抽樣查詢結果。
 
-## 維護規則
-
-- 活動與優惠優先使用 JSON，讓推薦系統可以驗證 item id、category、日期與狀態。
-- FAQ、政策與菜單說明可使用 TXT。
-- 不要把未確認的折扣或優惠寫入知識庫。
-- 商用環境應建立發布審核流程。
+RAG 商用 Gate 見 [`docs/COMMERCIAL_GOVERNANCE.md`](../../docs/COMMERCIAL_GOVERNANCE.md)。
