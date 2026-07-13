@@ -2,8 +2,8 @@
   "plan_version": "2026-07-13",
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
-  "current_milestone": "4A",
-  "status": "in_progress",
+  "current_milestone": "4E",
+  "status": "complete",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -21,7 +21,12 @@
     "3A",
     "3B",
     "3C",
-    "3D"
+    "3D",
+    "4A",
+    "4B",
+    "4C",
+    "4D",
+    "4E"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -239,6 +244,30 @@
     "3D": {
       "target_tests": "PASS (4)",
       "full_json_backend": "PASS (308)"
+    },
+    "4A": {
+      "target_tests": "PASS (payment fake/webhook/reconcile)"
+    },
+    "4B": {
+      "target_tests": "PASS (object storage isolation/signed URL)"
+    },
+    "4C": {
+      "target_tests": "PASS (fleet allowlist/expiry)"
+    },
+    "4D": {
+      "target_tests": "PASS (analytics envelope/replay/quality)"
+    },
+    "4E": {
+      "adr": "PASS (ADR-0010 defer multi-region)",
+      "target_tests": "PASS"
+    },
+    "phase4_bundle": {
+      "target_tests": "PASS (5)",
+      "full_json_backend": "PASS (313 passed)"
+    },
+    "roadmap_final": {
+      "full_json_backend": "PASS (313 passed)",
+      "final_report": "docs/PROJECT_2026_COMMERCIALIZATION_FINAL_REPORT.md"
     }
   },
   "known_gaps": [
@@ -254,9 +283,22 @@
     "Default outbox delivery sink is in-process success marker; external analytics/POS consumers remain future milestones.",
     "Specialized RAG rebuild/report/AI job handlers are registered contracts; provider-specific adapters expand in Phase 3+.",
     "Staging-like docker compose image build was not executed in this environment (Docker unavailable).",
-    "Isolated restore drill execute mode remains an operations exercise against a real backup target."
+    "Isolated restore drill execute mode remains an operations exercise against a real backup target.",
+    "Phase 4 production provider wiring is contract-complete with fake/sandbox adapters only.",
+    "HA multi-region remains deferred per ADR-0010 until pilot evidence exists."
   ],
-  "blocked_items": [],
-  "next_milestone": "4A",
-  "updated_at": "2026-07-13T22:12:26.639931+08:00"
+  "blocked_items": [
+    {
+      "item": "Real payment merchant certification",
+      "impact": "Production payment capture cannot be claimed complete",
+      "required_external_input": "Merchant sandbox credentials and compliance approval"
+    },
+    {
+      "item": "Cloud object storage account wiring",
+      "impact": "Production S3/GCS lifecycle remains deployment-owned",
+      "required_external_input": "Bucket credentials and KMS policy"
+    }
+  ],
+  "next_milestone": null,
+  "updated_at": "2026-07-13T22:14:23.223767+08:00"
 }

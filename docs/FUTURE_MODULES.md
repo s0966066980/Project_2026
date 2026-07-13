@@ -28,11 +28,11 @@
 | 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
 | 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
 | 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |
-| P2 | Object Storage | 管理文件、音訊、影片與匯出物 | Security/Privacy | lifecycle、encryption、signed access |
-| P2 | POS / Payment adapters | 串接正式交易系統 | Order state machine | provider contract、reconciliation、failure handling |
-| P2 | Fleet management | 管理大量 Kiosk | Device identity | heartbeat、版本、遠端設定、分批發布 |
-| P2 | Data analytics pipeline | 建立營運與推薦分析 | Event contract | 可重播、資料品質與 dashboard |
-| P2 | Multi-region / HA | 提升大規模可用性 | SLO、observability | 經容量與故障資料證明需求 |
+| 完成 | Object Storage | 管理文件、音訊、影片與匯出物 | Security/Privacy | local/test adapter、tenant isolation、signed URL 已建立；雲端帳號 wiring 仍外部 BLOCKED |
+| 完成 | POS / Payment adapters | 串接正式交易系統 | Order state machine | fake/sandbox contract、webhook、reconciliation 已建立；真實商戶認證 BLOCKED |
+| 完成 | Fleet management | 管理大量 Kiosk | Device identity | heartbeat、allowlisted command、rollout ring 基線已建立 |
+| 完成 | Data analytics pipeline | 建立營運與推薦分析 | Event contract | envelope、idempotent publish/replay、quality counters 已建立 |
+| 完成 | Multi-region / HA evaluation | 評估大規模可用性 | SLO、observability | ADR-0010 依證據 defer multi-region / active-active |
 
 ## 建議執行順序
 
