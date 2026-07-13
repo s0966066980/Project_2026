@@ -69,5 +69,6 @@ files = [
   "backend/services/observability_service.py",
   "backend/services/shared_infrastructure_service.py",
   "backend/services/worker_service.py",
+  "backend/services/llm_gateway_service.py",
   "backend/utils",
 ]

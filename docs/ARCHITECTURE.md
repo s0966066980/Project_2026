@@ -109,6 +109,7 @@ Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 au
 - `Emotion-LLaMA` 與 `R1-Omni` 只提供模型能力，不直接寫入會員、訂單或營運資料。
 - Core domain 依賴能力導向 Port，不依賴 provider 名稱或 SDK。
 - Timeout、retry、circuit breaker、fallback 與 response normalization 應由 gateway/adapter 管理。
+- Text LLM 經 `services/llm_gateway_service.py`：`LLMRequest`/`LLMResponse`、model policy（local/cloud first/only）、safe retry、fallback、schema validation metrics 與 prompt version。Ollama/Gemini 既有 `ai_services` 函式作為 compatibility adapter；LLM 輸出不得直接成為交易決策。
 
 ## 5. 資料與身分演進
 

@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "3A",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -17,7 +17,8 @@
     "2C",
     "2D",
     "2E",
-    "2F"
+    "2F",
+    "3A"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -210,6 +211,14 @@
       "ruff_config": "NOT RUN as full reformat of config.py (pre-existing style); behavior tests PASS",
       "frontend": "NOT RUN (no frontend behavior change)",
       "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)"
+    },
+    "3A": {
+      "target_tests": "PASS (7 LLM gateway tests)",
+      "full_json_backend": "PASS (293 passed)",
+      "mypy": "PASS (53 source files)",
+      "ruff_affected_scope": "PASS",
+      "frontend": "NOT RUN (no frontend change)",
+      "postgres_integration": "NOT RUN (no schema change)"
     }
   },
   "known_gaps": [
@@ -228,6 +237,6 @@
     "Isolated restore drill execute mode remains an operations exercise against a real backup target."
   ],
   "blocked_items": [],
-  "next_milestone": "3A",
-  "updated_at": "2026-07-13T22:06:29.134294+08:00"
+  "next_milestone": "3B",
+  "updated_at": "2026-07-13T22:08:47.715853+08:00"
 }

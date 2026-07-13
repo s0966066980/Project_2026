@@ -14,6 +14,7 @@
 - 供應狀態：`availability_service.py`
 - 觀測與健康：`observability_service.py` 提供 redaction、correlation 與 metrics registry；`health_service.py` 分離 liveness/readiness 與 Admin dependency health。
 - 背景工作：`worker_service.py` 提供 durable job contract、claim/retry/DLQ 與 outbox delivery；PostgreSQL adapter 在 `repositories/worker_job_repository.py`，process 入口為 `scripts/run_worker.py`。
+- LLM Gateway：`llm_gateway_service.py` 提供 typed text-generation contract、retry/fallback 與 metrics；Ollama/Gemini 經 adapter 相容既有 `ai_services`。
 - 稽核：`admin_audit_service.py`
 
 ## 維護規則
