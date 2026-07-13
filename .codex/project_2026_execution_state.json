@@ -2,21 +2,23 @@
   "plan_version": "2026-07-13",
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
-  "current_milestone": "1G",
+  "current_milestone": "1H",
   "status": "in_progress",
   "completed_milestones": [
     "1B.1",
     "1C",
     "1D",
     "1E",
-    "1F"
+    "1F",
+    "1G"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
     "1C": "f2aa1b9",
     "1D": "1dea61b",
     "1E": "0ec58ba",
-    "1F": "cf31694"
+    "1F": "cf31694",
+    "1G": "1f53bf0"
   },
   "verification": {
     "1B.1": {
@@ -87,6 +89,21 @@
       "migration_clean": "PASS (0001-0006 checksums clean)",
       "scope_integrity": "PASS (zero violations)",
       "member_identity_integrity": "PASS (zero violations)"
+    },
+    "1G": {
+      "target_tests": "PASS (22 final focused checkout tests; 33 security/documentation target tests)",
+      "postgres_integration": "PASS (7 historical integrations including 1G concurrency/rollback/scope/outbox)",
+      "full_json_backend": "PASS (250 passed)",
+      "ruff_affected_scope": "PASS",
+      "ruff_format_affected_scope": "PASS",
+      "mypy": "PASS (39 source files)",
+      "python_3_12_import": "PASS",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "migration_clean": "PASS (0001-0007 checksums clean)",
+      "scope_integrity": "PASS (zero violations)",
+      "member_identity_integrity": "PASS (zero violations)"
     }
   },
   "known_gaps": [
@@ -94,9 +111,11 @@
     "PostgreSQL RLS is deferred until per-request database connection identity and an isolation test strategy exist.",
     "JSON compatibility storage supports Default Scope only and is not a multi-tenant isolation boundary.",
     "Member phone compatibility data remains until uuid_only production evidence supports a separate forward contract migration.",
-    "External Secret Manager/KMS wiring and legal/privacy approval remain deployment and human gates."
+    "External Secret Manager/KMS wiring and legal/privacy approval remain deployment and human gates.",
+    "Payment provider integration is not implemented; payment_pending and paid are state contracts only.",
+    "Order outbox consumption, retry and dead-letter operations remain deferred to Milestone 2E Worker."
   ],
   "blocked_items": [],
-  "next_milestone": "1G",
-  "updated_at": "2026-07-13T20:42:10+08:00"
+  "next_milestone": "1H",
+  "updated_at": "2026-07-13T20:55:33+08:00"
 }
