@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 import config
 from routes import (
@@ -24,7 +24,8 @@ from routes import (
 @dataclass(frozen=True)
 class RouteRegistration:
     group: str
-    module: object
+    # Route modules are loaded dynamically and expose create_router at module level.
+    module: Any
     enabled: Callable[[], bool] = lambda: True
 
 

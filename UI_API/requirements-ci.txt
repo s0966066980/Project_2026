@@ -1,0 +1,11 @@
+# Minimal, CPU-only dependency set for lint, import validation and current tests.
+# Keep AI/model runtimes out of the commercial-foundation CI job.
+fastapi==0.136.1
+httpx==0.28.1
+mypy==2.2.0
+pytest==9.1.1
+python-dotenv==1.2.2
+python-multipart==0.0.26
+requests==2.33.1
+ruff==0.15.21
+types-requests==2.33.0.20260402

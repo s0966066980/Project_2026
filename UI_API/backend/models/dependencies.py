@@ -6,8 +6,7 @@ from typing import Any
 class RouteDependencies:
     ollama_semaphore: Any
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "ollama_semaphore": self.ollama_semaphore,
         }
-

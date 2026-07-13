@@ -1,6 +1,5 @@
 import os
 
-
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_DIR = os.path.dirname(BACKEND_DIR)
 FRONTEND_DIR = os.path.join(PROJECT_DIR, "frontend")
@@ -15,4 +14,3 @@ TUNNEL_ORIGIN_REGEX = (
 )
 
 STATIC_CACHE_PREFIX = "/static/"
-

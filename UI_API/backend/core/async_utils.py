@@ -6,10 +6,10 @@ class LoopBoundSemaphore:
 
     def __init__(self, value: int = 1):
         self.value = value
-        self._loop = None
-        self._semaphore = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._semaphore: asyncio.Semaphore | None = None
 
-    def _current(self):
+    def _current(self) -> asyncio.Semaphore:
         loop = asyncio.get_running_loop()
         if self._loop is not loop or self._semaphore is None:
             self._loop = loop
@@ -22,10 +22,9 @@ class LoopBoundSemaphore:
         except RuntimeError:
             return False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "LoopBoundSemaphore":
         await self._current().acquire()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         self._current().release()
-

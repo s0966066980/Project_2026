@@ -1,4 +1,5 @@
 """Promotion data contracts used by services and route responses."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

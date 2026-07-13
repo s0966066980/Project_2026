@@ -18,6 +18,7 @@ let menuRequest = null;
 /** @type {Map<string, Promise<Record<string, unknown>>>} */
 const posPromotionBannersRequests = new Map();
 
+/** @param {URLSearchParams} params */
 function stripSensitiveTokenParams(params) {
   const sensitiveKeys = ['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'];
   if (!sensitiveKeys.some(key => params.has(key))) return;

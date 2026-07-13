@@ -1,0 +1,112 @@
+name: Commercial Foundation CI
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commercial-foundation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests and static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: UI_API
+    env:
+      APP_ENV: test
+      MEMBER_STORAGE_BACKEND: json
+      DATABASE_URL: ""
+      SECURITY_ENFORCED: "false"
+      ENABLE_DEMO_ROUTES: "false"
+      ENABLE_TEST_ROUTES: "false"
+      ENABLE_DEBUG_ROUTES: "false"
+      ENABLE_NGROK: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: UI_API/requirements-ci.txt
+
+      - name: Install CPU-only CI dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
+
+      - name: Ruff lint
+        run: >-
+          ruff check
+          main.py
+          backend/api
+          backend/core
+          backend/models
+          backend/utils
+
+      - name: Ruff format check
+        run: >-
+          ruff format --check
+          main.py
+          backend/api
+          backend/core
+          backend/models
+          backend/utils
+
+      - name: Mypy gradual type check
+        run: mypy
+
+      - name: Import application without lifespan or model startup
+        run: python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
+
+      - name: Pytest
+        run: pytest -q tests
+
+  frontend:
+    name: Frontend type and syntax checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: UI_API/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: UI_API/frontend/package-lock.json
+
+      - name: Install frontend toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: JavaScript syntax
+        run: npm run syntax
+
+  shell:
+    name: Shell syntax checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate launch scripts
+        run: |
+          bash -n scripts/start_emotion_llama.sh
+          bash -n scripts/start_r1_omni.sh
+          bash -n scripts/lib_postgres.sh
+          bash -n scripts/backup_postgres.sh
+          bash -n scripts/restore_postgres.sh

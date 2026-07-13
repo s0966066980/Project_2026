@@ -1,6 +1,5 @@
-# Development instructions (local only)
+# Development instructions
 CLAUDE.md
-AGENTS.md
 
 # Environment and secrets
 .env
@@ -17,6 +16,9 @@ build/
 dist/
 *.egg-info/
 .eggs/
+
+# JavaScript package artifacts
+node_modules/
 
 # Virtual environments
 .venv/
@@ -39,6 +41,8 @@ desktop.ini
 logs/
 tmp/
 temp/
+tmp_visual_checks/
+.codegraph/
 *.tmp
 *.bak
 *~

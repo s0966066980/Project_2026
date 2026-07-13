@@ -4,7 +4,7 @@ export interface MenuItem {
   id: string;
   name?: string;
   name_en?: string;
-  price?: number | string;
+  price?: number | string | undefined;
   category?: string;
   image?: string;
   emoji?: string;
@@ -12,6 +12,10 @@ export interface MenuItem {
   push_text?: string;
   quantity?: number;
   count?: number;
+  original_price?: number | string | undefined;
+  applied_offer_id?: string | undefined;
+  offer_ids?: string[] | undefined;
+  promotion_title?: string | undefined;
 }
 
 export interface CartItem extends MenuItem {
