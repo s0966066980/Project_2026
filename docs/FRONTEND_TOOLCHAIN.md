@@ -11,6 +11,12 @@
 
 Kiosk 不 import Admin state/controller，Admin 不 import Kiosk state/controller。`shared/` 只保存 transport、typed contract、realtime、design token 與純 UI primitive。
 
+## Feature Module Map
+
+- Kiosk：`features/bootstrap` 管 runtime/session preference；既有 `controllers`、`cart.js`、`member.js`、`voice.js`、`media.js`、`paymentCountdown.js` 分別保護 catalog/promotion、cart/member、voice/emotion、checkout concern。
+- Admin：`features/auth` 管 login/session gate；`modules/availabilityAdmin.js`、`healthAdmin.js`、`recommendationEventsAdmin.js` 管各自 feature。
+- 尚留在 coordinator 的 feature 只按 E2E 保護逐一抽離，不進行同時改版或大爆炸搬移。
+
 ## Stable DOM 與 Network Contract
 
 - Kiosk critical DOM：`startSystemBtn`、`menuGrid`、`kioskCartBtn`、`checkoutBtn`、`checkoutOverlay`。

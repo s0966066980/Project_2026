@@ -23,6 +23,7 @@
 - `choiceHesitation.js`：選擇猶豫流程。
 - `paymentCountdown.js`：付款倒數。
 - `controllers/`：菜單、活動等 feature controller。
+- `features/bootstrap/`：application mode、session ID 與 versioned runtime preference。
 
 ## 維護規則
 

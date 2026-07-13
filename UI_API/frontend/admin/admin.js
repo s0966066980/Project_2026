@@ -2,6 +2,7 @@ import { createRealtimeClient } from '../shared/realtimeClient.js';
 import { createAvailabilityAdmin } from './modules/availabilityAdmin.js';
 import { createHealthAdmin } from './modules/healthAdmin.js';
 import { createRecommendationEventsAdmin } from './modules/recommendationEventsAdmin.js';
+import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
@@ -47,15 +48,6 @@ if (dateTextEl) {
   dateTextEl.textContent = new Date().toLocaleDateString('zh-TW', {
     year: 'numeric', month: '2-digit', day: '2-digit',
   });
-}
-
-// ── Admin session / legacy compatibility helper ──
-function adminToken() {
-  return sessionStorage.getItem('admin_demo_token') || '';
-}
-function adminHeaders(extra = {}) {
-  const t = adminToken();
-  return t ? { ...extra, 'X-Admin-Token': t, Authorization: `Bearer ${t}` } : extra;
 }
 
 // ── Sidebar navigation ──
@@ -2152,41 +2144,13 @@ bindPromotionPickers();
 });
 document.getElementById('recommendationSessionFilter')?.addEventListener('input', renderRecommendationDashboard);
 
-async function bootstrapAdminSession() {
-  const backdrop = document.getElementById('adminAuthBackdrop');
-  try {
-    const response = await fetch(`${API}/api/admin/auth/me`, { headers: adminHeaders(), credentials: 'same-origin' });
-    if (!response.ok) throw new Error('authentication required');
-    if (backdrop) backdrop.style.display = 'none';
+createAdminAuthController({
+  apiBaseUrl: API,
+  onAuthenticated: async () => {
     await loadMenu();
     await loadStats();
-  } catch {
-    if (backdrop) backdrop.style.display = 'flex';
-  }
-}
-
-document.getElementById('adminAuthForm')?.addEventListener('submit', async event => {
-  event.preventDefault();
-  const identity = document.getElementById('adminLoginIdentity');
-  const password = document.getElementById('adminLoginPassword');
-  const error = document.getElementById('adminAuthError');
-  if (!(identity instanceof HTMLInputElement) || !(password instanceof HTMLInputElement)) return;
-  if (error) error.textContent = '';
-  const response = await fetch(`${API}/api/admin/auth/login`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login_identity: identity.value, password: password.value }),
-  }).catch(() => null);
-  password.value = '';
-  if (!response?.ok) {
-    if (error) error.textContent = '登入失敗，請確認帳號與密碼。';
-    return;
-  }
-  await bootstrapAdminSession();
-});
-
-bootstrapAdminSession();
+  },
+}).bind();
 // 只在統計頁可見時才自動重整
 setInterval(() => {
   const statsPage = document.getElementById('page-stats');

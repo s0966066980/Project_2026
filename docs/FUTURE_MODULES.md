@@ -21,7 +21,7 @@
 | P1 | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report |
 | 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |
 | 完成 | Frontend toolchain | Kiosk/Admin multi-entry build 與測試基線 | API contracts | Vite、TypeScript、Vitest、Playwright 已納入 CI |
-| P1 | Frontend feature modules | 拆分大型協調器與樣式 | Frontend toolchain | Kiosk/Admin boundary 清楚且回歸測試通過 |
+| 完成 | Frontend feature modules baseline | bounded extraction 與 boundary enforcement | Frontend toolchain | Kiosk bootstrap/Admin auth 已抽離，既有 feature modules 與 E2E 保持；後續逐 feature 演進 |
 | P1 | Redis shared infrastructure | 支援多 instance | Deployment | shared rate limit、cache、lock/queue |
 | P1 | Worker | 移出長時間與可重試工作 | Redis | RAG rebuild、報表、事件與 AI job 可觀測 |
 | P1 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、metrics |

@@ -31,15 +31,14 @@ import {
 } from './choiceHesitation.js';
 import { openPaymentCountdown, closePaymentCountdown, showPaymentCountdownSection } from './paymentCountdown.js';
 import { showMemberChoice, renderMemberMenuHeader } from './member.js';
+import {
+  buildKioskSessionId,
+  loadKioskFeatures,
+  resolveKioskAppMode,
+  saveKioskFeatures,
+} from './features/bootstrap/runtimePreferences.js';
 
-const APP_MODE = (() => {
-  const path = window.location.pathname;
-  if (window.location.port === '9001') return 'admin';
-  if (window.location.port === '9000') return 'kiosk';
-  if (path.startsWith('/admin')) return 'admin';
-  if (path.startsWith('/kiosk') || path.startsWith('/pos')) return 'kiosk';
-  return 'kiosk';
-})();
+const APP_MODE = resolveKioskAppMode(window.location);
 
 export function isAdminMode() { return APP_MODE === 'admin'; }
 export function isKioskMode() { return APP_MODE === 'kiosk'; }
@@ -49,13 +48,7 @@ export function isPosMode() { return isKioskMode(); }
 // Controller 狀態
 // =========================================================
 
-function buildSessionId() {
-  const requested = new URLSearchParams(window.location.search).get('session_id');
-  const safeRequested = String(requested || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
-  return safeRequested || ('kiosk_' + Math.random().toString(36).substr(2, 9));
-}
-
-export const sessionId = buildSessionId();
+export const sessionId = buildKioskSessionId(window.location);
 let isSystemRunning = false;
 let orderCompleted = false;
 let sessionAiPushCartCount = 0;
@@ -118,15 +111,6 @@ function restartLoops() {
 // =========================================================
 // 功能模組狀態
 // =========================================================
-const FEAT_DEFAULTS = {
-  emotion: true,
-  voiceAssist: true,
-  recommend: true,
-  eventTriggeredMultimodal: true,
-  multiLang: true
-};
-const FEATURE_SCHEMA_VERSION = 'event-triggered-20260519';
-
 const INTERACTION_LABELS = {
   barrier: {
     normal_operation: '正常操作',
@@ -192,36 +176,10 @@ const INTERACTION_LABELS = {
 };
 
 export function getFeatures() {
-  try {
-    const versionMatches = localStorage.getItem('kiosk_feat_version') === FEATURE_SCHEMA_VERSION;
-    const hasSavedFeatures = Boolean(localStorage.getItem('kiosk_feat'));
-    const saved = JSON.parse(localStorage.getItem('kiosk_feat') || '{}');
-    const features = { ...FEAT_DEFAULTS, ...saved };
-    const shouldApplyDemoDefaults = isDemoPublicMode() && (!hasSavedFeatures || !versionMatches);
-    if (!versionMatches || shouldApplyDemoDefaults) {
-      if (shouldApplyDemoDefaults) {
-        features.voiceAssist = true;
-        features.recommend = true;
-        features.eventTriggeredMultimodal = true;
-      }
-      localStorage.setItem('kiosk_feat', JSON.stringify(features));
-      localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
-    }
-    return features;
-  }
-  catch {
-    const features = { ...FEAT_DEFAULTS };
-    if (isDemoPublicMode()) {
-      features.voiceAssist = true;
-      features.recommend = true;
-      features.eventTriggeredMultimodal = true;
-    }
-    return features;
-  }
+  return loadKioskFeatures(localStorage, isDemoPublicMode());
 }
 function saveFeatures(f) {
-  localStorage.setItem('kiosk_feat', JSON.stringify(f));
-  localStorage.setItem('kiosk_feat_version', FEATURE_SCHEMA_VERSION);
+  saveKioskFeatures(localStorage, f);
 }
 
 

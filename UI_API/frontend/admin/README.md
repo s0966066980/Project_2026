@@ -17,6 +17,7 @@
 - `admin.html`：Admin DOM 與頁面結構；樣式應逐步移出大型 inline 區塊。
 - `admin.js`：現行 orchestrator；新功能避免繼續集中。
 - `modules/`：依 feature 拆分的資料載入、rendering 與事件處理。
+- `features/auth/`：Admin session compatibility header、login gate 與 authenticated bootstrap。
 
 ## 維護規則
 

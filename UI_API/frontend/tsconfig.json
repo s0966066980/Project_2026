@@ -21,6 +21,8 @@
     "shared/contracts/**/*.ts",
     "shared/api/**/*.ts",
     "tests/**/*.ts",
+    "kiosk/features/**/*.js",
+    "admin/features/**/*.js",
     "shared/httpClient.js",
     "shared/apiClient.js",
     "shared/realtimeClient.js",
