@@ -9,6 +9,7 @@
 - 活動、優惠、Checkout pricing 與供應狀態。
 - RAG 文件、審核、offer guard 與告警。
 - PostgreSQL repository/migration。
+- PostgreSQL migration foundation unit tests；integration suite 由 CI 的 disposable PostgreSQL 顯式執行。
 - 健康檢查、observability、feature flag 與安全邊界。
 
 ## 執行
@@ -48,6 +49,6 @@ pytest -q tests/<target_test_file>.py
 - Admin Playwright smoke。
 - API v1 contract tests。
 - Checkout、promotion 與 recommendation 的跨層回歸。
-- PostgreSQL 真實整合與 backup/restore 演練。
+- PostgreSQL backup/restore 定期演練與 production-sized migration 壓力測試。
 
 優先級見 [`docs/FUTURE_MODULES.md`](../../docs/FUTURE_MODULES.md)。

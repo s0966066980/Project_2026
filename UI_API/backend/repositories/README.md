@@ -12,7 +12,7 @@
 - `menu_repository.py`：菜單資料。
 - `session_repository.py`：點餐 session。
 - `interaction_event_repository.py`：互動事件。
-- `postgres_utils.py`：PostgreSQL 共用工具。
+- `postgres_utils.py`：PostgreSQL connection、migration plan、checksum validation 與 advisory lock。
 
 ## 維護規則
 

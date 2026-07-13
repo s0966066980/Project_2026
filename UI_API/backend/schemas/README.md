@@ -5,7 +5,8 @@
 ## 目前內容
 
 - `membership_postgres.sql`：會員、偏好、Session、訂單、推薦事件與 audit 等 PostgreSQL schema。
-- 其他 migration/validation 入口依 `backend/scripts/` 與測試為準。
+- `migrations/*.sql`：不可變、連續版本的正式 migration source。
+- `backend/scripts/manage_postgres_migrations.py`：status、validate 與 apply 入口。
 
 ## 規則
 
@@ -25,5 +26,6 @@
 詳細治理見：
 
 - [架構](../../../docs/ARCHITECTURE.md)
+- [PostgreSQL migration 與 recovery](../../../docs/POSTGRESQL_MIGRATIONS.md)
 - [商業化治理](../../../docs/COMMERCIAL_GOVERNANCE.md)
 - [後續模組](../../../docs/FUTURE_MODULES.md)

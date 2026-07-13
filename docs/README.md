@@ -9,6 +9,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 目前架構、目標架構、責任邊界與演進原則 | 架構或部署邊界改變時 |
 | [adr/README.md](adr/README.md) | Architecture Decision Record 索引與新增規則 | 新增或取代架構決策時 |
 | [COMMERCIAL_GOVERNANCE.md](COMMERCIAL_GOVERNANCE.md) | 商用上線、安全、資料、AI、營運與發布治理 | 商用門檻或責任改變時 |
+| [POSTGRESQL_MIGRATIONS.md](POSTGRESQL_MIGRATIONS.md) | PostgreSQL migration、CI、backup 與 recovery runbook | Migration framework 或維運流程改變時 |
 | [FUTURE_MODULES.md](FUTURE_MODULES.md) | 後續模組、優先級、依賴與完成條件 | Roadmap 優先級或狀態改變時 |
 
 ## 文件責任

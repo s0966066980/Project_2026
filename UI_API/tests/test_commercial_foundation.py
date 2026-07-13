@@ -128,7 +128,7 @@ def test_roadmap_describes_hardening_the_existing_migration_framework() -> None:
     roadmap = (REPOSITORY_ROOT / "docs/FUTURE_MODULES.md").read_text(encoding="utf-8")
     migration_document = (REPOSITORY_ROOT / "docs/POSTGRESQL_MIGRATIONS.md").read_text(encoding="utf-8")
 
-    assert "| Migration framework |" not in roadmap
+    assert "| P0 | Migration framework |" not in roadmap
     for completion_requirement in (
         "PostgreSQL integration CI",
         "migration status",

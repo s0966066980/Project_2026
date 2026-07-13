@@ -78,6 +78,59 @@ jobs:
       - name: Pytest
         run: pytest -q tests
 
+  postgres-migration:
+    name: PostgreSQL migration integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: migration_ci
+          POSTGRES_DB: migration_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U migration_ci -d migration_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: UI_API
+    env:
+      APP_ENV: test
+      MEMBER_STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql://migration_ci@127.0.0.1:5432/migration_ci
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: UI_API/requirements-ci.txt
+
+      - name: Install PostgreSQL integration dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
+
+      - name: Inspect pending migrations
+        run: python backend/scripts/manage_postgres_migrations.py status
+
+      - name: Validate migration sources
+        run: python backend/scripts/manage_postgres_migrations.py validate
+
+      - name: Apply migrations and verify idempotency
+        run: pytest -q tests/postgres_migration_integration.py
+
+      - name: Reapply migrations safely
+        run: python backend/scripts/manage_postgres_migrations.py apply
+
+      - name: Validate clean migration state
+        run: python backend/scripts/manage_postgres_migrations.py validate --require-clean
+
   frontend:
     name: Frontend type and syntax checks
     runs-on: ubuntu-latest

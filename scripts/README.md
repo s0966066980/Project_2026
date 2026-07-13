@@ -22,6 +22,8 @@ bash scripts/backup_postgres.sh
 bash scripts/restore_postgres.sh backups/postgres/<dump-file>.dump
 ```
 
+Production apply、backup verification、隔離 restore 與 roll-forward 程序見 [`docs/POSTGRESQL_MIGRATIONS.md`](../docs/POSTGRESQL_MIGRATIONS.md)。
+
 環境變數以 `.env.example` 與腳本內容為準，常用項目：
 
 - `UI_PY`

@@ -58,7 +58,7 @@ Infrastructure Adapter
 - 語音點餐、STT、TTS。
 - Emotion-LLaMA / R1-Omni provider。
 - WebSocket、健康檢查、audit 與 observability。
-- PostgreSQL migration、備份與還原支援。
+- PostgreSQL migration status/validate、advisory lock、integration CI、備份與還原支援。
 
 ## 驗證
 
@@ -74,5 +74,6 @@ Core/API/utils 的 static check 範圍以 `.github/workflows/ci.yml` 為準。
 ## 文件
 
 - [整體架構](../../docs/ARCHITECTURE.md)
+- [PostgreSQL migration 與 recovery](../../docs/POSTGRESQL_MIGRATIONS.md)
 - [商業化治理](../../docs/COMMERCIAL_GOVERNANCE.md)
 - [後續模組](../../docs/FUTURE_MODULES.md)

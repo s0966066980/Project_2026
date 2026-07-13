@@ -36,6 +36,7 @@ Browser
 - Kiosk、Admin 與 shared frontend 已分目錄。
 - 會員、推薦事件、供應狀態與 audit 已有 PostgreSQL 路徑。
 - 已具 production route boundary、security headers、request ID、健康檢查與 CI 基線。
+- PostgreSQL migration 已具版本、checksum、status/validate、transaction advisory lock、idempotent apply 與 integration CI。
 - AI provider 已可切換，適合逐步抽成 Port/Adapter。
 
 目前限制：
@@ -141,7 +142,7 @@ member(UUID)
 ## 7. 演進順序
 
 1. 穩定文件、CI、typed contract 與 deployment baseline。
-2. 建立 tenant/store/device、Admin identity/RBAC 與 migration framework。
+2. 在既有 migration framework 上建立 tenant/store/device 與 Admin identity/RBAC。
 3. 將前端大檔案拆成 feature modules，導入 Vite/TypeScript/Vitest/Playwright。
 4. 導入 Redis、Worker、非同步 AI/RAG 工作與 provider gateway。
 5. 補齊 OpenTelemetry、告警、SLO、備份還原演練與正式營運能力。
