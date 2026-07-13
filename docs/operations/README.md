@@ -7,3 +7,6 @@
 - [Runbook](RUNBOOK.md)
 - [Security / Privacy Checklist](SECURITY_PRIVACY_CHECKLIST.md)
 - [Release Checklist](RELEASE_CHECKLIST.md)
+- [Deployment Contract](DEPLOYMENT.md)
+- [Restore Drill Template](RESTORE_DRILL_TEMPLATE.md)
+- [Restore Drill Records](restore-drills/README.md)

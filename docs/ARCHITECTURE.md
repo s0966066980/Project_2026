@@ -161,6 +161,8 @@ member(UUID)
 4. 導入 Redis、Worker、非同步 AI/RAG 工作與 provider gateway。
 5. 補齊 OpenTelemetry、告警、SLO、備份還原演練與正式營運能力。
 
+Deployment contract（API/Worker/PostgreSQL/Redis/AI gateway 邊界、staging-like compose、pre/post deploy 與 restore drill）見 [operations/DEPLOYMENT.md](operations/DEPLOYMENT.md)。
+
 優先級與完成條件見 [FUTURE_MODULES.md](FUTURE_MODULES.md)。
 
 ## 8. 架構變更規則

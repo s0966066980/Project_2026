@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "2F",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -16,7 +16,8 @@
     "2B",
     "2C",
     "2D",
-    "2E"
+    "2E",
+    "2F"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -198,6 +199,16 @@
       "frontend_typecheck": "PASS",
       "shell": "PASS (no shell script changes requiring bash -n)",
       "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)"
+    },
+    "2F": {
+      "target_tests": "PASS (8 deployment operations tests)",
+      "full_json_backend": "PASS (286 passed)",
+      "shell": "PASS (pre_deploy_check, post_deploy_smoke, record_restore_drill)",
+      "restore_drill": "PASS (dry-run record; execute mode requires isolated DATABASE_URL)",
+      "staging_compose_build": "NOT RUN locally (Docker unavailable)",
+      "ruff_config": "NOT RUN as full reformat of config.py (pre-existing style); behavior tests PASS",
+      "frontend": "NOT RUN (no frontend behavior change)",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)"
     }
   },
   "known_gaps": [
@@ -205,17 +216,17 @@
     "PostgreSQL RLS is deferred until per-request database connection identity and an isolation test strategy exist.",
     "JSON compatibility storage supports Default Scope only and is not a multi-tenant isolation boundary.",
     "Member phone compatibility data remains until uuid_only production evidence supports a separate forward contract migration.",
-    "External Secret Manager/KMS wiring and legal/privacy approval remain deployment and human gates.",
     "Payment provider integration is not implemented; payment_pending and paid are state contracts only.",
     "Pilot SLO values are targets, not measured attainment, and the repository is not declared Production Certified.",
-    "External durable metrics/tracing backend and paging integration remain deployment-owned work.",
     "API v1 write contracts remain on legacy compatibility routes until each caller and idempotency boundary migrates.",
     "Frontend visual regression has no approved screenshot baseline; visual comparison remains inconclusive.",
     "Legacy Kiosk WebSocket token-in-query compatibility remains until device-session callers are fully migrated.",
     "Default outbox delivery sink is in-process success marker; external analytics/POS consumers remain future milestones.",
-    "Specialized RAG rebuild/report/AI job handlers are registered contracts; provider-specific adapters expand in Phase 3+."
+    "Specialized RAG rebuild/report/AI job handlers are registered contracts; provider-specific adapters expand in Phase 3+.",
+    "Staging-like docker compose image build was not executed in this environment (Docker unavailable).",
+    "Isolated restore drill execute mode remains an operations exercise against a real backup target."
   ],
   "blocked_items": [],
-  "next_milestone": "2F",
-  "updated_at": "2026-07-13T22:02:35.356441+08:00"
+  "next_milestone": "3A",
+  "updated_at": "2026-07-13T22:05:59.187008+08:00"
 }

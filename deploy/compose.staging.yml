@@ -1,0 +1,80 @@
+# Staging-like process boundary composition for Project_2026.
+# GPU AI gateways (Emotion-LLaMA / R1-Omni / Ollama) stay outside this stack.
+# This file is an operations contract, not Production Certification.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: project2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: project2026
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U project2026 -d project2026"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - staging_pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:8.0-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    env_file:
+      - env-templates/staging.example
+    environment:
+      APP_ENV: staging
+      MEMBER_STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql://project2026:${POSTGRES_PASSWORD}@postgres:5432/project2026
+      REDIS_URL: redis://redis:6379/0
+      SHARED_RATE_LIMIT_ENABLED: "true"
+      SECURITY_ENFORCED: "true"
+      ENABLE_DEMO_ROUTES: "false"
+      ENABLE_TEST_ROUTES: "false"
+      ENABLE_DEBUG_ROUTES: "false"
+      ALLOW_POSTGRES_JSON_FALLBACK: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    env_file:
+      - env-templates/staging.example
+    environment:
+      APP_ENV: staging
+      MEMBER_STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql://project2026:${POSTGRES_PASSWORD}@postgres:5432/project2026
+      REDIS_URL: redis://redis:6379/0
+      SECURITY_ENFORCED: "true"
+      ENABLE_DEMO_ROUTES: "false"
+      ENABLE_TEST_ROUTES: "false"
+      ENABLE_DEBUG_ROUTES: "false"
+      ALLOW_POSTGRES_JSON_FALLBACK: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+volumes:
+  staging_pg_data:

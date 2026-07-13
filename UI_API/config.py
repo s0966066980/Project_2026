@@ -30,46 +30,82 @@ REDIS_URL = os.getenv("REDIS_URL", "").strip()
 SHARED_RATE_LIMIT_ENABLED = _env_bool("SHARED_RATE_LIMIT_ENABLED", APP_ENV in ("production", "staging"))
 
 
+KNOWN_APP_ENVS = frozenset({"development", "test", "staging", "pilot", "production"})
+
+
 def is_production() -> bool:
     return APP_ENV == "production"
 
 
+def is_commercial_runtime() -> bool:
+    """Staging, pilot and production require commercial fail-closed configuration."""
+
+    return APP_ENV in {"staging", "pilot", "production"}
+
+
 def is_security_enforced() -> bool:
-    return bool(SECURITY_ENFORCED or APP_ENV in ("production", "staging"))
+    return bool(SECURITY_ENFORCED or APP_ENV in ("production", "staging", "pilot"))
 
 
 def _token_configured(value: str) -> bool:
     return bool(str(value or "").strip())
 
 
+def _looks_like_placeholder_secret(value: str) -> bool:
+    normalized = str(value or "").strip().lower()
+    if not normalized:
+        return False
+    placeholders = (
+        "change_me",
+        "changeme",
+        "replace_me",
+        "todo",
+        "placeholder",
+        "demo",
+        "secret",
+        "password",
+        "admin",
+        "test",
+    )
+    return normalized in placeholders or normalized.startswith("change_me")
+
+
 def validate_startup_config() -> None:
-    """Fail fast for unsafe production startup configuration."""
-    if not is_production():
+    """Fail fast for unsafe commercial runtime configuration (staging/pilot/production)."""
+    if APP_ENV not in KNOWN_APP_ENVS:
+        raise RuntimeError(f"Unknown APP_ENV '{APP_ENV}'. Expected one of: {', '.join(sorted(KNOWN_APP_ENVS))}")
+    if not is_commercial_runtime():
         return
+    label = APP_ENV
     errors: list[str] = []
     if not is_security_enforced():
-        errors.append("SECURITY_ENFORCED must be true in production")
+        errors.append(f"SECURITY_ENFORCED must be true in {label}")
     if ENABLE_LEGACY_ADMIN_TOKEN and not _token_configured(ADMIN_API_TOKEN):
         errors.append("ADMIN_API_TOKEN must be configured when legacy Admin authentication is enabled")
     if ENABLE_LEGACY_KIOSK_TOKEN and not _token_configured(KIOSK_DEVICE_TOKEN):
         errors.append("KIOSK_DEVICE_TOKEN must be configured when legacy Kiosk authentication is enabled")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
-        errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
+        errors.append(f"ADMIN_MEMBER_REF_SECRET must be configured in {label}")
+    elif _looks_like_placeholder_secret(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
+        errors.append("ADMIN_MEMBER_REF_SECRET must not use a placeholder/default secret")
     if _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False):
-        errors.append("ALLOW_POSTGRES_JSON_FALLBACK must be false in production")
+        errors.append(f"ALLOW_POSTGRES_JSON_FALLBACK must be false in {label}")
     if str(os.getenv("STRUCTURED_LOGGING_ENABLED", "true")).strip().lower() not in {"1", "true", "yes", "on"}:
-        errors.append("STRUCTURED_LOGGING_ENABLED must be true in production")
+        errors.append(f"STRUCTURED_LOGGING_ENABLED must be true in {label}")
     try:
         if int(os.getenv("LOG_RETENTION_DAYS", "90")) <= 0:
-            errors.append("LOG_RETENTION_DAYS must be positive in production")
+            errors.append(f"LOG_RETENTION_DAYS must be positive in {label}")
     except ValueError:
         errors.append("LOG_RETENTION_DAYS must be a valid integer")
     if str(os.getenv("MEMBER_STORAGE_BACKEND", "json")).strip().lower() != "postgres":
-        errors.append("MEMBER_STORAGE_BACKEND must be postgres in production")
+        errors.append(f"MEMBER_STORAGE_BACKEND must be postgres in {label}")
     if not _token_configured(os.getenv("DATABASE_URL", "")):
-        errors.append("DATABASE_URL must be configured in production")
-    if _env_bool("SHARED_RATE_LIMIT_ENABLED", True) and not _token_configured(os.getenv("REDIS_URL", "")):
-        errors.append("REDIS_URL must be configured when shared production rate limiting is enabled")
+        errors.append(f"DATABASE_URL must be configured in {label}")
+    shared_rate_default = APP_ENV in {"production", "staging"}
+    if _env_bool("SHARED_RATE_LIMIT_ENABLED", shared_rate_default) and not _token_configured(
+        os.getenv("REDIS_URL", "")
+    ):
+        errors.append(f"REDIS_URL must be configured when shared {label} rate limiting is enabled")
     if MEMBER_IDENTITY_READ_MODE not in {"legacy", "dual", "uuid_preferred", "uuid_only"}:
         errors.append("MEMBER_IDENTITY_READ_MODE is invalid")
     if MEMBER_IDENTITY_READ_MODE != "legacy" or MEMBER_IDENTITY_DUAL_WRITE:
@@ -86,23 +122,23 @@ def validate_startup_config() -> None:
     for scope_key in ("DEFAULT_TENANT_ID", "DEFAULT_STORE_ID", "DEFAULT_DEVICE_ID"):
         scope_value = str(os.getenv(scope_key, "") or "").strip()
         if not scope_value:
-            errors.append(f"{scope_key} must be configured in production")
+            errors.append(f"{scope_key} must be configured in {label}")
             continue
         try:
             UUID(scope_value)
         except ValueError:
             errors.append(f"{scope_key} must be a valid UUID")
     if "*" in CORS_ORIGINS:
-        errors.append("CORS_ORIGINS must not contain wildcard '*' in production")
+        errors.append(f"CORS_ORIGINS must not contain wildcard '*' in {label}")
     if not ALLOW_UNSAFE_PRODUCTION_ROUTES:
         if _env_bool("ENABLE_DEMO_ROUTES", False):
-            errors.append("ENABLE_DEMO_ROUTES must be false in production")
+            errors.append(f"ENABLE_DEMO_ROUTES must be false in {label}")
         if _env_bool("ENABLE_TEST_ROUTES", False):
-            errors.append("ENABLE_TEST_ROUTES must be false in production")
+            errors.append(f"ENABLE_TEST_ROUTES must be false in {label}")
         if _env_bool("ENABLE_DEBUG_ROUTES", False):
-            errors.append("ENABLE_DEBUG_ROUTES must be false in production")
+            errors.append(f"ENABLE_DEBUG_ROUTES must be false in {label}")
     if errors:
-        raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))
+        raise RuntimeError(f"Unsafe {label} configuration: " + "; ".join(errors))
 
 # prompt 預設值集中在 backend/prompts/defaults.py（確保該套件可匯入）
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")

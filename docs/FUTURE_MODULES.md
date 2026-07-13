@@ -44,9 +44,10 @@
 
 ### Phase 2：工程化與營運
 
-1. Frontend toolchain 與 feature modules。
-3. Worker 與正式 deployment baseline。
-4. Observability、SLO、backup/restore、runbook。
+1. Frontend toolchain 與 feature modules — 完成。
+2. Redis shared infrastructure — 完成。
+3. Worker 與正式 deployment baseline — 完成（process/image 邊界、pre/post deploy、restore drill template）。
+4. Observability、SLO、backup/restore、runbook — 基線完成；外部 telemetry backend 仍為 P1。
 
 ### Phase 3：AI 與知識治理
 

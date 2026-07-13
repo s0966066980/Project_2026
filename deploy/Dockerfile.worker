@@ -1,0 +1,18 @@
+# Worker process image for reliable async jobs / order_outbox delivery.
+# GPU model trees are excluded; long model inference uses separate AI gateway processes.
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=production
+
+WORKDIR /app
+
+COPY UI_API/requirements-ci.txt /app/requirements-ci.txt
+RUN pip install --no-cache-dir --disable-pip-version-check -r /app/requirements-ci.txt
+
+COPY UI_API /app/UI_API
+
+WORKDIR /app/UI_API
+
+CMD ["python", "backend/scripts/run_worker.py", "--poll-seconds", "2"]

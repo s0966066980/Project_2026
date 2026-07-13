@@ -11,6 +11,9 @@
 | `lib_postgres.sh` | PostgreSQL 初始化、migration 與連線 helper |
 | `backup_postgres.sh` | 建立 PostgreSQL backup |
 | `restore_postgres.sh` | 還原指定 backup |
+| `pre_deploy_check.sh` | 發布前 backup、migration clean、scope、config fail-fast |
+| `post_deploy_smoke.sh` | 發布後 `/live` `/ready` smoke |
+| `record_restore_drill.sh` | 記錄隔離 restore drill 證據 |
 
 ## 使用
 
@@ -20,7 +23,13 @@ bash scripts/start_r1_omni.sh
 
 bash scripts/backup_postgres.sh
 bash scripts/restore_postgres.sh backups/postgres/<dump-file>.dump
+
+bash scripts/pre_deploy_check.sh
+bash scripts/post_deploy_smoke.sh
+bash scripts/record_restore_drill.sh
 ```
+
+Deployment contract 與 process 邊界見 [`docs/operations/DEPLOYMENT.md`](../docs/operations/DEPLOYMENT.md)。
 
 Production apply、backup verification、隔離 restore 與 roll-forward 程序見 [`docs/POSTGRESQL_MIGRATIONS.md`](../docs/POSTGRESQL_MIGRATIONS.md)。
 
@@ -55,4 +64,7 @@ bash -n scripts/start_r1_omni.sh
 bash -n scripts/lib_postgres.sh
 bash -n scripts/backup_postgres.sh
 bash -n scripts/restore_postgres.sh
+bash -n scripts/pre_deploy_check.sh
+bash -n scripts/post_deploy_smoke.sh
+bash -n scripts/record_restore_drill.sh
 ```
