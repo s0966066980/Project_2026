@@ -130,6 +130,14 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - Application rollback 可把 read mode 回到前一階段，但不得改回 phone primary key、改寫 0006 checksum或移除 UUID references；資料問題使用新的 forward migration 修正。
 - External Secret Manager/KMS wiring 由部署環境負責；Repository 只提供 environment-backed contract，不宣稱未驗證的外部整合。法務與隱私審查仍是人工 Gate。
 
+### Milestone 1G Order / Checkout Roll-forward
+
+- Apply 0007 前先完成 backup、0001–0006 clean validation、scope/Member identity integrity validation，並確認 application 已使用 server-side pricing。
+- 0007 只新增正式 `orders` aggregate、item/promotion snapshots、outcome 與 outbox，不刪除 legacy `member_orders` 或修改既有 migration。
+- Cutover 前以 PostgreSQL 16 驗證同 request replay、fingerprint conflict、concurrent duplicate、transaction rollback、scope isolation、historical snapshot 與 cancellation outbox。
+- Application rollback 可停止新 Order writer 並暫時維持 legacy checkout；不得 drop 0007 tables 或改寫 checksum。資料或 constraint 問題以新 forward migration 修正。
+- Outbox 在 Worker 2E 前只保存發布意圖；不得手動標記 `published_at` 偽裝已送達，也不得把外部 provider call 放進 checkout transaction。
+
 ## Backup Before Migration
 
 高風險或 production migration apply 前：

@@ -21,13 +21,12 @@ def test_order_state_machine_rejects_invalid_transitions() -> None:
 
 
 def test_order_migration_defines_transactional_snapshot_and_outbox() -> None:
-    sql = (ROOT / "UI_API/backend/schemas/migrations/0007_order_checkout_hardening.sql").read_text(
-        encoding="utf-8"
-    )
+    sql = (ROOT / "UI_API/backend/schemas/migrations/0007_order_checkout_hardening.sql").read_text(encoding="utf-8")
     for fragment in (
         "CREATE TABLE orders",
         "CREATE TABLE order_items",
         "CREATE TABLE order_promotion_usages",
+        "CREATE TABLE order_outcomes",
         "CREATE TABLE order_outbox",
         "idempotency_key",
         "request_fingerprint",

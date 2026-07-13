@@ -1,8 +1,8 @@
 """Regression tests for the production security hardening work."""
 
-from datetime import datetime
 import importlib
 import json
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -10,7 +10,6 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -123,13 +122,20 @@ def test_checkout_ignores_client_price_and_recomputes_from_menu(authoritative_ca
     )
 
     assert priced["total"] == 310
-    assert priced["cart_items"] == [{
+    assert priced["cart_items"][0] == {
         "id": "MCD001",
         "name": "Main",
         "category": "Meal",
         "price": 155,
         "quantity": 2,
-    }]
+        "base_unit_price": 155,
+        "option_unit_total": 0,
+        "discount_unit_total": 0,
+        "final_unit_price": 155,
+        "options": [],
+    }
+    assert priced["subtotal"] == 310
+    assert priced["currency"] == "TWD"
 
 
 def test_checkout_rejects_member_only_offer_for_guest(authoritative_cart, monkeypatch):
@@ -270,18 +276,23 @@ def test_checkout_route_passes_only_authoritative_cart_to_order_service(monkeypa
     monkeypatch.setattr(core_routes.checkout_service, "process_checkout", process_checkout)
     app = FastAPI()
     app.include_router(core_routes.create_router({}))
-    response = TestClient(app).post("/api/checkout", data={
-        "session_id": "checkout-test",
-        "pushed_ids": "[]",
-        "cart_ids": '["MCD001"]',
-        "cart_items": '[{"id":"MCD001","price":1,"quantity":2}]',
-        "cart_total": "2",
-    })
+    response = TestClient(app).post(
+        "/api/checkout",
+        headers={"Idempotency-Key": "checkout-key"},
+        data={
+            "session_id": "checkout-test",
+            "pushed_ids": "[]",
+            "cart_ids": '["MCD001"]',
+            "cart_items": '[{"id":"MCD001","price":1,"quantity":2}]',
+            "cart_total": "2",
+        },
+    )
 
     assert response.status_code == 200
     assert response.json()["cart_total"] == 310
     assert received["args"][3] == [{"id": "MCD001", "price": 155, "quantity": 2}]
     assert received["args"][6] == 310
+    assert received["args"][8] == "checkout-key"
 
 
 def test_tracked_settings_do_not_contain_credentials_or_fixed_secrets():

@@ -158,11 +158,17 @@ def create_router(deps: dict) -> APIRouter:
             parse_non_negative_int(ai_push_cart_count),
             parse_json_list(cart_sources),
             priced_cart["total"],
+            scope,
+            str(request.headers.get("Idempotency-Key") or f"legacy:{session_id}"),
+            priced_cart,
         )
-        result = await checkout_service.process_checkout(
-            *checkout_args,
-            *(() if scope is None else (scope,)),
-        )
+        try:
+            result = await checkout_service.process_checkout(*checkout_args)
+        except checkout_service.CheckoutIdempotencyConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "idempotency_conflict", "message": str(exc)},
+            ) from exc
         result["cart_total"] = priced_cart["total"]
         return result
 

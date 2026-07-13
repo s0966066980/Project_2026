@@ -47,6 +47,7 @@ files = [
   "backend/repositories/postgres_utils.py",
   "backend/repositories/admin_identity_repository.py",
   "backend/repositories/device_identity_repository.py",
+  "backend/repositories/checkout_order_repository.py",
   "backend/routes/admin_identity_routes.py",
   "backend/routes/device_identity_routes.py",
   "backend/scripts/manage_postgres_migrations.py",

@@ -133,6 +133,7 @@ member(UUID)
 - Schema 變更採 versioned migration。
 - Admin scope 由 database-backed `AdminPrincipal` 解析；permission、tenant 與 store 由集中式 server policy 驗證。正式 browser session 使用 HttpOnly cookie，database 只保存 token hash。
 - Kiosk scope 由 database-backed `DevicePrincipal` 解析；credential 與 session 只保存 hash，rotation 具 overlap/cutover，revoke 只影響指定 device credential。
+- Checkout 由 server-side pricing 建立 scoped Order aggregate；Order/items/promotion/outcome/outbox 使用單一 PostgreSQL transaction，client total 與任意狀態字串不是信任邊界。
 - 破壞性變更使用 `expand → dual write/backfill → verify → switch read → contract`。
 
 ## 6. API 與相容性

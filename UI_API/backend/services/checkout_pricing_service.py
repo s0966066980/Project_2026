@@ -12,6 +12,8 @@ from repositories import menu_repository
 from services import promotion_service
 
 ACTIVE_PROMOTION_STATUSES = {"active", "published", "enabled"}
+CHECKOUT_CALCULATION_VERSION = "checkout-v1"
+CHECKOUT_CURRENCY = "TWD"
 
 
 class CartValidationError(ValueError):
@@ -123,6 +125,33 @@ def _source_rows(cart_items: Any, cart_ids: Any) -> list[dict]:
     return []
 
 
+def _price_options(raw: Any, menu_item: dict) -> tuple[list[dict], int]:
+    selections = raw if isinstance(raw, list) else ([] if raw in (None, "") else None)
+    if selections is None:
+        raise CartValidationError("invalid_options", "options must be a list")
+    catalog = {
+        str(option.get("id") or "").strip(): option
+        for option in (menu_item.get("options") or [])
+        if isinstance(option, dict) and str(option.get("id") or "").strip()
+    }
+    snapshots: list[dict] = []
+    total = 0
+    for selection in selections:
+        option_id = str(selection.get("id") if isinstance(selection, dict) else selection).strip()
+        option = catalog.get(option_id)
+        if option is None:
+            raise CartValidationError("unknown_option", "selected option is unavailable")
+        try:
+            option_price = int(option.get("price") or 0)
+        except (TypeError, ValueError) as exc:
+            raise CartValidationError("invalid_option_price", "option price is invalid") from exc
+        if option_price < 0 or option_price > 100_000:
+            raise CartValidationError("invalid_option_price", "option price is outside the accepted range")
+        snapshots.append({"id": option_id, "name": str(option.get("name") or option_id), "price": option_price})
+        total += option_price
+    return snapshots, total
+
+
 def price_checkout_cart(
     cart_items: Any,
     cart_ids: Any,
@@ -140,7 +169,7 @@ def price_checkout_cart(
     if not source_rows:
         raise CartValidationError("empty_cart", "cart is empty")
 
-    normalized_sources: list[tuple[dict, int, str]] = []
+    normalized_sources: list[tuple[dict, int, str, list[dict], int]] = []
     submitted_ids: set[str] = set()
     seen_offers: dict[str, str] = {}
     total_quantity = 0
@@ -152,6 +181,7 @@ def price_checkout_cart(
         if not menu_item:
             raise CartValidationError("unknown_item", f"unknown menu item: {item_id}")
         quantity = _positive_quantity(raw.get("quantity", raw.get("qty", 1)))
+        option_snapshots, option_unit_total = _price_options(raw.get("options"), menu_item)
         offer_id = str(raw.get("applied_offer_id") or "").strip()
         previous_offer = seen_offers.get(item_id)
         if previous_offer is not None and previous_offer != offer_id:
@@ -161,12 +191,12 @@ def price_checkout_cart(
         if total_quantity > 100:
             raise CartValidationError("cart_too_large", "cart exceeds 100 items")
         submitted_ids.add(item_id)
-        normalized_sources.append((menu_item, quantity, offer_id))
+        normalized_sources.append((menu_item, quantity, offer_id, option_snapshots, option_unit_total))
 
     current_time = now or datetime.now(timezone.utc)
     normalized_by_id: dict[str, dict] = {}
     order: list[str] = []
-    for menu_item, quantity, offer_id in normalized_sources:
+    for menu_item, quantity, offer_id, option_snapshots, option_unit_total in normalized_sources:
         item_id = str(menu_item.get("id"))
         base_price = _price(menu_item.get("price"))
         final_price = base_price
@@ -194,17 +224,25 @@ def price_checkout_cart(
             final_price = _promotion_price(promotion, base_price)
             promotion_title = str(promotion.get("title") or offer_id).strip()
 
-        existing = normalized_by_id.get(item_id)
+        variant_key = f"{item_id}:{','.join(option['id'] for option in option_snapshots)}:{offer_id}"
+        existing = normalized_by_id.get(variant_key)
         if existing:
             existing["quantity"] += quantity
             continue
-        order.append(item_id)
+        order.append(variant_key)
+        discount_unit_total = base_price - final_price
+        charged_unit_price = final_price + option_unit_total
         row = {
             "id": item_id,
             "name": str(menu_item.get("name") or item_id),
             "category": str(menu_item.get("category") or ""),
-            "price": final_price,
+            "price": charged_unit_price,
             "quantity": quantity,
+            "base_unit_price": base_price,
+            "option_unit_total": option_unit_total,
+            "discount_unit_total": discount_unit_total,
+            "final_unit_price": charged_unit_price,
+            "options": option_snapshots,
         }
         if offer_id:
             row.update({
@@ -212,12 +250,28 @@ def price_checkout_cart(
                 "applied_offer_id": offer_id,
                 "offer_ids": [offer_id],
                 "promotion_title": promotion_title,
+                "promotion_snapshot": {
+                    "promotion_ref": offer_id,
+                    "title": promotion_title,
+                    "discount_unit_total": discount_unit_total,
+                },
             })
-        normalized_by_id[item_id] = row
+        normalized_by_id[variant_key] = row
 
-    normalized = [normalized_by_id[item_id] for item_id in order]
+    normalized = [normalized_by_id[variant_key] for variant_key in order]
+    subtotal = sum(int(item["base_unit_price"]) * int(item["quantity"]) for item in normalized)
+    option_total = sum(int(item["option_unit_total"]) * int(item["quantity"]) for item in normalized)
+    discount_total = sum(int(item["discount_unit_total"]) * int(item["quantity"]) for item in normalized)
+    tax_total = 0
+    total = subtotal + option_total - discount_total + tax_total
     return {
-        "cart_ids": order,
+        "cart_ids": [str(item["id"]) for item in normalized],
         "cart_items": normalized,
-        "total": sum(int(item["price"]) * int(item["quantity"]) for item in normalized),
+        "subtotal": subtotal,
+        "option_total": option_total,
+        "discount_total": discount_total,
+        "tax_total": tax_total,
+        "total": total,
+        "currency": CHECKOUT_CURRENCY,
+        "calculation_version": CHECKOUT_CALCULATION_VERSION,
     }

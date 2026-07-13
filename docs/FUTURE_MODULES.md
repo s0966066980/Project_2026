@@ -17,7 +17,7 @@
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
 | P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
-| P0 | Order / Checkout hardening | 穩定商業交易邊界 | Catalog、Promotion | server pricing、狀態機、idempotency、失敗恢復 |
+| P1 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、replay、backlog metrics |
 | P0 | Commercial observability | 建立正式營運監控 | Deployment | metrics、trace、alert、SLO、runbook |
 | P1 | API v1 contracts | 建立 typed、versioned API | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層 |
 | P1 | Frontend toolchain | 提升 Kiosk/Admin 可維護性 | API contracts | Vite、TypeScript、Vitest、Playwright |

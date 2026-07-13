@@ -61,6 +61,7 @@ jobs:
           backend/repositories/device_identity_repository.py
           backend/repositories/availability_repository.py
           backend/repositories/commercial_settings_repository.py
+          backend/repositories/checkout_order_repository.py
           backend/repositories/interaction_event_repository.py
           backend/repositories/member_repository.py
           backend/repositories/member_session_repository.py
@@ -116,6 +117,7 @@ jobs:
           backend/repositories/device_identity_repository.py
           backend/repositories/availability_repository.py
           backend/repositories/commercial_settings_repository.py
+          backend/repositories/checkout_order_repository.py
           backend/repositories/interaction_event_repository.py
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
@@ -209,6 +211,9 @@ jobs:
 
       - name: Verify Member UUID and PII migration
         run: pytest -q tests/postgres_member_identity_integration.py
+
+      - name: Verify Order checkout transaction boundary
+        run: pytest -q tests/postgres_order_checkout_integration.py
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply

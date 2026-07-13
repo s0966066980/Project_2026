@@ -41,3 +41,49 @@ def test_finalize_exception_does_not_break_checkout(monkeypatch):
 
     out = asyncio.run(checkout_service.process_checkout("s1", [], ["MCD001"], [], 0, [], 200))
     assert out["status"] == "success"
+
+
+def test_recommendation_failure_does_not_break_checkout(monkeypatch):
+    from services import checkout_service
+
+    importlib.reload(checkout_service)
+    monkeypatch.setattr(checkout_service.database, "record_final_checkout", lambda *a, **k: {"is_success": True})
+    monkeypatch.setattr(checkout_service, "mark_latest_intervention_checkout", lambda *a, **k: None)
+    monkeypatch.setattr(checkout_service.session_repository, "get_session_history", lambda sid: [])
+    monkeypatch.setattr(checkout_service.session_repository, "archive_session", lambda sid: None)
+    monkeypatch.setattr(checkout_service.log_repository, "get_session_logs", lambda: [])
+    monkeypatch.setattr(checkout_service.member_service, "finalize_checkout", lambda *a, **k: None)
+
+    def unavailable(*_args, **_kwargs):
+        raise RuntimeError("recommendation unavailable")
+
+    monkeypatch.setattr(
+        checkout_service.recommendation_event_service,
+        "record_checkout_recommendation_events",
+        unavailable,
+    )
+    out = asyncio.run(checkout_service.process_checkout("s1", [], ["MCD001"], [], 0, [], 200))
+    assert out["status"] == "success"
+
+
+def test_post_checkout_archive_failure_does_not_change_success(monkeypatch):
+    from services import checkout_service
+
+    importlib.reload(checkout_service)
+    monkeypatch.setattr(checkout_service.database, "record_final_checkout", lambda *a, **k: {"is_success": True})
+    monkeypatch.setattr(checkout_service, "mark_latest_intervention_checkout", lambda *a, **k: None)
+    monkeypatch.setattr(
+        checkout_service.recommendation_event_service,
+        "record_checkout_recommendation_events",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(checkout_service.member_service, "finalize_checkout", lambda *a, **k: None)
+    monkeypatch.setattr(checkout_service.session_repository, "get_session_history", lambda sid: [])
+    monkeypatch.setattr(checkout_service.log_repository, "get_session_logs", lambda: [])
+    monkeypatch.setattr(
+        checkout_service.session_repository,
+        "archive_session",
+        lambda _session_id: (_ for _ in ()).throw(RuntimeError("archive unavailable")),
+    )
+    out = asyncio.run(checkout_service.process_checkout("s1", [], ["MCD001"], [], 0, [], 200))
+    assert out["status"] == "success"

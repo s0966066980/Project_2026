@@ -4,13 +4,23 @@ route 只負責解析 Form 欄位，實際編排在此層。
 """
 
 import asyncio
+import hashlib
+import json
 from datetime import datetime
 
 import database
 
 from models.commercial_scope import CommercialScope
-from repositories import interaction_event_repository, log_repository, session_repository
+from repositories import (
+    checkout_order_repository,
+    interaction_event_repository,
+    log_repository,
+    postgres_utils,
+    session_repository,
+)
 from services import member_service, recommendation_event_service
+
+CheckoutIdempotencyConflictError = checkout_order_repository.CheckoutIdempotencyConflictError
 
 
 def _seconds_since_timestamp(timestamp: str) -> int:
@@ -21,6 +31,18 @@ def _seconds_since_timestamp(timestamp: str) -> int:
         return max(0, int((datetime.now() - started_at).total_seconds()))
     except Exception:
         return 0
+
+
+def checkout_request_fingerprint(session_id: str, priced_cart: dict) -> str:
+    """Hash the canonical server-priced request without retaining raw request identifiers."""
+
+    canonical = json.dumps(
+        {"session_id": str(session_id or ""), "pricing": priced_cart},
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _build_checkout_intervention_result(
@@ -87,7 +109,26 @@ async def process_checkout(
     sources: list,
     cart_total: int = 0,
     scope: CommercialScope | None = None,
+    idempotency_key: str = "",
+    priced_cart: dict | None = None,
 ) -> dict:
+    order_result = None
+    if scope is not None and postgres_utils.use_postgres() and priced_cart is not None:
+        order_result = await asyncio.to_thread(
+            checkout_order_repository.create_checkout_order_scoped,
+            scope,
+            session_id,
+            idempotency_key,
+            checkout_request_fingerprint(session_id, priced_cart),
+            priced_cart,
+        )
+        if order_result.get("replayed"):
+            return {
+                "status": "success",
+                "order_number": order_result["order_id"],
+                "session_id": session_id,
+                "order": order_result,
+            }
     session_history = await asyncio.to_thread(session_repository.get_session_history, session_id)
     try:
         loop = asyncio.get_running_loop()
@@ -105,7 +146,7 @@ async def process_checkout(
             ),
             timeout=5.0,
         )
-    except asyncio.TimeoutError:
+    except Exception:
         log_entry = {"skipped": True}
 
     if not log_entry.get("skipped"):
@@ -125,11 +166,14 @@ async def process_checkout(
         log_entry["intervention_result"] = intervention_result
 
     recommendation_args = (session_id, cart_list, cart_items, sources, pushed_list)
-    recommendation_events = await asyncio.to_thread(
-        recommendation_event_service.record_checkout_recommendation_events,
-        *recommendation_args,
-        *(() if scope is None else (scope,)),
-    )
+    try:
+        recommendation_events = await asyncio.to_thread(
+            recommendation_event_service.record_checkout_recommendation_events,
+            *recommendation_args,
+            *(() if scope is None else (scope,)),
+        )
+    except Exception:
+        recommendation_events = []
     if recommendation_events:
         log_entry = dict(log_entry or {})
         log_entry["recommendation_events"] = recommendation_events
@@ -148,14 +192,23 @@ async def process_checkout(
             *(() if scope is None else (scope,)),
         )
     except Exception:
-        if scope is not None:
-            raise
+        pass
 
-    order_number = len(log_repository.get_session_logs())
-    session_repository.archive_session(session_id)
-    return {
+    try:
+        order_number: int | str = len(log_repository.get_session_logs())
+    except Exception:
+        order_number = order_result["order_id"] if order_result is not None else 0
+    try:
+        session_repository.archive_session(session_id)
+    except Exception:
+        pass
+    response = {
         "status": "success",
         "log": log_entry,
         "order_number": order_number,
         "session_id": session_id,
     }
+    if order_result is not None:
+        response["order"] = order_result
+        response["order_number"] = order_result["order_id"]
+    return response
