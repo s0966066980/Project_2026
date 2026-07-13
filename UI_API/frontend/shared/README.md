@@ -7,6 +7,8 @@
 - `apiClient.js`：API client。
 - `httpClient.js`：HTTP helper。
 - `realtimeClient.js`：WebSocket / realtime helper。
+- `contracts/api-v1.ts`：versioned API transport types。
+- `api/v1Client.ts`：same-origin auth、request ID、timeout、safe retry/error 的 typed client。
 - `ui.js`：共用 UI helper。
 - `styles.css`：共用樣式與目前部分 Kiosk/Admin 樣式。
 

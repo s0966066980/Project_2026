@@ -2,10 +2,19 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json",
-    "syntax": "find . -type f -name '*.js' -print | sort | xargs -n 1 node --check"
+    "syntax": "find kiosk admin shared -type f -name '*.js' -print | sort | xargs -n 1 node --check"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.1.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "8.1.4",
+    "vitest": "4.1.10",
     "typescript": "^6.0.3"
   }
 }

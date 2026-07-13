@@ -96,6 +96,8 @@ Admin Web ───────────────┤
 | `frontend/admin` | 營運設定、會員、活動、RAG、成效與健康 |
 | `frontend/shared` | 通用 API/realtime client、design token、UI primitive |
 
+Kiosk/Admin 目前由 Vite multi-entry build 分別驗證，production HTML/DOM 與 FastAPI `/static` serving 保持原路徑；Vitest 保護 shared transport，Playwright 保護本機 critical flows。完整契約見 [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md)。
+
 Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 authentication state。
 
 ### AI 執行單元

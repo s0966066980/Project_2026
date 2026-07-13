@@ -19,6 +19,9 @@ dist/
 
 # JavaScript package artifacts
 node_modules/
+coverage/
+playwright-report/
+test-results/
 
 # Virtual environments
 .venv/

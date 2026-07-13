@@ -10,13 +10,17 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022", "ESNext.Disposable"],
     "module": "ES2022",
     "moduleResolution": "Bundler",
-    "target": "ES2022"
+    "target": "ES2022",
+    "types": ["node"]
   },
   "include": [
     "types.d.ts",
+    "shared/contracts/**/*.ts",
+    "shared/api/**/*.ts",
+    "tests/**/*.ts",
     "shared/httpClient.js",
     "shared/apiClient.js",
     "shared/realtimeClient.js",

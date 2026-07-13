@@ -12,6 +12,9 @@ frontend/
 ├── menu_images/    # 菜單圖片
 ├── mcd_categories/ # 分類圖片
 ├── package.json
+├── vite.config.ts
+├── vitest.config.ts
+├── playwright.config.ts
 └── tsconfig.json
 ```
 
@@ -31,10 +34,13 @@ frontend/
 cd UI_API/frontend
 npm ci --ignore-scripts
 npm run typecheck
+npm run build
+npm run test:coverage
 npm run syntax
+npm run test:e2e
 ```
 
-未來逐步導入 Vite、Vitest 與 Playwright；規劃見 [`docs/FUTURE_MODULES.md`](../../docs/FUTURE_MODULES.md)。
+Vite 保持 Kiosk/Admin 獨立 entry；Vitest 測 shared utility/client，Playwright 在本機 JSON test server 驗證 critical DOM/interaction。詳細契約見 [`docs/FRONTEND_TOOLCHAIN.md`](../../docs/FRONTEND_TOOLCHAIN.md)。
 
 ## 子模組
 

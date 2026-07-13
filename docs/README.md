@@ -11,6 +11,7 @@
 | [COMMERCIAL_GOVERNANCE.md](COMMERCIAL_GOVERNANCE.md) | 商用上線、安全、資料、AI、營運與發布治理 | 商用門檻或責任改變時 |
 | [POSTGRESQL_MIGRATIONS.md](POSTGRESQL_MIGRATIONS.md) | PostgreSQL migration、CI、backup 與 recovery runbook | Migration framework 或維運流程改變時 |
 | [API_V1.md](API_V1.md) | `/api/v1` typed contract、auth、pagination 與 legacy compatibility | 公開 v1 contract 改變時 |
+| [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md) | Kiosk/Admin entry、DOM/network compatibility 與 build/test toolchain | Frontend entry、toolchain 或 boundary 改變時 |
 | [operations/README.md](operations/README.md) | Pilot SLO、alert、runbook、安全隱私與 release Gate | Pilot threshold、on-call 或發布 Gate 改變時 |
 | [FUTURE_MODULES.md](FUTURE_MODULES.md) | 後續模組、優先級、依賴與完成條件 | Roadmap 優先級或狀態改變時 |
 
