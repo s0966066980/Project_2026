@@ -18,6 +18,16 @@ if str(UI_API_DIR) not in sys.path:
     sys.path.insert(0, str(UI_API_DIR))
 
 
+def _bootstrap_production_worker() -> None:
+    from services.outbox_delivery_router import configure_default_outbox_router
+    from services.worker_handler_registry import default_registry
+    from services.worker_handlers import register_production_handlers
+
+    register_production_handlers()
+    configure_default_outbox_router()
+    default_registry().validate_required_handlers()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Project_2026 reliable background worker")
     parser.add_argument("--once", action="store_true", help="Process one bounded cycle and exit")
@@ -27,45 +37,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worker-id", default="")
     args = parser.parse_args(argv)
 
-    # Prefer PostgreSQL job tables when commercial storage is postgres.
     from repositories import postgres_utils
     from services import observability_service, worker_service
 
     observability_service.configure_logging()
     worker_id = str(args.worker_id or os.environ.get("WORKER_ID") or f"worker-{uuid4().hex[:8]}")
+    _bootstrap_production_worker()
 
     if postgres_utils.storage_backend() == "postgres":
-        from repositories import worker_job_repository
-        from services.worker_service import JobHandlerResult
+        from repositories.postgres_worker_store import PostgresJobStore
 
-        def process_postgres_cycle() -> dict[str, int]:
-            jobs = 0
-            outbox = 0
-            for _ in range(max(0, args.max_jobs)):
-                job = worker_job_repository.claim_next_job(worker_id=worker_id)
-                if job is None:
-                    break
-                # Default handlers succeed; specialized adapters register later.
-                result = JobHandlerResult(success=True, retryable=False, safe_error="")
-                if result.success:
-                    worker_job_repository.complete_job(job.job_id)
-                    observability_service.increment_metric("worker_jobs_success_total")
-                jobs += 1
-            for _ in range(max(0, args.max_outbox)):
-                event = worker_job_repository.claim_next_outbox(worker_id=worker_id)
-                if event is None:
-                    break
-                worker_job_repository.mark_outbox_published(event["id"])
-                observability_service.increment_metric("worker_jobs_success_total", status="outbox")
-                outbox += 1
-            metrics = worker_job_repository.queue_metrics()
-            observability_service.set_metric("worker_jobs_depth", metrics.depth)
-            observability_service.set_metric("worker_jobs_oldest_age_seconds", metrics.oldest_age_seconds)
-            observability_service.set_metric("order_outbox_pending", metrics.pending_outbox)
-            observability_service.set_metric("queue_backlog", metrics.depth + metrics.pending_outbox)
-            return {"jobs_processed": jobs, "outbox_processed": outbox}
+        store = PostgresJobStore()
 
-        cycle = process_postgres_cycle
+        def cycle() -> dict[str, int]:
+            return worker_service.run_worker_cycle(
+                store=store,
+                worker_id=worker_id,
+                max_jobs=args.max_jobs,
+                max_outbox=args.max_outbox,
+            )
     else:
 
         def cycle() -> dict[str, int]:

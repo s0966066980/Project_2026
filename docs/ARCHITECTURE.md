@@ -98,7 +98,7 @@ Admin Web ───────────────┤
 
 Redis 經 `CachePort`、`RateLimitPort`、`DistributedLockPort` adapter 提供跨 instance 短期狀態；key 綁 tenant/store 並雜湊 resource。Redis 不是商業資料 Source of Truth，failure policy 依 security/cache/correctness 分別 fail closed、degrade、caller-declared。
 
-可靠背景工作由獨立 worker process 消費 PostgreSQL `background_jobs` 與 `order_outbox`：claim + visibility timeout、retry/backoff、dead-letter、idempotent delivery 與 queue metrics。API process 只負責 enqueue/outbox write，不在 request path 執行長時間可重試工作。
+可靠背景工作由獨立 worker process 消費 PostgreSQL `background_jobs` 與 `order_outbox`：claim → `JobHandlerRegistry` 執行真正 handler（需有 `side_effect_id`）→ complete/retry/DLQ；outbox 經 `OutboxDeliveryRouter` 取得 sink ACK 後才可 `published_at`。支援 visibility timeout、retry/backoff、dead-letter、idempotent delivery 與 queue metrics。API process 只負責 enqueue/outbox write，不在 request path 執行長時間可重試工作。
 
 Kiosk/Admin 目前由 Vite multi-entry build 分別驗證，production HTML/DOM 與 FastAPI `/static` serving 保持原路徑；Vitest 保護 shared transport，Playwright 保護本機 critical flows。完整契約見 [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md)。
 

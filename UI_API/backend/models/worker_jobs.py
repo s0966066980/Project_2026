@@ -57,6 +57,18 @@ class JobHandlerResult:
     success: bool
     retryable: bool = False
     safe_error: str = ""
+    result_ref: str = ""
+    side_effect_id: str = ""
+
+
+@dataclass(frozen=True)
+class OutboxDeliveryResult:
+    success: bool
+    retryable: bool = False
+    safe_error: str = ""
+    delivery_id: str = ""
+    provider: str = ""
+    acknowledged_at: datetime | None = None
 
 
 @dataclass

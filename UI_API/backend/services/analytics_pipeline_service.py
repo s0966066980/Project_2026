@@ -78,6 +78,22 @@ def build_envelope(
     }
 
 
+def event_already_persisted(event_id: str) -> bool:
+    normalized = str(event_id or "").strip()
+    if not normalized:
+        return False
+    path = _path()
+    if not path.exists():
+        return False
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(rows, list):
+        return False
+    return any(str(row.get("event_id") or "") == normalized for row in rows if isinstance(row, dict))
+
+
 def publish(envelope: dict[str, Any], *, sink: InMemoryAnalyticsSink | None = None) -> bool:
     active = sink or InMemoryAnalyticsSink()
     accepted = active.write(envelope)

@@ -27,10 +27,10 @@ If `/ready` reports shared infrastructure failure, do not disable production sec
 
 ## Worker / Outbox
 
-Long-running or retriable work belongs in the worker process (`python backend/scripts/run_worker.py`), not the API request path. API callers only enqueue jobs or write transactional outbox rows.
+Long-running or retriable work belongs in the worker process (`python backend/scripts/run_worker.py`), not the API request path. API callers only enqueue jobs or write transactional outbox rows. The worker bootstraps `JobHandlerRegistry` and `OutboxDeliveryRouter`; unregistered handlers and missing side effects must not succeed.
 
-1. Inspect `worker_jobs_depth`, `worker_jobs_oldest_age_seconds`, `order_outbox_pending`, `worker_jobs_retry_total` and `worker_jobs_dlq_total`.
-2. Confirm worker process health and PostgreSQL connectivity; do not mark `published_at` manually to hide backlog.
+1. Inspect `worker_jobs_depth`, `worker_jobs_oldest_age_seconds`, `order_outbox_pending`, `worker_jobs_retry_total`, `worker_job_dlq`, `worker_unknown_handler`, `outbox_delivery_retry` and `outbox_delivery_dlq`.
+2. Confirm worker process health and PostgreSQL connectivity; do not mark `published_at` manually to hide backlog or bypass sink ACK.
 3. Poison messages move to dead-letter after max attempts; preserve `safe_error`/`last_error` (already redacted) for replay after a fix.
 4. Re-delivery of an already published outbox event must remain idempotent; do not re-run side effects.
 5. Job `payload_ref` must stay reference-only — no passwords, tokens, full phone or card data.

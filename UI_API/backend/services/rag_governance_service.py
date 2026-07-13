@@ -243,6 +243,42 @@ def build_retrieval_trace(
     )
 
 
+def execute_rebuild_job(
+    *,
+    document_id: str,
+    tenant_id: UUID,
+    store_id: UUID | None,
+    actor: str = "worker",
+) -> str:
+    """Execute a rebuild side effect for a governed asset (index rebuild expands in milestone 6A)."""
+
+    normalized = str(document_id or "").strip()
+    if not normalized:
+        raise RagGovernanceError("missing_document_id")
+    rows = _load_assets()
+    matched = False
+    for row in rows:
+        if str(row.get("document_id") or "") != normalized:
+            continue
+        row_tenant = row.get("tenant_id")
+        if row_tenant and UUID(str(row_tenant)) != tenant_id:
+            raise RagGovernanceError("tenant_scope_mismatch")
+        row_store = row.get("store_id")
+        if store_id is not None and row_store and UUID(str(row_store)) != store_id:
+            raise RagGovernanceError("store_scope_mismatch")
+        history = list(row.get("history") or [])
+        side_effect_id = f"rag-rebuild:{normalized}:{int(row.get('version') or 1)}"
+        history.append({"event": "rebuild_executed", "actor": actor, "at": _now(), "side_effect_id": side_effect_id})
+        row["history"] = history
+        row["last_rebuild_at"] = _now()
+        matched = True
+        break
+    if not matched:
+        raise RagGovernanceError("asset_not_found")
+    _save_assets(rows)
+    return side_effect_id
+
+
 def enqueue_rebuild(
     *,
     tenant_id: UUID,

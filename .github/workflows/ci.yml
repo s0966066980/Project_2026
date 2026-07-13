@@ -239,6 +239,9 @@ jobs:
       - name: Verify reliable worker jobs and outbox delivery
         run: pytest -q tests/postgres_worker_jobs_integration.py
 
+      - name: Verify worker production path handler and outbox ACK
+        run: pytest -q tests/postgres_worker_production_path_integration.py
+
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply
 

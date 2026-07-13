@@ -40,6 +40,76 @@ def _row_to_job(row: dict[str, Any]) -> BackgroundJob:
     )
 
 
+def get_job(job_id: UUID) -> BackgroundJob | None:
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM background_jobs WHERE id = %s", (job_id,))
+        row = cur.fetchone()
+    return _row_to_job(row) if row else None
+
+
+def list_jobs() -> list[BackgroundJob]:
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM background_jobs ORDER BY scheduled_at ASC")
+        rows = cur.fetchall() or []
+    return [_row_to_job(row) for row in rows]
+
+
+def get_outbox(outbox_id: UUID) -> dict[str, Any] | None:
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM order_outbox WHERE id = %s", (outbox_id,))
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def get_outbox_by_aggregate(aggregate_id: UUID) -> dict[str, Any] | None:
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT * FROM order_outbox
+            WHERE aggregate_id = %s
+            ORDER BY occurred_at ASC
+            LIMIT 1
+            """,
+            (aggregate_id,),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def seed_outbox(
+    *,
+    outbox_id: UUID,
+    tenant_id: UUID,
+    store_id: UUID,
+    aggregate_id: UUID,
+    event_type: str,
+    payload: dict[str, Any],
+    max_attempts: int = 5,
+) -> None:
+    now = datetime.now(timezone.utc)
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO order_outbox (
+                id, tenant_id, store_id, aggregate_id, event_type, payload,
+                attempt_count, max_attempts, available_at
+            ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, 0, %s, %s)
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (
+                outbox_id,
+                tenant_id,
+                store_id,
+                aggregate_id,
+                event_type,
+                _jsonb(payload),
+                max_attempts,
+                now,
+            ),
+        )
+        conn.commit()
+
+
 def enqueue_job(
     *,
     tenant_id: UUID,

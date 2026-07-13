@@ -9,25 +9,22 @@ from typing import Any, Callable, Protocol
 from uuid import UUID, uuid4
 
 from models.worker_jobs import (
-    ALLOWED_JOB_TYPES,
     BackgroundJob,
     JobHandlerResult,
     JobStatus,
     JobValidationError,
+    OutboxDeliveryResult,
     QueueMetrics,
     compute_backoff_seconds,
     validate_job_payload_ref,
     validate_job_type,
 )
 from services import observability_service
+from services.outbox_delivery_router import OutboxDeliveryRouter, default_router
+from services.worker_handler_registry import JobHandler, JobHandlerRegistry, default_registry
 
-JobHandler = Callable[[BackgroundJob], JobHandlerResult]
-OutboxDeliveryHandler = Callable[[dict[str, Any]], tuple[bool, str]]
-
-_HANDLERS: dict[str, JobHandler] = {}
-_HANDLERS_LOCK = Lock()
-_OUTBOX_HANDLER: OutboxDeliveryHandler | None = None
-_OUTBOX_HANDLER_LOCK = Lock()
+_OUTBOX_ROUTER_LOCK = Lock()
+_TEST_OUTBOX_HANDLER: Callable[[dict[str, Any]], OutboxDeliveryResult] | None = None
 
 
 class SimulatedWorkerCrash(RuntimeError):
@@ -323,44 +320,49 @@ def default_store() -> InMemoryJobStore:
     return _DEFAULT_STORE
 
 
+def handler_registry() -> JobHandlerRegistry:
+    return default_registry()
+
+
+def outbox_router() -> OutboxDeliveryRouter:
+    return default_router()
+
+
 def register_handler(job_type: str, handler: JobHandler) -> None:
-    validate_job_type(job_type)
-    with _HANDLERS_LOCK:
-        _HANDLERS[job_type] = handler
+    default_registry().register(job_type, handler)
 
 
 def clear_handlers() -> None:
-    with _HANDLERS_LOCK:
-        _HANDLERS.clear()
+    default_registry().clear()
 
 
-def set_outbox_delivery_handler(handler: OutboxDeliveryHandler | None) -> None:
-    global _OUTBOX_HANDLER
-    with _OUTBOX_HANDLER_LOCK:
-        _OUTBOX_HANDLER = handler
+def set_outbox_delivery_handler(
+    handler: Callable[[dict[str, Any]], OutboxDeliveryResult] | Callable[[dict[str, Any]], tuple[bool, str]] | None,
+) -> None:
+    global _TEST_OUTBOX_HANDLER
+    if handler is None:
+        _TEST_OUTBOX_HANDLER = None
+        return
+
+    def wrapped(event: dict[str, Any]) -> OutboxDeliveryResult:
+        result = handler(event)
+        if isinstance(result, OutboxDeliveryResult):
+            return result
+        ok, safe_error = result
+        return OutboxDeliveryResult(success=bool(ok), safe_error=str(safe_error or ""), retryable=not ok)
+
+    _TEST_OUTBOX_HANDLER = wrapped
 
 
-def _resolve_handler(job_type: str, override: JobHandler | None = None) -> JobHandler:
+def _resolve_handler(job_type: str, override: JobHandler | None = None) -> JobHandler | None:
     if override is not None:
         return override
-    with _HANDLERS_LOCK:
-        handler = _HANDLERS.get(job_type)
-    if handler is not None:
-        return handler
-    return _default_job_handler
+    return default_registry().resolve(job_type)
 
 
-def _default_job_handler(job: BackgroundJob) -> JobHandlerResult:
-    # Safe no-op success for registered contract types without specialized adapters yet.
-    if job.job_type in ALLOWED_JOB_TYPES:
-        return JobHandlerResult(success=True, retryable=False, safe_error="")
-    return JobHandlerResult(success=False, retryable=False, safe_error="unknown_job_type")
-
-
-def _default_outbox_delivery(event: dict[str, Any]) -> tuple[bool, str]:
-    if not event.get("event_type") or not event.get("payload"):
-        return False, "invalid_outbox_event"
-    return True, ""
+def _unknown_handler(job: BackgroundJob) -> JobHandlerResult:
+    observability_service.increment_metric("worker_unknown_handler", status=job.job_type)
+    return JobHandlerResult(success=False, retryable=False, safe_error="unknown_handler")
 
 
 def _now() -> datetime:
@@ -429,6 +431,9 @@ def process_one_job(
     if job is None:
         return None
     active_handler = _resolve_handler(job.job_type, handler)
+    if active_handler is None:
+        active_handler = _unknown_handler
+    observability_service.increment_metric("worker_job_started", status=job.job_type)
     try:
         result = active_handler(job)
     except SimulatedWorkerCrash:
@@ -441,8 +446,19 @@ def process_one_job(
             safe_error=observability_service.redact_sensitive_text(str(exc))[:200],
         )
     if result.success:
+        if not result.side_effect_id:
+            failed = store.fail(
+                job.job_id,
+                now=clock,
+                safe_error="handler_missing_side_effect",
+                retryable=False,
+            )
+            observability_service.increment_metric("worker_job_failed", status="no_side_effect")
+            refresh_queue_metrics(store=store, now=clock)
+            return failed
         completed = store.complete(job.job_id, now=clock, safe_error="")
         observability_service.increment_metric("worker_jobs_success_total")
+        observability_service.increment_metric("worker_job_succeeded", status=job.job_type)
         refresh_queue_metrics(store=store, now=clock)
         return completed
     failed = store.fail(
@@ -453,10 +469,14 @@ def process_one_job(
     )
     if failed and failed.status is JobStatus.DEAD_LETTER:
         observability_service.increment_metric("worker_jobs_dlq_total")
+        observability_service.increment_metric("worker_job_dlq", status=job.job_type)
         observability_service.increment_metric("worker_jobs_failure_total", status="dead_letter")
+        observability_service.increment_metric("worker_job_failed", status="dead_letter")
     else:
         observability_service.increment_metric("worker_jobs_retry_total")
+        observability_service.increment_metric("worker_job_retry", status=job.job_type)
         observability_service.increment_metric("worker_jobs_failure_total", status="retry")
+        observability_service.increment_metric("worker_job_failed", status="retry")
     refresh_queue_metrics(store=store, now=clock)
     return failed
 
@@ -512,13 +532,20 @@ def _finish_outbox_delivery(
     event: dict[str, Any],
     now: datetime,
 ) -> dict[str, Any]:
-    with _OUTBOX_HANDLER_LOCK:
-        handler = _OUTBOX_HANDLER or _default_outbox_delivery
-    try:
-        ok, safe_error = handler(event)
-    except Exception as exc:  # noqa: BLE001 - boundary
-        ok, safe_error = False, observability_service.redact_sensitive_text(str(exc))[:200]
-    if ok:
+    with _OUTBOX_ROUTER_LOCK:
+        test_handler = _TEST_OUTBOX_HANDLER
+    if test_handler is not None:
+        try:
+            result = test_handler(event)
+        except Exception as exc:  # noqa: BLE001 - boundary
+            result = OutboxDeliveryResult(
+                success=False,
+                retryable=True,
+                safe_error=observability_service.redact_sensitive_text(str(exc))[:200],
+            )
+    else:
+        result = default_router().deliver(event)
+    if result.success:
         store.mark_outbox_published(event["id"], now=now)
         observability_service.increment_metric("worker_jobs_success_total", status="outbox")
         refresh_queue_metrics(store=store, now=now)
@@ -527,8 +554,8 @@ def _finish_outbox_delivery(
     failed = store.mark_outbox_failed(
         event["id"],
         now=now,
-        safe_error=observability_service.redact_sensitive_text(safe_error or "outbox_delivery_failed")[:200],
-        retryable=True,
+        safe_error=observability_service.redact_sensitive_text(result.safe_error or "outbox_delivery_failed")[:200],
+        retryable=result.retryable,
     )
     if failed and failed.get("dead_lettered_at") is not None:
         observability_service.increment_metric("worker_jobs_dlq_total", status="outbox")

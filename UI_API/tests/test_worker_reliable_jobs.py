@@ -95,7 +95,12 @@ def test_retry_backoff_then_dead_letter_for_poison_job() -> None:
     )
 
     def always_fail(_job):
-        return JobHandlerResult(success=False, retryable=True, safe_error="provider_timeout")
+        return JobHandlerResult(
+            success=False,
+            retryable=True,
+            safe_error="provider_timeout",
+            side_effect_id="",
+        )
 
     worker_service.register_handler("ai.background", always_fail)
     try:
@@ -146,7 +151,12 @@ def test_visibility_timeout_recovers_running_job_after_process_crash() -> None:
             store=store,
             worker_id="w-recover",
             now=now + timedelta(seconds=31),
-            handler=lambda _job: JobHandlerResult(success=True, retryable=False, safe_error=""),
+            handler=lambda _job: JobHandlerResult(
+                success=True,
+                retryable=False,
+                safe_error="",
+                side_effect_id="recovery-side-effect",
+            ),
         )
         assert recovered is not None
         assert store.list_jobs()[0].status is JobStatus.SUCCEEDED
@@ -156,7 +166,9 @@ def test_visibility_timeout_recovers_running_job_after_process_crash() -> None:
 
 def test_outbox_delivery_is_idempotent_and_tenant_isolated() -> None:
     from services import observability_service, worker_service
+    from services.outbox_delivery_router import configure_default_outbox_router
 
+    configure_default_outbox_router()
     observability_service.reset_metrics_for_tests()
     store = worker_service.InMemoryJobStore()
     outbox_a = uuid4()
@@ -206,8 +218,10 @@ def test_outbox_poison_message_moves_to_dead_letter() -> None:
         max_attempts=2,
     )
 
+    from models.worker_jobs import OutboxDeliveryResult
+
     def poison(_event):
-        return False, "invalid_payload"
+        return OutboxDeliveryResult(success=False, retryable=True, safe_error="invalid_payload")
 
     worker_service.set_outbox_delivery_handler(poison)
     try:
