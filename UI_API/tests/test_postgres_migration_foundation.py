@@ -51,6 +51,13 @@ def test_migration_manifest_requires_canonical_sequential_versions(tmp_path: Pat
         postgres_utils.build_migration_plan([first, third], {})
 
 
+def test_migration_manifest_rejects_missing_migration_sources() -> None:
+    from repositories import postgres_utils
+
+    with pytest.raises(postgres_utils.MigrationValidationError, match="No PostgreSQL migration files"):
+        postgres_utils.build_migration_plan([], {})
+
+
 def test_migration_plan_rejects_applied_version_missing_from_source(tmp_path: Path) -> None:
     from repositories import postgres_utils
 
@@ -143,3 +150,21 @@ def test_init_schema_locks_before_validation_and_skips_applied_migration(
     assert events == ["lock", "ensure", "fetch", "lock", "ensure", "fetch"]
     assert connection.commits == 2
     assert migration.read_text(encoding="utf-8") not in connection.cursor_instance.executed_sql
+
+
+def test_status_outputs_invalid_plan_before_returning_failure(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    from backend.scripts import manage_postgres_migrations
+    from repositories import postgres_utils
+
+    invalid_plan = postgres_utils.MigrationPlan(
+        migrations=(),
+        unexpected_applied_versions=("0001_missing_source",),
+    )
+    monkeypatch.setattr(postgres_utils, "get_migration_plan", lambda: invalid_plan)
+
+    exit_code = manage_postgres_migrations.main(["status"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert '"valid": false' in captured.out
+    assert "missing local migration source" in captured.out

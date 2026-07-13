@@ -44,5 +44,7 @@ files = [
   "backend/api",
   "backend/core",
   "backend/models",
+  "backend/repositories/postgres_utils.py",
+  "backend/scripts/manage_postgres_migrations.py",
   "backend/utils",
 ]

@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT_DIR / "backend"
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(BACKEND_DIR))
 
-from repositories import postgres_utils
+# The script must add backend/ before importing the repository package.
+from repositories import postgres_utils  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -35,11 +35,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan = postgres_utils.apply_migrations()
         else:
             plan = postgres_utils.get_migration_plan()
+            if args.command == "status":
+                print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
             postgres_utils.validate_migration_plan(
                 plan,
                 require_clean=bool(args.require_clean),
             )
-        print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
+        if args.command != "status":
+            print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
         return 0
     except postgres_utils.PostgresUnavailableError as exc:
         print(f"PostgreSQL migration command failed: {exc}", file=sys.stderr)

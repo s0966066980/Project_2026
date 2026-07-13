@@ -151,4 +151,4 @@ def test_ci_runs_postgres_migration_integration_without_external_services() -> N
     assert "manage_postgres_migrations.py status" in workflow
     assert "manage_postgres_migrations.py validate" in workflow
     assert "manage_postgres_migrations.py apply" in workflow
-    assert "psycopg[binary]==3.2.14" in requirements
+    assert "psycopg[binary]==3.3.4" in requirements

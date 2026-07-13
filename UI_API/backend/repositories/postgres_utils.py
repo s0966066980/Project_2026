@@ -3,6 +3,7 @@
 The project defaults to JSON storage. These helpers are imported lazily by
 repositories only when `MEMBER_STORAGE_BACKEND=postgres`.
 """
+
 import hashlib
 import re
 from dataclasses import dataclass
@@ -10,7 +11,6 @@ from pathlib import Path
 from typing import Literal, Mapping, Sequence, TypedDict
 
 import config
-
 
 SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "schemas"
 SCHEMA_PATH = SCHEMAS_DIR / "membership_postgres.sql"
@@ -135,6 +135,8 @@ def migration_checksum(path: Path) -> str:
 
 def _validate_migration_files(files: Sequence[Path]) -> tuple[Path, ...]:
     ordered_files = tuple(sorted(files, key=lambda path: path.name))
+    if not ordered_files:
+        raise MigrationValidationError("No PostgreSQL migration files were found")
     for expected_number, path in enumerate(ordered_files, start=1):
         match = MIGRATION_FILE_PATTERN.fullmatch(path.name)
         if match is None:
@@ -214,10 +216,7 @@ def _migration_table_exists(cur) -> bool:
 
 def _fetch_applied_migrations(cur) -> dict[str, str]:
     cur.execute("SELECT version, checksum FROM schema_migrations")
-    return {
-        str(row.get("version") or ""): str(row.get("checksum") or "")
-        for row in cur.fetchall()
-    }
+    return {str(row.get("version") or ""): str(row.get("checksum") or "") for row in cur.fetchall()}
 
 
 def get_migration_plan() -> MigrationPlan:
@@ -235,11 +234,6 @@ def init_schema() -> None:
     with connect() as conn:
         with conn.cursor() as cur:
             _acquire_migration_lock(cur)
-            if not files:
-                cur.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
-                conn.commit()
-                return
-
             _ensure_migration_table(cur)
             applied = _fetch_applied_migrations(cur)
             plan = build_migration_plan(files, applied)
