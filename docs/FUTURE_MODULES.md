@@ -16,7 +16,7 @@
 
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
-| P0 | Migration framework | 建立不可變、可追蹤 migration | PostgreSQL、CI | version、checksum、驗證與 recovery 流程 |
+| P0 | Migration framework | 完成與強化既有 Migration Framework | PostgreSQL、CI | PostgreSQL integration CI、migration status、migration validate、migration lock、checksum validation、idempotency、backup/recovery documentation |
 | P0 | Tenant / Store / Device | 支援多品牌、多門市、多設備範圍 | Migration framework | 核心資料與 API 可限制 scope |
 | P0 | Admin Identity / RBAC | 取代共用 Admin Token | Tenant/Store | user、role、permission、session、audit |
 | P0 | Device Identity | 每台 Kiosk 獨立 credential | Store/Device | 可註冊、輪替、撤銷與監控 |
@@ -42,7 +42,7 @@
 
 ### Phase 1：商用資料與權限基礎
 
-1. Migration framework。
+1. 完成與強化既有 Migration Framework。
 2. Tenant / Store / Device。
 3. Admin Identity / RBAC。
 4. Device Identity。
