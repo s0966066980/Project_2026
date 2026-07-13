@@ -4,8 +4,8 @@
 
 ## 目前內容
 
-- `membership_postgres.sql`：會員、偏好、Session、訂單、推薦事件與 audit 等 PostgreSQL schema。
-- `migrations/*.sql`：不可變、連續版本的正式 migration source。
+- `membership_postgres.sql`：Milestone 1A 前的 legacy membership snapshot，不再作為正式 schema source，也不與每次 migration 手動同步。
+- `migrations/*.sql`：不可變、連續版本的正式 schema source of truth。
 - `backend/scripts/manage_postgres_migrations.py`：status、validate 與 apply 入口。
 
 ## 規則

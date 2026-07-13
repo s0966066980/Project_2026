@@ -4,12 +4,17 @@ import os
 import threading
 
 import config
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
 from repositories import postgres_utils
-
+from utils.commercial_scope_config import resolve_commercial_scope
 
 ADMIN_AUDIT_PATH = os.path.join(config.LEARNING_DATA_DIR, "admin_audit_logs.json")
 
 _lock = threading.Lock()
+
+
+class CommercialScopeConflictError(ValueError):
+    pass
 
 
 def _max_records() -> int:
@@ -48,16 +53,17 @@ def _jsonb(value, default):
     return Jsonb(value if isinstance(value, type(default)) else default)
 
 
-def _postgres_append(record: dict) -> dict:
+def _postgres_append(record: dict, scope: CommercialScope) -> dict:
     postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO admin_audit_logs (
-                    audit_id, actor, action, target_type, target_id, metadata, created_at
+                    audit_id, tenant_id, store_id,
+                    actor, action, target_type, target_id, metadata, created_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (audit_id) WHERE audit_id <> '' DO UPDATE SET
                     actor = EXCLUDED.actor,
                     action = EXCLUDED.action,
@@ -65,9 +71,13 @@ def _postgres_append(record: dict) -> dict:
                     target_id = EXCLUDED.target_id,
                     metadata = EXCLUDED.metadata,
                     created_at = EXCLUDED.created_at
+                WHERE admin_audit_logs.tenant_id = EXCLUDED.tenant_id
+                RETURNING audit_id
                 """,
                 (
                     str(record.get("audit_id") or ""),
+                    scope.tenant_id,
+                    scope.store_id,
                     str(record.get("actor") or ""),
                     str(record.get("action") or ""),
                     str(record.get("target_type") or ""),
@@ -76,16 +86,26 @@ def _postgres_append(record: dict) -> dict:
                     str(record.get("created_at") or ""),
                 ),
             )
+            if cur.fetchone() is None:
+                raise CommercialScopeConflictError("Audit ID is already owned by another tenant")
         conn.commit()
     return record
 
 
 def append_admin_audit(record: dict) -> dict:
+    return append_admin_audit_scoped(record, resolve_commercial_scope())
+
+
+def append_admin_audit_scoped(record: dict, scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_append(dict(record or {}))
+            return _postgres_append(dict(record or {}), scope)
+        except CommercialScopeConflictError:
+            raise
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        raise ValueError("JSON audit storage only supports the configured legacy default scope")
     with _lock:
         rows = _read()
         rows.append(dict(record or {}))
@@ -94,6 +114,10 @@ def append_admin_audit(record: dict) -> dict:
 
 
 def get_admin_audits(limit: int = 200) -> list:
+    return get_admin_audits_scoped(resolve_commercial_scope(), limit)
+
+
+def get_admin_audits_scoped(scope: CommercialScope, limit: int = 200) -> list:
     if postgres_utils.use_postgres():
         try:
             safe_limit = max(1, min(int(limit), _max_records()))
@@ -104,14 +128,17 @@ def get_admin_audits(limit: int = 200) -> list:
                         """
                         SELECT audit_id, actor, action, target_type, target_id, metadata, created_at
                         FROM admin_audit_logs
+                        WHERE tenant_id = %s AND (store_id = %s OR store_id IS NULL)
                         ORDER BY created_at DESC, id DESC
                         LIMIT %s
                         """,
-                        (safe_limit,),
+                        (scope.tenant_id, scope.store_id, safe_limit),
                     )
                     return list(reversed(cur.fetchall()))
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return []
     with _lock:
         rows = _read()
     try:

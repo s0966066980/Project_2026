@@ -8,8 +8,9 @@ import os
 import threading
 
 import config
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
 from repositories import postgres_utils
-
+from utils.commercial_scope_config import resolve_commercial_scope
 
 RECOMMENDATION_EVENTS_PATH = os.path.join(config.LEARNING_DATA_DIR, "recommendation_events.json")
 MAX_RECORDS = 5000
@@ -17,6 +18,10 @@ MAX_RECORDS = 5000
 _cache_lock = threading.Lock()
 _write_lock = threading.Lock()
 _cache: dict[str, tuple[float | None, list]] = {}
+
+
+class CommercialScopeConflictError(ValueError):
+    pass
 
 
 def _read_list(path: str) -> list:
@@ -77,7 +82,7 @@ def _event_id(event: dict) -> str:
     return str(event.get("event_id") or event.get("id") or "").strip()
 
 
-def _postgres_append_events(events: list[dict]) -> list[dict]:
+def _postgres_append_events(events: list[dict], scope: CommercialScope) -> list[dict]:
     postgres_utils.init_schema()
     records = [dict(event or {}) for event in events if isinstance(event, dict) and _event_id(event)]
     if not records:
@@ -88,11 +93,12 @@ def _postgres_append_events(events: list[dict]) -> list[dict]:
                 cur.execute(
                     """
                     INSERT INTO recommendation_events (
-                        event_id, recommendation_id, session_id, member_phone_masked,
+                        event_id, tenant_id, store_id, device_id,
+                        recommendation_id, session_id, member_phone_masked,
                         is_member, event_type, surface, source, item_id, item_name,
                         category, rank, score, reasons, quantity, metadata, timestamp
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (event_id) DO UPDATE SET
                         recommendation_id = EXCLUDED.recommendation_id,
                         session_id = EXCLUDED.session_id,
@@ -110,9 +116,15 @@ def _postgres_append_events(events: list[dict]) -> list[dict]:
                         quantity = EXCLUDED.quantity,
                         metadata = EXCLUDED.metadata,
                         timestamp = EXCLUDED.timestamp
+                    WHERE recommendation_events.tenant_id = EXCLUDED.tenant_id
+                      AND recommendation_events.store_id = EXCLUDED.store_id
+                    RETURNING event_id
                     """,
                     (
                         _event_id(event),
+                        scope.tenant_id,
+                        scope.store_id,
+                        scope.device_id,
                         str(event.get("recommendation_id") or ""),
                         str(event.get("session_id") or ""),
                         str(event.get("member_phone_masked") or ""),
@@ -131,11 +143,15 @@ def _postgres_append_events(events: list[dict]) -> list[dict]:
                         str(event.get("timestamp") or ""),
                     ),
                 )
+                if cur.fetchone() is None:
+                    raise CommercialScopeConflictError(
+                        "Recommendation event ID is already owned by another commercial scope"
+                    )
         conn.commit()
     return records
 
 
-def _postgres_get_events(session_id: str = "", limit: int = 200) -> list:
+def _postgres_get_events(scope: CommercialScope, session_id: str = "", limit: int = 200) -> list:
     postgres_utils.init_schema()
     try:
         safe_limit = max(1, min(int(limit), MAX_RECORDS))
@@ -147,42 +163,54 @@ def _postgres_get_events(session_id: str = "", limit: int = 200) -> list:
                 cur.execute(
                     """
                     SELECT * FROM recommendation_events
-                    WHERE session_id = %s
+                    WHERE tenant_id = %s AND store_id = %s AND session_id = %s
                     ORDER BY timestamp DESC, event_id DESC
                     LIMIT %s
                     """,
-                    (str(session_id), safe_limit),
+                    (scope.tenant_id, scope.store_id, str(session_id), safe_limit),
                 )
             else:
                 cur.execute(
                     """
                     SELECT * FROM recommendation_events
+                    WHERE tenant_id = %s AND store_id = %s
                     ORDER BY timestamp DESC, event_id DESC
                     LIMIT %s
                     """,
-                    (safe_limit,),
+                    (scope.tenant_id, scope.store_id, safe_limit),
                 )
             rows = cur.fetchall()
     return list(reversed(rows))
 
 
-def _postgres_clear_events() -> int:
+def _postgres_clear_events(scope: CommercialScope) -> int:
     postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM recommendation_events")
+            cur.execute(
+                "DELETE FROM recommendation_events WHERE tenant_id = %s AND store_id = %s",
+                (scope.tenant_id, scope.store_id),
+            )
             count = cur.rowcount
         conn.commit()
     return count
 
 
 def append_recommendation_event(event: dict) -> dict:
+    return append_recommendation_event_scoped(event, resolve_commercial_scope())
+
+
+def append_recommendation_event_scoped(event: dict, scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
         try:
-            records = _postgres_append_events([event])
+            records = _postgres_append_events([event], scope)
             return records[0] if records else dict(event or {})
+        except CommercialScopeConflictError:
+            raise
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     record = dict(event or {})
     rows.append(record)
@@ -191,13 +219,21 @@ def append_recommendation_event(event: dict) -> dict:
 
 
 def append_recommendation_events(events: list[dict]) -> list[dict]:
+    return append_recommendation_events_scoped(events, resolve_commercial_scope())
+
+
+def append_recommendation_events_scoped(events: list[dict], scope: CommercialScope) -> list[dict]:
     if not events:
         return []
     if postgres_utils.use_postgres():
         try:
-            return _postgres_append_events(events)
+            return _postgres_append_events(events, scope)
+        except CommercialScopeConflictError:
+            raise
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        raise ValueError("JSON recommendation storage only supports the configured legacy default scope")
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     records = [dict(event or {}) for event in events if isinstance(event, dict)]
     rows.extend(records)
@@ -206,11 +242,21 @@ def append_recommendation_events(events: list[dict]) -> list[dict]:
 
 
 def get_recommendation_events(session_id: str = "", limit: int = 200) -> list:
+    return get_recommendation_events_scoped(resolve_commercial_scope(), session_id, limit)
+
+
+def get_recommendation_events_scoped(
+    scope: CommercialScope,
+    session_id: str = "",
+    limit: int = 200,
+) -> list:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_get_events(session_id, limit)
+            return _postgres_get_events(scope, session_id, limit)
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return []
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     if session_id:
         rows = [row for row in rows if str(row.get("session_id") or "") == str(session_id)]
@@ -222,11 +268,17 @@ def get_recommendation_events(session_id: str = "", limit: int = 200) -> list:
 
 
 def clear_recommendation_events() -> int:
+    return clear_recommendation_events_scoped(resolve_commercial_scope())
+
+
+def clear_recommendation_events_scoped(scope: CommercialScope) -> int:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_clear_events()
+            return _postgres_clear_events(scope)
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return 0
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
     count = len(rows)
     _write_list(RECOMMENDATION_EVENTS_PATH, [])

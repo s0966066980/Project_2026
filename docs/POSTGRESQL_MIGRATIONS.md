@@ -4,7 +4,24 @@
 - 適用範圍：`UI_API/backend/schemas/migrations/*.sql`
 - Owner：Backend / Data / Operations
 
-本文件定義 Project_2026 的 PostgreSQL migration status、migration validate、apply、migration lock、checksum validation、idempotency 與 backup/recovery documentation。Milestone 1A 只強化 migration framework，不新增或修改產品 Schema。
+本文件定義 Project_2026 的 PostgreSQL migration status、migration validate、apply、migration lock、checksum validation、idempotency 與 backup/recovery documentation。Milestone 1A 建立 framework；Milestone 1B 使用 `0002_commercial_scope_foundation.sql` 執行 expand-first commercial scope migration。
+
+`backend/schemas/migrations/*.sql` 是正式 schema source of truth。`membership_postgres.sql` 僅為 legacy snapshot，不應與新 migration 平行手動維護。
+
+## Milestone 1B Scope Matrix
+
+| Table / Storage | Business Owner | Required Scope | Legacy Compatibility | Migration Strategy | Index |
+| --- | --- | --- | --- | --- | --- |
+| `members` | Tenant | tenant | phone PK 保留 | nullable column + Default Tenant backfill | tenant + phone |
+| `member_preferences` | Member | 由 member ownership 繼承 | phone FK 保留 | 本次不重複加入 scope | existing PK |
+| `member_sessions` | Store / origin Device | tenant + store + origin device | session ID 保留 | nullable columns + Default Scope backfill | scope + session |
+| `member_orders` | Store / origin Device | tenant + store + origin device | order/phone key 保留 | nullable columns + Default Scope backfill | scope + phone |
+| `member_order_items` | Order | 由 order ownership 繼承 | order FK 保留 | 本次不重複加入 scope | existing order FK |
+| `recommendation_events` | Store / Device | tenant + store + device | event ID 保留 | nullable columns + Default Scope backfill | scope + session |
+| `admin_audit_logs` | Tenant / optional Store | tenant + optional store | audit ID 保留 | nullable columns + Default Scope backfill | scope + created_at |
+| availability / interaction JSON | Store / Device target | 尚無正式 PostgreSQL table | Default Scope only | 不虛構第二套 schema；後續 migration | N/A |
+
+Nullable scope 是 expand 階段，不代表完整 tenant isolation。進入 enforcement 前必須驗證無 null/orphan rows、切換所有 production callers 至 scoped method，再以新 migration 收緊 constraint。
 
 ## Migration Contract
 
@@ -45,6 +62,13 @@ GitHub Actions 使用 disposable PostgreSQL 16 service，且不依賴 production
 4. 執行 `validate --require-clean`，確認版本、checksum validation 與 source completeness。
 
 CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`，不會被 JSON backend 的預設 test suite 自動收集。
+
+### Milestone 1B Rollback / Roll-forward
+
+- Apply 前依本文件流程完成 backup 並記錄 0001 clean status。
+- 0002 只新增 table/column/constraint/index；application rollback 可回到 Default Scope 相容版本，但不直接 drop 已建立 schema。
+- 若 validation 發現 orphan、lock 或 scope conflict，停止切換新 callers、保留資料，以新的 versioned migration roll-forward 修正；不得改寫 0002 checksum。
+- Reserved default names 可由未來 Admin 修改；migration 的 `ON CONFLICT DO NOTHING` 不會覆寫客製名稱。
 
 ## Backup Before Migration
 

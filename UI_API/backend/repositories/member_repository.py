@@ -4,11 +4,17 @@ import threading
 from datetime import datetime
 
 import config
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
 from repositories import postgres_utils
+from utils.commercial_scope_config import resolve_commercial_scope
 
 MEMBERS_PATH = os.path.join(config.LEARNING_DATA_DIR, "members.json")
 
 _lock = threading.Lock()
+
+
+class CommercialScopeConflictError(ValueError):
+    pass
 
 
 def _read() -> list:
@@ -102,7 +108,7 @@ def _order_item_rows(order: dict) -> list[dict]:
     ]
 
 
-def _postgres_upsert_member(record: dict) -> dict:
+def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
     postgres_utils.init_schema()
     phone = str(record.get("phone") or "").strip()
     if not phone:
@@ -113,14 +119,14 @@ def _postgres_upsert_member(record: dict) -> dict:
             cur.execute(
                 """
                 INSERT INTO members (
-                    phone, phone_masked, nickname, created_at, updated_at,
+                    phone, tenant_id, phone_masked, nickname, created_at, updated_at,
                     visit_count, total_spend, last_visit_at,
                     last_login_at, login_count, login_failed_count,
                     consent_version, privacy_version, consent_accepted_at, consent_source,
                     order_history_consent, personalization_consent,
                     data_retention_until, deleted_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (phone) DO UPDATE SET
                     phone_masked = EXCLUDED.phone_masked,
                     nickname = EXCLUDED.nickname,
@@ -139,9 +145,12 @@ def _postgres_upsert_member(record: dict) -> dict:
                     personalization_consent = EXCLUDED.personalization_consent,
                     data_retention_until = EXCLUDED.data_retention_until,
                     deleted_at = EXCLUDED.deleted_at
+                WHERE members.tenant_id = EXCLUDED.tenant_id
+                RETURNING tenant_id
                 """,
                 (
                     phone,
+                    scope.tenant_id,
                     _mask_phone(phone),
                     str(record.get("nickname") or ""),
                     str(record.get("created_at") or now),
@@ -162,6 +171,8 @@ def _postgres_upsert_member(record: dict) -> dict:
                     str(record.get("deleted_at") or ""),
                 ),
             )
+            if cur.fetchone() is None:
+                raise CommercialScopeConflictError("Member phone is already owned by another tenant")
             cur.execute(
                 """
                 INSERT INTO member_preferences (
@@ -185,22 +196,29 @@ def _postgres_upsert_member(record: dict) -> dict:
                     str(record.get("preference_updated_at") or ""),
                 ),
             )
-            cur.execute("DELETE FROM member_orders WHERE phone = %s", (phone,))
+            cur.execute(
+                "DELETE FROM member_orders WHERE phone = %s AND tenant_id = %s AND store_id = %s",
+                (phone, scope.tenant_id, scope.store_id),
+            )
             for index, order in enumerate(record.get("orders") or []):
                 if not isinstance(order, dict):
                     continue
                 cur.execute(
                     """
                     INSERT INTO member_orders (
-                        phone, order_index, session_id, timestamp, total,
+                        phone, tenant_id, store_id, origin_device_id,
+                        order_index, session_id, timestamp, total,
                         order_status, is_completed, cancel_reason,
                         recommendation_success, is_success, cart_ids, cart_items
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
                     (
                         phone,
+                        scope.tenant_id,
+                        scope.store_id,
+                        scope.device_id,
                         index,
                         str(order.get("session_id") or ""),
                         str(order.get("timestamp") or ""),
@@ -288,45 +306,53 @@ def _postgres_record_from_rows(member_row: dict, preference_row: dict | None, or
     return record
 
 
-def _postgres_get_member(phone: str) -> dict | None:
+def _postgres_get_member(phone: str, scope: CommercialScope) -> dict | None:
     postgres_utils.init_schema()
     key = str(phone or "")
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM members WHERE phone = %s", (key,))
+            cur.execute(
+                "SELECT * FROM members WHERE phone = %s AND tenant_id = %s",
+                (key, scope.tenant_id),
+            )
             member_row = cur.fetchone()
             if not member_row:
                 return None
             cur.execute("SELECT * FROM member_preferences WHERE phone = %s", (key,))
             preference_row = cur.fetchone()
             cur.execute(
-                "SELECT * FROM member_orders WHERE phone = %s ORDER BY order_index ASC, id ASC",
-                (key,),
+                """SELECT * FROM member_orders
+                   WHERE phone = %s AND tenant_id = %s AND store_id = %s
+                   ORDER BY order_index ASC, id ASC""",
+                (key, scope.tenant_id, scope.store_id),
             )
             order_rows = cur.fetchall()
     return _postgres_record_from_rows(member_row, preference_row, order_rows)
 
 
-def _postgres_get_all_members() -> list:
+def _postgres_get_all_members(scope: CommercialScope) -> list:
     postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT phone FROM members ORDER BY created_at ASC, phone ASC")
+            cur.execute(
+                "SELECT phone FROM members WHERE tenant_id = %s ORDER BY created_at ASC, phone ASC",
+                (scope.tenant_id,),
+            )
             phones = [row["phone"] for row in cur.fetchall()]
     rows = []
     for phone in phones:
-        record = _postgres_get_member(phone)
+        record = _postgres_get_member(phone, scope)
         if record:
             rows.append(record)
     return rows
 
 
-def _postgres_delete_member(phone: str) -> bool:
+def _postgres_delete_member(phone: str, scope: CommercialScope) -> bool:
     postgres_utils.init_schema()
     key = str(phone or "")
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM members WHERE phone = %s", (key,))
+            cur.execute("DELETE FROM members WHERE phone = %s AND tenant_id = %s", (key, scope.tenant_id))
             deleted = cur.rowcount > 0
         conn.commit()
     return deleted
@@ -340,21 +366,33 @@ def _safe_postgres_write(operation, *args):
 
 
 def get_all_members() -> list:
+    return get_all_members_scoped(resolve_commercial_scope())
+
+
+def get_all_members_scoped(scope: CommercialScope) -> list:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_get_all_members()
+            return _postgres_get_all_members(scope)
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return []
     with _lock:
         return _read()
 
 
 def get_member(phone: str) -> dict | None:
+    return get_member_scoped(phone, resolve_commercial_scope())
+
+
+def get_member_scoped(phone: str, scope: CommercialScope) -> dict | None:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_get_member(phone)
+            return _postgres_get_member(phone, scope)
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return None
     key = str(phone or "")
     with _lock:
         for row in _read():
@@ -364,11 +402,19 @@ def get_member(phone: str) -> dict | None:
 
 
 def upsert_member(record: dict) -> dict:
+    return upsert_member_scoped(record, resolve_commercial_scope())
+
+
+def upsert_member_scoped(record: dict, scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_upsert_member(record)
+            return _postgres_upsert_member(record, scope)
+        except CommercialScopeConflictError:
+            raise
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        raise ValueError("JSON member storage only supports the configured legacy default scope")
     key = str(record.get("phone") or "")
     with _lock:
         rows = _read()
@@ -380,16 +426,22 @@ def upsert_member(record: dict) -> dict:
             rows.append(record)
         _write(rows)
     if _dual_write_enabled():
-        _safe_postgres_write(_postgres_upsert_member, record)
+        _safe_postgres_write(_postgres_upsert_member, record, scope)
     return record
 
 
 def delete_member(phone: str) -> bool:
+    return delete_member_scoped(phone, resolve_commercial_scope())
+
+
+def delete_member_scoped(phone: str, scope: CommercialScope) -> bool:
     if postgres_utils.use_postgres():
         try:
-            return _postgres_delete_member(phone)
+            return _postgres_delete_member(phone, scope)
         except Exception:
             pass
+    if scope != LEGACY_DEFAULT_SCOPE:
+        return False
     key = str(phone or "")
     with _lock:
         rows = _read()
@@ -398,5 +450,5 @@ def delete_member(phone: str) -> bool:
             return False
         _write(kept)
     if _dual_write_enabled():
-        _safe_postgres_write(_postgres_delete_member, phone)
+        _safe_postgres_write(_postgres_delete_member, phone, scope)
     return True

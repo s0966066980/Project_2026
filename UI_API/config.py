@@ -3,6 +3,7 @@ import sys
 import json
 import threading
 import time
+from uuid import UUID
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,6 +50,15 @@ def validate_startup_config() -> None:
         errors.append("KIOSK_DEVICE_TOKEN must be configured in production")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
         errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
+    for scope_key in ("DEFAULT_TENANT_ID", "DEFAULT_STORE_ID", "DEFAULT_DEVICE_ID"):
+        scope_value = str(os.getenv(scope_key, "") or "").strip()
+        if not scope_value:
+            errors.append(f"{scope_key} must be configured in production")
+            continue
+        try:
+            UUID(scope_value)
+        except ValueError:
+            errors.append(f"{scope_key} must be a valid UUID")
     if "*" in CORS_ORIGINS:
         errors.append("CORS_ORIGINS must not contain wildcard '*' in production")
     if not ALLOW_UNSAFE_PRODUCTION_ROUTES:
@@ -88,6 +98,9 @@ ADMIN_DEMO_TOKEN = os.getenv("ADMIN_DEMO_TOKEN", "")
 WS_DEMO_TOKEN = os.getenv("WS_DEMO_TOKEN", "")
 ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", ADMIN_DEMO_TOKEN)
 KIOSK_DEVICE_TOKEN = os.getenv("KIOSK_DEVICE_TOKEN", POS_DEMO_TOKEN)
+DEFAULT_TENANT_ID = os.getenv("DEFAULT_TENANT_ID", "")
+DEFAULT_STORE_ID = os.getenv("DEFAULT_STORE_ID", "")
+DEFAULT_DEVICE_ID = os.getenv("DEFAULT_DEVICE_ID", "")
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", "10485760"))
 PUBLIC_POS_ORIGIN = os.getenv("PUBLIC_POS_ORIGIN", "")
 PUBLIC_ADMIN_ORIGIN = os.getenv("PUBLIC_ADMIN_ORIGIN", "")
@@ -435,6 +448,9 @@ def get(key, default=None):
         "SECURITY_ENFORCED": is_security_enforced(),
         "ADMIN_API_TOKEN": ADMIN_API_TOKEN,
         "KIOSK_DEVICE_TOKEN": KIOSK_DEVICE_TOKEN,
+        "DEFAULT_TENANT_ID": DEFAULT_TENANT_ID,
+        "DEFAULT_STORE_ID": DEFAULT_STORE_ID,
+        "DEFAULT_DEVICE_ID": DEFAULT_DEVICE_ID,
     }
     if key in runtime_values:
         return runtime_values[key] if runtime_values[key] not in (None, "") else default

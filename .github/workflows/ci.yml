@@ -129,6 +129,9 @@ jobs:
       - name: Apply migrations and verify idempotency
         run: pytest -q tests/postgres_migration_integration.py
 
+      - name: Verify Milestone 1A to commercial scope upgrade
+        run: pytest -q tests/postgres_commercial_scope_integration.py
+
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply
 

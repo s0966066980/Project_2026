@@ -44,7 +44,7 @@ Browser
 - FastAPI 同時承擔 API、WebSocket、靜態前端與部分 background initialization。
 - `config.py` 同時包含 infrastructure 與 runtime business settings。
 - Admin/Kiosk 驗證仍以相容性 Token 為主，尚未建立完整 user/RBAC/device identity。
-- 資料模型尚未完整具備 `tenant_id`、`store_id`、`device_id`。
+- 已建立 Tenant → Store → Device hierarchy、Default Scope 與核心 PostgreSQL expand columns；nullable enforcement、JSON-only operational data 與 identity-based scope resolution 尚未完成。
 - 部分前端協調器與樣式檔仍偏大。
 - Rate limit、cache 與 background work 尚未形成分散式基礎設施。
 
@@ -127,6 +127,8 @@ member(UUID)
 原則：
 
 - 新商業資料逐步加入 tenant/store/device scope。
+- Scope 由 server configuration 或已驗證 identity 解析；未驗證的 `X-Tenant-ID`、`X-Store-ID`、`X-Device-ID` 不得改變資料範圍。
+- Legacy single-store flow 使用 reserved Default Tenant / Default Store / Legacy Kiosk；新 repository query 使用明確 `CommercialScope`。
 - 手機號碼不作為長期公開 Domain ID；會員改用 UUID，PII 使用加密與 lookup hash。
 - Schema 變更採 versioned migration。
 - 破壞性變更使用 `expand → dual write/backfill → verify → switch read → contract`。

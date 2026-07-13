@@ -16,7 +16,7 @@
 
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
-| P0 | Tenant / Store / Device | 支援多品牌、多門市、多設備範圍 | Migration framework | 核心資料與 API 可限制 scope |
+| P0 | Tenant / Store / Device enforcement | 強化已建立的 hierarchy 與 Default Scope | Commercial scope foundation | nullable scope 清零、identity resolver、完整 PostgreSQL operational data 與 isolation gate |
 | P0 | Admin Identity / RBAC | 取代共用 Admin Token | Tenant/Store | user、role、permission、session、audit |
 | P0 | Device Identity | 每台 Kiosk 獨立 credential | Store/Device | 可註冊、輪替、撤銷與監控 |
 | P0 | Member UUID / PII | 移除 phone 作為長期 Domain PK | Migration、Key management | UUID、加密、lookup hash、backfill、驗證 |
@@ -41,7 +41,7 @@
 
 ### Phase 1：商用資料與權限基礎
 
-1. Tenant / Store / Device。
+1. 完成 Tenant / Store / Device enforcement（foundation 已建立）。
 2. Admin Identity / RBAC。
 3. Device Identity。
 4. Member UUID / PII。

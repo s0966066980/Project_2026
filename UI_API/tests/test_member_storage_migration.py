@@ -22,8 +22,11 @@ def test_membership_postgres_migrations_are_versioned():
     from repositories import postgres_utils
 
     files = postgres_utils.migration_files()
-    assert [path.name for path in files] == ["0001_membership_commercial_baseline.sql"]
-    assert postgres_utils.migration_checksum(files[0])
+    assert [path.name for path in files] == [
+        "0001_membership_commercial_baseline.sql",
+        "0002_commercial_scope_foundation.sql",
+    ]
+    assert all(postgres_utils.migration_checksum(path) for path in files)
 
 
 def test_member_migration_dry_run_counts_json_records(tmp_path):

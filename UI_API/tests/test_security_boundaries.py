@@ -154,6 +154,9 @@ def test_production_startup_accepts_safe_config(monkeypatch):
     monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
     monkeypatch.setattr(config, "_env_bool", lambda name, default=False: False)
     monkeypatch.setenv("ADMIN_MEMBER_REF_SECRET", "member-ref-secret")
+    monkeypatch.setenv("DEFAULT_TENANT_ID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("DEFAULT_STORE_ID", "00000000-0000-4000-8000-000000000002")
+    monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
 
     app = app_factory.create_app()
     paths = set(app.openapi().get("paths", {}))

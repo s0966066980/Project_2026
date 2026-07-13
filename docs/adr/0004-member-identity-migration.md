@@ -30,6 +30,7 @@
 - 遷移需要 dual read/dual write metrics、collision handling、backfill checkpoint、verify gate 與 rollback/roll-forward 計畫。
 - OTP、PIN 或其他 authentication proof 必須與 identity migration 分開設計；phone lookup 本身不是 authentication。
 - 在 Implementation Status 仍為 Deferred 時，現有 Schema、Phone Primary Key、會員 API 與 UI 流程維持不變。
+- ADR-0005 雖已建立 tenant scope foundation，phone 仍是 global primary key；相同 phone 無法自然存在於不同 Tenant，這是 Member UUID migration 前的已知限制，不得以繞過 scope filter 解決。
 
 ## Alternatives
 
