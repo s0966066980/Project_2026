@@ -1,0 +1,31 @@
+{
+  "plan_version": "2026-07-13",
+  "repository": "s0966066980/Project_2026",
+  "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
+  "current_milestone": "1C",
+  "status": "in_progress",
+  "completed_milestones": [
+    "1B.1"
+  ],
+  "checkpoint_commits": {
+    "1B.1": "f116474"
+  },
+  "verification": {
+    "1B.1": {
+      "target_tests": "PASS (61 passed)",
+      "postgres_integration": "PASS (2 passed)",
+      "full_json_backend": "PASS (203 passed)",
+      "mypy": "PASS",
+      "frontend": "PASS",
+      "shell": "PASS",
+      "ruff_gradual_ci_scope": "PASS",
+      "ruff_expanded_scope": "FAIL (pre-existing formatting and lint baseline outside the gradual CI scope)"
+    }
+  },
+  "known_gaps": [
+    "The expanded all-backend Ruff scope has pre-existing lint and formatting debt; CI currently enforces a gradual subset."
+  ],
+  "blocked_items": [],
+  "next_milestone": "1C",
+  "updated_at": "2026-07-13T19:20:46+08:00"
+}
