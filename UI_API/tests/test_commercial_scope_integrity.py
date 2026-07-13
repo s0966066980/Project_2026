@@ -7,9 +7,15 @@ import pytest
 
 def test_scoped_repositories_share_one_conflict_error_type() -> None:
     from models.commercial_scope import CommercialScopeConflictError
-    from repositories import admin_audit_repository, member_repository, recommendation_event_repository
+    from repositories import (
+        admin_audit_repository,
+        member_repository,
+        member_session_repository,
+        recommendation_event_repository,
+    )
 
     assert member_repository.CommercialScopeConflictError is CommercialScopeConflictError
+    assert member_session_repository.CommercialScopeConflictError is CommercialScopeConflictError
     assert admin_audit_repository.CommercialScopeConflictError is CommercialScopeConflictError
     assert recommendation_event_repository.CommercialScopeConflictError is CommercialScopeConflictError
 
