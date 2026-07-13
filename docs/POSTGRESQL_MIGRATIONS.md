@@ -55,6 +55,21 @@ PostgreSQL RLS 在 1E 明確延後：目前 application 使用共用 database id
 - Checksum mismatch 或資料庫存在但本地缺少的版本是部署阻斷，不得以修改 `schema_migrations` 繞過。
 - 目前 runner 在單一 transaction 內套用 migration；PostgreSQL 不允許其中執行 `CREATE INDEX CONCURRENTLY`。未來對大型既有表建立 index 前，必須先設計並測試明確的 non-transactional migration contract，不得直接把該語句加入現行 migration。
 
+## Milestone 5B Object Storage Metadata
+
+Migration `0009_object_storage_metadata.sql` 建立 `object_storage_metadata`：
+
+| Column | Purpose |
+| --- | --- |
+| `object_id` | Logical object id (tenant-prefixed) |
+| `tenant_id` / `store_id` | Scope; store nullable for tenant-level assets |
+| `content_type`, `size_bytes`, `checksum` | Integrity |
+| `encryption`, `key_version` | Truthful crypto mode only |
+| `provider`, `bucket`, `provider_key` | Adapter location |
+| `retention_days`, `created_at`, `deleted_at` | Lifecycle |
+
+Binary bytes 不寫入 PostgreSQL。Cloud S3/KMS wiring 屬外部依賴，見 Production Integration Milestone 10B。
+
 ## Commands
 
 從 `UI_API/` 執行，`DATABASE_URL` 僅由 environment 或 Secret Manager 提供：

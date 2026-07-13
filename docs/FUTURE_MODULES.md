@@ -28,7 +28,7 @@
 | 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
 | 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
 | 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |
-| 完成 | Object Storage | 管理文件、音訊、影片與匯出物 | Security/Privacy | local/test adapter、tenant isolation、signed URL 已建立；雲端帳號 wiring 仍外部 BLOCKED |
+| 完成（內部） | Object Storage truthfulness | 管理文件、音訊、影片與匯出物 | Security/Privacy | 5B：HMAC signed access、local disk、truthful encryption metadata、PG metadata；雲端 S3/KMS wiring 仍 EXTERNAL_BLOCKED（10B） |
 | 完成 | POS / Payment adapters | 串接正式交易系統 | Order state machine | fake/sandbox contract、webhook、reconciliation 已建立；真實商戶認證 BLOCKED |
 | 完成 | Fleet management | 管理大量 Kiosk | Device identity | heartbeat、allowlisted command、rollout ring 基線已建立 |
 | 完成 | Data analytics pipeline | 建立營運與推薦分析 | Event contract | envelope、idempotent publish/replay、quality counters 已建立 |

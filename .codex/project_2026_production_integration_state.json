@@ -3,18 +3,32 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "0be0257ff55aee167c8af165f5c3cd03870b9f15",
   "program": "production_integration",
-  "current_milestone": "5B",
+  "current_milestone": "5C",
   "status": "in_progress",
-  "completed_milestones": ["5A"],
+  "completed_milestones": [
+    "5A",
+    "5B"
+  ],
   "checkpoint_commits": {
-    "5A": "f54eae2"
+    "5A": "b06d316cf332d3bcfbd38434aa0e93cd9db83e3d",
+    "5B": "06d4dca2cb763d88b14d9d208e4bf040134e6d69"
   },
   "verification": {
     "5A": {
       "classification": "PRODUCTION_PATH_PASS",
-      "target_tests": "PASS (15 worker production/reliable tests)",
-      "full_json_backend": "PASS (319 passed)",
-      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; CI step added)",
+      "target_tests": "PASS (worker production/reliable path)",
+      "full_json_backend": "PASS",
+      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; CI retains)",
+      "ruff_affected_scope": "PASS",
+      "mypy": "NOT RUN",
+      "shell": "NOT RUN"
+    },
+    "5B": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "external": "EXTERNAL_BLOCKED cloud S3/KMS wiring",
+      "target_tests": "PASS (10 object storage production path + phase4 compatibility)",
+      "full_json_backend": "PASS (328 passed)",
+      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; migration 0009 + repository ready for CI)",
       "ruff_affected_scope": "PASS",
       "mypy": "NOT RUN",
       "shell": "NOT RUN"
@@ -23,10 +37,18 @@
   "known_gaps": [
     "Foundation milestones 1B.1-4E established contracts only; they are not Production Integration completion.",
     "ai.background handler remains explicitly blocked until milestone 5C gateway cutover.",
-    "Analytics outbox sink still uses JSON compatibility storage until milestone 6D durable sink."
+    "Analytics outbox sink still uses JSON compatibility storage until milestone 6D durable sink.",
+    "Cloud S3 put/get/stream SDK wiring remains EXTERNAL_BLOCKED until milestone 10B credentials."
   ],
-  "blocked_items": [],
+  "blocked_items": [
+    {
+      "item": "Cloud object storage / KMS wiring",
+      "impact": "S3 adapter refuses operations without credentials; local/HMAC path is production-ready for internal use",
+      "required_external_input": "Bucket credentials, endpoint, and KMS policy",
+      "milestone": "10B"
+    }
+  ],
   "risk_register": [],
-  "next_milestone": "5B",
-  "updated_at": "2026-07-14T12:00:00+08:00"
+  "next_milestone": "5C",
+  "updated_at": "2026-07-14T14:00:00+08:00"
 }

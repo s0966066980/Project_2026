@@ -100,6 +100,8 @@ Redis 經 `CachePort`、`RateLimitPort`、`DistributedLockPort` adapter 提供�
 
 可靠背景工作由獨立 worker process 消費 PostgreSQL `background_jobs` 與 `order_outbox`：claim → `JobHandlerRegistry` 執行真正 handler（需有 `side_effect_id`）→ complete/retry/DLQ；outbox 經 `OutboxDeliveryRouter` 取得 sink ACK 後才可 `published_at`。支援 visibility timeout、retry/backoff、dead-letter、idempotent delivery 與 queue metrics。API process 只負責 enqueue/outbox write，不在 request path 執行長時間可重試工作。
 
+Object storage（`services/object_storage_service.py`）以 Port/Adapter 管理 binary content：In-memory（test，`encryption=none-test`）、Local disk（development/pilot，atomic write、tenant namespace、path traversal 防護）、S3-compatible contract（缺 credential 時 EXTERNAL_BLOCKED）。Signed access 使用 HMAC-SHA256（object_id、tenant_id、expires、method）與外部注入 secret；Production 缺 secret 必須 fail fast。Metadata 可寫入 PostgreSQL `object_storage_metadata`（migration 0009）；binary 永不進 PostgreSQL。Encryption metadata 必須與真實 adapter 行為一致（`none-test` / `local-aes-gcm` / `provider-managed` / `kms-envelope`）。
+
 Kiosk/Admin 目前由 Vite multi-entry build 分別驗證，production HTML/DOM 與 FastAPI `/static` serving 保持原路徑；Vitest 保護 shared transport，Playwright 保護本機 critical flows。完整契約見 [FRONTEND_TOOLCHAIN.md](FRONTEND_TOOLCHAIN.md)。
 
 Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 authentication state。

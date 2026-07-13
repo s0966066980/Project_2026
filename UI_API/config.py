@@ -108,6 +108,13 @@ def validate_startup_config() -> None:
         errors.append(f"REDIS_URL must be configured when shared {label} rate limiting is enabled")
     if MEMBER_IDENTITY_READ_MODE not in {"legacy", "dual", "uuid_preferred", "uuid_only"}:
         errors.append("MEMBER_IDENTITY_READ_MODE is invalid")
+    if not _token_configured(os.getenv("OBJECT_STORAGE_SIGNING_SECRET", "")):
+        errors.append(f"OBJECT_STORAGE_SIGNING_SECRET must be configured in {label}")
+    elif _looks_like_placeholder_secret(os.getenv("OBJECT_STORAGE_SIGNING_SECRET", "")):
+        errors.append("OBJECT_STORAGE_SIGNING_SECRET must not use a placeholder/default secret")
+    object_storage_backend = str(os.getenv("OBJECT_STORAGE_BACKEND", "local") or "local").strip().lower()
+    if object_storage_backend in {"memory", "inmemory", "test"}:
+        errors.append(f"OBJECT_STORAGE_BACKEND must not be memory/test in {label}")
     if MEMBER_IDENTITY_READ_MODE != "legacy" or MEMBER_IDENTITY_DUAL_WRITE:
         if not _token_configured(os.getenv("MEMBER_PHONE_KEY_VERSION", "")):
             errors.append("Member PII key version must be configured")
@@ -333,6 +340,19 @@ DEFAULT_SETTINGS = {
     "KIOSK_NAME": "機台01",
     # ── 付款逾時協助 Prompt ───────────────────────────────────────
     "PAYMENT_ASSIST_PROMPT": _prompts.PAYMENT_ASSIST_PROMPT,
+    # ── Object storage (binary outside PostgreSQL; metadata may be durable) ──
+    "OBJECT_STORAGE_BACKEND": os.getenv("OBJECT_STORAGE_BACKEND", "memory"),  # memory|local|s3
+    "OBJECT_STORAGE_LOCAL_ROOT": os.getenv("OBJECT_STORAGE_LOCAL_ROOT", ""),
+    "OBJECT_STORAGE_SIGNING_SECRET": os.getenv("OBJECT_STORAGE_SIGNING_SECRET", ""),
+    "OBJECT_STORAGE_ENCRYPTION": os.getenv("OBJECT_STORAGE_ENCRYPTION", "none-test"),
+    "OBJECT_STORAGE_ENCRYPTION_KEY": os.getenv("OBJECT_STORAGE_ENCRYPTION_KEY", ""),
+    "OBJECT_STORAGE_ENCRYPTION_KEY_VERSION": os.getenv("OBJECT_STORAGE_ENCRYPTION_KEY_VERSION", "v1"),
+    "OBJECT_STORAGE_ENDPOINT": os.getenv("OBJECT_STORAGE_ENDPOINT", ""),
+    "OBJECT_STORAGE_BUCKET": os.getenv("OBJECT_STORAGE_BUCKET", ""),
+    "OBJECT_STORAGE_ACCESS_KEY": os.getenv("OBJECT_STORAGE_ACCESS_KEY", ""),
+    "OBJECT_STORAGE_SECRET_KEY": os.getenv("OBJECT_STORAGE_SECRET_KEY", ""),
+    "OBJECT_STORAGE_REGION": os.getenv("OBJECT_STORAGE_REGION", "auto"),
+    "OBJECT_STORAGE_S3_ENCRYPTION": os.getenv("OBJECT_STORAGE_S3_ENCRYPTION", "provider-managed"),
 }
 
 PUBLIC_SETTINGS_KEYS = {
