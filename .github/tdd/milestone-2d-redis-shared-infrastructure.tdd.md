@@ -23,7 +23,7 @@ Port/Adapter and centralized failure policy now provide scoped cache, shared rat
 
 Local target/security/readiness/documentation matrix: **PASS — 36 tests**. Full JSON backend: **PASS — 269 tests**. Ruff affected scope, Ruff format, mypy (48 source files), frontend build/unit/type/syntax and shell syntax: **PASS**.
 
-Real Redis integration: **NOT RUN locally** because no Redis server/runtime is installed. The checkpoint adds a Redis 8 service CI job that must pass before the roadmap advances to 2E.
+Real Redis integration was **NOT RUN locally** because no Redis server/runtime is installed. GitHub Actions run `29255174372` then verified the Redis 8 multi-instance integration: **PASS**. The same run passed Backend Python 3.10/3.12, PostgreSQL migrations, frontend Chromium and shell jobs after the minimal Uvicorn/WebSocket smoke dependencies were locked.
 
 ## Known Limitations
 

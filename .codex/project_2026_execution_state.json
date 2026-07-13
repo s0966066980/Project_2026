@@ -2,7 +2,7 @@
   "plan_version": "2026-07-13",
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
-  "current_milestone": "2D",
+  "current_milestone": "2E",
   "status": "in_progress",
   "completed_milestones": [
     "1B.1",
@@ -14,7 +14,8 @@
     "1H",
     "2A",
     "2B",
-    "2C"
+    "2C",
+    "2D"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -26,7 +27,8 @@
     "1H": "b8ff7b2",
     "2A": "e6389ba",
     "2B": "07fc3a5",
-    "2C": "5356eec"
+    "2C": "5356eec",
+    "2D": "dac3c94"
   },
   "verification": {
     "1B.1": {
@@ -171,6 +173,18 @@
       "mypy": "PASS (45 source files)",
       "shell": "PASS",
       "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)"
+    },
+    "2D": {
+      "target_tests": "PASS (36 Redis/security/readiness/documentation tests)",
+      "full_json_backend": "PASS (269 passed)",
+      "redis_integration_local": "NOT RUN locally (Redis server unavailable)",
+      "redis_integration_ci": "PASS (GitHub Actions Redis 8 multi-instance integration, run 29255174372)",
+      "github_actions": "PASS (Python 3.10/3.12, PostgreSQL, Redis, frontend Chromium, shell; run 29255174372)",
+      "ruff_affected_scope": "PASS",
+      "ruff_format_affected_scope": "PASS",
+      "mypy": "PASS (48 source files)",
+      "frontend": "PASS",
+      "shell": "PASS"
     }
   },
   "known_gaps": [
@@ -188,6 +202,6 @@
     "Legacy Kiosk WebSocket token-in-query compatibility remains until device-session callers are fully migrated."
   ],
   "blocked_items": [],
-  "next_milestone": "2D",
-  "updated_at": "2026-07-13T21:36:32+08:00"
+  "next_milestone": "2E",
+  "updated_at": "2026-07-13T21:48:51+08:00"
 }
