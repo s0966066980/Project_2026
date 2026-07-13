@@ -62,5 +62,7 @@ files = [
   "backend/services/device_identity_service.py",
   "backend/services/member_key_provider.py",
   "backend/services/member_pii_service.py",
+  "backend/services/health_service.py",
+  "backend/services/observability_service.py",
   "backend/utils",
 ]

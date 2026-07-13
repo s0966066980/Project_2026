@@ -18,7 +18,7 @@ from repositories import (
     postgres_utils,
     session_repository,
 )
-from services import member_service, recommendation_event_service
+from services import member_service, observability_service, recommendation_event_service
 
 CheckoutIdempotencyConflictError = checkout_order_repository.CheckoutIdempotencyConflictError
 
@@ -112,17 +112,23 @@ async def process_checkout(
     idempotency_key: str = "",
     priced_cart: dict | None = None,
 ) -> dict:
+    observability_service.increment_metric("checkout_attempts_total", status="started")
     order_result = None
     if scope is not None and postgres_utils.use_postgres() and priced_cart is not None:
-        order_result = await asyncio.to_thread(
-            checkout_order_repository.create_checkout_order_scoped,
-            scope,
-            session_id,
-            idempotency_key,
-            checkout_request_fingerprint(session_id, priced_cart),
-            priced_cart,
-        )
+        try:
+            order_result = await asyncio.to_thread(
+                checkout_order_repository.create_checkout_order_scoped,
+                scope,
+                session_id,
+                idempotency_key,
+                checkout_request_fingerprint(session_id, priced_cart),
+                priced_cart,
+            )
+        except Exception:
+            observability_service.increment_metric("checkout_attempts_total", status="failed")
+            raise
         if order_result.get("replayed"):
+            observability_service.increment_metric("checkout_idempotency_replays_total", status="replayed")
             return {
                 "status": "success",
                 "order_number": order_result["order_id"],
@@ -211,4 +217,5 @@ async def process_checkout(
     if order_result is not None:
         response["order"] = order_result
         response["order_number"] = order_result["order_id"]
+    observability_service.increment_metric("checkout_attempts_total", status="confirmed")
     return response

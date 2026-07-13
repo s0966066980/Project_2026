@@ -157,6 +157,8 @@ def test_production_startup_accepts_safe_config(monkeypatch):
     monkeypatch.setenv("DEFAULT_TENANT_ID", "00000000-0000-4000-8000-000000000001")
     monkeypatch.setenv("DEFAULT_STORE_ID", "00000000-0000-4000-8000-000000000002")
     monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
+    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://configured-by-secret-manager")
 
     app = app_factory.create_app()
     paths = set(app.openapi().get("paths", {}))

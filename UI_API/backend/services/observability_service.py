@@ -1,35 +1,68 @@
 """Structured logging and runtime retention helpers."""
+
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
+from collections import defaultdict
+from contextvars import ContextVar, Token
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import config
-
 
 LOGGER_NAME = "ui_api"
 REQUEST_LOGGER_NAME = "ui_api.request"
 _CONFIGURED = False
 _LAST_RETENTION_SUMMARY: dict = {}
+_CORRELATION_CONTEXT: ContextVar[dict[str, str]] = ContextVar("correlation_context", default={})
+_METRICS_LOCK = Lock()
+REQUIRED_METRICS = (
+    "http_requests_total",
+    "websocket_connections_total",
+    "checkout_attempts_total",
+    "checkout_idempotency_replays_total",
+    "postgres_operations_total",
+    "migration_validation_failures_total",
+    "auth_failures_total",
+    "device_auth_failures_total",
+    "llm_provider_requests_total",
+    "emotion_evidence_total",
+    "intervention_outcomes_total",
+    "order_outbox_pending",
+    "queue_backlog",
+)
+_METRICS: dict[str, dict[str, float]] = {name: defaultdict(float) for name in REQUIRED_METRICS}
+_PHONE_PATTERN = re.compile(r"(?<!\d)09\d{8}(?!\d)")
+_DATABASE_URL_PATTERN = re.compile(r"(?:postgres(?:ql)?|mysql)://[^\s]+", re.IGNORECASE)
+_CREDENTIAL_PATTERN = re.compile(
+    r"(?i)\b(password|passwd|token|secret|authorization|api[_-]?key|database_url)\b\s*[=:]\s*[^\s,;]+"
+)
 
 
 class JsonLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        context = correlation_context()
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
+            "module": record.name,
+            "message": redact_sensitive_text(record.getMessage()),
         }
         for key in (
             "request_id",
+            "trace_id",
+            "tenant_id",
+            "store_id",
+            "device_id",
+            "error_code",
             "method",
             "path",
             "status_code",
@@ -37,12 +70,71 @@ class JsonLogFormatter(logging.Formatter):
             "client_host",
             "event",
         ):
-            value = getattr(record, key, None)
+            value = getattr(record, key, None) or context.get(key)
             if value not in (None, ""):
-                payload[key] = value
+                payload[key] = redact_sensitive_text(value) if isinstance(value, str) else value
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            payload["exception_type"] = record.exc_info[0].__name__ if record.exc_info[0] else "Exception"
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def redact_sensitive_text(value: object) -> str:
+    text = str(value or "")
+    text = _DATABASE_URL_PATTERN.sub("[REDACTED]", text)
+    text = _CREDENTIAL_PATTERN.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
+    return _PHONE_PATTERN.sub("[REDACTED]", text)
+
+
+def correlation_context() -> dict[str, str]:
+    return dict(_CORRELATION_CONTEXT.get())
+
+
+def bind_correlation_context(**values: object) -> Token:
+    current = correlation_context()
+    current.update({key: str(value) for key, value in values.items() if value not in (None, "")})
+    return _CORRELATION_CONTEXT.set(current)
+
+
+def reset_correlation_context(token: Token) -> None:
+    _CORRELATION_CONTEXT.reset(token)
+
+
+def new_trace_id() -> str:
+    return f"trace_{uuid.uuid4().hex}"
+
+
+def safe_correlation_id(value: str | None, *, prefix: str) -> str:
+    candidate = str(value or "").strip()
+    if candidate and re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", candidate):
+        return candidate
+    return new_request_id() if prefix == "req" else new_trace_id()
+
+
+def increment_metric(name: str, value: float = 1, *, status: str = "total") -> None:
+    if name not in _METRICS:
+        raise ValueError("Metric name is not registered")
+    label = re.sub(r"[^a-zA-Z0-9_.-]", "_", str(status or "total"))[:80]
+    with _METRICS_LOCK:
+        _METRICS[name][label] += float(value)
+
+
+def set_metric(name: str, value: float, *, status: str = "current") -> None:
+    if name not in _METRICS:
+        raise ValueError("Metric name is not registered")
+    label = re.sub(r"[^a-zA-Z0-9_.-]", "_", str(status or "current"))[:80]
+    with _METRICS_LOCK:
+        _METRICS[name][label] = float(value)
+
+
+def metrics_snapshot() -> dict[str, dict[str, float]]:
+    with _METRICS_LOCK:
+        return {name: dict(values) for name, values in _METRICS.items()}
+
+
+def reset_metrics_for_tests() -> None:
+    with _METRICS_LOCK:
+        for values in _METRICS.values():
+            values.clear()
 
 
 def _bool_setting(name: str, default: bool) -> bool:
@@ -72,8 +164,7 @@ def configure_logging() -> None:
     root_logger = logging.getLogger(LOGGER_NAME)
     root_logger.setLevel(logging.INFO)
     root_logger.handlers = [
-        existing for existing in root_logger.handlers
-        if getattr(existing, "_ui_api_structured", False) is not True
+        existing for existing in root_logger.handlers if getattr(existing, "_ui_api_structured", False) is not True
     ]
     handler._ui_api_structured = True  # type: ignore[attr-defined]
     root_logger.addHandler(handler)
@@ -98,19 +189,37 @@ def log_request(
     status_code: int,
     duration_ms: float,
     client_host: str = "",
+    trace_id: str = "",
+    tenant_id: str = "",
+    store_id: str = "",
+    device_id: str = "",
 ) -> None:
+    increment_metric("http_requests_total", status=f"{int(status_code) // 100}xx")
     request_logger().info(
         "http_request",
         extra={
             "event": "http_request",
             "request_id": request_id,
+            "trace_id": trace_id,
+            "tenant_id": tenant_id,
+            "store_id": store_id,
+            "device_id": device_id,
             "method": method,
             "path": path,
             "status_code": int(status_code),
+            "error_code": f"http_{int(status_code) // 100}xx" if int(status_code) >= 400 else "",
             "duration_ms": round(float(duration_ms), 2),
-            "client_host": client_host,
+            "client_host": _masked_client_host(client_host),
         },
     )
+
+
+def _masked_client_host(value: str) -> str:
+    host = str(value or "")
+    parts = host.split(".")
+    if len(parts) == 4 and all(part.isdigit() for part in parts):
+        return ".".join((*parts[:3], "0"))
+    return "local" if host in {"localhost", "::1"} else ("[REDACTED]" if host else "")
 
 
 def monotonic_ms(start: float) -> float:
@@ -212,12 +321,14 @@ def apply_runtime_retention(now: datetime | None = None) -> dict:
             kept.append(row)
         if removed:
             _write_json_list(path, kept)
-        results.append({
-            "path": str(path),
-            "before": len(rows),
-            "after": len(kept),
-            "removed": removed,
-        })
+        results.append(
+            {
+                "path": str(path),
+                "before": len(rows),
+                "after": len(kept),
+                "removed": removed,
+            }
+        )
     summary = {"enabled": True, "retention_days": days, "files": results}
     _LAST_RETENTION_SUMMARY = dict(summary)
     logging.getLogger(LOGGER_NAME).info(
@@ -245,17 +356,20 @@ def runtime_log_stats() -> list[dict]:
             size_bytes = 0
             modified_at = ""
         latest = ""
-        parsed_times = [_record_timestamp(row) for row in records]
-        parsed_times = [value for value in parsed_times if value is not None]
+        parsed_times: list[datetime] = [
+            value for value in (_record_timestamp(row) for row in records) if isinstance(value, datetime)
+        ]
         if parsed_times:
             latest = max(parsed_times).isoformat()
-        rows.append({
-            "name": path.name,
-            "path": str(path),
-            "exists": exists,
-            "records": len(records),
-            "size_bytes": size_bytes,
-            "modified_at": modified_at,
-            "latest_record_at": latest,
-        })
+        rows.append(
+            {
+                "name": path.name,
+                "path": str(path),
+                "exists": exists,
+                "records": len(records),
+                "size_bytes": size_bytes,
+                "modified_at": modified_at,
+                "latest_record_at": latest,
+            }
+        )
     return rows

@@ -7,7 +7,14 @@ from realtime import event_bus
 import config
 from core.constants import FRONTEND_DIR
 from repositories import commercial_settings_repository, log_repository
-from services import checkout_pricing_service, checkout_service, health_service, member_service, stats_service
+from services import (
+    checkout_pricing_service,
+    checkout_service,
+    health_service,
+    member_service,
+    observability_service,
+    stats_service,
+)
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.parsing import parse_json_list, parse_non_negative_int
@@ -162,6 +169,16 @@ def create_router(deps: dict) -> APIRouter:
             str(request.headers.get("Idempotency-Key") or f"legacy:{session_id}"),
             priced_cart,
         )
+        correlation_token = (
+            observability_service.bind_correlation_context(
+                tenant_id=scope.tenant_id,
+                store_id=scope.store_id,
+                device_id=scope.device_id,
+            )
+            if scope is not None
+            else None
+        )
+        request.state.commercial_scope = scope
         try:
             result = await checkout_service.process_checkout(*checkout_args)
         except checkout_service.CheckoutIdempotencyConflictError as exc:
@@ -169,6 +186,9 @@ def create_router(deps: dict) -> APIRouter:
                 status_code=409,
                 detail={"code": "idempotency_conflict", "message": str(exc)},
             ) from exc
+        finally:
+            if correlation_token is not None:
+                observability_service.reset_correlation_context(correlation_token)
         result["cart_total"] = priced_cart["total"]
         return result
 

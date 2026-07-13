@@ -134,6 +134,8 @@ member(UUID)
 - Admin scope 由 database-backed `AdminPrincipal` 解析；permission、tenant 與 store 由集中式 server policy 驗證。正式 browser session 使用 HttpOnly cookie，database 只保存 token hash。
 - Kiosk scope 由 database-backed `DevicePrincipal` 解析；credential 與 session 只保存 hash，rotation 具 overlap/cutover，revoke 只影響指定 device credential。
 - Checkout 由 server-side pricing 建立 scoped Order aggregate；Order/items/promotion/outcome/outbox 使用單一 PostgreSQL transaction，client total 與任意狀態字串不是信任邊界。
+- Process liveness 使用 `/live`；commercial readiness 使用 `/ready` 並驗證 PostgreSQL、clean migrations 與 configured scope。AI/RAG/Emotion degraded 不阻斷基本 checkout readiness。
+- Structured logs 使用 request/trace 與 verified tenant/store/device correlation，先 redaction 再輸出；in-process metrics 定義穩定 commercial signal，外部 exporter 由 deployment adapter 接入。
 - 破壞性變更使用 `expand → dual write/backfill → verify → switch read → contract`。
 
 ## 6. API 與相容性

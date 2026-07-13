@@ -293,6 +293,8 @@ def test_production_can_disable_legacy_admin_token(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
     monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
     monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
+    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://configured-by-secret-manager")
 
     config.validate_startup_config()
 

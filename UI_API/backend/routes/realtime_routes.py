@@ -3,11 +3,10 @@ import time
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
 
 import config
-from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
-from services import admin_identity_service
-from services import device_identity_service
+from services import admin_identity_service, device_identity_service, observability_service
 from utils.auth_utils import websocket_token_allowed
 
 
@@ -64,15 +63,19 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def websocket_endpoint(websocket: WebSocket, client_type: str, session_id: str):
         client_type = str(client_type or "").lower()
         if client_type not in ALLOWED_CLIENT_TYPES:
+            observability_service.increment_metric("websocket_connections_total", status="invalid_client")
             await websocket.close(code=1008)
             return
         if not _origin_allowed(websocket.headers.get("origin")):
+            observability_service.increment_metric("websocket_connections_total", status="origin_denied")
             await websocket.close(code=1008)
             return
         if not _websocket_identity_allowed(websocket, client_type):
+            observability_service.increment_metric("websocket_connections_total", status="auth_denied")
             await websocket.close(code=1008)
             return
         await manager.connect(client_type, session_id, websocket)
+        observability_service.increment_metric("websocket_connections_total", status="connected")
         rate_window_started = time.monotonic()
         message_count = 0
         try:
@@ -138,5 +141,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                     break
         finally:
             await manager.disconnect(client_type, session_id, websocket)
+            observability_service.increment_metric("websocket_connections_total", status="disconnected")
 
     return router

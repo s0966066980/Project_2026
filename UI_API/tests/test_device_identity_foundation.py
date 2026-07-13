@@ -271,5 +271,7 @@ def test_production_can_disable_legacy_kiosk_token(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
     monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
     monkeypatch.setenv("DEFAULT_DEVICE_ID", str(DEVICE_ID))
+    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://configured-by-secret-manager")
 
     config.validate_startup_config()

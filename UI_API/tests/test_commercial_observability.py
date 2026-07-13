@@ -6,6 +6,7 @@ import json
 import logging
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -110,3 +111,30 @@ def test_pilot_operations_documents_cover_required_gates() -> None:
         text = (ROOT / relative_path).read_text(encoding="utf-8")
         for fragment in fragments:
             assert fragment.lower() in text.lower(), (relative_path, fragment)
+
+
+def test_production_config_rejects_noncommercial_observability_baseline(monkeypatch) -> None:
+    import config
+
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
+    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
+    monkeypatch.setattr(config, "ENABLE_LEGACY_KIOSK_TOKEN", False)
+    monkeypatch.setattr(config, "CORS_ORIGINS", ["https://pilot.example.com"])
+    monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
+    monkeypatch.setenv("ADMIN_MEMBER_REF_SECRET", "configured")
+    monkeypatch.setenv("DEFAULT_TENANT_ID", "00000000-0000-4000-8000-000000000001")
+    monkeypatch.setenv("DEFAULT_STORE_ID", "00000000-0000-4000-8000-000000000002")
+    monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
+    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "json")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("STRUCTURED_LOGGING_ENABLED", "false")
+    monkeypatch.setenv("LOG_RETENTION_DAYS", "0")
+
+    with pytest.raises(RuntimeError) as exc:
+        config.validate_startup_config()
+    message = str(exc.value)
+    assert "MEMBER_STORAGE_BACKEND" in message
+    assert "DATABASE_URL" in message
+    assert "STRUCTURED_LOGGING_ENABLED" in message
+    assert "LOG_RETENTION_DAYS" in message

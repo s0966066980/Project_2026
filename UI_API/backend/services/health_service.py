@@ -1,4 +1,5 @@
 """Commercial operations health summary."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,6 +7,7 @@ from datetime import datetime
 import config
 from repositories import postgres_utils, recommendation_event_repository
 from services import observability_service, rag_alert_service, rag_document_service
+from services.commercial_scope_readiness_service import validate_configured_commercial_scope
 
 
 def _ok(name: str, **details) -> dict:
@@ -17,7 +19,12 @@ def _skipped(name: str, reason: str, **details) -> dict:
 
 
 def _degraded(name: str, message: str, **details) -> dict:
-    return {"name": name, "status": "degraded", "message": message, **details}
+    return {
+        "name": name,
+        "status": "degraded",
+        "message": observability_service.redact_sensitive_text(message)[:500],
+        **details,
+    }
 
 
 def _postgres_health() -> dict:
@@ -55,10 +62,69 @@ def _postgres_health() -> dict:
         return _degraded("postgres", str(exc)[:500], backend=backend)
 
 
+def _database_readiness() -> dict:
+    backend = postgres_utils.storage_backend()
+    if backend != "postgres":
+        if config.APP_ENV in {"production", "staging"}:
+            return {"status": "failed", "error_code": "postgres_required"}
+        return {"status": "skipped", "reason": "json_compatibility_backend"}
+    try:
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 AS value")
+            if (cur.fetchone() or {}).get("value") != 1:
+                raise RuntimeError
+            cur.execute("SELECT COUNT(*) AS count FROM order_outbox WHERE published_at IS NULL")
+            pending_outbox = int((cur.fetchone() or {}).get("count") or 0)
+        observability_service.increment_metric("postgres_operations_total", status="ready_success")
+        observability_service.set_metric("order_outbox_pending", pending_outbox)
+        return {"status": "ok", "pending_outbox": pending_outbox}
+    except Exception:
+        observability_service.increment_metric("postgres_operations_total", status="ready_failure")
+        return {"status": "failed", "error_code": "database_unavailable"}
+
+
+def _migration_readiness() -> dict:
+    if postgres_utils.storage_backend() != "postgres":
+        return {"status": "skipped", "reason": "json_compatibility_backend"}
+    try:
+        plan = postgres_utils.get_migration_plan()
+        postgres_utils.validate_migration_plan(plan, require_clean=True)
+        return {"status": "ok", "applied_count": len(plan.applied_versions)}
+    except Exception:
+        observability_service.increment_metric("migration_validation_failures_total", status="not_clean")
+        return {"status": "failed", "error_code": "migration_not_clean"}
+
+
+def _scope_readiness() -> dict:
+    if postgres_utils.storage_backend() != "postgres":
+        return {"status": "skipped", "reason": "json_compatibility_backend"}
+    try:
+        validate_configured_commercial_scope()
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "failed", "error_code": "commercial_scope_not_ready"}
+
+
+def build_readiness() -> dict:
+    required_checks = {
+        "database": _database_readiness(),
+        "migration": _migration_readiness(),
+        "commercial_scope": _scope_readiness(),
+    }
+    ready = all(check.get("status") in {"ok", "skipped"} for check in required_checks.values())
+    return {
+        "ready": ready,
+        "status": "ready" if ready else "not_ready",
+        "required_checks": required_checks,
+        "degraded_optional_dependencies": ["llm", "emotion", "rag"],
+    }
+
+
 def _runtime_health() -> dict:
     logs = observability_service.runtime_log_stats()
     unreadable = [
-        row for row in logs
+        row
+        for row in logs
         if row.get("exists") and int(row.get("records", 0) or 0) == 0 and int(row.get("size_bytes", 0) or 0) > 2
     ]
     status = "degraded" if unreadable else "ok"
@@ -79,7 +145,7 @@ def _recommendation_health() -> dict:
     try:
         events = recommendation_event_repository.get_recommendation_events(limit=5000)
         recent = events[-200:]
-        event_types = {}
+        event_types: dict[str, int] = {}
         for event in recent:
             event_type = str(event.get("event_type") or "unknown")
             event_types[event_type] = event_types.get(event_type, 0) + 1
@@ -136,4 +202,6 @@ async def build_admin_health() -> dict:
             "structured_logging_enabled": bool(config.get("STRUCTURED_LOGGING_ENABLED", True)),
         },
         "checks": checks,
+        "readiness": build_readiness(),
+        "metrics": observability_service.metrics_snapshot(),
     }

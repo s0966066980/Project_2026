@@ -53,6 +53,7 @@ jobs:
         run: >-
           ruff check
           main.py
+          backend/app_factory.py
           backend/api
           backend/core
           backend/models
@@ -76,6 +77,7 @@ jobs:
           backend/routes/menu_routes.py
           backend/routes/member_routes.py
           backend/routes/recommendation_event_routes.py
+          backend/routes/realtime_routes.py
           backend/routes/voice_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
@@ -91,9 +93,11 @@ jobs:
           backend/services/checkout_pricing_service.py
           backend/services/checkout_service.py
           backend/services/intervention_pipeline_service.py
+          backend/services/health_service.py
           backend/services/member_key_provider.py
           backend/services/member_pii_service.py
           backend/services/member_service.py
+          backend/services/observability_service.py
           backend/services/promotion_banner_service.py
           backend/services/promotion_service.py
           backend/services/rag_offer_service.py
@@ -109,6 +113,7 @@ jobs:
         run: >-
           ruff format --check
           main.py
+          backend/app_factory.py
           backend/api
           backend/core
           backend/models
@@ -127,6 +132,7 @@ jobs:
           backend/routes/interaction_routes.py
           backend/routes/member_routes.py
           backend/routes/recommendation_event_routes.py
+          backend/routes/realtime_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/scripts/validate_commercial_scope.py
@@ -137,6 +143,8 @@ jobs:
           backend/services/device_identity_service.py
           backend/services/member_key_provider.py
           backend/services/member_pii_service.py
+          backend/services/health_service.py
+          backend/services/observability_service.py
           backend/services/commercial_context_service.py
           backend/utils
 
@@ -214,6 +222,9 @@ jobs:
 
       - name: Verify Order checkout transaction boundary
         run: pytest -q tests/postgres_order_checkout_integration.py
+
+      - name: Verify commercial readiness and observability
+        run: pytest -q tests/postgres_observability_integration.py
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply

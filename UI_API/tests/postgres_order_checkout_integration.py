@@ -55,6 +55,7 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
     from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScope
     from models.order import InvalidOrderTransitionError, OrderStatus
     from repositories import checkout_order_repository, postgres_utils
+    from services import observability_service
     from services.checkout_service import checkout_request_fingerprint
 
     base_url = postgres_utils.database_url()
@@ -93,9 +94,15 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
     postgres_utils.init_schema()
     priced = _priced_cart()
     fingerprint = checkout_request_fingerprint("checkout-session", priced)
-    created = checkout_order_repository.create_checkout_order_scoped(
-        LEGACY_DEFAULT_SCOPE, "checkout-session", "checkout-key", fingerprint, priced
+    correlation_token = observability_service.bind_correlation_context(
+        request_id="req_order_integration", trace_id="trace_order_integration"
     )
+    try:
+        created = checkout_order_repository.create_checkout_order_scoped(
+            LEGACY_DEFAULT_SCOPE, "checkout-session", "checkout-key", fingerprint, priced
+        )
+    finally:
+        observability_service.reset_correlation_context(correlation_token)
     replayed = checkout_order_repository.create_checkout_order_scoped(
         LEGACY_DEFAULT_SCOPE, "checkout-session", "checkout-key", fingerprint, priced
     )
@@ -192,6 +199,12 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
             ]
             == 2
         )
+        confirmed_payload = conn.execute(
+            "SELECT payload FROM order_outbox WHERE aggregate_id = %s AND event_type = 'order_confirmed'",
+            (order_id,),
+        ).fetchone()["payload"]
+        assert confirmed_payload["trace_id"] == "trace_order_integration"
+        assert "session_id" not in confirmed_payload
         assert (
             conn.execute("SELECT checkout_success FROM order_outcomes WHERE order_id = %s", (order_id,)).fetchone()[
                 "checkout_success"

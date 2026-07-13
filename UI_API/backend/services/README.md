@@ -12,7 +12,7 @@
 - 語音：`voice_service.py`、`stt_service.py`、`tts_service.py`
 - 情緒：`emotion_service.py`
 - 供應狀態：`availability_service.py`
-- 觀測與健康：`observability_service.py`、`health_service.py`
+- 觀測與健康：`observability_service.py` 提供 redaction、correlation 與 metrics registry；`health_service.py` 分離 liveness/readiness 與 Admin dependency health。
 - 稽核：`admin_audit_service.py`
 
 ## 維護規則

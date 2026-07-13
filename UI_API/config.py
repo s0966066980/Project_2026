@@ -55,6 +55,17 @@ def validate_startup_config() -> None:
         errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
     if _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False):
         errors.append("ALLOW_POSTGRES_JSON_FALLBACK must be false in production")
+    if str(os.getenv("STRUCTURED_LOGGING_ENABLED", "true")).strip().lower() not in {"1", "true", "yes", "on"}:
+        errors.append("STRUCTURED_LOGGING_ENABLED must be true in production")
+    try:
+        if int(os.getenv("LOG_RETENTION_DAYS", "90")) <= 0:
+            errors.append("LOG_RETENTION_DAYS must be positive in production")
+    except ValueError:
+        errors.append("LOG_RETENTION_DAYS must be a valid integer")
+    if str(os.getenv("MEMBER_STORAGE_BACKEND", "json")).strip().lower() != "postgres":
+        errors.append("MEMBER_STORAGE_BACKEND must be postgres in production")
+    if not _token_configured(os.getenv("DATABASE_URL", "")):
+        errors.append("DATABASE_URL must be configured in production")
     if MEMBER_IDENTITY_READ_MODE not in {"legacy", "dual", "uuid_preferred", "uuid_only"}:
         errors.append("MEMBER_IDENTITY_READ_MODE is invalid")
     if MEMBER_IDENTITY_READ_MODE != "legacy" or MEMBER_IDENTITY_DUAL_WRITE:

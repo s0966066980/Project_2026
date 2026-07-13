@@ -5,7 +5,7 @@ import time
 from fastapi import HTTPException, Request, UploadFile
 
 import config
-from services import admin_identity_service, device_identity_service
+from services import admin_identity_service, device_identity_service, observability_service
 from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
 from services.commercial_context_service import scope_from_admin_principal
 from utils.commercial_scope_config import resolve_commercial_scope
@@ -44,12 +44,16 @@ def require_admin_token(request: Request):
         return session_principal
     token = _bearer_token(request) or request.headers.get("X-Admin-Token")
     if not token:
+        observability_service.increment_metric("auth_failures_total", status="missing")
         raise HTTPException(status_code=401, detail="admin authentication required")
     if not bool(config.get("ENABLE_LEGACY_ADMIN_TOKEN", not config.is_production())):
+        observability_service.increment_metric("auth_failures_total", status="legacy_disabled")
         raise HTTPException(status_code=403, detail="legacy admin token is disabled")
     if not expected:
+        observability_service.increment_metric("auth_failures_total", status="not_configured")
         raise HTTPException(status_code=503, detail="legacy admin auth is not configured")
     if not _constant_time_match(token, [expected, config.ADMIN_DEMO_TOKEN]):
+        observability_service.increment_metric("auth_failures_total", status="invalid")
         raise HTTPException(status_code=403, detail="invalid admin token")
     scope = resolve_commercial_scope(request.headers)
     principal = admin_identity_service.legacy_admin_principal(scope)
@@ -64,6 +68,7 @@ def require_permission(permission: str):
         try:
             return authorize_admin_action(principal, permission, scope_from_admin_principal(principal))
         except AdminAuthorizationError as exc:
+            observability_service.increment_metric("auth_failures_total", status="permission_denied")
             raise HTTPException(status_code=403, detail="admin action is not allowed") from exc
 
     return dependency
@@ -92,12 +97,16 @@ def require_kiosk_token(request: Request):
         return session_principal
     token = request.headers.get("X-Kiosk-Token") or request.headers.get("X-Pos-Token") or _bearer_token(request)
     if not token:
+        observability_service.increment_metric("device_auth_failures_total", status="missing")
         raise HTTPException(status_code=401, detail="device authentication required")
     if not bool(config.get("ENABLE_LEGACY_KIOSK_TOKEN", not config.is_production())):
+        observability_service.increment_metric("device_auth_failures_total", status="legacy_disabled")
         raise HTTPException(status_code=403, detail="legacy Kiosk token is disabled")
     if not expected:
+        observability_service.increment_metric("device_auth_failures_total", status="not_configured")
         raise HTTPException(status_code=503, detail="legacy Kiosk auth is not configured")
     if not _constant_time_match(token, [expected, config.POS_DEMO_TOKEN]):
+        observability_service.increment_metric("device_auth_failures_total", status="invalid")
         raise HTTPException(status_code=403, detail="invalid kiosk token")
     principal = device_identity_service.legacy_device_principal(resolve_commercial_scope(request.headers))
     device_identity_service.record_legacy_device_use(resolve_commercial_scope(request.headers))

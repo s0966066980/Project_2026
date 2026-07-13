@@ -68,6 +68,7 @@ Production 不得啟用 demo/test/debug routes，不得使用預設密碼或共�
 - API、PostgreSQL、Redis/Worker 與大型模型具有清楚 runtime boundary。
 - 提供 liveness、readiness 與 dependency health。
 - 建立 structured logging、metrics、trace、dashboard 與 alert。
+- Pilot SLO、alert、runbook、安全隱私與 release Gate 以 [operations/README.md](operations/README.md) 為執行入口；SLO 數值是 target，不是已達成率。
 - 定義核心 SLI/SLO：可用性、延遲、checkout 成功率、AI fallback、queue lag。
 - 備份、restore、rollback/roll-forward 與災難復原完成演練。
 - Kiosk 離線、模型不可用與網路不穩時有 degraded mode。

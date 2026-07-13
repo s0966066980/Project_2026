@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from models.commercial_scope import CommercialScope
 from models.order import OrderStatus, transition_order_status
 from repositories import postgres_utils
+from services import observability_service
 
 
 class CheckoutIdempotencyConflictError(ValueError):
@@ -80,6 +81,7 @@ def create_checkout_order_scoped(
         raise ValueError("A SHA-256 checkout request fingerprint is required")
     order_id = uuid4()
     outbox_id = uuid4()
+    correlation = observability_service.correlation_context()
     postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
@@ -183,7 +185,7 @@ def create_checkout_order_scoped(
             INSERT INTO order_outcomes (order_id, checkout_success, metadata)
             VALUES (%s, TRUE, %s)
             """,
-            (order_id, _jsonb({"source": "checkout"})),
+            (order_id, _jsonb({"source": "checkout", "trace_id": correlation.get("trace_id", "")})),
         )
         cur.execute(
             """
@@ -201,6 +203,7 @@ def create_checkout_order_scoped(
                         "status": OrderStatus.CONFIRMED.value,
                         "currency": str(priced_cart.get("currency") or "TWD"),
                         "total": int(priced_cart.get("total") or 0),
+                        "trace_id": correlation.get("trace_id", ""),
                     }
                 ),
             ),
