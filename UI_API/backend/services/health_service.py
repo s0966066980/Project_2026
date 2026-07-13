@@ -73,11 +73,30 @@ def _database_readiness() -> dict:
             cur.execute("SELECT 1 AS value")
             if (cur.fetchone() or {}).get("value") != 1:
                 raise RuntimeError
-            cur.execute("SELECT COUNT(*) AS count FROM order_outbox WHERE published_at IS NULL")
+            cur.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM order_outbox
+                WHERE published_at IS NULL AND dead_lettered_at IS NULL
+                """
+            )
             pending_outbox = int((cur.fetchone() or {}).get("count") or 0)
+            try:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS count
+                    FROM background_jobs
+                    WHERE status IN ('pending', 'running', 'failed')
+                    """
+                )
+                job_depth = int((cur.fetchone() or {}).get("count") or 0)
+            except Exception:
+                job_depth = 0
         observability_service.increment_metric("postgres_operations_total", status="ready_success")
         observability_service.set_metric("order_outbox_pending", pending_outbox)
-        return {"status": "ok", "pending_outbox": pending_outbox}
+        observability_service.set_metric("worker_jobs_depth", job_depth)
+        observability_service.set_metric("queue_backlog", pending_outbox + job_depth)
+        return {"status": "ok", "pending_outbox": pending_outbox, "worker_jobs_depth": job_depth}
     except Exception:
         observability_service.increment_metric("postgres_operations_total", status="ready_failure")
         return {"status": "failed", "error_code": "database_unavailable"}

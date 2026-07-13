@@ -138,6 +138,13 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - Application rollback 可停止新 Order writer 並暫時維持 legacy checkout；不得 drop 0007 tables 或改寫 checksum。資料或 constraint 問題以新 forward migration 修正。
 - Outbox 在 Worker 2E 前只保存發布意圖；不得手動標記 `published_at` 偽裝已送達，也不得把外部 provider call 放進 checkout transaction。
 
+### Milestone 2E Worker / Outbox Roll-forward
+
+- Apply 0008 前先完成 backup 與 0001–0007 clean validation。
+- 0008 只新增 `background_jobs` 與 outbox claim/dead-letter 控制欄位，不修改 0007 checksum 或 checkout transaction 語意。
+- Worker process（`backend/scripts/run_worker.py`）負責 claim、retry、dead-letter 與 outbox publish；API process 不得同步執行長工作。
+- Application rollback 可停止 worker 並保留未發布 outbox；不得 drop 0008 tables 或改寫 checksum。資料問題使用新 forward migration 修正。
+
 ## Backup Before Migration
 
 高風險或 production migration apply 前：

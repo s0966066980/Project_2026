@@ -7,6 +7,7 @@
 - `migrate_member_storage.py`：會員資料從 JSON migration 到 PostgreSQL。
 - `validate_member_postgres_migration.py`：驗證 PostgreSQL migration 結果。
 - `manage_postgres_migrations.py`：檢查、驗證與套用 versioned PostgreSQL schema migration。
+- `run_worker.py`：獨立 worker process，消費 `background_jobs` 與 `order_outbox`（claim/retry/DLQ）。
 
 ## 維護規則
 

@@ -3,7 +3,7 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "c6ffac8a9dcb1e37d1685dd252a146d76fc165f5",
   "current_milestone": "2E",
-  "status": "in_progress",
+  "status": "passed",
   "completed_milestones": [
     "1B.1",
     "1C",
@@ -15,7 +15,8 @@
     "2A",
     "2B",
     "2C",
-    "2D"
+    "2D",
+    "2E"
   ],
   "checkpoint_commits": {
     "1B.1": "f116474",
@@ -185,6 +186,17 @@
       "mypy": "PASS (48 source files)",
       "frontend": "PASS",
       "shell": "PASS"
+    },
+    "2E": {
+      "target_tests": "PASS (9 worker unit tests)",
+      "full_json_backend": "PASS (278 passed)",
+      "postgres_integration": "NOT RUN locally (no authenticated DATABASE_URL); retained in CI tests/postgres_worker_jobs_integration.py",
+      "ruff_affected_scope": "PASS",
+      "ruff_format_affected_scope": "PASS",
+      "mypy": "PASS (51 source files)",
+      "frontend_typecheck": "PASS",
+      "shell": "PASS (no shell script changes requiring bash -n)",
+      "python_3_10_runtime": "NOT RUN locally (runtime unavailable; retained in CI)"
     }
   },
   "known_gaps": [
@@ -194,14 +206,15 @@
     "Member phone compatibility data remains until uuid_only production evidence supports a separate forward contract migration.",
     "External Secret Manager/KMS wiring and legal/privacy approval remain deployment and human gates.",
     "Payment provider integration is not implemented; payment_pending and paid are state contracts only.",
-    "Order outbox consumption, retry and dead-letter operations remain deferred to Milestone 2E Worker.",
     "Pilot SLO values are targets, not measured attainment, and the repository is not declared Production Certified.",
     "External durable metrics/tracing backend and paging integration remain deployment-owned work.",
     "API v1 write contracts remain on legacy compatibility routes until each caller and idempotency boundary migrates.",
     "Frontend visual regression has no approved screenshot baseline; visual comparison remains inconclusive.",
-    "Legacy Kiosk WebSocket token-in-query compatibility remains until device-session callers are fully migrated."
+    "Legacy Kiosk WebSocket token-in-query compatibility remains until device-session callers are fully migrated.",
+    "Default outbox delivery sink is in-process success marker; external analytics/POS consumers remain future milestones.",
+    "Specialized RAG rebuild/report/AI job handlers are registered contracts; provider-specific adapters expand in Phase 3+."
   ],
   "blocked_items": [],
-  "next_milestone": "2E",
-  "updated_at": "2026-07-13T21:48:51+08:00"
+  "next_milestone": "2F",
+  "updated_at": "2026-07-13T22:02:27.820677+08:00"
 }

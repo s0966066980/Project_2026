@@ -17,13 +17,13 @@
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
 | P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
-| P1 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、replay、backlog metrics |
+| 完成 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、idempotent delivery、backlog metrics 已建立；外部 sink 後續擴充 |
 | P1 | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report |
 | 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |
 | 完成 | Frontend toolchain | Kiosk/Admin multi-entry build 與測試基線 | API contracts | Vite、TypeScript、Vitest、Playwright 已納入 CI |
 | 完成 | Frontend feature modules baseline | bounded extraction 與 boundary enforcement | Frontend toolchain | Kiosk bootstrap/Admin auth 已抽離，既有 feature modules 與 E2E 保持；後續逐 feature 演進 |
 | 完成 | Redis shared infrastructure | multi-instance ephemeral coordination | Deployment | scoped rate limit/cache/lock adapter 與 fail-closed policy 已建立 |
-| P1 | Worker | 移出長時間與可重試工作 | Redis | RAG rebuild、報表、事件與 AI job 可觀測 |
+| 完成 | Worker | 移出長時間與可重試工作 | PostgreSQL job/outbox | durable job contract、retry/DLQ、outbox consumer 與 metrics 已建立；RAG rebuild 等 handler 後續接上 |
 | P1 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、metrics |
 | P1 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | 統一 contract、健康檢查、fallback |
 | P1 | RAG governance | 文件版本、審核、發布與 rollback | Worker、Object storage | 可追蹤版本與 rebuild 結果 |

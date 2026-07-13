@@ -38,6 +38,12 @@ REQUIRED_METRICS = (
     "intervention_outcomes_total",
     "order_outbox_pending",
     "queue_backlog",
+    "worker_jobs_depth",
+    "worker_jobs_oldest_age_seconds",
+    "worker_jobs_success_total",
+    "worker_jobs_failure_total",
+    "worker_jobs_retry_total",
+    "worker_jobs_dlq_total",
 )
 _METRICS: dict[str, dict[str, float]] = {name: defaultdict(float) for name in REQUIRED_METRICS}
 _PHONE_PATTERN = re.compile(r"(?<!\d)09\d{8}(?!\d)")

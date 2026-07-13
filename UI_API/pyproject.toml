@@ -49,6 +49,7 @@ files = [
   "backend/repositories/device_identity_repository.py",
   "backend/repositories/checkout_order_repository.py",
   "backend/repositories/redis_shared_adapter.py",
+  "backend/repositories/worker_job_repository.py",
   "backend/routes/admin_identity_routes.py",
   "backend/routes/device_identity_routes.py",
   "backend/routes/v1_routes.py",
@@ -67,5 +68,6 @@ files = [
   "backend/services/health_service.py",
   "backend/services/observability_service.py",
   "backend/services/shared_infrastructure_service.py",
+  "backend/services/worker_service.py",
   "backend/utils",
 ]

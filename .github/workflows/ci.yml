@@ -69,6 +69,7 @@ jobs:
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
           backend/repositories/redis_shared_adapter.py
+          backend/repositories/worker_job_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
           backend/routes/availability_routes.py
@@ -106,6 +107,7 @@ jobs:
           backend/services/recommendation_context_service.py
           backend/services/recommendation_event_service.py
           backend/services/shared_infrastructure_service.py
+          backend/services/worker_service.py
           backend/services/recommendation_feedback_service.py
           backend/services/ai_push_service.py
           backend/services/voice_service.py
@@ -130,6 +132,7 @@ jobs:
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
           backend/repositories/redis_shared_adapter.py
+          backend/repositories/worker_job_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
           backend/routes/availability_routes.py
@@ -151,6 +154,7 @@ jobs:
           backend/services/health_service.py
           backend/services/observability_service.py
           backend/services/shared_infrastructure_service.py
+          backend/services/worker_service.py
           backend/services/commercial_context_service.py
           backend/utils
 
@@ -231,6 +235,9 @@ jobs:
 
       - name: Verify commercial readiness and observability
         run: pytest -q tests/postgres_observability_integration.py
+
+      - name: Verify reliable worker jobs and outbox delivery
+        run: pytest -q tests/postgres_worker_jobs_integration.py
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply

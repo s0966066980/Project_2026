@@ -22,6 +22,7 @@
 - `0005_commercial_scope_contract_enforcement.sql` 收緊 core ownership `NOT NULL`，並建立 availability、settings version、promotion、interaction/outcome 與 RAG ownership metadata 的正式 scoped persistence。
 - `0006_member_uuid_pii_migration.sql` 將 Member primary key 切換為 UUID，加入 tenant-scoped keyed lookup、encrypted phone metadata 與 child `member_id` references；phone compatibility column 暫時保留供漸進切換。
 - `0007_order_checkout_hardening.sql` 建立正式 Order aggregate、items/pricing snapshots、promotion usage、outcome、scoped idempotency 與 transactional outbox；legacy `member_orders` 保留為相容 read model。
+- `0008_worker_reliable_async_jobs.sql` 建立 durable `background_jobs` queue，並為 `order_outbox` 補上 claim/visibility、retry 與 dead-letter 控制欄位。
 
 ## 驗證
 

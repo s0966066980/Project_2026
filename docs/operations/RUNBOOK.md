@@ -25,6 +25,16 @@ Check origin/auth denial and connection/disconnection metrics, then session cook
 
 If `/ready` reports shared infrastructure failure, do not disable production security rate limiting to restore traffic. Check Redis service health, network/DNS, pool/timeout and secret injection without copying `REDIS_URL` into logs or tickets. Security rate limits and required correctness locks stay fail closed; noncritical cache may degrade to a miss. After recovery, verify ping, cross-instance counter, TTL and owner-token lock before restoring normal traffic.
 
+## Worker / Outbox
+
+Long-running or retriable work belongs in the worker process (`python backend/scripts/run_worker.py`), not the API request path. API callers only enqueue jobs or write transactional outbox rows.
+
+1. Inspect `worker_jobs_depth`, `worker_jobs_oldest_age_seconds`, `order_outbox_pending`, `worker_jobs_retry_total` and `worker_jobs_dlq_total`.
+2. Confirm worker process health and PostgreSQL connectivity; do not mark `published_at` manually to hide backlog.
+3. Poison messages move to dead-letter after max attempts; preserve `safe_error`/`last_error` (already redacted) for replay after a fix.
+4. Re-delivery of an already published outbox event must remain idempotent; do not re-run side effects.
+5. Job `payload_ref` must stay reference-only — no passwords, tokens, full phone or card data.
+
 ## AI degraded
 
 Disable or bypass the affected provider adapter, retain deterministic menu/pricing/checkout, and monitor fallback. AI, RAG and emotion availability do not block `/ready` for basic checkout.
