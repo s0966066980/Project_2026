@@ -129,7 +129,7 @@ member(UUID)
 - 新商業資料逐步加入 tenant/store/device scope。
 - Scope 由 server configuration 或已驗證 identity 解析；未驗證的 `X-Tenant-ID`、`X-Store-ID`、`X-Device-ID` 不得改變資料範圍。
 - Legacy single-store flow 使用 reserved Default Tenant / Default Store / Legacy Kiosk；新 repository query 使用明確 `CommercialScope`。
-- 手機號碼不作為長期公開 Domain ID；會員改用 UUID，PII 使用加密與 lookup hash。
+- 手機號碼不作為長期公開 Domain ID；Member 新路徑使用 UUID，tenant-scoped keyed lookup 與 authenticated encryption。Legacy phone column 僅作相容用途，讀取模式依 `legacy → dual → uuid_preferred → uuid_only` 漸進切換。
 - Schema 變更採 versioned migration。
 - Admin scope 由 database-backed `AdminPrincipal` 解析；permission、tenant 與 store 由集中式 server policy 驗證。正式 browser session 使用 HttpOnly cookie，database 只保存 token hash。
 - Kiosk scope 由 database-backed `DevicePrincipal` 解析；credential 與 session 只保存 hash，rotation 具 overlap/cutover，revoke 只影響指定 device credential。

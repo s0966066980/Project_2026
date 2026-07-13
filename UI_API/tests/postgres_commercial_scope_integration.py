@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -173,8 +173,8 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
                     ),
                 )
         conn.execute(
-            "INSERT INTO members (phone, nickname, tenant_id) VALUES (%s, %s, %s)",
-            ("0987654321", "Tenant B Member", tenant_b),
+            "INSERT INTO members (id, phone, nickname, tenant_id) VALUES (%s, %s, %s, %s)",
+            (uuid4(), "0987654321", "Tenant B Member", tenant_b),
         )
         default_store_b = UUID("11111111-1111-4111-8111-111111111111")
         default_device_b = UUID("22222222-2222-4222-8222-222222222222")
@@ -211,12 +211,12 @@ def test_milestone_1a_database_upgrades_to_scoped_foundation(
     tenant_b_scope = type(LEGACY_DEFAULT_SCOPE)(tenant_b, store_b, device_b)
     assert default_member and default_member["nickname"] == "Legacy Member"
     assert member_repository.get_member_scoped("0912345678", tenant_b_scope) is None
-    with pytest.raises(member_repository.CommercialScopeConflictError):
-        member_repository.upsert_member_scoped(
-            {"phone": "0912345678", "nickname": "Cross Tenant Write"},
-            tenant_b_scope,
-        )
+    member_repository.upsert_member_scoped(
+        {"phone": "0912345678", "nickname": "Tenant B Same Phone"},
+        tenant_b_scope,
+    )
     assert member_repository.get_member_scoped("0912345678", LEGACY_DEFAULT_SCOPE)["nickname"] == "Legacy Member"
+    assert member_repository.get_member_scoped("0912345678", tenant_b_scope)["nickname"] == "Tenant B Same Phone"
     member_repository.upsert_member_scoped(
         {
             "phone": "0977777777",

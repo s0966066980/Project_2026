@@ -11,9 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_migration_moves_member_identity_to_uuid_and_dual_references() -> None:
-    sql = (
-        ROOT / "UI_API/backend/schemas/migrations/0006_member_uuid_pii_migration.sql"
-    ).read_text(encoding="utf-8")
+    sql = (ROOT / "UI_API/backend/schemas/migrations/0001_membership_commercial_baseline.sql").read_text(
+        encoding="utf-8"
+    ) + (ROOT / "UI_API/backend/schemas/migrations/0006_member_uuid_pii_migration.sql").read_text(encoding="utf-8")
     for fragment in (
         "ALTER TABLE members ADD COLUMN id UUID",
         "phone_lookup_hash TEXT",
@@ -54,9 +54,17 @@ def test_lookup_hash_changes_with_managed_key_version() -> None:
     tenant_id = uuid4()
     v1 = DevelopmentMemberKeyProvider(active_version="v1")
     v2 = DevelopmentMemberKeyProvider(active_version="v2")
-    assert phone_lookup_hash("0912345678", tenant_id, v1) != phone_lookup_hash(
-        "0912345678", tenant_id, v2
-    )
+    assert phone_lookup_hash("0912345678", tenant_id, v1) != phone_lookup_hash("0912345678", tenant_id, v2)
+
+
+def test_invalid_ciphertext_fails_without_disclosing_input() -> None:
+    from services.member_key_provider import DevelopmentMemberKeyProvider
+    from services.member_pii_service import MemberPiiProtectionError, reveal_phone
+
+    ciphertext = "sensitive-invalid-ciphertext"
+    with pytest.raises(MemberPiiProtectionError) as exc:
+        reveal_phone(ciphertext, "v1", DevelopmentMemberKeyProvider("v1"))
+    assert ciphertext not in str(exc.value)
 
 
 def test_environment_provider_fails_safely_without_key_material(
@@ -87,13 +95,12 @@ def test_member_identity_feature_flags_and_crypto_dependency_are_declared() -> N
     assert "cryptography==" in requirements
 
 
-def test_repository_and_verifier_expose_uuid_contract_without_pii_output() -> None:
-    repository = (ROOT / "UI_API/backend/repositories/member_repository.py").read_text(
-        encoding="utf-8"
-    )
-    verifier = (
-        ROOT / "UI_API/backend/scripts/verify_member_identity_migration.py"
-    ).read_text(encoding="utf-8")
+def test_repository_and_verifier_expose_uuid_contract_without_pii_output(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = (ROOT / "UI_API/backend/repositories/member_repository.py").read_text(encoding="utf-8")
+    verifier = (ROOT / "UI_API/backend/scripts/verify_member_identity_migration.py").read_text(encoding="utf-8")
     assert "def get_member_by_id_scoped(" in repository
     assert "def get_member_by_phone_scoped(" in repository
     for violation in (
@@ -104,5 +111,18 @@ def test_repository_and_verifier_expose_uuid_contract_without_pii_output() -> No
         "dual_write_drift",
     ):
         assert violation in verifier
-    assert '"phone"' not in verifier
-    assert "phone_encrypted" not in verifier
+    assert "print(row" not in verifier
+    assert "print(phone" not in verifier
+
+    from backend.scripts import verify_member_identity_migration as verification
+
+    monkeypatch.setattr(verification, "configured_key_provider", lambda: object())
+    monkeypatch.setattr(
+        verification,
+        "collect_violations",
+        lambda _provider: [{"type": "dual_write_drift", "count": 2}],
+    )
+    assert verification.main(["--require-clean"]) == 1
+    output = capsys.readouterr().out
+    assert "0912345678" not in output
+    assert "ciphertext-value" not in output

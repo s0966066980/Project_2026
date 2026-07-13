@@ -28,6 +28,7 @@ def test_membership_postgres_migrations_are_versioned():
         "0003_admin_identity_rbac_foundation.sql",
         "0004_device_identity_foundation.sql",
         "0005_commercial_scope_contract_enforcement.sql",
+        "0006_member_uuid_pii_migration.sql",
     ]
     assert all(postgres_utils.migration_checksum(path) for path in files)
 

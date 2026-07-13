@@ -40,7 +40,7 @@ Production 不得啟用 demo/test/debug routes，不得使用預設密碼或共�
 
 - 商用資料使用 PostgreSQL；JSON 只作開發、測試或受控相容用途。
 - 正式 PostgreSQL 商業資料依 ownership 強制 tenant/store/device scope；JSON 只允許 Default Scope 的開發、測試或受控相容流程，不作多租戶隔離邊界。
-- 會員使用內部 UUID；手機等 PII 加密保存，查找使用受控 hash/index。
+- 會員使用內部 UUID；手機等 PII 加密保存，查找使用 tenant-scoped managed pepper/keyed hash。Admin 僅顯示 masked phone，刪除／保留期限由可稽核的 anonymization boundary 執行。
 - Consent、privacy version、用途、保留期限、匯出與刪除流程可追蹤。
 - Log、trace、error 與 AI prompt 預設遮罩 PII。
 - 備份加密，並定期驗證 restore。

@@ -62,6 +62,8 @@ jobs:
           backend/repositories/availability_repository.py
           backend/repositories/commercial_settings_repository.py
           backend/repositories/interaction_event_repository.py
+          backend/repositories/member_repository.py
+          backend/repositories/member_session_repository.py
           backend/repositories/promotion_repository.py
           backend/repositories/rag_asset_scope_repository.py
           backend/routes/admin_identity_routes.py
@@ -77,6 +79,7 @@ jobs:
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/scripts/validate_commercial_scope.py
+          backend/scripts/verify_member_identity_migration.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
@@ -87,6 +90,8 @@ jobs:
           backend/services/checkout_pricing_service.py
           backend/services/checkout_service.py
           backend/services/intervention_pipeline_service.py
+          backend/services/member_key_provider.py
+          backend/services/member_pii_service.py
           backend/services/member_service.py
           backend/services/promotion_banner_service.py
           backend/services/promotion_service.py
@@ -123,10 +128,13 @@ jobs:
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
           backend/scripts/validate_commercial_scope.py
+          backend/scripts/verify_member_identity_migration.py
           backend/services/admin_access_service.py
           backend/services/admin_authorization_service.py
           backend/services/admin_identity_service.py
           backend/services/device_identity_service.py
+          backend/services/member_key_provider.py
+          backend/services/member_pii_service.py
           backend/services/commercial_context_service.py
           backend/utils
 
@@ -199,11 +207,17 @@ jobs:
       - name: Verify commercial scope contract enforcement
         run: pytest -q tests/postgres_scope_contract_integration.py
 
+      - name: Verify Member UUID and PII migration
+        run: pytest -q tests/postgres_member_identity_integration.py
+
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply
 
       - name: Validate commercial scope integrity
         run: python backend/scripts/validate_commercial_scope.py --require-complete
+
+      - name: Backfill and validate Member identity integrity
+        run: python backend/scripts/verify_member_identity_migration.py --backfill --require-clean
 
       - name: Validate clean migration state
         run: python backend/scripts/manage_postgres_migrations.py validate --require-clean

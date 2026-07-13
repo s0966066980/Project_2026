@@ -6,10 +6,12 @@ import re
 import threading
 from datetime import datetime, timedelta
 from itertools import combinations
+from uuid import UUID, uuid4
 
 import config
 from models.commercial_scope import CommercialScope
 from repositories import member_repository, member_session_repository, menu_repository, recommendation_event_repository
+from services.member_pii_service import configured_key_provider, phone_lookup_hash, protect_phone
 
 _session_member: dict[str, str] = {}
 _lock = threading.Lock()
@@ -98,24 +100,59 @@ def _member_ref(phone) -> str:
     return f"mem_{digest[:24]}"
 
 
+def _identity_mode() -> str:
+    return str(config.MEMBER_IDENTITY_READ_MODE or "legacy").lower()
+
+
+def _prepare_member_identity(record: dict, scope: CommercialScope | None) -> dict:
+    prepared = dict(record)
+    member_id = str(prepared.get("member_id") or prepared.get("id") or uuid4())
+    prepared["id"] = member_id
+    prepared["member_id"] = member_id
+    if scope and (config.MEMBER_IDENTITY_DUAL_WRITE or _identity_mode() != "legacy"):
+        protected = protect_phone(str(prepared.get("phone") or ""), scope.tenant_id, configured_key_provider())
+        prepared.update(
+            {
+                "phone_lookup_hash": protected.phone_lookup_hash,
+                "phone_encrypted": protected.phone_encrypted,
+                "phone_masked": protected.phone_masked,
+                "key_version": protected.key_version,
+                "pii_updated_at": _now_iso(),
+            }
+        )
+    return prepared
+
+
+def _get_member_for_phone(phone: str, scope: CommercialScope | None) -> dict | None:
+    if not scope or _identity_mode() == "legacy":
+        return member_repository.get_member_scoped(phone, scope) if scope else member_repository.get_member(phone)
+    lookup_hash = phone_lookup_hash(phone, scope.tenant_id, configured_key_provider())
+    member = member_repository.get_member_by_lookup_hash_scoped(lookup_hash, scope)
+    if member or _identity_mode() == "uuid_only":
+        return member
+    return member_repository.get_member_by_phone_scoped(phone, scope)
+
+
 def _resolve_member(identifier, scope: CommercialScope | None = None) -> dict | None:
     raw = str(identifier or "")
     normalized = normalize_phone(raw) or raw
-    member = member_repository.get_member_scoped(normalized, scope) if scope else member_repository.get_member(normalized)
+    member = _get_member_for_phone(normalized, scope)
     if member:
         return _with_member_commercial_defaults(member)
     if raw.startswith("mem_"):
         rows = member_repository.get_all_members_scoped(scope) if scope else member_repository.get_all_members()
         for row in rows:
-            if _member_ref(row.get("phone", "")) == raw:
+            if _member_ref(row.get("member_id") or row.get("id") or row.get("phone", "")) == raw:
                 return _with_member_commercial_defaults(row)
     return None
 
 
 def _admin_member_identity(member: dict) -> dict:
+    member_id = str(member.get("member_id") or member.get("id") or "")
     return {
-        "member_ref": _member_ref(member.get("phone", "")),
-        "phone_masked": mask_phone(member.get("phone", "")),
+        "member_id": member_id,
+        "member_ref": _member_ref(member_id or member.get("phone", "")),
+        "phone_masked": str(member.get("phone_masked") or mask_phone(member.get("phone", ""))),
     }
 
 
@@ -173,6 +210,7 @@ def get_session_member(session_id: str, scope: CommercialScope | None = None) ->
 def _public_member(member: dict) -> dict:
     _with_member_commercial_defaults(member)
     return {
+        "member_id": str(member.get("member_id") or member.get("id") or ""),
         "phone": member.get("phone", ""),
         "phone_masked": mask_phone(member.get("phone", "")),
         "nickname": member.get("nickname", ""),
@@ -233,10 +271,11 @@ def login(session_id: str, phone: str, scope: CommercialScope | None = None) -> 
     norm = normalize_phone(phone)
     if not norm:
         return {"found": False, "error": "invalid_phone"}
-    member = member_repository.get_member_scoped(norm, scope) if scope else member_repository.get_member(norm)
+    member = _get_member_for_phone(norm, scope)
     if not member:
         return {"found": False}
     _mark_login_success(member)
+    member = _prepare_member_identity(member, scope)
     member_repository.upsert_member_scoped(member, scope) if scope else member_repository.upsert_member(member)
     bind_session(session_id, norm, scope)
     return {"found": True, "member": _public_member(member)}
@@ -258,7 +297,7 @@ def register(
     personalization_consent = _as_bool(personalization_consent)
     if not order_history_consent or not personalization_consent:
         return {"ok": False, "error": "consent_required"}
-    existing = member_repository.get_member_scoped(norm, scope) if scope else member_repository.get_member(norm)
+    existing = _get_member_for_phone(norm, scope)
     if existing:
         _with_member_commercial_defaults(existing)
         if not existing.get("consent_accepted_at"):
@@ -269,12 +308,14 @@ def register(
                 source=consent_source,
             )
         _mark_login_success(existing)
+        existing = _prepare_member_identity(existing, scope)
         member_repository.upsert_member_scoped(existing, scope) if scope else member_repository.upsert_member(existing)
         bind_session(session_id, norm, scope)
         return {"ok": True, "member": _public_member(existing)}
     nick = str(nickname or "").strip() or f"會員{norm[-4:]}"
     now = _now_iso()
     record = {
+        "id": str(uuid4()),
         "phone": norm,
         "nickname": nick,
         "created_at": now,
@@ -298,6 +339,7 @@ def register(
         personalization_consent=personalization_consent,
         source=consent_source,
     )
+    record = _prepare_member_identity(record, scope)
     member_repository.upsert_member_scoped(record, scope) if scope else member_repository.upsert_member(record)
     bind_session(session_id, norm, scope)
     return {"ok": True, "member": _public_member(record)}
@@ -625,7 +667,6 @@ def admin_list(scope: CommercialScope | None = None) -> list:
         metrics = _member_order_metrics(m)
         rows.append({
             **_admin_member_identity(m),
-            "phone_masked": mask_phone(m.get("phone", "")),
             "nickname": m.get("nickname", ""),
             "visit_count": int(m.get("visit_count", 0)),
             "total_spend": int(m.get("total_spend", 0)),
@@ -688,7 +729,6 @@ def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
         })
     return {
         **_admin_member_identity(m),
-        "phone_masked": mask_phone(m.get("phone", "")),
         "nickname": m.get("nickname", ""),
         "created_at": m.get("created_at", ""),
         "last_login_at": m.get("last_login_at", ""),
@@ -759,7 +799,7 @@ def export_members_csv(scope: CommercialScope | None = None) -> str:
                 if item.get("id")
             ][:5]
         writer.writerow({
-            "phone_masked": mask_phone(member.get("phone", "")),
+            "phone_masked": str(member.get("phone_masked") or mask_phone(member.get("phone", ""))),
             "nickname": member.get("nickname", ""),
             "consent_version": member.get("consent_version", ""),
             "consent_accepted_at": member.get("consent_accepted_at", ""),
@@ -798,10 +838,13 @@ def admin_clear_records(phone, scope: CommercialScope | None = None) -> bool:
 
 
 def admin_delete_member(phone, scope: CommercialScope | None = None) -> bool:
-    """手動刪除整個會員帳戶。"""
+    """刪除會員；UUID PostgreSQL 路徑先去識別化並保留生命週期證據。"""
     m = _resolve_member(phone, scope)
     if not m:
         return False
+    member_id = str(m.get("member_id") or m.get("id") or "")
+    if scope and member_id and _identity_mode() != "legacy":
+        return member_repository.anonymize_member_by_id_scoped(UUID(member_id), scope)
     if scope:
         return member_repository.delete_member_scoped(m.get("phone", ""), scope)
     return member_repository.delete_member(m.get("phone", ""))

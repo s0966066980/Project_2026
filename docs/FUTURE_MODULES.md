@@ -16,7 +16,7 @@
 
 | 優先級 | 模組 | 目標 | 主要依賴 | 完成條件 |
 | --- | --- | --- | --- | --- |
-| P0 | Member UUID / PII | 移除 phone 作為長期 Domain PK | Migration、Key management | UUID、加密、lookup hash、backfill、驗證 |
+| P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
 | P0 | Order / Checkout hardening | 穩定商業交易邊界 | Catalog、Promotion | server pricing、狀態機、idempotency、失敗恢復 |
 | P0 | Commercial observability | 建立正式營運監控 | Deployment | metrics、trace、alert、SLO、runbook |
 | P1 | API v1 contracts | 建立 typed、versioned API | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層 |

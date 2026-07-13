@@ -120,6 +120,16 @@ CI-only integration test 位於 `UI_API/tests/postgres_migration_integration.py`
 - Application rollback 可暫時回到 Default Scope compatibility adapter，但已收緊的 ownership column 不應放寬或刪除。
 - 大型 production table 的 lock duration 必須先在 staging 以 production-like volume 演練；超出 maintenance budget 時拆成新的 expand/backfill/validate/contract migrations。
 
+### Milestone 1F Member UUID / PII Roll-forward
+
+- Apply 0006 前先完成 backup、0001–0005 clean validation、scope integrity validation，並確認部署可取得版本化 Member PII key material。
+- 0006 將 Member primary key 切換為 UUID、保留 phone compatibility column，並 backfill preferences、sessions、orders 的 `member_id`；不修改任何既有 migration。
+- Apply 後執行 `python backend/scripts/verify_member_identity_migration.py --backfill --require-clean`。輸出只含 violation type/count 與 updated count，不含 phone、ciphertext、key 或 connection string。
+- 切換順序為 `legacy → dual → uuid_preferred → uuid_only`；每階段確認 lookup、dual-write drift、orphan reference、Admin masking、delete/anonymization 與 rollback 指標後才前進。
+- Key rotation 先部署包含舊／新版本的 keyring，再切換 active version 並重跑 idempotent backfill；完成驗證前不得移除舊 decrypt key。
+- Application rollback 可把 read mode 回到前一階段，但不得改回 phone primary key、改寫 0006 checksum或移除 UUID references；資料問題使用新的 forward migration 修正。
+- External Secret Manager/KMS wiring 由部署環境負責；Repository 只提供 environment-backed contract，不宣稱未驗證的外部整合。法務與隱私審查仍是人工 Gate。
+
 ## Backup Before Migration
 
 高風險或 production migration apply 前：

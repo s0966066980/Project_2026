@@ -23,13 +23,21 @@ def bind_session_scoped(session_id: str, phone: str, scope: CommercialScope) -> 
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
+                "SELECT id FROM members WHERE phone = %s AND tenant_id = %s",
+                (str(phone or ""), scope.tenant_id),
+            )
+            member = cur.fetchone()
+            if member is None:
+                raise ValueError("Member identity does not exist in the commercial scope")
+            cur.execute(
                 """
                 INSERT INTO member_sessions (
-                    session_id, phone, tenant_id, store_id, origin_device_id,
+                    session_id, member_id, phone, tenant_id, store_id, origin_device_id,
                     created_at, updated_at, cleared_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, '')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, '')
                 ON CONFLICT (session_id) DO UPDATE SET
+                    member_id = EXCLUDED.member_id,
                     phone = EXCLUDED.phone,
                     tenant_id = EXCLUDED.tenant_id,
                     store_id = EXCLUDED.store_id,
@@ -43,6 +51,7 @@ def bind_session_scoped(session_id: str, phone: str, scope: CommercialScope) -> 
                 """,
                 (
                     str(session_id or ""),
+                    member["id"],
                     str(phone or ""),
                     scope.tenant_id,
                     scope.store_id,

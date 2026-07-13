@@ -2,6 +2,7 @@ import json
 import os
 import threading
 from datetime import datetime
+from uuid import UUID, uuid4
 
 import config
 from models.commercial_scope import (
@@ -45,7 +46,7 @@ def _write(rows: list) -> list:
 
 
 def _dual_write_enabled() -> bool:
-    return bool(config.get("ENABLE_MEMBER_DUAL_WRITE", False))
+    return bool(config.MEMBER_IDENTITY_DUAL_WRITE or config.get("ENABLE_MEMBER_DUAL_WRITE", False))
 
 
 def _mask_phone(phone) -> str:
@@ -119,18 +120,31 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
+                "SELECT id FROM members WHERE tenant_id = %s AND phone = %s",
+                (scope.tenant_id, phone),
+            )
+            existing = cur.fetchone()
+            supplied_id = record.get("member_id") or record.get("id")
+            member_id = UUID(str(supplied_id)) if supplied_id else (existing["id"] if existing else uuid4())
+            cur.execute(
                 """
                 INSERT INTO members (
-                    phone, tenant_id, phone_masked, nickname, created_at, updated_at,
+                    id, phone, tenant_id, phone_lookup_hash, phone_encrypted,
+                    phone_masked, key_version, pii_updated_at,
+                    nickname, created_at, updated_at,
                     visit_count, total_spend, last_visit_at,
                     last_login_at, login_count, login_failed_count,
                     consent_version, privacy_version, consent_accepted_at, consent_source,
                     order_history_consent, personalization_consent,
                     data_retention_until, deleted_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (phone) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (phone, tenant_id) DO UPDATE SET
+                    phone_lookup_hash = COALESCE(EXCLUDED.phone_lookup_hash, members.phone_lookup_hash),
+                    phone_encrypted = COALESCE(EXCLUDED.phone_encrypted, members.phone_encrypted),
                     phone_masked = EXCLUDED.phone_masked,
+                    key_version = COALESCE(EXCLUDED.key_version, members.key_version),
+                    pii_updated_at = COALESCE(EXCLUDED.pii_updated_at, members.pii_updated_at),
                     nickname = EXCLUDED.nickname,
                     updated_at = EXCLUDED.updated_at,
                     visit_count = EXCLUDED.visit_count,
@@ -147,13 +161,17 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
                     personalization_consent = EXCLUDED.personalization_consent,
                     data_retention_until = EXCLUDED.data_retention_until,
                     deleted_at = EXCLUDED.deleted_at
-                WHERE members.tenant_id = EXCLUDED.tenant_id
-                RETURNING tenant_id
+                RETURNING id, tenant_id
                 """,
                 (
+                    member_id,
                     phone,
                     scope.tenant_id,
-                    _mask_phone(phone),
+                    str(record.get("phone_lookup_hash") or "") or None,
+                    str(record.get("phone_encrypted") or "") or None,
+                    str(record.get("phone_masked") or _mask_phone(phone)),
+                    str(record.get("key_version") or "") or None,
+                    record.get("pii_updated_at"),
                     str(record.get("nickname") or ""),
                     str(record.get("created_at") or now),
                     now,
@@ -173,16 +191,15 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
                     str(record.get("deleted_at") or ""),
                 ),
             )
-            if cur.fetchone() is None:
-                raise CommercialScopeConflictError("Member phone is already owned by another tenant")
+            member_id = cur.fetchone()["id"]
             cur.execute(
                 """
                 INSERT INTO member_preferences (
-                    phone, item_freq, category_freq, pair_freq,
+                    member_id, tenant_id, phone, item_freq, category_freq, pair_freq,
                     recent_item_ids, preference_updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (phone) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (member_id) DO UPDATE SET
                     item_freq = EXCLUDED.item_freq,
                     category_freq = EXCLUDED.category_freq,
                     pair_freq = EXCLUDED.pair_freq,
@@ -190,6 +207,8 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
                     preference_updated_at = EXCLUDED.preference_updated_at
                 """,
                 (
+                    member_id,
+                    scope.tenant_id,
                     phone,
                     _jsonb(record.get("item_freq"), {}),
                     _jsonb(record.get("category_freq"), {}),
@@ -208,15 +227,16 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
                 cur.execute(
                     """
                     INSERT INTO member_orders (
-                        phone, tenant_id, store_id, origin_device_id,
+                        member_id, phone, tenant_id, store_id, origin_device_id,
                         order_index, session_id, timestamp, total,
                         order_status, is_completed, cancel_reason,
                         recommendation_success, is_success, cart_ids, cart_items
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
                     (
+                        member_id,
                         phone,
                         scope.tenant_id,
                         scope.store_id,
@@ -253,12 +273,19 @@ def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
                         ),
                     )
         conn.commit()
-    return record
+    result = dict(record)
+    result["id"] = str(member_id)
+    result["member_id"] = str(member_id)
+    return result
 
 
 def _postgres_record_from_rows(member_row: dict, preference_row: dict | None, order_rows: list[dict]) -> dict:
     record = {
+        "id": str(member_row.get("id") or ""),
+        "member_id": str(member_row.get("id") or ""),
         "phone": str(member_row.get("phone") or ""),
+        "phone_masked": str(member_row.get("phone_masked") or ""),
+        "key_version": str(member_row.get("key_version") or ""),
         "nickname": str(member_row.get("nickname") or ""),
         "created_at": str(member_row.get("created_at") or ""),
         "visit_count": int(member_row.get("visit_count", 0) or 0),
@@ -310,6 +337,22 @@ def _postgres_record_from_rows(member_row: dict, preference_row: dict | None, or
     return record
 
 
+def _postgres_record_for_member_row(member_row: dict, scope: CommercialScope) -> dict:
+    member_id = member_row["id"]
+    with postgres_utils.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM member_preferences WHERE member_id = %s", (member_id,))
+            preference_row = cur.fetchone()
+            cur.execute(
+                """SELECT * FROM member_orders
+                   WHERE member_id = %s AND tenant_id = %s AND store_id = %s
+                   ORDER BY order_index ASC, id ASC""",
+                (member_id, scope.tenant_id, scope.store_id),
+            )
+            order_rows = cur.fetchall()
+    return _postgres_record_from_rows(member_row, preference_row, order_rows)
+
+
 def _postgres_get_member(phone: str, scope: CommercialScope) -> dict | None:
     postgres_utils.init_schema()
     key = str(phone or "")
@@ -322,16 +365,29 @@ def _postgres_get_member(phone: str, scope: CommercialScope) -> dict | None:
             member_row = cur.fetchone()
             if not member_row:
                 return None
-            cur.execute("SELECT * FROM member_preferences WHERE phone = %s", (key,))
-            preference_row = cur.fetchone()
-            cur.execute(
-                """SELECT * FROM member_orders
-                   WHERE phone = %s AND tenant_id = %s AND store_id = %s
-                   ORDER BY order_index ASC, id ASC""",
-                (key, scope.tenant_id, scope.store_id),
-            )
-            order_rows = cur.fetchall()
-    return _postgres_record_from_rows(member_row, preference_row, order_rows)
+    return _postgres_record_for_member_row(member_row, scope)
+
+
+def _postgres_get_member_by_id(member_id: UUID, scope: CommercialScope) -> dict | None:
+    postgres_utils.init_schema()
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM members WHERE id = %s AND tenant_id = %s",
+            (member_id, scope.tenant_id),
+        )
+        member_row = cur.fetchone()
+    return _postgres_record_for_member_row(member_row, scope) if member_row else None
+
+
+def _postgres_get_member_by_lookup_hash(lookup_hash: str, scope: CommercialScope) -> dict | None:
+    postgres_utils.init_schema()
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM members WHERE tenant_id = %s AND phone_lookup_hash = %s",
+            (scope.tenant_id, lookup_hash),
+        )
+        member_row = cur.fetchone()
+    return _postgres_record_for_member_row(member_row, scope) if member_row else None
 
 
 def _postgres_get_all_members(scope: CommercialScope) -> list:
@@ -339,13 +395,13 @@ def _postgres_get_all_members(scope: CommercialScope) -> list:
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT phone FROM members WHERE tenant_id = %s ORDER BY created_at ASC, phone ASC",
+                "SELECT id FROM members WHERE tenant_id = %s ORDER BY created_at ASC, id ASC",
                 (scope.tenant_id,),
             )
-            phones = [row["phone"] for row in cur.fetchall()]
+            member_ids = [row["id"] for row in cur.fetchall()]
     rows = []
-    for phone in phones:
-        record = _postgres_get_member(phone, scope)
+    for member_id in member_ids:
+        record = _postgres_get_member_by_id(member_id, scope)
         if record:
             rows.append(record)
     return rows
@@ -360,6 +416,48 @@ def _postgres_delete_member(phone: str, scope: CommercialScope) -> bool:
             deleted = cur.rowcount > 0
         conn.commit()
     return deleted
+
+
+def _postgres_anonymize_member(member_id: UUID, scope: CommercialScope) -> bool:
+    """Remove Member PII while retaining a non-identifying lifecycle record."""
+
+    postgres_utils.init_schema()
+    tombstone = f"deleted:{member_id}"
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM members WHERE id = %s AND tenant_id = %s FOR UPDATE",
+            (member_id, scope.tenant_id),
+        )
+        if cur.fetchone() is None:
+            return False
+        for table in ("member_preferences", "member_sessions", "member_orders"):
+            cur.execute(f"DELETE FROM {table} WHERE member_id = %s AND tenant_id = %s", (member_id, scope.tenant_id))
+        cur.execute(
+            """
+            UPDATE members
+            SET phone = %s,
+                phone_lookup_hash = NULL,
+                phone_encrypted = NULL,
+                phone_masked = 'deleted',
+                key_version = NULL,
+                pii_updated_at = NOW(),
+                anonymized_at = NOW(),
+                nickname = '',
+                consent_version = '',
+                privacy_version = '',
+                consent_accepted_at = '',
+                consent_source = '',
+                order_history_consent = FALSE,
+                personalization_consent = FALSE,
+                deleted_at = NOW()::text,
+                updated_at = NOW()
+            WHERE id = %s AND tenant_id = %s
+            """,
+            (tombstone, member_id, scope.tenant_id),
+        )
+        changed = cur.rowcount > 0
+        conn.commit()
+    return changed
 
 
 def _safe_postgres_write(operation, *args):
@@ -387,6 +485,51 @@ def get_all_members_scoped(scope: CommercialScope) -> list:
 
 def get_member(phone: str) -> dict | None:
     return get_member_scoped(phone, resolve_commercial_scope())
+
+
+def get_member_by_phone_scoped(phone: str, scope: CommercialScope) -> dict | None:
+    """Compatibility lookup while phone remains an accepted Kiosk input."""
+
+    return get_member_scoped(phone, scope)
+
+
+def get_member_by_id_scoped(member_id: UUID, scope: CommercialScope) -> dict | None:
+    if postgres_utils.use_postgres():
+        try:
+            return _postgres_get_member_by_id(member_id, scope)
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
+    if not is_legacy_tenant_scope(scope):
+        return None
+    with _lock:
+        for row in _read():
+            if str(row.get("member_id") or row.get("id")) == str(member_id):
+                return row
+    return None
+
+
+def get_member_by_lookup_hash_scoped(
+    lookup_hash: str,
+    scope: CommercialScope,
+) -> dict | None:
+    if postgres_utils.use_postgres():
+        try:
+            return _postgres_get_member_by_lookup_hash(lookup_hash, scope)
+        except Exception as exc:
+            postgres_utils.handle_postgres_failure(exc)
+    return None
+
+
+def anonymize_member_by_id_scoped(member_id: UUID, scope: CommercialScope) -> bool:
+    """Anonymize one UUID Member inside its tenant boundary."""
+
+    if not postgres_utils.use_postgres():
+        raise ValueError("Member UUID anonymization requires PostgreSQL storage")
+    try:
+        return _postgres_anonymize_member(member_id, scope)
+    except Exception as exc:
+        postgres_utils.handle_postgres_failure(exc)
+    return False
 
 
 def get_member_scoped(phone: str, scope: CommercialScope) -> dict | None:
@@ -419,19 +562,23 @@ def upsert_member_scoped(record: dict, scope: CommercialScope) -> dict:
             postgres_utils.handle_postgres_failure(exc)
     if not is_legacy_tenant_scope(scope):
         raise ValueError("JSON member storage only supports the configured legacy default scope")
-    key = str(record.get("phone") or "")
+    stored_record = dict(record)
+    member_id = str(stored_record.get("member_id") or stored_record.get("id") or uuid4())
+    stored_record["id"] = member_id
+    stored_record["member_id"] = member_id
+    key = str(stored_record.get("phone") or "")
     with _lock:
         rows = _read()
         for i, row in enumerate(rows):
             if str(row.get("phone")) == key:
-                rows[i] = record
+                rows[i] = stored_record
                 break
         else:
-            rows.append(record)
+            rows.append(stored_record)
         _write(rows)
     if _dual_write_enabled():
-        _safe_postgres_write(_postgres_upsert_member, record, scope)
-    return record
+        _safe_postgres_write(_postgres_upsert_member, stored_record, scope)
+    return stored_record
 
 
 def delete_member(phone: str) -> bool:

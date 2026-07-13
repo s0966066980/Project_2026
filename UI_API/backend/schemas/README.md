@@ -20,7 +20,7 @@
 - `0003_admin_identity_rbac_foundation.sql` 是 Admin identity/RBAC schema source；permission/user bootstrap 透過受信任 CLI 執行，不將 password 或 token seed 寫入 migration。
 - `0004_device_identity_foundation.sql` 是 per-device credential/session/event schema source；raw credential 只在受權 issue/rotate response 出現一次。
 - `0005_commercial_scope_contract_enforcement.sql` 收緊 core ownership `NOT NULL`，並建立 availability、settings version、promotion、interaction/outcome 與 RAG ownership metadata 的正式 scoped persistence。
-- 會員長期使用 UUID；手機等 PII 的 migration 需搭配加密、lookup hash 與相容計畫。
+- `0006_member_uuid_pii_migration.sql` 將 Member primary key 切換為 UUID，加入 tenant-scoped keyed lookup、encrypted phone metadata 與 child `member_id` references；phone compatibility column 暫時保留供漸進切換。
 
 ## 驗證
 

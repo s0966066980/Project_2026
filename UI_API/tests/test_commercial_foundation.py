@@ -99,11 +99,12 @@ def test_backend_ci_covers_supported_python_versions_without_duplicate_static_ch
     assert workflow.count("run: mypy") == 1
 
 
-def test_member_identity_adr_preserves_the_accepted_deferred_decision() -> None:
+def test_member_identity_adr_preserves_the_accepted_implemented_decision() -> None:
     adr = (REPOSITORY_ROOT / "docs/adr/0004-member-identity-migration.md").read_text(encoding="utf-8")
 
     assert "Status: Accepted" in adr
-    assert "Implementation Status: Deferred" in adr
+    assert "Implementation Status: Implemented in Milestone 1F" in adr
+    assert "phone compatibility column retained" in adr
     for heading in ("## Context", "## Decision", "## Consequences", "## Alternatives"):
         assert heading in adr
     for decision in (

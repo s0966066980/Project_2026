@@ -24,6 +24,8 @@ APP_ENV = os.getenv("APP_ENV", "development").strip().lower() or "development"
 SECURITY_ENFORCED = _env_bool("SECURITY_ENFORCED", APP_ENV in ("production", "staging"))
 ALLOW_UNSAFE_PRODUCTION_ROUTES = _env_bool("ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
 ALLOW_POSTGRES_JSON_FALLBACK = _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False)
+MEMBER_IDENTITY_READ_MODE = os.getenv("MEMBER_IDENTITY_READ_MODE", "legacy").strip().lower() or "legacy"
+MEMBER_IDENTITY_DUAL_WRITE = _env_bool("MEMBER_IDENTITY_DUAL_WRITE", False)
 
 
 def is_production() -> bool:
@@ -53,6 +55,19 @@ def validate_startup_config() -> None:
         errors.append("ADMIN_MEMBER_REF_SECRET must be configured in production")
     if _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False):
         errors.append("ALLOW_POSTGRES_JSON_FALLBACK must be false in production")
+    if MEMBER_IDENTITY_READ_MODE not in {"legacy", "dual", "uuid_preferred", "uuid_only"}:
+        errors.append("MEMBER_IDENTITY_READ_MODE is invalid")
+    if MEMBER_IDENTITY_READ_MODE != "legacy" or MEMBER_IDENTITY_DUAL_WRITE:
+        if not _token_configured(os.getenv("MEMBER_PHONE_KEY_VERSION", "")):
+            errors.append("Member PII key version must be configured")
+        has_lookup_material = _token_configured(os.getenv("MEMBER_PHONE_LOOKUP_PEPPERS_JSON", "")) or _token_configured(
+            os.getenv("MEMBER_PHONE_LOOKUP_PEPPER", "")
+        )
+        has_encryption_material = _token_configured(
+            os.getenv("MEMBER_PHONE_ENCRYPTION_KEYS_JSON", "")
+        ) or _token_configured(os.getenv("MEMBER_PHONE_ENCRYPTION_KEY", ""))
+        if not has_lookup_material or not has_encryption_material:
+            errors.append("Member PII key material must be configured")
     for scope_key in ("DEFAULT_TENANT_ID", "DEFAULT_STORE_ID", "DEFAULT_DEVICE_ID"):
         scope_value = str(os.getenv(scope_key, "") or "").strip()
         if not scope_value:
