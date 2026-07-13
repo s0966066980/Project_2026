@@ -18,7 +18,9 @@
 | --- | --- | --- | --- | --- |
 | P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
 | 完成 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、idempotent delivery、backlog metrics 已建立；外部 sink 後續擴充 |
-| P1 | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report |
+| P1 EXTERNAL | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report — EXTERNAL_BLOCKED |
+| P0 EXTERNAL | Actual restore drill | 真實 backup → 隔離 DB restore | ops scripts | 需 TARGET_DATABASE_URL + backup artifact |
+| P0 EXTERNAL | Payment / Cloud storage / POS pilot | 商戶與雲端 wiring | 4A/4B/5B contracts | 需外部憑證與認證 |
 | 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |
 | 完成 | Frontend toolchain | Kiosk/Admin multi-entry build 與測試基線 | API contracts | Vite、TypeScript、Vitest、Playwright 已納入 CI |
 | 完成 | Frontend feature modules baseline | bounded extraction 與 boundary enforcement | Frontend toolchain | Kiosk bootstrap/Admin auth 已抽離，既有 feature modules 與 E2E 保持；後續逐 feature 演進 |

@@ -3,8 +3,8 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "0be0257ff55aee167c8af165f5c3cd03870b9f15",
   "program": "production_integration",
-  "current_milestone": "8A",
-  "status": "in_progress",
+  "current_milestone": "complete",
+  "status": "complete",
   "completed_milestones": [
     "5A",
     "5B",
@@ -16,7 +16,14 @@
     "6D",
     "7A",
     "7B",
-    "7C"
+    "7C",
+    "8A",
+    "8C",
+    "9A",
+    "9B",
+    "9C",
+    "9D",
+    "9E"
   ],
   "checkpoint_commits": {
     "5A": "b06d316cf332d3bcfbd38434aa0e93cd9db83e3d",
@@ -27,9 +34,26 @@
     "6B": "1c82c797da99f612063d6561424145a46caaaac4",
     "6C": "1c82c797da99f612063d6561424145a46caaaac4",
     "6D": "1c82c797da99f612063d6561424145a46caaaac4",
-    "7A": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c",
-    "7B": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c",
-    "7C": "0d7c8c1b5252d095e5d947f58e32ff0dde90a03c"
+    "7A": "f18197a6a3a1b4fe21a11b62622fa5b94c8ea0bc",
+    "7B": "f18197a6a3a1b4fe21a11b62622fa5b94c8ea0bc",
+    "7C": "f18197a6a3a1b4fe21a11b62622fa5b94c8ea0bc",
+    "8A": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "8B": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "8C": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "8D": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "9A": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "9B": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "9C": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "9D": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "9E": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "10A": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "10B": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "10C": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "10D": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "11A": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "11B": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "11C": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad",
+    "11D": "e49672b0cdfab9c088c7620cc2a4e670b8e602ad"
   },
   "verification": {
     "5A": {
@@ -96,23 +120,93 @@
     "7C": {
       "classification": "PRODUCTION_PATH_PASS",
       "legacy_allowlist_freeze": "PASS (2 entries)"
+    },
+    "8A": {
+      "classification": "CONTRACT_PASS",
+      "compose": "present",
+      "docker_build": "NOT RUN (docker unavailable)"
+    },
+    "8B": {
+      "classification": "EXTERNAL_BLOCKED",
+      "reason": "isolated restore requires TARGET_DATABASE_URL + backup"
+    },
+    "8C": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "target_tests": "PASS (4 failure injection)"
+    },
+    "8D": {
+      "classification": "EXTERNAL_BLOCKED",
+      "reason": "no external telemetry exporter credentials/backend"
+    },
+    "9": {
+      "classification": "COMPATIBILITY_FREEZE_PASS",
+      "contract_remove": "NOT DONE (requires production evidence)"
+    },
+    "10": {
+      "classification": "EXTERNAL_BLOCKED",
+      "items": [
+        "payment_sandbox",
+        "cloud_object_storage_kms",
+        "pos_pilot",
+        "controlled_pilot_readiness"
+      ]
+    },
+    "11": {
+      "classification": "EXTERNAL_BLOCKED",
+      "items": [
+        "pilot_feedback",
+        "capacity_slo_evidence",
+        "ha_revisit",
+        "production_launch_decision"
+      ]
     }
   },
   "known_gaps": [
-    "Foundation milestones 1B.1-4E established contracts only; they are not Production Integration completion.",
-    "Multimodal Emotion-LLaMA/R1-Omni HTTP path cutover remains Milestone 5D.",
-    "Analytics outbox sink still uses JSON compatibility storage until milestone 6D durable sink.",
-    "Cloud S3 put/get/stream SDK wiring remains EXTERNAL_BLOCKED until milestone 10B credentials."
+    "Internal production integration complete for repository-owned paths.",
+    "Repository is NOT Production Certified.",
+    "Member phone compatibility column and legacy tokens remain until contract-remove gates.",
+    "Docker staging image build and multi-node chaos were not executed in this environment.",
+    "Cloud S3 SDK wiring remains EXTERNAL_BLOCKED."
   ],
   "blocked_items": [
     {
-      "item": "Cloud object storage / KMS wiring",
-      "impact": "S3 adapter refuses operations without credentials; local/HMAC path is production-ready for internal use",
-      "required_external_input": "Bucket credentials, endpoint, and KMS policy",
+      "item": "Actual backup/restore drill",
+      "impact": "Cannot claim restore evidence",
+      "required_external_input": "Isolated TARGET_DATABASE_URL and backup artifact",
+      "milestone": "8B"
+    },
+    {
+      "item": "External telemetry + measured SLO",
+      "impact": "SLO remains targets only",
+      "required_external_input": "Exporter/dashboard/paging backend",
+      "milestone": "8D"
+    },
+    {
+      "item": "Payment merchant certification",
+      "impact": "Real payment capture not complete",
+      "required_external_input": "Merchant sandbox credentials",
+      "milestone": "10A"
+    },
+    {
+      "item": "Cloud object storage / KMS",
+      "impact": "S3 put/get not production-wired",
+      "required_external_input": "Bucket/KMS credentials",
       "milestone": "10B"
+    },
+    {
+      "item": "POS adapter pilot",
+      "impact": "External POS not certified",
+      "required_external_input": "POS sandbox + partner approval",
+      "milestone": "10C"
+    },
+    {
+      "item": "Controlled pilot readiness / launch",
+      "impact": "Not Production Certified",
+      "required_external_input": "Business pilot authority and runtime evidence",
+      "milestone": "10D-11D"
     }
   ],
   "risk_register": [],
-  "next_milestone": "8A",
-  "updated_at": "2026-07-14T07:05:09.261810+08:00"
+  "next_milestone": null,
+  "updated_at": "2026-07-14T07:06:05.895920+08:00"
 }
