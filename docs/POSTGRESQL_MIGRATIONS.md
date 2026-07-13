@@ -15,6 +15,7 @@
 - Apply 在單一 transaction 中取得 PostgreSQL transaction-scoped advisory migration lock，避免多 instance 同時執行。
 - 已套用且 checksum 相同的版本會跳過，因此 apply 具 idempotency。
 - Checksum mismatch 或資料庫存在但本地缺少的版本是部署阻斷，不得以修改 `schema_migrations` 繞過。
+- 目前 runner 在單一 transaction 內套用 migration；PostgreSQL 不允許其中執行 `CREATE INDEX CONCURRENTLY`。未來對大型既有表建立 index 前，必須先設計並測試明確的 non-transactional migration contract，不得直接把該語句加入現行 migration。
 
 ## Commands
 
