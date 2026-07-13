@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -70,18 +69,11 @@ def test_environment_example_contains_no_filled_credentials() -> None:
 
 
 def test_frontend_lockfile_matches_declared_typescript_dependency() -> None:
-    package = json.loads(
-        (REPOSITORY_ROOT / "UI_API/frontend/package.json").read_text(encoding="utf-8")
-    )
-    lockfile = json.loads(
-        (REPOSITORY_ROOT / "UI_API/frontend/package-lock.json").read_text(encoding="utf-8")
-    )
+    package = json.loads((REPOSITORY_ROOT / "UI_API/frontend/package.json").read_text(encoding="utf-8"))
+    lockfile = json.loads((REPOSITORY_ROOT / "UI_API/frontend/package-lock.json").read_text(encoding="utf-8"))
 
     assert lockfile["lockfileVersion"] == 3
-    assert (
-        lockfile["packages"][""]["devDependencies"]["typescript"]
-        == package["devDependencies"]["typescript"]
-    )
+    assert lockfile["packages"][""]["devDependencies"]["typescript"] == package["devDependencies"]["typescript"]
 
 
 def test_ci_avoids_model_and_gpu_startup() -> None:
@@ -99,7 +91,7 @@ def test_ci_avoids_model_and_gpu_startup() -> None:
 def test_backend_ci_covers_supported_python_versions_without_duplicate_static_checks() -> None:
     workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
-    assert "python-version: [\"3.10\", \"3.12\"]" in workflow
+    assert 'python-version: ["3.10", "3.12"]' in workflow
     assert "matrix.python-version == '3.10'" in workflow
     assert workflow.count("ruff check") == 1
     assert workflow.count("ruff format --check") == 1
@@ -107,9 +99,7 @@ def test_backend_ci_covers_supported_python_versions_without_duplicate_static_ch
 
 
 def test_member_identity_adr_preserves_the_accepted_deferred_decision() -> None:
-    adr = (REPOSITORY_ROOT / "docs/adr/0004-member-identity-migration.md").read_text(
-        encoding="utf-8"
-    )
+    adr = (REPOSITORY_ROOT / "docs/adr/0004-member-identity-migration.md").read_text(encoding="utf-8")
 
     assert "Status: Accepted" in adr
     assert "Implementation Status: Deferred" in adr
