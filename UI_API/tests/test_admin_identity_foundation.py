@@ -223,15 +223,18 @@ def test_legacy_admin_token_requires_explicit_compatibility_flag(monkeypatch: py
 
     monkeypatch.setattr(auth_utils.config, "is_security_enforced", lambda: True)
     monkeypatch.setattr(auth_utils.config, "is_demo_public_mode", lambda: False)
-    monkeypatch.setattr(auth_utils.config, "get", lambda key, default=None: {
-        "SECURITY_ENFORCED": True,
-        "ENABLE_LEGACY_ADMIN_TOKEN": False,
-        "ADMIN_API_TOKEN": "legacy-token",
-    }.get(key, default))
+    monkeypatch.setattr(
+        auth_utils.config,
+        "get",
+        lambda key, default=None: {
+            "SECURITY_ENFORCED": True,
+            "ENABLE_LEGACY_ADMIN_TOKEN": False,
+            "ADMIN_API_TOKEN": "legacy-token",
+        }.get(key, default),
+    )
     monkeypatch.setattr(auth_utils.admin_identity_service, "authenticate_admin_session", lambda _token: None)
     request = Request({"type": "http", "method": "GET", "path": "/", "headers": [(b"x-admin-token", b"legacy-token")]})
 
     with pytest.raises(HTTPException) as exc_info:
         auth_utils.require_admin_token(request)
     assert exc_info.value.status_code == 403
-

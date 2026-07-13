@@ -3,6 +3,7 @@ from typing import Any, Callable
 
 import config
 from routes import (
+    admin_identity_routes,
     ai_push_routes,
     availability_routes,
     core_routes,
@@ -48,6 +49,7 @@ def _debug_routes_enabled() -> bool:
 
 
 ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
+    RouteRegistration("public", admin_identity_routes),
     RouteRegistration("public", core_routes),
     RouteRegistration("public", menu_routes),
     RouteRegistration("admin", availability_routes),

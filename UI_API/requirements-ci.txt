@@ -1,6 +1,8 @@
 # Minimal, CPU-only dependency set for lint, import validation and current tests.
 # Keep AI/model runtimes out of the commercial-foundation CI job.
 fastapi==0.136.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
 httpx==0.28.1
 mypy==2.2.0
 pytest==9.1.1

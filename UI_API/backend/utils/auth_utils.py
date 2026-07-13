@@ -5,6 +5,9 @@ import time
 from fastapi import HTTPException, Request, UploadFile
 
 import config
+from services import admin_identity_service
+from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
+from utils.commercial_scope_config import resolve_commercial_scope
 
 _RATE_BUCKETS: dict[tuple[str, str, str], list[float]] = {}
 _RATE_LOCK = threading.Lock()
@@ -30,13 +33,37 @@ def require_admin_token(request: Request):
     expected = str(config.get("ADMIN_API_TOKEN", "") or config.ADMIN_DEMO_TOKEN or "")
     if not _security_enforced() and not config.is_demo_public_mode():
         return
+    cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
+    session_token = request.cookies.get(cookie_name, "") or _bearer_token(request)
+    principal = admin_identity_service.authenticate_admin_session(session_token)
+    if principal is not None:
+        request.state.admin_principal = principal
+        return principal
     token = _bearer_token(request) or request.headers.get("X-Admin-Token")
-    if not expected:
-        raise HTTPException(status_code=503, detail="admin auth is not configured")
     if not token:
-        raise HTTPException(status_code=401, detail="admin token required")
+        raise HTTPException(status_code=401, detail="admin authentication required")
+    if not bool(config.get("ENABLE_LEGACY_ADMIN_TOKEN", not config.is_production())):
+        raise HTTPException(status_code=403, detail="legacy admin token is disabled")
+    if not expected:
+        raise HTTPException(status_code=503, detail="legacy admin auth is not configured")
     if not _constant_time_match(token, [expected, config.ADMIN_DEMO_TOKEN]):
         raise HTTPException(status_code=403, detail="invalid admin token")
+    scope = resolve_commercial_scope(request.headers)
+    principal = admin_identity_service.legacy_admin_principal(scope)
+    admin_identity_service.record_legacy_admin_use(scope)
+    request.state.admin_principal = principal
+    return principal
+
+
+def require_permission(permission: str):
+    def dependency(request: Request):
+        principal = require_admin_token(request)
+        try:
+            return authorize_admin_action(principal, permission, resolve_commercial_scope(request.headers))
+        except AdminAuthorizationError as exc:
+            raise HTTPException(status_code=403, detail="admin action is not allowed") from exc
+
+    return dependency
 
 
 def require_kiosk_token(request: Request):
