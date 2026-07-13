@@ -75,6 +75,55 @@ def heartbeat(
         "deployment_ring": data.get("devices", {}).get(key, {}).get("deployment_ring", "pilot"),
     }
     _save(data)
+    # Durable last-known state when PostgreSQL is configured.
+    try:
+        from repositories import postgres_utils
+
+        if postgres_utils.use_postgres():
+            postgres_utils.init_schema()
+            with postgres_utils.connect() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO fleet_device_state (
+                        device_id, tenant_id, store_id, app_version, config_version,
+                        health, last_error, deployment_ring, last_seen_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    ON CONFLICT (device_id) DO UPDATE SET
+                        app_version = EXCLUDED.app_version,
+                        config_version = EXCLUDED.config_version,
+                        health = EXCLUDED.health,
+                        last_error = EXCLUDED.last_error,
+                        last_seen_at = NOW(),
+                        updated_at = NOW()
+                    """,
+                    (
+                        device_id,
+                        tenant_id,
+                        store_id,
+                        app_version,
+                        config_version,
+                        health,
+                        str(last_error or "")[:200],
+                        data["devices"][key]["deployment_ring"],
+                    ),
+                )
+                conn.commit()
+    except Exception:
+        # JSON path remains operational; durable write is best-effort until scope rows exist.
+        pass
+    # Ephemeral presence via Redis when available (not source of truth).
+    try:
+        from services import shared_infrastructure_service
+
+        cache = getattr(shared_infrastructure_service, "cache", None)
+        if cache is not None:
+            cache().set(
+                f"fleet:presence:{tenant_id}:{device_id}",
+                "1",
+                ttl_seconds=60,
+            )
+    except Exception:
+        pass
     return data["devices"][key]
 
 

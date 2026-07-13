@@ -33,6 +33,7 @@ def test_membership_postgres_migrations_are_versioned():
         "0008_worker_reliable_async_jobs.sql",
         "0009_object_storage_metadata.sql",
         "0010_rag_governance_persistence.sql",
+        "0011_control_plane_durable_persistence.sql",
     ]
     assert all(postgres_utils.migration_checksum(path) for path in files)
 

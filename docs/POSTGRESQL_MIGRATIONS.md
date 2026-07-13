@@ -55,6 +55,16 @@ PostgreSQL RLS 在 1E 明確延後：目前 application 使用共用 database id
 - Checksum mismatch 或資料庫存在但本地缺少的版本是部署阻斷，不得以修改 `schema_migrations` 繞過。
 - 目前 runner 在單一 transaction 內套用 migration；PostgreSQL 不允許其中執行 `CREATE INDEX CONCURRENTLY`。未來對大型既有表建立 index 前，必須先設計並測試明確的 non-transactional migration contract，不得直接把該語句加入現行 migration。
 
+## Milestone 6B–6D Control Plane Durable Persistence
+
+Migration `0011_control_plane_durable_persistence.sql` establishes:
+
+- Recommendation strategy versions, durable experiment assignments, governance events, promotion rule versions
+- Fleet device last-known state, commands, config versions, rollouts
+- Analytics event log + checkpoints (binary media never stored)
+
+JSON files under `LEARNING_DATA_DIR` remain development compatibility only.
+
 ## Milestone 6A RAG Governance Persistence
 
 Migration `0010_rag_governance_persistence.sql` establishes:

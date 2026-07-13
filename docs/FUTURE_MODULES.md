@@ -27,11 +27,11 @@
 | 完成（內部） | LLM Gateway cutover | 標準化文字生成 Provider | Port/Adapter | 5C：Production callers 經 Gateway；timeout budget 真實有效；task schema；adapter-only ai_services |
 | 完成（內部） | Emotion Gateway cutover | 隔離 GPU 模型 runtime | Port/Adapter | 5D：主 Emotion 流程經 Multimodal Gateway；adapter-only `/predict`；no-evidence safe |
 | 完成（內部） | RAG governance durable | 文件版本、審核、發布與 rollback | Worker / Object Storage | 6A：PostgreSQL metadata + object content_ref + rebuild side effect；JSON 僅相容 |
-| 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |
+| 完成（內部） | Promotion / Recommendation durable | 策略版本與成效治理 | Event data / PG | 6B：durable assignment + strategy tables（0011）；JSON 相容 |
 | 完成（內部） | Object Storage truthfulness | 管理文件、音訊、影片與匯出物 | Security/Privacy | 5B：HMAC signed access、local disk、truthful encryption metadata、PG metadata；雲端 S3/KMS wiring 仍 EXTERNAL_BLOCKED（10B） |
 | 完成 | POS / Payment adapters | 串接正式交易系統 | Order state machine | fake/sandbox contract、webhook、reconciliation 已建立；真實商戶認證 BLOCKED |
-| 完成 | Fleet management | 管理大量 Kiosk | Device identity | heartbeat、allowlisted command、rollout ring 基線已建立 |
-| 完成 | Data analytics pipeline | 建立營運與推薦分析 | Event contract | envelope、idempotent publish/replay、quality counters 已建立 |
+| 完成（內部） | Fleet durable | 管理大量 Kiosk | Device identity / Redis | 6C：PG last-known state + allowlisted commands；Redis presence optional |
+| 完成（內部） | Analytics durable sink | 建立營運與推薦分析 | Outbox / Worker | 6D：PostgresAnalyticsSink、recursive PII、replay checkpoint |
 | 完成 | Multi-region / HA evaluation | 評估大規模可用性 | SLO、observability | ADR-0010 依證據 defer multi-region / active-active |
 
 ## 建議執行順序

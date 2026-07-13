@@ -228,18 +228,76 @@ def assign_experiment_variant(
     experiment_id: str,
     assignment_key: str,
     variants: list[str],
+    tenant_id: UUID | None = None,
+    store_id: UUID | None = None,
+    strategy_version: int | None = None,
 ) -> ExperimentAssignment:
     if not variants:
         raise RecommendationGovernanceError("variants_required")
+    # Durable assignment: once a session is assigned, keep the same variant.
+    durable_path = Path(config.LEARNING_DATA_DIR) / "recommendation_assignments.json"
+    assignments = _load_json(durable_path, [])
+    for row in assignments:
+        if row.get("experiment_id") == experiment_id and row.get("session_ref") == assignment_key:
+            return ExperimentAssignment(
+                experiment_id=experiment_id,
+                variant=str(row.get("variant_id") or variants[0]),
+                assignment_key=assignment_key,
+                deterministic=True,
+            )
     key = f"{experiment_id}:{assignment_key}"
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
     index = int(digest[:8], 16) % len(variants)
-    return ExperimentAssignment(
+    assignment = ExperimentAssignment(
         experiment_id=experiment_id,
         variant=str(variants[index]),
         assignment_key=assignment_key,
         deterministic=True,
     )
+    assignments.append(
+        {
+            "experiment_id": experiment_id,
+            "session_ref": assignment_key,
+            "variant_id": assignment.variant,
+            "strategy_version": strategy_version,
+            "tenant_id": str(tenant_id) if tenant_id else None,
+            "store_id": str(store_id) if store_id else None,
+            "created_at": _now(),
+        }
+    )
+    _save_json(durable_path, assignments)
+    # Best-effort postgres durable path
+    try:
+        from repositories import postgres_utils
+
+        if postgres_utils.use_postgres() and tenant_id is not None:
+            from uuid import uuid4 as _uuid4
+
+            from psycopg.types.json import Jsonb  # noqa: F401
+
+            postgres_utils.init_schema()
+            with postgres_utils.connect() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO recommendation_assignments (
+                        id, experiment_id, session_ref, variant_id, strategy_version, tenant_id, store_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (experiment_id, session_ref) DO NOTHING
+                    """,
+                    (
+                        _uuid4(),
+                        experiment_id,
+                        assignment_key,
+                        assignment.variant,
+                        strategy_version,
+                        tenant_id,
+                        store_id,
+                    ),
+                )
+                conn.commit()
+    except Exception:
+        pass
+    return assignment
 
 
 def record_event(event: RecommendationEventRecord) -> RecommendationEventRecord:
