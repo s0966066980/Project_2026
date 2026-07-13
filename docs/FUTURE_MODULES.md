@@ -24,7 +24,7 @@
 | 完成 | Frontend feature modules baseline | bounded extraction 與 boundary enforcement | Frontend toolchain | Kiosk bootstrap/Admin auth 已抽離，既有 feature modules 與 E2E 保持；後續逐 feature 演進 |
 | 完成 | Redis shared infrastructure | multi-instance ephemeral coordination | Deployment | scoped rate limit/cache/lock adapter 與 fail-closed policy 已建立 |
 | 完成 | Worker | 移出長時間與可重試工作 | PostgreSQL job/outbox | durable job contract、retry/DLQ、outbox consumer 與 metrics 已建立；RAG rebuild 等 handler 後續接上 |
-| 完成 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、schema metrics、prompt version 已建立 |
+| 完成（內部） | LLM Gateway cutover | 標準化文字生成 Provider | Port/Adapter | 5C：Production callers 經 Gateway；timeout budget 真實有效；task schema；adapter-only ai_services |
 | 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
 | 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
 | 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |

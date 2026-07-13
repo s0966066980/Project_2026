@@ -3,15 +3,17 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "0be0257ff55aee167c8af165f5c3cd03870b9f15",
   "program": "production_integration",
-  "current_milestone": "5C",
+  "current_milestone": "5D",
   "status": "in_progress",
   "completed_milestones": [
     "5A",
-    "5B"
+    "5B",
+    "5C"
   ],
   "checkpoint_commits": {
     "5A": "b06d316cf332d3bcfbd38434aa0e93cd9db83e3d",
-    "5B": "06d4dca2cb763d88b14d9d208e4bf040134e6d69"
+    "5B": "1c9b883827578b2aaa9170ca81410494e8720ff7",
+    "5C": "5e77cc692752730fddbe2038150ea599ed2c104f"
   },
   "verification": {
     "5A": {
@@ -28,15 +30,19 @@
       "external": "EXTERNAL_BLOCKED cloud S3/KMS wiring",
       "target_tests": "PASS (10 object storage production path + phase4 compatibility)",
       "full_json_backend": "PASS (328 passed)",
-      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; migration 0009 + repository ready for CI)",
-      "ruff_affected_scope": "PASS",
-      "mypy": "NOT RUN",
-      "shell": "NOT RUN"
+      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; migration 0009 + repository ready for CI)"
+    },
+    "5C": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "target_tests": "PASS (16 gateway cutover/related)",
+      "full_json_backend": "PASS (333 passed)",
+      "architecture_no_direct_ai_services": "PASS",
+      "timeout_budget": "PASS"
     }
   },
   "known_gaps": [
     "Foundation milestones 1B.1-4E established contracts only; they are not Production Integration completion.",
-    "ai.background handler remains explicitly blocked until milestone 5C gateway cutover.",
+    "Multimodal Emotion-LLaMA/R1-Omni HTTP path cutover remains Milestone 5D.",
     "Analytics outbox sink still uses JSON compatibility storage until milestone 6D durable sink.",
     "Cloud S3 put/get/stream SDK wiring remains EXTERNAL_BLOCKED until milestone 10B credentials."
   ],
@@ -49,6 +55,6 @@
     }
   ],
   "risk_register": [],
-  "next_milestone": "5C",
-  "updated_at": "2026-07-14T14:00:00+08:00"
+  "next_milestone": "5D",
+  "updated_at": "2026-07-14T06:56:28.212894+08:00"
 }

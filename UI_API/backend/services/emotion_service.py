@@ -11,9 +11,10 @@ from datetime import datetime
 
 import httpx
 
-import ai_services
 import config
+from models.llm import LLMModelPolicy, LLMRequest
 from repositories import emotion_log_repository
+from services import llm_gateway_service
 
 EVENT_TYPE_LABELS = {
     "voice_mode": "語音模式",
@@ -73,7 +74,6 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
     except Exception as e:
         print(f"⚠️ {PROVIDER_LABELS.get(_provider(), _provider())} analyze_event 失敗: {e}")
-        llama_error = str(e)
         raw = "[EMOTION_LLAMA_ERROR]"
 
     quality_skipped = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_SKIP]")
@@ -198,21 +198,33 @@ async def _generate_payment_assist(entry: dict) -> str:
     system = prompt_template
     user = f"顧客情緒分析結果：\n{emotion_summary}"
 
-    raw = await asyncio.to_thread(
-        ai_services.ask_ollama, system, user, "PAYMENT_ASSIST",
-        config.get("MODEL_NAME", "qwen3.5:4b"),
-        80,
+    response = await asyncio.to_thread(
+        llm_gateway_service.generate,
+        LLMRequest(
+            task="payment_assist",
+            system_prompt=str(system or ""),
+            user_prompt=user,
+            model_policy=LLMModelPolicy.LOCAL_FIRST,
+            timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 30) or 30),
+            prompt_version="payment_assist-v1",
+            expect_json=True,
+            response_tag="PAYMENT_ASSIST",
+            model_name=str(config.get("MODEL_NAME", "qwen3.5:4b") or "qwen3.5:4b"),
+            max_tokens=80,
+            max_retries=0,
+        ),
     )
+    raw = dict(response.parsed or {}) if response.parsed else {}
+    if response.content and not raw:
+        return str(response.content).strip()
     if isinstance(raw, dict):
         msg = raw.get("assist_message") or raw.get("message") or raw.get("response") or ""
         return str(msg).strip()
-    if isinstance(raw, str):
-        return raw.strip()
     return ""
 
 
 async def _extract_emotion_via_ollama(description: str) -> dict:
-    """Emotion-LLaMA 自然語言描述 → Ollama → 結構化情緒欄位。"""
+    """Emotion-LLaMA 自然語言描述 → LLM Gateway → 結構化情緒欄位。"""
     system = (
         "You are an emotion extraction assistant. "
         "Given a video analysis description, extract the structured emotion data. "
@@ -228,12 +240,25 @@ async def _extract_emotion_via_ollama(description: str) -> dict:
         '"facial":"<繁體中文簡述表情線索>",'
         '"vocal":"<繁體中文簡述聲音線索，無聲則填「靜默」>"}'
     )
-    result = await asyncio.to_thread(
-        ai_services.ask_ollama, system, user, "EMOTION_EXTRACT",
-        config.get("MODEL_NAME", "qwen3.5:4b"),
-        120,
+    response = await asyncio.to_thread(
+        llm_gateway_service.generate,
+        LLMRequest(
+            task="emotion_extract",
+            system_prompt=system,
+            user_prompt=user,
+            model_policy=LLMModelPolicy.LOCAL_FIRST,
+            timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 30) or 30),
+            prompt_version="emotion_extract-v1",
+            expect_json=True,
+            response_tag="EMOTION_EXTRACT",
+            model_name=str(config.get("MODEL_NAME", "qwen3.5:4b") or "qwen3.5:4b"),
+            max_tokens=120,
+            max_retries=0,
+        ),
     )
-    return result if isinstance(result, dict) else {}
+    if response.safe_error or not response.parsed:
+        return {}
+    return dict(response.parsed) if isinstance(response.parsed, dict) else {}
 
 
 async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:

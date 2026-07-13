@@ -33,10 +33,22 @@ def test_generate_push_text_sanitizes_unverified_discount(monkeypatch):
     from services import ai_push_service
     importlib.reload(ai_push_service)
 
+    from models.llm import LLMResponse
+
     monkeypatch.setattr(
-        ai_push_service.ai_services,
-        "ask_ollama",
-        lambda *args, **kwargs: {"push_text": "大麥克套餐限時優惠買一送一，現在最划算"},
+        ai_push_service.llm_gateway_service,
+        "generate",
+        lambda request, **kwargs: LLMResponse(
+            content='{"recommendation_id":"MCD001","push_text":"大麥克套餐限時優惠買一送一，現在最划算"}',
+            provider="ollama",
+            model="model",
+            latency_ms=1.0,
+            usage=None,
+            finish_reason="stop",
+            safe_error="",
+            parsed={"recommendation_id": "MCD001", "push_text": "大麥克套餐限時優惠買一送一，現在最划算"},
+            prompt_version=request.prompt_version,
+        ),
     )
 
     def fake_config_get(key, default=None):
@@ -75,10 +87,25 @@ def test_generate_push_text_keeps_verified_offer_text(monkeypatch):
     from services import ai_push_service
     importlib.reload(ai_push_service)
 
+    from models.llm import LLMResponse
+
     monkeypatch.setattr(
-        ai_push_service.ai_services,
-        "ask_ollama",
-        lambda *args, **kwargs: {"push_text": "會員薯條活動開跑，大麥克套餐搭配點心更滿足"},
+        ai_push_service.llm_gateway_service,
+        "generate",
+        lambda request, **kwargs: LLMResponse(
+            content='{"recommendation_id":"MCD001","push_text":"會員薯條活動開跑，大麥克套餐搭配點心更滿足"}',
+            provider="ollama",
+            model="model",
+            latency_ms=1.0,
+            usage=None,
+            finish_reason="stop",
+            safe_error="",
+            parsed={
+                "recommendation_id": "MCD001",
+                "push_text": "會員薯條活動開跑，大麥克套餐搭配點心更滿足",
+            },
+            prompt_version=request.prompt_version,
+        ),
     )
     monkeypatch.setattr(
         ai_push_service.config,

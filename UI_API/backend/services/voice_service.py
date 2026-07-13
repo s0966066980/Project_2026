@@ -10,13 +10,14 @@ import threading
 import time
 from typing import AsyncGenerator
 
-import ai_services
 import database
 
 import config
 from models.commercial_scope import CommercialScope
+from models.llm import LLMModelPolicy, LLMRequest
 from repositories import menu_repository, session_repository
 from services import (
+    llm_gateway_service,
     rag_guard_service,
     rag_offer_service,
     recommendation_context_service,
@@ -202,9 +203,24 @@ async def handle_voice(
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
     async with ollama_semaphore:
-        result = await asyncio.to_thread(
-            ai_services.ask_ollama, system_prompt, user_prompt, "", model
+        llm_response = await asyncio.to_thread(
+            llm_gateway_service.generate,
+            LLMRequest(
+                task="voice_assist",
+                system_prompt=str(system_prompt or ""),
+                user_prompt=str(user_prompt or ""),
+                model_policy=LLMModelPolicy.LOCAL_FIRST,
+                timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 30) or 30),
+                prompt_version="voice_assist-v1",
+                expect_json=True,
+                response_tag="",
+                model_name=str(model or "qwen3.5:4b"),
+                max_retries=0,
+            ),
         )
+    result = dict(llm_response.parsed or {}) if llm_response.parsed else {}
+    if llm_response.safe_error or llm_response.finish_reason in {"error", "timeout", "schema_failure"}:
+        result = {}
 
     if not isinstance(result, dict) or not result.get("ai_response"):
         ai_response = (
@@ -307,7 +323,18 @@ async def handle_voice_stream(
 
     def _run_stream():
         try:
-            for token in ai_services.stream_ollama_tokens(system_prompt, user_prompt, model, voice_num_predict):
+            stream_request = LLMRequest(
+                task="voice_assist",
+                system_prompt=str(system_prompt or ""),
+                user_prompt=str(user_prompt or ""),
+                model_policy=LLMModelPolicy.LOCAL_ONLY,
+                timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 120) or 120),
+                prompt_version="voice_assist-stream-v1",
+                expect_json=True,
+                model_name=str(model or "qwen3.5:4b"),
+                max_tokens=voice_num_predict,
+            )
+            for token in llm_gateway_service.stream_tokens(stream_request, num_predict=voice_num_predict):
                 loop.call_soon_threadsafe(queue.put_nowait, token)
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, None)
@@ -376,7 +403,7 @@ async def handle_voice_stream(
             pass
 
     # 解析完整 JSON → cart_actions
-    result = ai_services.parse_llm_json(full_buf, "VOICE_STREAM")
+    result = llm_gateway_service.parse_structured_content(full_buf, "VOICE_STREAM")
     ai_response_final = str(result.get("ai_response") or "").strip() or remainder
     raw_cart    = result.get("cart_actions") or []
     cart_actions = coerce_cart_actions(

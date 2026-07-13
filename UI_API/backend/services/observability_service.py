@@ -34,6 +34,7 @@ REQUIRED_METRICS = (
     "auth_failures_total",
     "device_auth_failures_total",
     "llm_provider_requests_total",
+    "llm_task_total",
     "emotion_evidence_total",
     "intervention_outcomes_total",
     "order_outbox_pending",

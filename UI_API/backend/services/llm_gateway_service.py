@@ -29,6 +29,22 @@ _RETRYABLE_MARKERS = (
     "temporarily",
 )
 
+# Long-lived pool so timeout returns without waiting for a stuck worker to finish
+# (context-managed ThreadPoolExecutor.__exit__ would block until the thread ends).
+_GATEWAY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=8,
+    thread_name_prefix="llm-gateway",
+)
+
+# Task-level structured output contracts (required keys). Values are further
+# validated by the calling application service (menu whitelist, length, etc.).
+TASK_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
+    "ai_push_copy": frozenset({"recommendation_id", "push_text"}),
+    "voice_assist": frozenset({"ai_response"}),
+    "payment_assist": frozenset(),  # free-form assist message fields accepted
+    "emotion_extract": frozenset({"emotion", "intensity"}),
+}
+
 
 def _provider_chain(policy: LLMModelPolicy) -> list[str]:
     if policy is LLMModelPolicy.LOCAL_ONLY:
@@ -222,37 +238,79 @@ def default_adapters() -> dict[str, LLMPort]:
     return {"ollama": OllamaAdapter(), "gemini": GeminiAdapter()}
 
 
+def parse_structured_content(content: str, tag: str = "") -> dict[str, Any]:
+    """Parse provider JSON text via adapter-layer helper (not a production caller import)."""
+
+    import ai_services
+
+    parsed = ai_services.parse_llm_json(content, tag)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def stream_tokens(
+    request: LLMRequest,
+    *,
+    num_predict: int | None = None,
+):
+    """Stream tokens through the Ollama adapter path only (Gemini stream not required)."""
+
+    import ai_services
+
+    model = request.model_name or ""
+    yield from ai_services.stream_ollama_tokens(
+        request.system_prompt,
+        request.user_prompt,
+        model,
+        num_predict if num_predict is not None else request.max_tokens,
+    )
+
+
+def _validate_task_schema(task: str, parsed: dict[str, Any] | None) -> str:
+    """Return empty string when valid; otherwise a safe schema error code."""
+
+    required = TASK_REQUIRED_FIELDS.get(str(task or "").strip())
+    if required is None:
+        return ""
+    if not isinstance(parsed, dict):
+        return "schema_validation_failed"
+    missing = [key for key in required if key not in parsed or parsed.get(key) in (None, "")]
+    if missing:
+        return "schema_missing_fields"
+    return ""
+
+
 def _call_with_timeout(adapter: LLMPort, request: LLMRequest) -> LLMAdapterResult:
     timeout = max(0.001, float(request.timeout_seconds))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(adapter.generate, request)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            future.cancel()
-            return LLMAdapterResult(
-                content="",
-                provider=getattr(adapter, "name", "unknown"),
-                model=request.model_name or getattr(adapter, "name", "unknown"),
-                latency_ms=timeout * 1000.0,
-                usage=None,
-                finish_reason="timeout",
-                safe_error="provider_timeout",
-                retryable=True,
-                parsed=None,
-            )
-        except Exception as exc:  # noqa: BLE001 - gateway boundary
-            return LLMAdapterResult(
-                content="",
-                provider=getattr(adapter, "name", "unknown"),
-                model=request.model_name or getattr(adapter, "name", "unknown"),
-                latency_ms=0.0,
-                usage=None,
-                finish_reason="error",
-                safe_error=_safe_error(str(exc)),
-                retryable=_is_retryable(str(exc)),
-                parsed=None,
-            )
+    started = time.perf_counter()
+    future = _GATEWAY_EXECUTOR.submit(adapter.generate, request)
+    try:
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        # Do not wait for the underlying provider thread; return within budget.
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        return LLMAdapterResult(
+            content="",
+            provider=getattr(adapter, "name", "unknown"),
+            model=request.model_name or getattr(adapter, "name", "unknown"),
+            latency_ms=elapsed_ms,
+            usage=None,
+            finish_reason="timeout",
+            safe_error="provider_timeout",
+            retryable=True,
+            parsed=None,
+        )
+    except Exception as exc:  # noqa: BLE001 - gateway boundary
+        return LLMAdapterResult(
+            content="",
+            provider=getattr(adapter, "name", "unknown"),
+            model=request.model_name or getattr(adapter, "name", "unknown"),
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+            usage=None,
+            finish_reason="error",
+            safe_error=_safe_error(str(exc)),
+            retryable=_is_retryable(str(exc)),
+            parsed=None,
+        )
 
 
 def generate(
@@ -317,8 +375,30 @@ def generate(
                             prompt_version=request.prompt_version,
                         )
                     break
+                task_schema_error = _validate_task_schema(request.task, parsed)
+                if task_schema_error:
+                    last_error = task_schema_error
+                    _metric(provider_name, "schema_failure")
+                    primary_failed = True
+                    if index >= len(chain) - 1:
+                        return LLMResponse(
+                            content=result.content,
+                            provider=result.provider,
+                            model=result.model,
+                            latency_ms=result.latency_ms,
+                            usage=result.usage,
+                            finish_reason="schema_failure",
+                            safe_error=_safe_error(last_error),
+                            parsed=None,
+                            prompt_version=request.prompt_version,
+                        )
+                    break
                 finish = "fallback" if primary_failed or index > 0 else "stop"
                 _metric(provider_name, finish)
+                observability_service.increment_metric(
+                    "llm_task_total",
+                    status=f"{request.task}_{finish}"[:80],
+                )
                 return LLMResponse(
                     content=result.content or json.dumps(parsed, ensure_ascii=False),
                     provider=result.provider,

@@ -1,14 +1,14 @@
-"""AI 推播服務 — 透過 Ollama 生成底部欄推播餐點與理由。"""
+"""AI 推播服務 — 經 LLM Gateway 生成底部欄推播餐點與理由。"""
 import asyncio
 import re
 import time
 
-import ai_services
-
 import config
 from models.commercial_scope import CommercialScope
+from models.llm import LLMModelPolicy, LLMRequest
 from repositories import menu_repository
 from services import (
+    llm_gateway_service,
     rag_guard_service,
     rag_offer_service,
     recommendation_context_service,
@@ -181,14 +181,30 @@ async def _generate_push_text(
 
     try:
         async with ollama_semaphore:
-            raw = await asyncio.to_thread(
-                ai_services.ask_ollama,
-                system, user, "AI_PUSH",
-                config.get("MODEL_NAME", "qwen3.5:4b"),
-                push_num_predict,
+            response = await asyncio.to_thread(
+                llm_gateway_service.generate,
+                LLMRequest(
+                    task="ai_push_copy",
+                    system_prompt=str(system or ""),
+                    user_prompt=user,
+                    model_policy=LLMModelPolicy.LOCAL_FIRST,
+                    timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 30) or 30),
+                    prompt_version="ai_push-v1",
+                    expect_json=True,
+                    response_tag="AI_PUSH",
+                    model_name=str(config.get("MODEL_NAME", "qwen3.5:4b") or "qwen3.5:4b"),
+                    max_tokens=push_num_predict,
+                    max_retries=0,
+                    scope_safe_context={"item_id": item_id},
+                ),
             )
     except Exception as exc:
+        response = None
         raw = {"error": str(exc)}
+    else:
+        raw = dict(response.parsed or {})
+        if response.safe_error or response.finish_reason in {"error", "timeout", "schema_failure"}:
+            raw = {"error": response.safe_error or response.finish_reason}
 
     if isinstance(raw, list):
         raw = next((row for row in raw if isinstance(row, dict)), {})
