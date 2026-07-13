@@ -112,6 +112,7 @@ Kiosk 與 Admin 不共享 mutable business state、page state、DOM state 或 au
 - Text LLM 經 `services/llm_gateway_service.py`：`LLMRequest`/`LLMResponse`、model policy（local/cloud first/only）、safe retry、fallback、schema validation metrics 與 prompt version。Ollama/Gemini 既有 `ai_services` 函式作為 compatibility adapter；LLM 輸出不得直接成為交易決策。
 - Multimodal evidence 經 `services/multimodal_evidence_gateway.py`：統一 Evidence contract（provider/version/confidence/signals/quality/latency）；Emotion-LLaMA / R1-Omni / null adapter 可替換；模型失敗回傳 no-evidence 且不阻塞 Checkout。
 - RAG governance 經 `services/rag_governance_service.py`：document version lifecycle（draft/review/published/retired）、rollback、published-only retrieval candidates、retrieval trace 與 worker rebuild enqueue。
+- Recommendation/Promotion governance 經 `services/recommendation_governance_service.py`：strategy version lifecycle、scope/window eligibility、deterministic experiment assignment、idempotent events 與 data-quality counters；因果推論僅限 experiment 設計，不直接宣稱 uplift 因果。
 
 ## 5. 資料與身分演進
 

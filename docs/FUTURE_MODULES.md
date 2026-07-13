@@ -27,7 +27,7 @@
 | 完成 | LLM Gateway | 標準化文字生成 Provider | Port/Adapter | timeout、retry、fallback、schema metrics、prompt version 已建立 |
 | 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
 | 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
-| P1 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | exposure、click、conversion、experiment 分析 |
+| 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |
 | P2 | Object Storage | 管理文件、音訊、影片與匯出物 | Security/Privacy | lifecycle、encryption、signed access |
 | P2 | POS / Payment adapters | 串接正式交易系統 | Order state machine | provider contract、reconciliation、failure handling |
 | P2 | Fleet management | 管理大量 Kiosk | Device identity | heartbeat、版本、遠端設定、分批發布 |
