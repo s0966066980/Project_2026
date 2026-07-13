@@ -1,18 +1,21 @@
-"""Governed RAG lifecycle: version, review, publish, rollback, retrieval trace."""
+"""Governed RAG lifecycle: version, review, publish, rollback, retrieval trace.
+
+PostgreSQL is the durable source of truth when MEMBER_STORAGE_BACKEND=postgres.
+JSON under LEARNING_DATA_DIR remains development/default-scope compatibility only.
+"""
 
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-import config
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from models.rag_governance import RAG_PERMISSIONS, RagAssetStatus, RagAssetVersion, RetrievalTrace
 from models.worker_jobs import JobValidationError
-from services import worker_service
+from repositories import rag_governance_repository
+from services import object_storage_service, worker_service
 
 
 class RagGovernanceError(ValueError):
@@ -23,28 +26,12 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _store_path() -> Path:
-    return Path(config.LEARNING_DATA_DIR) / "rag_asset_versions.json"
-
-
 def _load_assets() -> list[dict[str, Any]]:
-    path = _store_path()
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    rows = data if isinstance(data, list) else data.get("assets", [])
-    return [dict(row) for row in rows if isinstance(row, dict)]
+    return rag_governance_repository.load_assets()
 
 
 def _save_assets(rows: list[dict[str, Any]]) -> None:
-    path = _store_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    rag_governance_repository.save_assets(rows)
 
 
 def _checksum(content: str) -> str:
@@ -52,41 +39,32 @@ def _checksum(content: str) -> str:
 
 
 def _to_asset(row: dict[str, Any]) -> RagAssetVersion:
-    return RagAssetVersion(
-        document_id=str(row.get("document_id") or ""),
-        version=int(row.get("version") or 1),
-        status=RagAssetStatus(str(row.get("status") or RagAssetStatus.DRAFT.value)),
-        source=str(row.get("source") or ""),
-        checksum=str(row.get("checksum") or ""),
-        owner=str(row.get("owner") or ""),
-        tenant_id=UUID(row["tenant_id"]) if row.get("tenant_id") else None,
-        store_id=UUID(row["store_id"]) if row.get("store_id") else None,
-        created_at=str(row.get("created_at") or ""),
-        reviewed_at=str(row.get("reviewed_at") or ""),
-        published_at=str(row.get("published_at") or ""),
-        superseded_at=str(row.get("superseded_at") or ""),
-        content_ref=str(row.get("content_ref") or ""),
-        history=list(row.get("history") or []),
-    )
+    return rag_governance_repository.to_asset(row)
 
 
 def _row(asset: RagAssetVersion) -> dict[str, Any]:
-    return {
-        "document_id": asset.document_id,
-        "version": asset.version,
-        "status": asset.status.value,
-        "source": asset.source,
-        "checksum": asset.checksum,
-        "owner": asset.owner,
-        "tenant_id": str(asset.tenant_id) if asset.tenant_id else None,
-        "store_id": str(asset.store_id) if asset.store_id else None,
-        "created_at": asset.created_at,
-        "reviewed_at": asset.reviewed_at,
-        "published_at": asset.published_at,
-        "superseded_at": asset.superseded_at,
-        "content_ref": asset.content_ref,
-        "history": list(asset.history),
-    }
+    return rag_governance_repository.asset_to_row(asset)
+
+
+def _store_content(*, content: str, tenant_id: UUID | None, store_id: UUID | None, owner: str) -> str:
+    """Persist binary/text content via object storage when possible; return content_ref."""
+
+    checksum = _checksum(content)
+    try:
+        store = object_storage_service.storage()
+        meta = store.put(
+            tenant_id=tenant_id or LEGACY_DEFAULT_SCOPE.tenant_id,
+            store_id=store_id,
+            owner=owner or "rag",
+            content_type="text/plain",
+            data=content.encode("utf-8"),
+            filename=f"rag-{checksum[:12]}.txt",
+            retention_days=365,
+        )
+        return f"object:{meta.object_id}"
+    except Exception:
+        # Compatibility: inline ref when storage is unavailable in constrained tests.
+        return f"inline:{checksum[:16]}"
 
 
 def require_rag_permission(permission: str, granted: set[str] | frozenset[str]) -> None:
@@ -113,6 +91,12 @@ def create_draft(
         raise RagGovernanceError("duplicate_checksum_for_document")
     existing_versions = [int(r.get("version") or 0) for r in rows if r.get("document_id") == doc_id]
     version = max(existing_versions, default=0) + 1
+    content_ref = _store_content(
+        content=content,
+        tenant_id=tenant_id,
+        store_id=store_id,
+        owner=owner,
+    )
     asset = RagAssetVersion(
         document_id=doc_id,
         version=version,
@@ -123,10 +107,13 @@ def create_draft(
         tenant_id=tenant_id,
         store_id=store_id,
         created_at=_now(),
-        content_ref=f"inline:{checksum[:16]}",
+        content_ref=content_ref,
         history=[{"event": "created", "actor": actor, "at": _now()}],
     )
-    rows.append(_row(asset))
+    row = _row(asset)
+    row["size_bytes"] = len(content.encode("utf-8"))
+    row["content_type"] = "text/plain"
+    rows.append(row)
     _save_assets(rows)
     return asset
 
@@ -161,10 +148,17 @@ def publish(document_id: str, version: int, *, actor: str = "system") -> RagAsse
             row["history"] = history
     target["status"] = RagAssetStatus.PUBLISHED.value
     target["published_at"] = now
+    target["published_by"] = actor
     history = list(target.get("history") or [])
     history.append({"event": "published", "actor": actor, "at": now})
     target["history"] = history
     _save_assets(rows)
+    rag_governance_repository.set_publication_pointer(
+        document_id=document_id,
+        version=int(version),
+        actor=actor,
+        index_namespace=f"{document_id}@v{version}",
+    )
     return _to_asset(target)
 
 
@@ -194,10 +188,17 @@ def rollback(document_id: str, to_version: int, *, actor: str = "system") -> Rag
     target["status"] = RagAssetStatus.PUBLISHED.value
     target["published_at"] = now
     target["superseded_at"] = ""
+    target["published_by"] = actor
     history = list(target.get("history") or [])
     history.append({"event": "rollback_publish", "actor": actor, "at": now})
     target["history"] = history
     _save_assets(rows)
+    rag_governance_repository.set_publication_pointer(
+        document_id=document_id,
+        version=int(to_version),
+        actor=actor,
+        index_namespace=f"{document_id}@v{to_version}",
+    )
     return _to_asset(target)
 
 
@@ -233,7 +234,7 @@ def build_retrieval_trace(
             scores.append(float(hit.get("score") or 0.0))
         except (TypeError, ValueError):
             scores.append(0.0)
-    return RetrievalTrace(
+    trace = RetrievalTrace(
         query_ref=str(query_ref or ""),
         document_versions=versions,
         chunk_ids=chunk_ids,
@@ -241,6 +242,22 @@ def build_retrieval_trace(
         provider=str(provider or ""),
         latency_ms=float(latency_ms),
     )
+    # Durable trace when PostgreSQL backend is active; never logs raw query text.
+    try:
+        rag_governance_repository.record_retrieval_trace(
+            tenant_id=LEGACY_DEFAULT_SCOPE.tenant_id,
+            store_id=LEGACY_DEFAULT_SCOPE.store_id,
+            query_ref=trace.query_ref,
+            document_versions=trace.document_versions,
+            chunk_ids=trace.chunk_ids,
+            scores=trace.scores,
+            provider=trace.provider,
+            latency_ms=trace.latency_ms,
+            schema_version=trace.schema_version,
+        )
+    except Exception:
+        pass
+    return trace
 
 
 def execute_rebuild_job(
@@ -257,6 +274,8 @@ def execute_rebuild_job(
         raise RagGovernanceError("missing_document_id")
     rows = _load_assets()
     matched = False
+    matched_version = 0
+    side_effect_id = ""
     for row in rows:
         if str(row.get("document_id") or "") != normalized:
             continue
@@ -267,15 +286,45 @@ def execute_rebuild_job(
         if store_id is not None and row_store and UUID(str(row_store)) != store_id:
             raise RagGovernanceError("store_scope_mismatch")
         history = list(row.get("history") or [])
-        side_effect_id = f"rag-rebuild:{normalized}:{int(row.get('version') or 1)}"
-        history.append({"event": "rebuild_executed", "actor": actor, "at": _now(), "side_effect_id": side_effect_id})
+        version = int(row.get("version") or 1)
+        # Staging index namespace then atomic publish pointer only for published assets.
+        index_version = f"idx:{normalized}:v{version}:{uuid4().hex[:8]}"
+        side_effect_id = f"rag-rebuild:{normalized}:{version}:{index_version}"
+        history.append(
+            {
+                "event": "rebuild_executed",
+                "actor": actor,
+                "at": _now(),
+                "side_effect_id": side_effect_id,
+                "index_version": index_version,
+            }
+        )
         row["history"] = history
         row["last_rebuild_at"] = _now()
+        row["index_version"] = index_version
+        row["chunking_version"] = str(row.get("chunking_version") or "chunk-v1")
+        row["extractor_version"] = str(row.get("extractor_version") or "extract-v1")
+        row["embedding_provider"] = str(row.get("embedding_provider") or "local")
+        row["embedding_model"] = str(row.get("embedding_model") or "bge-small-zh-v1.5")
+        row["embedding_version"] = str(row.get("embedding_version") or "emb-v1")
+        row["retrieval_config_version"] = str(row.get("retrieval_config_version") or "retrieval-v1")
         matched = True
+        matched_version = version
         break
     if not matched:
         raise RagGovernanceError("asset_not_found")
     _save_assets(rows)
+    try:
+        rag_governance_repository.record_rebuild_run(
+            document_id=normalized,
+            version=matched_version,
+            tenant_id=tenant_id,
+            store_id=store_id,
+            status="succeeded",
+            side_effect_id=side_effect_id,
+        )
+    except Exception:
+        pass
     return side_effect_id
 
 

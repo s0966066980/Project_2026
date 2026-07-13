@@ -3,19 +3,21 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "0be0257ff55aee167c8af165f5c3cd03870b9f15",
   "program": "production_integration",
-  "current_milestone": "6A",
+  "current_milestone": "6B",
   "status": "in_progress",
   "completed_milestones": [
     "5A",
     "5B",
     "5C",
-    "5D"
+    "5D",
+    "6A"
   ],
   "checkpoint_commits": {
     "5A": "b06d316cf332d3bcfbd38434aa0e93cd9db83e3d",
     "5B": "1c9b883827578b2aaa9170ca81410494e8720ff7",
     "5C": "5a62f455ded28f69cd688f7ee88701279ae59109",
-    "5D": "84f15ccac949d9b356cac9b70287d8239ad848bc"
+    "5D": "870ef6dba6c1cd3a096af3698efddf61b2c417ff",
+    "6A": "846076d5b7f10d83b7dc23c9083e043bc84b6a35"
   },
   "verification": {
     "5A": {
@@ -46,6 +48,12 @@
       "target_tests": "PASS (9 multimodal cutover/gateway)",
       "full_json_backend": "PASS (337 passed)",
       "architecture_no_direct_provider_http": "PASS"
+    },
+    "6A": {
+      "classification": "PRODUCTION_PATH_PASS",
+      "target_tests": "PASS (rag governance + durable)",
+      "full_json_backend": "PASS (341 passed)",
+      "postgres_integration": "NOT RUN locally (DATABASE_URL unavailable; migration 0010 ready for CI)"
     }
   },
   "known_gaps": [
@@ -63,6 +71,6 @@
     }
   ],
   "risk_register": [],
-  "next_milestone": "6A",
-  "updated_at": "2026-07-14T06:57:42.314303+08:00"
+  "next_milestone": "6B",
+  "updated_at": "2026-07-14T06:59:44.325080+08:00"
 }

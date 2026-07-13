@@ -55,6 +55,17 @@ PostgreSQL RLS 在 1E 明確延後：目前 application 使用共用 database id
 - Checksum mismatch 或資料庫存在但本地缺少的版本是部署阻斷，不得以修改 `schema_migrations` 繞過。
 - 目前 runner 在單一 transaction 內套用 migration；PostgreSQL 不允許其中執行 `CREATE INDEX CONCURRENTLY`。未來對大型既有表建立 index 前，必須先設計並測試明確的 non-transactional migration contract，不得直接把該語句加入現行 migration。
 
+## Milestone 6A RAG Governance Persistence
+
+Migration `0010_rag_governance_persistence.sql` establishes:
+
+- `rag_documents` / `rag_document_versions` — ownership, lifecycle status, content_ref, embedding/chunk metadata
+- `rag_publications` — atomic published pointer per document
+- `rag_retrieval_traces` — query_ref + version/chunk attribution (no raw query text)
+- `rag_rebuild_runs` — worker rebuild attempts and side_effect_id
+
+Binary document bytes remain in object storage. JSON `rag_asset_versions.json` is development compatibility only.
+
 ## Milestone 5B Object Storage Metadata
 
 Migration `0009_object_storage_metadata.sql` 建立 `object_storage_metadata`：
