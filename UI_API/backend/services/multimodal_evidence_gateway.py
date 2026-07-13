@@ -77,24 +77,26 @@ def _http_provider_analyze(
     request: MultimodalEvidenceRequest,
     model_version: str,
 ) -> MultimodalEvidence:
+    """Call the production Emotion-LLaMA / R1-Omni `/predict` contract.
+
+    Only adapters may perform provider HTTP. Application services must use
+    `collect_evidence` instead of calling provider URLs directly.
+    """
+
     started = time.perf_counter()
-    endpoint = url.rstrip("/") + "/analyze"
+    endpoint = url.rstrip("/") + "/predict"
     try:
         with httpx.Client(timeout=max(0.1, float(request.timeout_seconds))) as client:
             response = client.post(
                 endpoint,
                 json={
-                    "media_path": request.media_path,
+                    "video_path": request.media_path,
                     "question": request.question,
                     "skip_quality_check": request.skip_quality_check,
                 },
             )
             response.raise_for_status()
-            payload = (
-                response.json()
-                if response.headers.get("content-type", "").startswith("application/json")
-                else {"description": response.text}
-            )
+            body = response.json() if response.content else {}
     except Exception as exc:  # noqa: BLE001 - adapter boundary
         latency_ms = (time.perf_counter() - started) * 1000.0
         return MultimodalEvidence(
@@ -105,14 +107,31 @@ def _http_provider_analyze(
             signals={},
             quality="error",
             latency_ms=latency_ms,
-            safe_metadata={},
+            safe_metadata={"event_type": request.event_type},
             safe_error=_safe_error(str(exc)),
             has_evidence=False,
+            status="error",
         )
     latency_ms = (time.perf_counter() - started) * 1000.0
-    if not isinstance(payload, dict):
-        payload = {"description": str(payload)}
-    text = str(payload.get("description") or payload.get("raw") or "")
+    if not isinstance(body, dict):
+        body = {"result": str(body)}
+    # Production servers return {"result": <str|dict>}
+    raw_result = body.get("result", body)
+    if isinstance(raw_result, dict):
+        payload = raw_result
+        text = str(payload.get("description") or payload.get("raw") or "")
+    else:
+        text = str(raw_result or "")
+        payload = {"description": text}
+        try:
+            import json as _json
+
+            parsed = _json.loads(text)
+            if isinstance(parsed, dict):
+                payload = parsed
+                text = str(payload.get("description") or text)
+        except Exception:
+            pass
     if text.startswith("[EMOTION_LLAMA_SKIP]"):
         return MultimodalEvidence(
             provider=provider,
@@ -122,9 +141,10 @@ def _http_provider_analyze(
             signals={},
             quality="skipped",
             latency_ms=latency_ms,
-            safe_metadata={"reason": "quality_skip"},
+            safe_metadata={"reason": "quality_skip", "event_type": request.event_type},
             safe_error="",
             has_evidence=False,
+            status="skipped",
         )
     if text.startswith("[EMOTION_LLAMA_ERROR]"):
         return MultimodalEvidence(
@@ -135,9 +155,10 @@ def _http_provider_analyze(
             signals={},
             quality="error",
             latency_ms=latency_ms,
-            safe_metadata={},
+            safe_metadata={"event_type": request.event_type},
             safe_error="provider_returned_error",
             has_evidence=False,
+            status="error",
         )
     signals = {
         "emotion": str(payload.get("emotion") or ""),
@@ -152,17 +173,23 @@ def _http_provider_analyze(
     except (TypeError, ValueError):
         confidence_f = None
     has_evidence = bool(signals.get("emotion") or signals.get("description"))
+    quality = "ok" if has_evidence else "low_confidence"
     return MultimodalEvidence(
         provider=provider,
         model_version=model_version,
         timestamp=datetime.now(timezone.utc).isoformat(),
         confidence=confidence_f,
         signals=signals,
-        quality="ok" if has_evidence else "low_confidence",
+        quality=quality,
         latency_ms=latency_ms,
-        safe_metadata={"event_type": request.event_type},
+        safe_metadata={
+            "event_type": request.event_type,
+            "prompt_version": request.prompt_version,
+            **dict(request.scope_safe_metadata or {}),
+        },
         safe_error="",
         has_evidence=has_evidence,
+        status="ok" if has_evidence else "no_evidence",
     )
 
 

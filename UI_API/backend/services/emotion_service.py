@@ -1,20 +1,18 @@
-"""Emotion-LLaMA 情緒分析服務。
+"""Emotion application service — multimodal evidence via gateway only.
 
-事件驅動：事件觸發時呼叫 analyze_event()，HTTP 呼叫獨立 FastAPI server（port 7889），結果寫入 log。
-語音快取：analyze_event 結果存入 session 快取，下一輪語音可讀取。
+事件驅動：analyze_event() 經 Multimodal Evidence Gateway 取得 typed evidence，
+再寫 log / 語音快取。Evidence 不得直接下單、付款或發出不可逆命令。
 """
 import asyncio
-import json
 import re
 import threading
 from datetime import datetime
 
-import httpx
-
 import config
 from models.llm import LLMModelPolicy, LLMRequest
+from models.multimodal_evidence import MultimodalEvidence, MultimodalEvidenceRequest
 from repositories import emotion_log_repository
-from services import llm_gateway_service
+from services import llm_gateway_service, multimodal_evidence_gateway
 
 EVENT_TYPE_LABELS = {
     "voice_mode": "語音模式",
@@ -30,11 +28,6 @@ PROVIDER_LABELS = {
 def _provider() -> str:
     return config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama"
 
-
-def _provider_url() -> str:
-    if _provider() == "r1_omni":
-        return config.R1_OMNI_GRADIO_URL
-    return config.EMOTION_LLAMA_GRADIO_URL
 
 _voice_cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
@@ -69,25 +62,49 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         if not question:
             question = prompt_template.replace("{speech_text}", "(no speech)")
 
-    llama_error: str = ""
     try:
-        raw = await _call_http(media_path, question, skip_quality_check=skip_qc)
+        evidence = await asyncio.to_thread(
+            multimodal_evidence_gateway.collect_evidence,
+            MultimodalEvidenceRequest(
+                media_path=media_path,
+                question=question,
+                session_ref=session_id,
+                event_type=event_type,
+                speech_text=speech_text or "",
+                timeout_seconds=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120) or 120),
+                skip_quality_check=skip_qc,
+                provider_preference=_provider(),
+                prompt_version="emotion_event-v1",
+                scope_safe_metadata={"surface": "emotion_analyze_event"},
+            ),
+            enabled=True,
+        )
     except Exception as e:
         print(f"⚠️ {PROVIDER_LABELS.get(_provider(), _provider())} analyze_event 失敗: {e}")
-        raw = "[EMOTION_LLAMA_ERROR]"
+        evidence = MultimodalEvidence(
+            provider=_provider(),
+            model_version="unknown",
+            timestamp=datetime.now().isoformat(),
+            confidence=None,
+            signals={},
+            quality="error",
+            latency_ms=0.0,
+            safe_error="gateway_failure",
+            has_evidence=False,
+            status="error",
+        )
 
-    quality_skipped = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_SKIP]")
-    error = isinstance(raw, str) and raw.startswith("[EMOTION_LLAMA_ERROR]")
+    quality_skipped = evidence.quality == "skipped" or evidence.status == "skipped"
+    error = (not evidence.has_evidence) and evidence.quality in {"error", "unavailable", "timeout"}
+    result = {
+        "emotion": str((evidence.signals or {}).get("emotion") or ""),
+        "intensity": str((evidence.signals or {}).get("intensity") or ""),
+        "facial": str((evidence.signals or {}).get("facial") or ""),
+        "vocal": str((evidence.signals or {}).get("vocal") or ""),
+        "description": str((evidence.signals or {}).get("description") or ""),
+    }
 
-    if isinstance(raw, str):
-        try:
-            result = json.loads(raw)
-        except json.JSONDecodeError:
-            result = {"emotion": "", "description": raw, "facial": "", "body": "", "vocal": "", "intensity": ""}
-    else:
-        result = raw
-
-    # Emotion-LLaMA 常輸出自然語言而非結構化欄位；同步呼叫 Ollama 補全
+    # Emotion-LLaMA 常輸出自然語言而非結構化欄位；經 LLM Gateway 補全
     # （frontend 對 analyze_event 是 fire-and-forget，此處等待不影響 UI）
     if (not quality_skipped and not error
             and not result.get("emotion")
@@ -102,10 +119,15 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         except Exception as e:
             print(f"⚠️ Emotion Ollama 提取失敗: {e}")
 
+    status = (
+        "skipped"
+        if quality_skipped
+        else ("error" if error else ("ok" if (result.get("emotion") or result.get("description")) else "no_evidence"))
+    )
     entry = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": evidence.timestamp or datetime.now().isoformat(),
         "session_id": session_id,
-        "provider": _provider(),
+        "provider": evidence.provider or _provider(),
         "event_type": event_type,
         "event_type_label": EVENT_TYPE_LABELS.get(event_type, event_type),
         "clip_sec": float(config.get("EMOTION_LLAMA_CLIP_SEC", 2.0)),
@@ -115,8 +137,13 @@ async def analyze_event(session_id: str, media_path: str, event_type: str, speec
         "facial": result.get("facial", ""),
         "vocal": result.get("vocal", ""),
         "description": result.get("description", ""),
-        "status": "skipped" if quality_skipped else ("error" if error else "ok"),
+        "status": status,
         "assist_response": "",
+        "evidence_quality": evidence.quality,
+        "evidence_latency_ms": evidence.latency_ms,
+        "model_version": evidence.model_version,
+        # Evidence never places orders / payments / irreversible commands.
+        "decision_boundary": "evidence_only",
     }
 
     # payment_timeout：用 Ollama + PAYMENT_ASSIST_PROMPT 生成員工可讀的中文情緒摘要
@@ -280,13 +307,4 @@ async def _trigger_barrier_update(session_id: str, emotion_entry: dict) -> None:
         print(f"⚠️ Emotion barrier update 失敗: {e}")
 
 
-async def _call_http(video_path: str, question: str, skip_quality_check: bool = False) -> str:
-    url = f"{_provider_url()}/predict"
-    async with httpx.AsyncClient(timeout=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120))) as client:
-        resp = await client.post(url, json={
-            "video_path": video_path,
-            "question": question,
-            "skip_quality_check": skip_quality_check,
-        })
-        resp.raise_for_status()
-        return resp.json()["result"]
+

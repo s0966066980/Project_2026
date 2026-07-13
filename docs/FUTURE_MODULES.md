@@ -25,7 +25,7 @@
 | 完成 | Redis shared infrastructure | multi-instance ephemeral coordination | Deployment | scoped rate limit/cache/lock adapter 與 fail-closed policy 已建立 |
 | 完成 | Worker | 移出長時間與可重試工作 | PostgreSQL job/outbox | durable job contract、retry/DLQ、outbox consumer 與 metrics 已建立；RAG rebuild 等 handler 後續接上 |
 | 完成（內部） | LLM Gateway cutover | 標準化文字生成 Provider | Port/Adapter | 5C：Production callers 經 Gateway；timeout budget 真實有效；task schema；adapter-only ai_services |
-| 完成 | Emotion Gateway | 隔離 GPU 模型 runtime | Port/Adapter | Multimodal Evidence contract、timeout、null fallback 已建立 |
+| 完成（內部） | Emotion Gateway cutover | 隔離 GPU 模型 runtime | Port/Adapter | 5D：主 Emotion 流程經 Multimodal Gateway；adapter-only `/predict`；no-evidence safe |
 | 完成 | RAG governance | 文件版本、審核、發布與 rollback | Worker | version lifecycle、rollback、retrieval trace、rebuild enqueue 已建立 |
 | 完成 | Promotion / Recommendation governance | 策略版本與成效治理 | Event data | strategy lifecycle、eligibility、experiment assignment、event quality 已建立 |
 | 完成（內部） | Object Storage truthfulness | 管理文件、音訊、影片與匯出物 | Security/Privacy | 5B：HMAC signed access、local disk、truthful encryption metadata、PG metadata；雲端 S3/KMS wiring 仍 EXTERNAL_BLOCKED（10B） |
