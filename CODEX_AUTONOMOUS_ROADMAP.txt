@@ -1,29 +1,4 @@
-﻿Project_2026 — CODEX AUTONOMOUS COMMERCIALIZATION ROADMAP
-版本：2026-07-13
-Repository：s0966066980/Project_2026
-適用起點：Milestone 1B 已完成
-最低基準 Commit：c6ffac8a9dcb1e37d1685dd252a146d76fc165f5
-
-======================================================================
-0. 使用方式
-======================================================================
-
-將本檔放在 Repository Root，檔名保持：
-
-CODEX_AUTONOMOUS_ROADMAP.txt
-
-交給 Codex 的啟動指令：
-
-閱讀 AGENTS.md 與 CODEX_AUTONOMOUS_ROADMAP.txt，從目前 Repository 狀態開始，
-依 Autonomous Execution Protocol 持續執行所有尚未完成的 Milestone。
-每完成一個 Milestone，執行驗證、更新狀態、建立 Checkpoint Commit；
-Gate 通過後直接延續下一個 Milestone。
-不要重複詢問已能從 Repository、測試、文件或合理預設判斷的事項。
-
-本計畫不是 Big Bang Rewrite。一次只處理一個 Milestone，
-每個 Milestone 再拆成可驗證、可回復的小批次。
-
-======================================================================
+﻿======================================================================
 1. 不可破壞的專案邊界
 ======================================================================
 
