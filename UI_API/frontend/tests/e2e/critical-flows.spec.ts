@@ -9,6 +9,79 @@ function observeCriticalBrowserFailures(page: import('@playwright/test').Page) {
   return errors;
 }
 
+async function openKioskPaymentScreen(page: import('@playwright/test').Page, emotionEnabled = false) {
+  if (emotionEnabled) {
+    await page.addInitScript(() => {
+      class FakeMediaRecorder {
+        static isTypeSupported() { return true; }
+        state = 'inactive';
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        onerror: ((event: { error: Error }) => void) | null = null;
+        intervalId = 0;
+
+        start() {
+          this.state = 'recording';
+          this.intervalId = window.setInterval(() => {
+            this.ondataavailable?.({ data: new Blob(['fake-video'], { type: 'video/webm' }) });
+          }, 100);
+        }
+
+        stop() {
+          window.clearInterval(this.intervalId);
+          this.state = 'inactive';
+          this.onstop?.();
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 240;
+      const context = canvas.getContext('2d');
+      context?.fillRect(0, 0, 320, 240);
+      const stream = canvas.captureStream(8);
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+        configurable: true,
+        value: async () => stream,
+      });
+      Object.defineProperty(window, 'MediaRecorder', {
+        configurable: true,
+        value: FakeMediaRecorder,
+      });
+    });
+  }
+  await page.addInitScript(() => {
+    localStorage.setItem('kiosk_feat_version', 'event-triggered-20260519');
+    localStorage.setItem('kiosk_feat', JSON.stringify({
+      emotion: false,
+      voiceAssist: false,
+      recommend: false,
+      eventTriggeredMultimodal: false,
+      multiLang: true,
+    }));
+  });
+  await page.route('**/api/public_settings', route => route.fulfill({
+    status: 200,
+    json: {
+      MEMBER_ENABLED: false,
+      EMOTION_LLAMA_ENABLED: emotionEnabled,
+      EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT: true,
+      PAYMENT_EMOTION_CLIP_SEC: 1,
+      DEMO_PUBLIC_MODE: false,
+    },
+  }));
+  await page.route('**/api/menu', route => route.fulfill({
+    status: 200,
+    json: [{ id: 'MCD001', name: '測試套餐', category: '超值全餐', price: 100, image: '' }],
+  }));
+  await page.goto('/kiosk');
+  await page.locator('#startSystemBtn').click();
+  await page.getByRole('button', { name: /超值全餐/ }).first().click();
+  await page.locator('#menu-MCD001 .kiosk-add-btn').click();
+  await page.locator('#itemConfirmAdd').click();
+  await page.locator('#kioskCartBtn').click();
+  await page.locator('#checkoutBtn').click();
+}
+
 test('Kiosk preserves start, menu, cart and checkout navigation contracts', async ({ page }) => {
   const errors = observeCriticalBrowserFailures(page);
   await page.addInitScript(() => {
@@ -52,6 +125,51 @@ test('Kiosk preserves start, menu, cart and checkout navigation contracts', asyn
   expect(errors).toEqual([]);
 });
 
+test('Kiosk 快速結帳保留 15 秒失敗情境、情緒分析與人員通知', async ({ page }) => {
+  let paymentRequests = 0;
+  let emotionRequests = 0;
+  let checkoutRequests = 0;
+  let staffRequest: Record<string, any> | null = null;
+  await page.route('**/api/v1/payments/quick', async route => {
+    paymentRequests += 1;
+    await route.fulfill({ status: 200, json: { data: {
+      status: 'captured', provider: 'fake_pos', provider_reference: 'pay-unexpected', amount: 100, currency: 'TWD',
+    }, meta: { request_id: 'req_e2e', timestamp: new Date().toISOString() } } });
+  });
+  await page.route('**/api/emotion/analyze_event', async route => {
+    emotionRequests += 1;
+    expect(route.request().postData()).toContain('payment_timeout');
+    await route.fulfill({ status: 200, json: {
+      emotion: 'anxious', intensity: 'high', description: '顧客對付款流程感到焦慮',
+      assist_response: '顧客對付款流程感到焦慮，請主動到機台旁協助。',
+    } });
+  });
+  await page.route('**/api/interaction_event', async route => {
+    const payload = route.request().postDataJSON();
+    if (payload.event_type === 'payment_staff_requested') staffRequest = payload;
+    await route.fulfill({ status: 200, json: { status: 'success' } });
+  });
+  await page.route('**/api/checkout', async route => {
+    checkoutRequests += 1;
+    await route.fulfill({ status: 200, json: { status: 'success', order_number: 999 } });
+  });
+  await openKioskPaymentScreen(page, true);
+
+  await page.locator('#kioskFastPayBtn').click();
+  await page.waitForTimeout(16_000);
+
+  await expect(page.locator('#paymentCdFailed')).not.toHaveClass(/hidden/);
+  await page.locator('#paymentCdAssistBtn').click();
+  await expect(page.locator('#paymentCdNotified')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#paymentCdNotified')).toContainText('已通知店員');
+  await expect.poll(() => emotionRequests).toBe(1);
+  await expect.poll(() => staffRequest).not.toBeNull();
+  const staffEmotion = (staffRequest as unknown as Record<string, any>).metadata?.emotion;
+  expect(staffEmotion?.assist_response).toContain('主動到機台旁協助');
+  expect(paymentRequests).toBe(0);
+  expect(checkoutRequests).toBe(0);
+});
+
 test('Admin preserves login, dashboard and logout request contracts', async ({ page }) => {
   const errors = observeCriticalBrowserFailures(page);
   let authenticated = false;
@@ -77,6 +195,53 @@ test('Admin preserves login, dashboard and logout request contracts', async ({ p
   const logout = await page.request.post('/api/admin/auth/logout');
   expect(logout.status()).toBe(200);
   expect(errors).toEqual([]);
+});
+
+test('Admin 收到付款協助通知時顯示機台與中文情緒摘要', async ({ page }) => {
+  await page.addInitScript(() => {
+    class FakeWebSocket {
+      static OPEN = 1;
+      readyState = FakeWebSocket.OPEN;
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      onerror: ((error: Error) => void) | null = null;
+      onclose: (() => void) | null = null;
+
+      constructor() {
+        (window as any).__adminTestSocket = this;
+        window.setTimeout(() => this.onopen?.(), 0);
+      }
+
+      send() {}
+      close() { this.onclose?.(); }
+    }
+    Object.defineProperty(window, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  });
+  await page.route('**/api/admin/auth/me', route => route.fulfill({
+    status: 200,
+    json: { principal: { user_id: 'staff-001', permissions: ['operations.read'] } },
+  }));
+  await page.route('**/api/menu', route => route.fulfill({ status: 200, json: [] }));
+  await page.route('**/api/session_stats', route => route.fulfill({ status: 200, json: { status: 'success' } }));
+  await page.goto('/admin');
+
+  await page.evaluate(() => {
+    (window as any).__adminTestSocket.onmessage({ data: JSON.stringify({
+      type: 'staff_notify',
+      payload: {
+        kiosk_name: '機台03',
+        reason: 'payment_staff_requested',
+        assist_response: '顧客對付款流程感到焦慮，請主動到機台旁協助。',
+        emotion: { emotion: 'anxious', intensity: 'high' },
+      },
+    }) });
+  });
+
+  await expect(page.locator('#staffNotifyBackdrop')).toHaveCSS('display', 'flex');
+  await expect(page.locator('#staffNotifyKiosk')).toHaveText('機台03');
+  await expect(page.locator('#staffNotifyReason')).toHaveText('人員協助付款');
+  await expect(page.locator('#staffNotifyEmotionLabel')).toContainText('主動到機台旁協助');
+  await expect(page.locator('#staffNotifyEmotionDesc')).toHaveText('情緒：anxious（high）');
 });
 
 test('一般員工可用中文精靈建立並發布活動', async ({ page }) => {

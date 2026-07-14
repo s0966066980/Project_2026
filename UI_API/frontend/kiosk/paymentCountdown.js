@@ -21,6 +21,7 @@ export function openPaymentCountdown(cartIds) {
   state.paymentCountdownCartIds = cartIds.slice();
   state.pendingPaymentEmotion = null;
   state.paymentEmotionPromise = null;
+  if (ui.paymentCountdownAssistButton) ui.paymentCountdownAssistButton.disabled = false;
   ui.paymentCountdownBackdrop?.classList.remove('hidden');
   ui.paymentCountdownModal?.classList.remove('hidden');
   showPaymentCountdownSection('counting');

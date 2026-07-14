@@ -117,3 +117,64 @@ def test_analyze_event_maps_gateway_signals(monkeypatch) -> None:
     assert entry["provider"] == "r1_omni"
     assert entry["status"] == "ok"
     assert entry["decision_boundary"] == "evidence_only"
+
+
+def test_payment_timeout_turns_emotion_evidence_into_staff_summary(monkeypatch) -> None:
+    from models.llm import LLMResponse
+    from services import emotion_service
+
+    def fake_collect(_request: MultimodalEvidenceRequest, **_kwargs):
+        return MultimodalEvidence(
+            provider="r1_omni",
+            model_version="r1-test",
+            timestamp="2026-07-15T00:00:00+00:00",
+            confidence=0.9,
+            signals={
+                "emotion": "anxious",
+                "intensity": "high",
+                "facial": "眉頭緊皺",
+                "vocal": "靜默",
+                "description": "顧客對付款流程感到焦慮",
+            },
+            quality="ok",
+            latency_ms=10.0,
+            has_evidence=True,
+            status="ok",
+        )
+
+    def fake_generate(request):
+        assert request.task == "payment_assist"
+        assert request.model_policy.value == "local_first"
+        assert "anxious" in request.user_prompt
+        return LLMResponse(
+            content='{"assist_message":"顧客感到焦慮，請立即前往機台協助付款。"}',
+            provider="ollama",
+            model="qwen-test",
+            latency_ms=5.0,
+            usage=None,
+            finish_reason="stop",
+            safe_error="",
+            parsed={"assist_message": "顧客感到焦慮，請立即前往機台協助付款。"},
+            prompt_version="payment_assist-v1",
+        )
+
+    monkeypatch.setattr(emotion_service, "is_enabled", lambda: True)
+    monkeypatch.setattr(emotion_service.multimodal_evidence_gateway, "collect_evidence", fake_collect)
+    monkeypatch.setattr(emotion_service.llm_gateway_service, "generate", fake_generate)
+    monkeypatch.setattr(emotion_service.emotion_log_repository, "append_log", lambda entry: entry)
+    monkeypatch.setattr(emotion_service.config, "get", lambda key, default=None: {
+        "EMOTION_LLAMA_PROMPT": "分析 {speech_text}",
+        "EMOTION_LLAMA_QUALITY_CHECK": False,
+        "EMOTION_LLAMA_CLIP_SEC": 3.0,
+        "EMOTION_LLAMA_AFFECT_BARRIER": False,
+        "EMOTION_PROVIDER": "r1_omni",
+        "EMOTION_LLAMA_TIMEOUT_SEC": 5,
+        "PAYMENT_ASSIST_PROMPT": "請產生給員工看的繁體中文摘要",
+        "OLLAMA_TIMEOUT": 5,
+        "MODEL_NAME": "qwen-test",
+    }.get(key, default))
+
+    entry = asyncio.run(emotion_service.analyze_event("payment-session", "/tmp/clip.webm", "payment_timeout"))
+
+    assert entry["emotion"] == "anxious"
+    assert entry["assist_response"] == "顧客感到焦慮，請立即前往機台協助付款。"
