@@ -1,7 +1,0 @@
-# Developer tooling
--r requirements-local-core.txt
-pytest
-ruff
-mypy
-vulture
-httpx
