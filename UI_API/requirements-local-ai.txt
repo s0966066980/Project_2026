@@ -1,0 +1,13 @@
+# Optional AI stack — not required for checkout core
+google-genai
+langchain-community
+langchain-ollama
+langchain-huggingface
+langchain-text-splitters
+chromadb
+pypdf
+openai-whisper
+edge-tts
+sentence-transformers
+opencv-python-headless
+ultralytics

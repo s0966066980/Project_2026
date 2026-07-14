@@ -36,6 +36,14 @@ PROFILES = {
         "require_redis": True,
         "require_no_demo": True,
     },
+    "local-pilot": {
+        "APP_ENV": "production",
+        "MEMBER_STORAGE_BACKEND": "postgres",
+        "SECURITY_ENFORCED": "true",
+        "require_database_url": True,
+        "require_redis": False,
+        "require_no_demo": True,
+    },
     "test": {
         "APP_ENV": "test",
         "MEMBER_STORAGE_BACKEND": "json",
@@ -74,9 +82,19 @@ def apply_profile(name: str) -> dict[str, str]:
         "SECURITY_ENFORCED": _env("SECURITY_ENFORCED", str(profile["SECURITY_ENFORCED"])),
         "DATABASE_URL": _env("DATABASE_URL"),
         "REDIS_URL": _env("REDIS_URL"),
-        "ENABLE_DEMO_ROUTES": _env("ENABLE_DEMO_ROUTES", "true" if name == "local-dev" else "false"),
-        "ENABLE_TEST_ROUTES": _env("ENABLE_TEST_ROUTES", "true" if name in {"local-dev", "test", "ci"} else "false"),
+        "ENABLE_DEMO_ROUTES": _env(
+            "ENABLE_DEMO_ROUTES",
+            "true" if name == "local-dev" else "false",
+        ),
+        "ENABLE_TEST_ROUTES": _env(
+            "ENABLE_TEST_ROUTES",
+            "true" if name in {"local-dev", "test", "ci"} else "false",
+        ),
         "ENABLE_DEBUG_ROUTES": _env("ENABLE_DEBUG_ROUTES", "false"),
+        "APP_PROFILE": _env("APP_PROFILE", name),
+        "PAYMENT_BACKEND": _env("PAYMENT_BACKEND", "manual"),
+        "POS_BACKEND": _env("POS_BACKEND", "manual"),
+        "OBJECT_STORAGE_BACKEND": _env("OBJECT_STORAGE_BACKEND", "local" if name != "local-dev" else "memory"),
     }
     # Environment overrides profile defaults already applied via _env second arg only when unset.
     return resolved

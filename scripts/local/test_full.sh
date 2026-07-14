@@ -10,11 +10,8 @@ export PYTHONPATH="${UI_API_DIR}/backend:${UI_API_DIR}${PYTHONPATH:+:$PYTHONPATH
 export APP_ENV="${APP_ENV:-test}"
 export MEMBER_STORAGE_BACKEND="${MEMBER_STORAGE_BACKEND:-json}"
 export DATABASE_URL="${DATABASE_URL:-}"
-
-# Avoid polluted learning_data settings from prior runs when possible
-if [[ -d learning_data ]] && command -v git >/dev/null 2>&1; then
-  git -C "$REPO_ROOT" checkout -- UI_API/learning_data/settings.json 2>/dev/null || true
-fi
+export TEST_DATA_DIR="${TEST_DATA_DIR:-$RUNTIME_DIR/tmp/test_data}"
+mkdir -p "$TEST_DATA_DIR"
 
 echo "=== Full JSON backend (excluding postgres integration modules) ==="
 "$PY" -m pytest -q tests \

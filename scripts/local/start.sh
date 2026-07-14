@@ -5,24 +5,37 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 
 START_WORKER="${START_WORKER:-1}"
-# Local-first defaults (override via env). Avoid polluted production settings from tests.
-export APP_ENV="${APP_ENV:-development}"
-export MEMBER_STORAGE_BACKEND="${MEMBER_STORAGE_BACKEND:-json}"
-export SECURITY_ENFORCED="${SECURITY_ENFORCED:-false}"
-# Prefer live for default local-dev readiness when JSON mode; ready may 503 if
-# settings.json was left in production/postgres mode without a real DB.
-READY_STRICT="${READY_STRICT:-0}"
+PROFILE="${APP_PROFILE:-local-dev}"
+case "$PROFILE" in
+  local-pilot)
+    export APP_ENV="${APP_ENV:-production}"
+    export MEMBER_STORAGE_BACKEND="${MEMBER_STORAGE_BACKEND:-postgres}"
+    export SECURITY_ENFORCED="${SECURITY_ENFORCED:-true}"
+    export ENABLE_DEMO_ROUTES=false
+    export ENABLE_TEST_ROUTES=false
+    export ENABLE_DEBUG_ROUTES=false
+    export ALLOW_POSTGRES_JSON_FALLBACK=false
+    export PAYMENT_BACKEND="${PAYMENT_BACKEND:-manual}"
+    export POS_BACKEND="${POS_BACKEND:-manual}"
+    export OBJECT_STORAGE_BACKEND="${OBJECT_STORAGE_BACKEND:-local}"
+    READY_STRICT="${READY_STRICT:-1}"
+    ;;
+  local-postgres|local-full)
+    export APP_ENV="${APP_ENV:-development}"
+    export MEMBER_STORAGE_BACKEND="${MEMBER_STORAGE_BACKEND:-postgres}"
+    export SECURITY_ENFORCED="${SECURITY_ENFORCED:-false}"
+    READY_STRICT="${READY_STRICT:-1}"
+    ;;
+  *)
+    export APP_ENV="${APP_ENV:-development}"
+    export MEMBER_STORAGE_BACKEND="${MEMBER_STORAGE_BACKEND:-json}"
+    export SECURITY_ENFORCED="${SECURITY_ENFORCED:-false}"
+    READY_STRICT="${READY_STRICT:-0}"
+    ;;
+esac
 ensure_runtime_dirs
 clear_stale_pid "$API_PID_FILE" api
 clear_stale_pid "$WORKER_PID_FILE" worker
-
-# Heal accidental production settings written by unit tests
-if [[ -f "$UI_API_DIR/learning_data/settings.json" ]] && command -v git >/dev/null 2>&1; then
-  if grep -q '"APP_ENV": "production"' "$UI_API_DIR/learning_data/settings.json" 2>/dev/null; then
-    echo "WARN: resetting learning_data/settings.json (was production from tests)"
-    git -C "$REPO_ROOT" checkout -- UI_API/learning_data/settings.json 2>/dev/null || true
-  fi
-fi
 
 PY="$(python_bin)"
 if [[ ! -x "$PY" ]]; then

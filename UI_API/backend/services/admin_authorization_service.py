@@ -1,22 +1,9 @@
-"""Centralized tenant/store-scoped Admin authorization policy."""
+"""Compatibility shim — remove after callers cut over to modules.identity."""
 
-from models.admin_identity import AdminPrincipal
-from models.commercial_scope import CommercialScope
+from __future__ import annotations
 
+import sys
 
-class AdminAuthorizationError(PermissionError):
-    pass
+from modules.identity import _admin_authorization_service as _impl
 
-
-def authorize_admin_action(
-    principal: AdminPrincipal,
-    permission: str,
-    scope: CommercialScope,
-) -> AdminPrincipal:
-    if principal.tenant_id != scope.tenant_id:
-        raise AdminAuthorizationError("Admin tenant scope is not allowed")
-    if scope.store_id not in principal.allowed_store_ids:
-        raise AdminAuthorizationError("Admin store scope is not allowed")
-    if not principal.has_permission(permission):
-        raise AdminAuthorizationError("Admin permission is not allowed")
-    return principal
+sys.modules[__name__] = _impl

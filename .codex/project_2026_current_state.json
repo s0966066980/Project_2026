@@ -1,0 +1,42 @@
+{
+  "plan_version": "2026-07-14",
+  "program": "single_store_local_pilot",
+  "deployment_mode": "local_kiosk_pilot",
+  "status": "in_progress",
+  "classification": "NOT_READY",
+  "completed_phases": [
+    "docs_consolidation",
+    "identity_module_extraction",
+    "manual_payment_pos_adapters",
+    "local_pilot_profile_scaffold",
+    "architecture_tests_baseline"
+  ],
+  "current_phase": "continue_module_cutover",
+  "modules": {
+    "identity": "extracted_with_compat_shim",
+    "device": "pending",
+    "member": "pending",
+    "catalog": "pending",
+    "ordering": "pending",
+    "promotion": "pending",
+    "recommendation": "pending",
+    "rag": "pending",
+    "intervention": "pending",
+    "worker": "pending",
+    "fleet": "pending",
+    "analytics": "pending"
+  },
+  "known_limitations": [
+    "Most domains still under services/ routes/ pending extraction",
+    "Frontend legacy /api/members still on allowlist debt",
+    "Compatibility shims for identity still present",
+    "Not Production Certified",
+    "Payment/POS manual only"
+  ],
+  "verification": {
+    "admin_identity_tests": "PASS 16",
+    "architecture_tests": "PASS",
+    "local_profiles": "PASS including local-pilot fail-closed without DATABASE_URL"
+  },
+  "updated_at": "2026-07-14T13:50:29.676358+08:00"
+}

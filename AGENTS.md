@@ -64,29 +64,52 @@ Admin Web ─┘                         ├─ JSON compatibility storage
 
 詳細架構見 `docs/ARCHITECTURE.md`。
 
-## 4. 依賴規則
+## 4. 依賴規則（Local Pilot Modular Monolith）
+
+部署固定為**單店本地端 Kiosk Pilot**。禁止新增 Docker Runtime、Kubernetes、Microservices、Cloud-first、Kafka/RabbitMQ、多區域或不必要 infrastructure abstraction。
 
 允許方向：
 
 ```text
-Route / API
+Frontend (v1Client only)
+    ↓ HTTP / WebSocket
+/api/v1/* Module Router (api.py)
     ↓
-Application Service
+Module Application API (application.py)
     ↓
-Domain Policy
+Domain / Port
     ↓
-Repository Port
-    ↓
-Infrastructure Adapter
+Adapter (PostgreSQL, Local Storage, Provider)
 ```
 
-- Route 不放複雜業務邏輯。
-- Service 不依賴 `fastapi.Request`、`Response` 或 HTTP status code。
-- Repository 不得 import Service 或 Route。
-- Domain policy 不直接依賴 FastAPI、database driver、Ollama/Gemini SDK 或情緒模型。
-- 外部 AI、STT、TTS、儲存、通知與 realtime 逐步以 Port/Adapter 隔離。
-- 舊 `/api/*` 保持相容；新公開 contract 優先使用 `/api/v1/*` 與明確 Pydantic schema。
-- Kiosk 與 Admin 不互相 import business state、page state、DOM state 或 authentication state。
+### Architecture Boundary Rules
+
+- Route 只呼叫 Module Public Application API；**不得** import Repository、PostgreSQL adapter、Provider client。
+- Module 之間只可呼叫對方 **Public Application API** 或 Domain Event；**不得** import 他模組 Repository / Adapter。
+- Provider HTTP（Ollama、Emotion、外部 SDK）只允許出現在 `integrations/*` adapters。
+- Module 公開面：Application API、Typed DTO、Port、Domain Event。不得公開 Repository、DB Row、Provider Client、File Path。
+- 只有存在真實邏輯時才建立 `domain.py` / `ports.py` / `adapters/`；禁止空殼檔。
+- Backend 模組間**不得**用本機 HTTP 互相呼叫。
+- Compatibility re-export 最多保留一個 milestone，下一個 milestone 必須刪除。
+
+### Frontend API Rule
+
+- Frontend 只存在 `UI_API/frontend/`；所有 request 經 `shared/api/v1Client`。
+- 禁止任意 `fetch("/api/...")`、axios 直呼 legacy path（除 v1Client 本體）。
+- Frontend 不得計算最終價格、決定 promotion eligibility、order state、member scope、payment result。
+
+### PostgreSQL Local Pilot Rule
+
+- `local-pilot`：PostgreSQL 為**唯一**商業資料 Source of Truth。
+- 禁止 runtime JSON 商業資料、禁止 DB failure silent fallback 到 JSON。
+- 已發布 migration `0001`–`0011` 不可改寫；只可 forward migration。
+- Object **metadata** 存 PostgreSQL；binary 存 local object storage。
+
+### Dead Code / Docs / Test Rules
+
+- 刪除未使用 import、未註冊 route、無 runtime caller 的 service/adapter、完成任務 roadmap/TDD 文件。
+- 文件 Single Source：`README`、`docs/PROJECT_STATUS.md`、`ARCHITECTURE`、`DATABASE`、`API_MODULES`、`LOCAL_OPERATIONS`、`TEST_STRATEGY`。
+- 測試以商業風險為準；刪除檔案存在/Markdown 字串/SQL keyword/trivial DTO 測試。
 
 ## 5. 程式與安全規則
 

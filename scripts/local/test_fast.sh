@@ -10,10 +10,8 @@ export PYTHONPATH="${UI_API_DIR}/backend:${UI_API_DIR}${PYTHONPATH:+:$PYTHONPATH
 export APP_ENV="${APP_ENV:-test}"
 export MEMBER_STORAGE_BACKEND=json
 export DATABASE_URL=
-# Reset tracked settings if a previous test polluted learning_data
-if command -v git >/dev/null 2>&1; then
-  git -C "$REPO_ROOT" checkout -- UI_API/learning_data/settings.json 2>/dev/null || true
-fi
+export TEST_DATA_DIR="${TEST_DATA_DIR:-$RUNTIME_DIR/tmp/test_data}"
+mkdir -p "$TEST_DATA_DIR"
 
 echo "=== Tier 0: compile ==="
 "$PY" -m compileall -q backend/services/worker_service.py backend/scripts/run_worker.py main.py

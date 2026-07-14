@@ -4,7 +4,7 @@
 - 狀態：Active
 - 最後更新：2026-07-14
 - 架構策略：Modular Monolith First
-- 執行模式：**Local-first native processes**（本機 / LAN）；Docker 僅 `docs/archive/docker/` 歷史參考
+- 執行模式：**方案 A — 單店本地端 Kiosk Pilot**（本機 / LAN 原生 process；禁止 Docker/K8s/微服務作為部署前提）
 
 ## 1. 系統目的
 

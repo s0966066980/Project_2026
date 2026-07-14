@@ -69,5 +69,5 @@ def test_profile_list_includes_all_local_profiles() -> None:
         check=False,
     )
     assert result.returncode == 0
-    for name in ("local-dev", "local-postgres", "local-full", "test", "ci"):
+    for name in ("local-dev", "local-postgres", "local-full", "local-pilot", "test", "ci"):
         assert name in result.stdout
