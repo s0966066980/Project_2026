@@ -1,5 +1,7 @@
 // @ts-check
 
+import { createTouchId, observeVisibleImpression } from '../../shared/touchEventClient.js';
+
 /**
  * @typedef {object} PromoBannerControllerOptions
  * @property {{ getPosPromotionBanners: (surface?: string) => Promise<Record<string, unknown>> }} api
@@ -12,6 +14,7 @@
  * @property {string} [variant]
  * @property {(promotion: Record<string, unknown>) => void} [onPromotionCta]
  * @property {() => void} [onRecommendationTarget]
+ * @property {(eventType: "impression" | "click", promotion: Record<string, unknown>, impressionId: string) => void} [onTouch]
  */
 
 /**
@@ -30,12 +33,16 @@ export function createPromoBannerController({
   variant = 'home',
   onPromotionCta,
   onRecommendationTarget,
+  onTouch,
 }) {
   /** @type {Record<string, unknown>[]} */
   let items = [];
   let activeIndex = 0;
   /** @type {number | null} */
   let rotationTimer = null;
+  let activeImpressionId = '';
+  /** @type {null | (() => void)} */
+  let stopImpressionTracking = null;
 
   function stopRotation() {
     if (rotationTimer) {
@@ -47,6 +54,8 @@ export function createPromoBannerController({
   function clear() {
     if (!root) return;
     stopRotation();
+    stopImpressionTracking?.();
+    stopImpressionTracking = null;
     root.textContent = '';
     root.classList.add('hidden');
   }
@@ -172,6 +181,9 @@ export function createPromoBannerController({
       return;
     }
     const item = items[Math.max(0, Math.min(activeIndex, items.length - 1))];
+    stopImpressionTracking?.();
+    stopImpressionTracking = null;
+    activeImpressionId = createTouchId('impression');
     const theme = text(item.theme) || 'gold';
     root.classList.remove('hidden');
     root.dataset.variant = variant;
@@ -199,12 +211,14 @@ export function createPromoBannerController({
     const cta = root.querySelector('.pos-promo-cta');
     cta?.addEventListener('click', event => {
       event.stopPropagation();
+      onTouch?.('click', item, activeImpressionId);
       handleCta(item);
     });
     cta?.addEventListener('keydown', event => {
       if (!(event instanceof KeyboardEvent)) return;
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
+      onTouch?.('click', item, activeImpressionId);
       handleCta(item);
     });
     root.querySelectorAll('.pos-promo-dots button').forEach(button => {
@@ -214,6 +228,12 @@ export function createPromoBannerController({
         render();
       });
     });
+    const banner = root.querySelector('.pos-promo-banner');
+    if (banner) {
+      stopImpressionTracking = observeVisibleImpression(banner, {
+        onVisible: () => onTouch?.('impression', item, activeImpressionId),
+      });
+    }
     scheduleRotation();
   }
 

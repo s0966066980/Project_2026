@@ -36,7 +36,7 @@ export function createHealthAdmin({
       ['PostgreSQL', checks.postgres?.status, checks.postgres?.message || checks.postgres?.reason || `backend: ${checks.postgres?.backend || '—'}`],
       ['RAG / Chroma', checks.rag?.status, `文件 ${checks.rag?.doc_count ?? 0} 筆`],
       ['RAG Alerts', checks.rag_alerts?.status, `open ${checks.rag_alerts?.open_count ?? 0} / ack ${checks.rag_alerts?.acknowledged_count ?? 0}`],
-      ['推薦事件', checks.recommendation_events?.status, `sample ${checks.recommendation_events?.sampled_records ?? 0}`],
+      ['推薦事件', checks.recommendation_events?.status, `抽樣 ${checks.recommendation_events?.sampled_records ?? 0} 筆`],
       ['Runtime Logs', checks.runtime_logs?.status, `保留 ${checks.runtime_logs?.retention_days ?? 0} 天`],
     ];
     box.innerHTML = rows.map(([label, status, detail]) => `

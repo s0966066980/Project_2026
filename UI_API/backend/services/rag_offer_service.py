@@ -6,17 +6,13 @@ documents from rag_documents/promotions and returns menu-safe offer signals.
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
 from models.commercial_scope import CommercialScope
+from modules.promotion import PromotionContext, evaluate_promotion
 from repositories import promotion_repository
-
-SUPPORTED_STATUS = {"", "active", "published", "enabled"}
-DISABLED_STATUS = {"example", "draft", "inactive", "disabled", "archived"}
-
 
 def _as_list(value: Any) -> list[str]:
     if value is None:
@@ -70,41 +66,6 @@ def _default_timezone_name() -> str:
     return str(config.get("PROMOTION_DEFAULT_TIMEZONE", "Asia/Taipei") or "Asia/Taipei").strip() or "Asia/Taipei"
 
 
-def _promotion_timezone(row: dict) -> ZoneInfo:
-    timezone_name = str(row.get("timezone") or _default_timezone_name()).strip()
-    try:
-        return ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo(_default_timezone_name())
-
-
-def _parse_datetime(value: Any, *, end_of_day: bool = False, local_timezone: ZoneInfo | None = None) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    tz = local_timezone or ZoneInfo(_default_timezone_name())
-    if len(text) == 10:
-        try:
-            parsed_date = datetime.strptime(text, "%Y-%m-%d").date()
-        except ValueError:
-            return None
-        parsed_time = time.max if end_of_day else time.min
-        return datetime.combine(parsed_date, parsed_time, tzinfo=tz)
-    normalized = text.replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        try:
-            parsed_date = datetime.strptime(text, "%Y-%m-%d").date()
-        except ValueError:
-            return None
-        parsed_time = time.max if end_of_day else time.min
-        parsed = datetime.combine(parsed_date, parsed_time)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=tz)
-    return parsed
-
-
 def _menu_lookup(menu_items: list[dict]) -> tuple[set[str], set[str]]:
     item_ids = {
         str(item.get("id") or "").strip()
@@ -119,29 +80,25 @@ def _menu_lookup(menu_items: list[dict]) -> tuple[set[str], set[str]]:
     return item_ids, categories
 
 
-def _is_active(row: dict, now: datetime) -> bool:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
-    status = str(row.get("status") or metadata.get("status") or "").strip().lower()
-    if status in DISABLED_STATUS:
-        return False
-    if status not in SUPPORTED_STATUS:
-        return False
-
-    local_timezone = _promotion_timezone(row)
-    current_time = now if now.tzinfo is not None else now.replace(tzinfo=local_timezone)
-    starts_at = _parse_datetime(row.get("starts_at") or row.get("valid_from"), local_timezone=local_timezone)
-    ends_at = _parse_datetime(row.get("ends_at") or row.get("valid_until"), end_of_day=True, local_timezone=local_timezone)
-    if starts_at and current_time < starts_at:
-        return False
-    if ends_at and current_time > ends_at:
-        return False
-    return True
+def _is_active(row: dict, now: datetime, *, scope: CommercialScope | None = None) -> bool:
+    return evaluate_promotion(
+        row,
+        PromotionContext(now=now, placement="recommendation", scope=scope),
+    ).eligible
 
 
-def _normalize_offer(row: dict, path_name: str, index: int, menu_items: list[dict], now: datetime) -> dict | None:
+def _normalize_offer(
+    row: dict,
+    path_name: str,
+    index: int,
+    menu_items: list[dict],
+    now: datetime,
+    *,
+    scope: CommercialScope | None = None,
+) -> dict | None:
     if str(row.get("type") or row.get("source_type") or "promotion").strip() != "promotion":
         return None
-    if not _is_active(row, now):
+    if not _is_active(row, now, scope=scope):
         return None
 
     valid_item_ids, valid_categories = _menu_lookup(menu_items)
@@ -232,7 +189,14 @@ def load_active_offers(
         else promotion_repository.list_promotions()
     )
     for index, row in enumerate(promotion_rows):
-        offer = _normalize_offer(row, str(row.get("path") or ""), index, menu_items, current_time)
+        offer = _normalize_offer(
+            row,
+            str(row.get("path") or ""),
+            index,
+            menu_items,
+            current_time,
+            scope=scope,
+        )
         if offer:
             offers.append(offer)
     return offers

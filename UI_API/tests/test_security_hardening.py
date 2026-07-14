@@ -110,6 +110,7 @@ def authoritative_cart(monkeypatch):
         {"id": "MCD012", "name": "Fries", "category": "Side", "price": 45},
     ]
     monkeypatch.setattr(checkout_pricing_service.menu_repository, "get_menu", lambda: menu)
+    monkeypatch.setattr(checkout_pricing_service.promotion_service, "list_promotions", lambda _scope=None: [])
     monkeypatch.setattr(checkout_pricing_service.promotion_service, "get_promotion", lambda _offer_id: None)
     return checkout_pricing_service
 

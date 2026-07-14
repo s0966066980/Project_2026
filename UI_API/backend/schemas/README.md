@@ -2,7 +2,7 @@
 
 `backend/schemas/migrations/` 是正式 PostgreSQL schema source of truth；`membership_postgres.sql` 只是 migration 前的 legacy snapshot。
 
-現有 forward migrations 為 `0001`–`0011`。
+現有 forward migrations 為 `0001`–`0012`。
 
 ## Migration 清單
 
@@ -19,6 +19,10 @@
 | `0009` | Durable object-storage metadata；binary 留在 storage backend |
 | `0010` | Durable RAG governance metadata；content 以 object reference 管理 |
 | `0011` | Recommendation/promotion governance、fleet state/commands、analytics sink |
+| `0012` | Versioned campaigns、recommendation decisions、visible touch events、order-item attribution |
+
+`0012` 採 expand-only。若套用後需要恢復服務，舊的 `promotion_records`、`recommendation_events` 與
+`analytics_event_log` 仍可繼續讀寫；修復方式是新增下一個 forward migration，不回寫或刪除 `0012`。
 
 ## 操作
 

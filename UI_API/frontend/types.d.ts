@@ -16,6 +16,55 @@ export interface MenuItem {
   applied_offer_id?: string | undefined;
   offer_ids?: string[] | undefined;
   promotion_title?: string | undefined;
+  base_price?: number | undefined;
+  effective_price?: number | undefined;
+  discount?: number | undefined;
+  price_conditional?: boolean | undefined;
+  conditional_price?: number | undefined;
+  price_condition_text?: string | undefined;
+  options?: Array<{ id: string; name?: string; price?: number }> | undefined;
+  decision_id?: string | undefined;
+  strategy?: string | undefined;
+  strategy_version?: string | undefined;
+  experiment_id?: string | undefined;
+  variant_id?: string | undefined;
+  fallback_status?: string | undefined;
+}
+
+export interface MenuPriceProjection {
+  item_id: string;
+  base_price: number;
+  effective_price: number;
+  discount: number;
+  activity_id: string;
+  activity_name: string;
+  conditional: boolean;
+  conditional_price?: number | null;
+  required_cart_item_ids: string[];
+}
+
+export interface CartQuoteLine {
+  item_id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  base_unit_price: number;
+  effective_unit_price: number;
+  option_unit_total: number;
+  discount_unit_total: number;
+  activity_id: string;
+  activity_name: string;
+}
+
+export interface CartQuote {
+  items: CartQuoteLine[];
+  subtotal: number;
+  option_total: number;
+  discount_total: number;
+  tax_total: number;
+  total: number;
+  currency: string;
+  quote_version: string;
 }
 
 export interface CartItem extends MenuItem {
@@ -110,7 +159,7 @@ export interface CartManagerOptions {
   } & Record<string, HTMLElement | HTMLButtonElement | null>;
   escapeHTML: (value: unknown) => string;
   findMenuItems: (ids?: string[]) => MenuItem[];
-  onCartChange?: (items: CartItem[]) => void;
+  onCartChange?: (items: CartItem[], reason?: "cart_change" | "quote_applied" | "quote_pending" | "quote_failed") => void;
   t?: (key: string) => string;
   lang?: () => LanguageCode;
   getVisual?: (item: MenuItem) => MenuVisual;
@@ -127,4 +176,8 @@ export interface CartManager {
   getCartItems: () => CartItem[];
   getCartTotal: () => number;
   clearCart: () => void;
+  markQuotePending: () => void;
+  markQuoteFailed: () => void;
+  applyServerQuote: (quote: CartQuote) => void;
+  getQuoteState: () => { status: "idle" | "pending" | "ready" | "failed"; total: number | null; version: string };
 }

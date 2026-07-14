@@ -1,28 +1,12 @@
-const RECOMMENDATION_EVENT_LABELS = {
-  recommendation_generated: '產生',
-  recommendation_shown: '曝光',
-  recommendation_clicked: '點擊',
-  recommendation_added_to_cart: '加購',
-  recommendation_removed_from_cart: '移除',
-  recommendation_checked_out: '成交',
-  recommendation_ignored: '忽略',
-};
-
-const RECOMMENDATION_SURFACE_LABELS = {
-  ai_push: 'AI 推播',
-  assist_recommend: '協助推薦',
-  choice_hesitation: '猶豫推薦',
-  voice: '語音推薦',
-  voice_assist: '語音推薦',
-  member_usual: '會員常點',
-  global_popular: '全站熱門',
-  local_default: '本地預設',
-  local_fallback: '本地備援',
-};
+import {
+  CAMPAIGN_PLACEMENT_LABELS as RECOMMENDATION_SURFACE_LABELS,
+  RECOMMENDATION_EVENT_LABELS,
+  RECOMMENDATION_REASON_LABELS,
+  zhLabel,
+} from './zhTWLabels.js';
 
 function recommendationLabel(map, key) {
-  const normalized = String(key || 'unknown');
-  return map[normalized] || normalized || 'unknown';
+  return zhLabel(map, key, '其他／未分類');
 }
 
 function recommendationCount(counts, eventType) {
@@ -103,6 +87,50 @@ export function createRecommendationEventsAdmin({
 }) {
   let recommendationEventsLoadPromise = null;
   let recommendationDashboardEvents = [];
+  let effectivenessReport = null;
+
+  function formatMoney(value) {
+    return `$${Number(value || 0).toLocaleString('zh-TW')}`;
+  }
+
+  function renderEffectivenessNotice(message = '', isError = false) {
+    const box = getElement('recommendationEffectivenessNotice');
+    if (!box) return;
+    box.textContent = message;
+    box.classList.toggle('error', isError);
+    box.hidden = !message;
+  }
+
+  async function loadEffectiveness() {
+    const params = new URLSearchParams();
+    const surface = getValue('recommendationSurfaceFilter');
+    const audience = getValue('recommendationAudienceFilter');
+    const since = getValue('recommendationSince');
+    const until = getValue('recommendationUntil');
+    if (surface) params.set('placement', surface);
+    if (audience) params.set('audience', audience);
+    if (since) params.set('since', `${since}T00:00:00+08:00`);
+    if (until) params.set('until', `${until}T23:59:59+08:00`);
+    const res = await fetch(`${apiBaseUrl}/api/v1/recommendation-effectiveness?${params.toString()}`, {
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`成效服務回應 ${res.status}`);
+    const payload = await res.json();
+    effectivenessReport = payload?.data || null;
+    const warnings = [];
+    if (effectivenessReport?.sample_warning) warnings.push(effectivenessReport.sample_warning);
+    if (effectivenessReport?.incomplete_events) {
+      warnings.push(`${effectivenessReport.incomplete_events} 筆舊事件缺少完整追蹤編號，未納入精準歸因。`);
+    }
+    if (effectivenessReport?.provisional_attributions) {
+      warnings.push(`${effectivenessReport.provisional_attributions} 筆訂單尚未完成，營收暫不計入。`);
+    }
+    (effectivenessReport?.comparisons || []).forEach(comparison => {
+      const difference = Math.round(Number(comparison.purchase_rate_difference || 0) * 1000) / 10;
+      warnings.push(`${comparison.variant_id} 相較 ${comparison.control_variant} 的購買率觀察差異為 ${difference >= 0 ? '+' : ''}${difference} 個百分點；${comparison.conclusion}。`);
+    });
+    renderEffectivenessNotice(warnings.join(' '));
+  }
 
   function filteredRecommendationEvents() {
     const eventType = getValue('recommendationEventTypeFilter');
@@ -128,14 +156,23 @@ export function createRecommendationEventsAdmin({
     const added = recommendationCount(counts, 'recommendation_added_to_cart');
     const checked = recommendationCount(counts, 'recommendation_checked_out');
     const ignored = recommendationCount(counts, 'recommendation_ignored');
-    const cards = [
-      ['總事件', events.length, '目前篩選'],
-      ['曝光', shown, 'shown'],
+    const report = effectivenessReport;
+    const cards = report ? [
+      ['有效曝光', report.impressions, '畫面可見至少 1 秒'],
+      ['點擊', report.clicks, `${Math.round(Number(report.click_through_rate || 0) * 1000) / 10}% 曝光後點擊`],
+      ['加入購物車', report.add_to_carts, `${Math.round(Number(report.add_to_cart_rate || 0) * 1000) / 10}% 曝光後加購`],
+      ['完成購買', report.purchases, `${Math.round(Number(report.purchase_rate || 0) * 1000) / 10}% 曝光後購買`],
+      ['歸因營收', formatMoney(report.attributed_revenue), '只計已完成訂單'],
+      ['優惠金額', formatMoney(report.attributed_discount), '已完成訂單折扣'],
+      ['資料待補', report.incomplete_events, '舊事件或欄位缺漏'],
+    ] : [
+      ['目前事件', events.length, '暫用舊事件統計'],
+      ['曝光', shown, '有效曝光服務尚未載入'],
       ['點擊', clicked, recommendationRate(clicked, shown)],
-      ['加購', added, recommendationRate(added, shown)],
-      ['成交', checked, recommendationRate(checked, shown)],
+      ['加入購物車', added, recommendationRate(added, shown)],
+      ['完成購買', checked, recommendationRate(checked, shown)],
       ['忽略', ignored, recommendationRate(ignored, shown)],
-      ['Offer 數', Object.keys(stats.offerCounts).length, '活動追蹤'],
+      ['追蹤活動', Object.keys(stats.offerCounts).length, '活動數量'],
     ];
     box.innerHTML = cards
       .map(([label, value, sub]) => `<div class="recommendation-kpi"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span><small>${escapeHtml(sub)}</small></div>`)
@@ -234,7 +271,9 @@ export function createRecommendationEventsAdmin({
       .slice(0, 200)
       .map(event => {
         const offerText = recommendationOfferIds(event).join(', ') || '—';
-        const reasons = Array.isArray(event.reasons) ? event.reasons.slice(0, 2).join('、') : '';
+        const reasons = Array.isArray(event.reasons)
+          ? event.reasons.slice(0, 2).map(reason => recommendationLabel(RECOMMENDATION_REASON_LABELS, reason)).join('、')
+          : '';
         const audience = event.is_member || event.audience === 'member' ? 'member' : 'guest';
         return '<tr>'
           + `<td>${escapeHtml(formatDate(event.timestamp))}</td>`
@@ -273,14 +312,22 @@ export function createRecommendationEventsAdmin({
         const params = new URLSearchParams({ limit });
         const sessionId = getValue('recommendationSessionFilter');
         if (sessionId) params.set('session_id', sessionId);
-        const res = await fetch(`${apiBaseUrl}/api/recommendation_events?${params.toString()}`, { headers: adminHeaders() });
+        const [res, effectivenessResult] = await Promise.all([
+          fetch(`${apiBaseUrl}/api/v1/recommendations?page=1&page_size=${Math.min(Number(limit) || 100, 100)}`, { headers: adminHeaders() }),
+          loadEffectiveness().then(() => null).catch(error => error),
+        ]);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        recommendationDashboardEvents = Array.isArray(data.events) ? data.events : [];
+        recommendationDashboardEvents = Array.isArray(data.data) ? data.data : [];
+        if (effectivenessResult instanceof Error) {
+          effectivenessReport = null;
+          renderEffectivenessNotice(`精準成效暫時無法載入：${effectivenessResult.message}。下方改顯示舊事件趨勢。`, true);
+        }
         renderRecommendationSurfaceOptions(recommendationDashboardEvents);
         renderRecommendationDashboard();
       } catch (e) {
         recommendationDashboardEvents = [];
+        effectivenessReport = null;
         if (body) body.innerHTML = `<tr><td colspan="9" class="adm-empty" style="color:#e84040">載入失敗：${escapeHtml(e.message)}</td></tr>`;
       }
     })().finally(() => {

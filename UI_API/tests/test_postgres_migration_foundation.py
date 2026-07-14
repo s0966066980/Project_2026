@@ -58,6 +58,24 @@ def test_migration_manifest_rejects_missing_migration_sources() -> None:
         postgres_utils.build_migration_plan([], {})
 
 
+def test_campaign_touch_migration_is_expand_only_and_scoped() -> None:
+    migration = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0012_campaign_touch_attribution.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    for fragment in (
+        "CREATE TABLE campaign_versions",
+        "CREATE TABLE recommendation_decisions",
+        "CREATE TABLE commercial_touch_events",
+        "CREATE TABLE order_touch_attributions",
+        "UNIQUE (order_item_id, attribution_type)",
+        "FOREIGN KEY (tenant_id, store_id)",
+        "idx_commercial_touch_scope_time",
+    ):
+        assert fragment in sql
+    assert "DROP TABLE" not in sql.upper()
+    assert "ALTER TABLE promotion_records" not in sql
+
+
 def test_migration_manifest_rejects_noncanonical_filename(tmp_path: Path) -> None:
     from repositories import postgres_utils
 

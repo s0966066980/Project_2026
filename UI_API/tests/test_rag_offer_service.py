@@ -119,6 +119,35 @@ def test_date_only_promotion_uses_local_timezone_until_end_of_day(tmp_path, monk
     assert expired == []
 
 
+def test_load_active_offers_excludes_explicitly_disabled_offer(tmp_path, monkeypatch):
+    from services import rag_offer_service
+    importlib.reload(rag_offer_service)
+
+    monkeypatch.setattr(rag_offer_service.config, "RAG_DOCUMENTS_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        rag_offer_service.config,
+        "get",
+        lambda key, default=None: {
+            "RAG_ENABLED": True,
+            "PROMOTION_DEFAULT_TIMEZONE": "Asia/Taipei",
+        }.get(key, default),
+    )
+    _write_json(tmp_path / "promotions" / "disabled.json", {
+        "offer_id": "disabled_offer",
+        "title": "已停用活動",
+        "status": "active",
+        "enabled": False,
+        "item_ids": ["MCD115"],
+    })
+
+    offers = rag_offer_service.load_active_offers(
+        MENU,
+        now=datetime(2026, 7, 10, tzinfo=timezone.utc),
+    )
+
+    assert offers == []
+
+
 def test_format_offer_prompt_section_hides_member_only_offer_for_guest():
     from services import rag_offer_service
     importlib.reload(rag_offer_service)

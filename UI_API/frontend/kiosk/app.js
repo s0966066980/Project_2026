@@ -13,9 +13,10 @@ import {
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { createRealtimeClient } from '../shared/realtimeClient.js';
-import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
+import { getMenuVisual, formatItemPrice, formatItemPriceDetail, resolveItemPrice } from './menuVisuals.js';
 import { createKioskMenuController } from './controllers/kioskMenuController.js';
 import { createPromoBannerController } from './controllers/promoBannerController.js';
+import { createTouchId, observeVisibleImpression } from '../shared/touchEventClient.js';
 import { state } from './state.js';
 import { configureKioskRuntime } from './runtime.js';
 import {
@@ -328,7 +329,7 @@ function handlePromotionCta(promotion = {}) {
   }
 }
 
-export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: updateKioskCartSummary, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
+export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: handleCartChange, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
 
 const kioskMenuController = createKioskMenuController({
   api,
@@ -344,6 +345,7 @@ const kioskMenuController = createKioskMenuController({
   translateGroup: (group) => kioskGroupLabel(kioskLang, group),
   showItemConfirmModal,
   updateKioskCartSummary,
+  getSessionId: () => sessionId,
   onCategorySwitchRepeat(groupId, filter) {
     interactionState.categorySwitchCount += 1;
     if (interactionState.categorySwitchCount >= 4) {
@@ -366,6 +368,29 @@ const {
 
 export const itemMatchesSubFilter = kioskMenuController.itemMatchesSubFilter;
 
+/** @param {string} eventType @param {Record<string, unknown>} [details] */
+function sendCommercialTouch(eventType, details = {}) {
+  api.reportCommercialTouch({
+    event_id: createTouchId('touch'),
+    event_type: eventType,
+    session_id: sessionId,
+    audience: state.member ? 'member' : 'guest',
+    ...details,
+  }).catch(error => console.warn('[commercial touch failed]', error));
+}
+
+/** @param {string} placement */
+function campaignTouchHandler(placement) {
+  /** @param {"impression" | "click"} eventType @param {Record<string, unknown>} promotion @param {string} impressionId */
+  return (eventType, promotion, impressionId) => sendCommercialTouch(eventType, {
+    impression_id: impressionId,
+    campaign_id: String(promotion.id || promotion.offer_id || ''),
+    campaign_version: Number(promotion.version || promotion.campaign_version || 0) || undefined,
+    placement,
+    item_id: String((promotion.item_ids || [])[0] || promotion.target_value || ''),
+  });
+}
+
 const promoBannerController = createPromoBannerController({
   api,
   root: ui.posPromoBannerRoot,
@@ -377,6 +402,7 @@ const promoBannerController = createPromoBannerController({
   variant: 'home',
   onPromotionCta: handlePromotionCta,
   onRecommendationTarget: () => aiRecommendationController.start(),
+  onTouch: campaignTouchHandler('pos_home_banner'),
 });
 
 const cartPromoBannerController = createPromoBannerController({
@@ -398,6 +424,7 @@ const cartPromoBannerController = createPromoBannerController({
   variant: 'cart',
   onPromotionCta: handlePromotionCta,
   onRecommendationTarget: () => aiRecommendationController.start(),
+  onTouch: campaignTouchHandler('kiosk_cart_banner'),
 });
 
 configureKioskRuntime({
@@ -520,6 +547,8 @@ const aiRecommendationController = (() => {
   let isRecommendationRequestInFlight = false;
   let currentRecommendationItem     = null;
   let currentRecommendationRecord = null;
+  let currentCommercialImpressionId = '';
+  let stopCommercialImpression = null;
 
   // ── DOM shortcuts ──
   const $ = id => document.getElementById(id);
@@ -556,6 +585,9 @@ const aiRecommendationController = (() => {
       experiment_id: recommendation.experiment_id || item.experiment_id || '',
       variant_id: recommendation.variant_id || item.variant_id || '',
       source: recommendation.source || item.source || 'ai_push',
+      decision_id: recommendation.decision_id || item.decision_id || '',
+      strategy_version: recommendation.strategy_version || item.strategy_version || '',
+      fallback_status: recommendation.fallback_status || item.fallback_status || '',
     };
     const visual = getMenuVisual(item);
     if (currentRecommendationItem?.id && currentRecommendationItem.id !== item.id) {
@@ -611,6 +643,21 @@ const aiRecommendationController = (() => {
     }
 
     $('aiPushBar').classList.remove('hidden', 'loading');
+    stopCommercialImpression?.();
+    currentCommercialImpressionId = createTouchId('impression');
+    stopCommercialImpression = observeVisibleImpression($('aiPushBar'), {
+      onVisible: () => sendCommercialTouch('impression', {
+        decision_id: String(displayItem.decision_id || ''),
+        impression_id: currentCommercialImpressionId,
+        placement: 'ai_push',
+        item_id: String(displayItem.id || ''),
+        strategy: String(displayItem.strategy || ''),
+        strategy_version: String(displayItem.strategy_version || ''),
+        experiment_id: String(displayItem.experiment_id || ''),
+        variant_id: String(displayItem.variant_id || ''),
+        fallback_status: String(displayItem.fallback_status || ''),
+      }),
+    });
   }
 
   // 從菜單選預設推播（不呼叫 Ollama）
@@ -653,7 +700,12 @@ const aiRecommendationController = (() => {
         ? aiItem
         : pickRandomRecommendation(excludeCurrentItem);
       if (item) {
-        const recommendation = aiItem ? (data.recommendation || {}) : { source: 'local_fallback', reasons: ['local_fallback'] };
+        const recommendation = aiItem ? {
+          ...(data.recommendation || {}),
+          decision_id: data.decision_id || '',
+          strategy_version: data.strategy_version || '',
+          fallback_status: data.fallback_status || '',
+        } : { source: 'local_fallback', reasons: ['local_fallback'], fallback_status: 'client_fallback' };
         renderRecommendation(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`, recommendation);
       }
     } catch {
@@ -697,6 +749,8 @@ const aiRecommendationController = (() => {
     markCurrentRecommendationIgnored('ai_push_stopped');
     currentRecommendationItem     = null;
     currentRecommendationRecord = null;
+    stopCommercialImpression?.();
+    stopCommercialImpression = null;
     hide();
   }
 
@@ -717,6 +771,16 @@ const aiRecommendationController = (() => {
           recommendationRecord: currentRecommendationRecord,
         });
       }
+      sendCommercialTouch('click', {
+        decision_id: String(currentRecommendationItem.decision_id || ''),
+        impression_id: currentCommercialImpressionId,
+        placement: 'ai_push',
+        item_id: String(currentRecommendationItem.id || ''),
+        strategy: String(currentRecommendationItem.strategy || ''),
+        strategy_version: String(currentRecommendationItem.strategy_version || ''),
+        experiment_id: String(currentRecommendationItem.experiment_id || ''),
+        variant_id: String(currentRecommendationItem.variant_id || ''),
+      });
       showItemConfirmModal(currentRecommendationItem, 'ai_push');
       scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
     });
@@ -765,7 +829,7 @@ function showItemConfirmModal(item, source = 'menu_card') {
   const descEl  = document.getElementById('itemConfirmDesc');
   const qtyEl   = document.getElementById('itemConfirmQtyDisplay');
   if (nameElement)  nameElement.textContent  = item.name || '';
-  if (priceEl) priceEl.textContent = formatItemPrice(item, kioskLang);
+  if (priceEl) priceEl.textContent = formatItemPriceDetail(item);
   if (descEl)  descEl.textContent  = item.description || '';
   if (qtyEl)   qtyEl.textContent   = '1';
 
@@ -812,17 +876,54 @@ useDomReady(() => {
 // 菜單
 // =========================================================
 
+let cartQuoteTimer = 0;
+let cartQuoteSequence = 0;
+
+/**
+ * @param {import('../types.d.ts').CartItem[]} items
+ * @param {"cart_change" | "quote_applied" | "quote_pending" | "quote_failed"} [reason]
+ */
+function handleCartChange(items, reason = 'cart_change') {
+  updateKioskCartSummary();
+  if (reason !== 'cart_change') return;
+  window.clearTimeout(cartQuoteTimer);
+  const sequence = ++cartQuoteSequence;
+  if (!items.length) {
+    kioskMenuController.refreshPriceProjections([], sessionId).catch(() => {});
+    return;
+  }
+  cartManager.markQuotePending();
+  cartQuoteTimer = window.setTimeout(async () => {
+    try {
+      const quote = await api.quoteCart(items, sessionId);
+      if (sequence !== cartQuoteSequence) return;
+      cartManager.applyServerQuote(quote);
+      await kioskMenuController.refreshPriceProjections(cartManager.getCartIds());
+    } catch {
+      if (sequence !== cartQuoteSequence) return;
+      cartManager.markQuoteFailed();
+    }
+  }, 120);
+}
+
 function updateKioskCartSummary() {
   const items = cartManager?.getCartItems ? cartManager.getCartItems() : [];
-  const total = items.reduce((sum, item) => sum + resolveItemPrice(item) * Number(item.quantity || 0), 0);
+  const quote = cartManager?.getQuoteState?.() || { status: 'idle', total: null };
+  const calculatedTotal = items.reduce((sum, item) => sum + resolveItemPrice(item) * Number(item.quantity || 0), 0);
+  const total = quote.status === 'ready' && quote.total !== null ? quote.total : calculatedTotal;
   const quantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   if (ui.kioskBottomCount) ui.kioskBottomCount.textContent = String(quantity);
-  if (ui.kioskBottomTotal) ui.kioskBottomTotal.textContent = `$${total}`;
-  if (ui.totalPrice) ui.totalPrice.textContent = `$${total}`;
+  const totalLabel = quote.status === 'pending'
+    ? '價格確認中'
+    : (quote.status === 'failed' ? '請重試價格確認' : `$${total}`);
+  if (ui.kioskBottomTotal) ui.kioskBottomTotal.textContent = totalLabel;
+  if (ui.totalPrice) ui.totalPrice.textContent = totalLabel;
   if (ui.checkoutBtn) {
-    ui.checkoutBtn.disabled = quantity <= 0;
+    ui.checkoutBtn.disabled = quantity <= 0 || quote.status !== 'ready';
     const label = ui.checkoutBtn.querySelector('span');
-    if (label) label.textContent = `${kt('checkoutGo')} $${total}`;
+    if (label) label.textContent = quote.status === 'ready'
+      ? `${kt('checkoutGo')} $${total}`
+      : totalLabel;
   }
 }
 
@@ -1343,7 +1444,7 @@ function getOrderNumber() {
 
 function getOrderTotals() {
   const subtotal = cartManager.getCartTotal();
-  const serviceFee = Math.round(subtotal * 0.1);
+  const serviceFee = 0;
   return { subtotal, serviceFee, total: subtotal + serviceFee };
 }
 

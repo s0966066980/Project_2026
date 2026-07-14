@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import config
 from models.commercial_scope import CommercialScope
+from modules.promotion import PromotionContext, quote_promotion, select_promotion_quote
 from repositories import menu_repository
-from services import promotion_service
+from services import commercial_shadow_service, promotion_service
 
-ACTIVE_PROMOTION_STATUSES = {"active", "published", "enabled"}
 CHECKOUT_CALCULATION_VERSION = "checkout-v1"
 CHECKOUT_CURRENCY = "TWD"
 
@@ -40,81 +38,6 @@ def _price(value: Any) -> int:
     if price <= 0 or price > 100_000:
         raise CartValidationError("invalid_menu_price", "menu price is outside the accepted range")
     return price
-
-
-def _as_list(value: Any) -> list[str]:
-    values = value if isinstance(value, list) else ([value] if value not in (None, "") else [])
-    return [str(item or "").strip() for item in values if str(item or "").strip()]
-
-
-def _promotion_timezone(row: dict) -> ZoneInfo:
-    name = str(row.get("timezone") or config.get("PROMOTION_DEFAULT_TIMEZONE", "Asia/Taipei") or "Asia/Taipei")
-    try:
-        return ZoneInfo(name)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("Asia/Taipei")
-
-
-def _parse_datetime(value: Any, *, local_timezone: ZoneInfo, end_of_day: bool = False) -> datetime | None:
-    text_value = str(value or "").strip()
-    if not text_value:
-        return None
-    if len(text_value) == 10:
-        try:
-            parsed_date = datetime.strptime(text_value, "%Y-%m-%d").date()
-        except ValueError as exc:
-            raise CartValidationError("promotion_invalid", "promotion date is invalid") from exc
-        return datetime.combine(parsed_date, time.max if end_of_day else time.min, tzinfo=local_timezone)
-    try:
-        parsed = datetime.fromisoformat(text_value.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise CartValidationError("promotion_invalid", "promotion date is invalid") from exc
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=local_timezone)
-
-
-def _promotion_is_active(row: dict, now: datetime) -> bool:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
-    status = str(row.get("status") or metadata.get("status") or "").strip().lower()
-    if status not in ACTIVE_PROMOTION_STATUSES or row.get("enabled") is False:
-        return False
-    local_timezone = _promotion_timezone(row)
-    current_time = now if now.tzinfo is not None else now.replace(tzinfo=local_timezone)
-    starts_at = _parse_datetime(
-        row.get("start_at") or row.get("starts_at") or row.get("valid_from"),
-        local_timezone=local_timezone,
-    )
-    ends_at = _parse_datetime(
-        row.get("end_at") or row.get("ends_at") or row.get("valid_until"),
-        local_timezone=local_timezone,
-        end_of_day=True,
-    )
-    return not ((starts_at and current_time < starts_at) or (ends_at and current_time > ends_at))
-
-
-def _promotion_targets_item(row: dict, menu_item: dict) -> bool:
-    item_id = str(menu_item.get("id") or "")
-    category = str(menu_item.get("category") or "")
-    if item_id in _as_list(row.get("item_ids") or row.get("items")):
-        return True
-    if category and category in _as_list(row.get("categories") or row.get("category")):
-        return True
-    target_type = str(row.get("target_type") or "none").strip()
-    target_value = str(row.get("target_value") or "").strip()
-    return (target_type == "item" and target_value == item_id) or (
-        target_type == "category" and target_value == category
-    )
-
-
-def _promotion_price(row: dict, base_price: int) -> int:
-    pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
-    raw = row.get("promo_price") or row.get("promotion_price") or pricing.get("promotion_price")
-    try:
-        promotion_price = int(float(raw))
-    except (TypeError, ValueError) as exc:
-        raise CartValidationError("promotion_price_invalid", "promotion price is invalid") from exc
-    if promotion_price <= 0 or promotion_price > base_price:
-        raise CartValidationError("promotion_price_invalid", "promotion price exceeds the menu price")
-    return promotion_price
 
 
 def _source_rows(cart_items: Any, cart_ids: Any) -> list[dict]:
@@ -194,6 +117,7 @@ def price_checkout_cart(
         normalized_sources.append((menu_item, quantity, offer_id, option_snapshots, option_unit_total))
 
     current_time = now or datetime.now(timezone.utc)
+    promotions = promotion_service.list_promotions(scope)
     normalized_by_id: dict[str, dict] = {}
     order: list[str] = []
     for menu_item, quantity, offer_id, option_snapshots, option_unit_total in normalized_sources:
@@ -201,30 +125,59 @@ def price_checkout_cart(
         base_price = _price(menu_item.get("price"))
         final_price = base_price
         promotion_title = ""
+        applied_offer_id = ""
+        promotion_context = PromotionContext(
+            now=current_time,
+            is_member=is_member,
+            item_id=item_id,
+            category=str(menu_item.get("category") or ""),
+            cart_item_ids=frozenset(submitted_ids),
+            scope=scope,
+        )
+        candidate_promotions = promotions
+        legacy_ref = ""
+        legacy_effective_price = base_price
         if offer_id:
-            promotion = (
+            requested = (
                 promotion_service.get_promotion(offer_id, scope)
                 if scope
                 else promotion_service.get_promotion(offer_id)
             )
-            if not promotion or not _promotion_is_active(promotion, current_time):
-                raise CartValidationError("promotion_not_active", "promotion is not active")
-            if promotion.get("member_only") and not is_member:
-                raise CartValidationError("member_required", "promotion requires a member")
-            required_ids = set(_as_list(
-                promotion.get("required_cart_item_ids") or promotion.get("required_items")
-            ))
-            if not required_ids.issubset(submitted_ids):
-                raise CartValidationError(
-                    "promotion_requirements_not_met",
-                    "required cart items are missing",
-                )
-            if not _promotion_targets_item(promotion, menu_item):
-                raise CartValidationError("promotion_target_mismatch", "promotion does not target this item")
-            final_price = _promotion_price(promotion, base_price)
-            promotion_title = str(promotion.get("title") or offer_id).strip()
+            requested_quote = quote_promotion(requested or {}, promotion_context, base_price=base_price)
+            if not requested or not requested_quote.eligible:
+                error_codes = {
+                    "member_required": "member_required",
+                    "requirements_not_met": "promotion_requirements_not_met",
+                    "target_mismatch": "promotion_target_mismatch",
+                    "promotion_price_invalid": "promotion_price_invalid",
+                }
+                code = error_codes.get(requested_quote.code, "promotion_not_active")
+                raise CartValidationError(code, requested_quote.code)
+            legacy_ref = requested_quote.promotion_ref
+            legacy_effective_price = requested_quote.effective_price
+            if requested not in candidate_promotions:
+                candidate_promotions = [*candidate_promotions, requested]
 
-        variant_key = f"{item_id}:{','.join(option['id'] for option in option_snapshots)}:{offer_id}"
+        selected_quote = select_promotion_quote(
+            candidate_promotions,
+            promotion_context,
+            base_price=base_price,
+            preferred_ref=offer_id,
+        )
+        if selected_quote.eligible:
+            final_price = selected_quote.effective_price
+            applied_offer_id = selected_quote.promotion_ref
+            promotion_title = selected_quote.promotion_title
+        commercial_shadow_service.compare_pricing(
+            preferred_ref=offer_id,
+            legacy_ref=legacy_ref,
+            legacy_effective_price=legacy_effective_price,
+            selected_ref=selected_quote.promotion_ref if selected_quote.eligible else "",
+            selected_effective_price=selected_quote.effective_price if selected_quote.eligible else base_price,
+            base_price=base_price,
+        )
+
+        variant_key = f"{item_id}:{','.join(option['id'] for option in option_snapshots)}:{applied_offer_id}"
         existing = normalized_by_id.get(variant_key)
         if existing:
             existing["quantity"] += quantity
@@ -244,14 +197,14 @@ def price_checkout_cart(
             "final_unit_price": charged_unit_price,
             "options": option_snapshots,
         }
-        if offer_id:
+        if applied_offer_id:
             row.update({
                 "original_price": base_price,
-                "applied_offer_id": offer_id,
-                "offer_ids": [offer_id],
+                "applied_offer_id": applied_offer_id,
+                "offer_ids": [applied_offer_id],
                 "promotion_title": promotion_title,
                 "promotion_snapshot": {
-                    "promotion_ref": offer_id,
+                    "promotion_ref": applied_offer_id,
                     "title": promotion_title,
                     "discount_unit_total": discount_unit_total,
                 },

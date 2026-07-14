@@ -109,12 +109,136 @@ class PromotionSummaryDTO(BaseModel):
     enabled: bool
 
 
+class CartQuoteItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(default=1, ge=1, le=20)
+    options: list[dict[str, JsonValue]] = Field(default_factory=list)
+    applied_offer_id: str = Field(default="", max_length=100)
+    price: JsonValue | None = None
+    total: JsonValue | None = None
+
+
+class CartQuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cart_items: list[CartQuoteItemRequest] = Field(min_length=1, max_length=100)
+    session_id: str = Field(default="", max_length=160)
+
+
+class CartQuoteLineDTO(BaseModel):
+    item_id: str
+    name: str
+    category: str
+    quantity: int = Field(ge=1)
+    base_unit_price: int = Field(ge=0)
+    effective_unit_price: int = Field(ge=0)
+    option_unit_total: int = Field(ge=0)
+    discount_unit_total: int = Field(ge=0)
+    activity_id: str = ""
+    activity_name: str = ""
+
+
+class CartQuoteDTO(BaseModel):
+    items: list[CartQuoteLineDTO]
+    subtotal: int = Field(ge=0)
+    option_total: int = Field(ge=0)
+    discount_total: int = Field(ge=0)
+    tax_total: int = Field(ge=0)
+    total: int = Field(ge=0)
+    currency: str
+    quote_version: str
+
+
+class MenuPriceProjectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cart_item_ids: list[str] = Field(default_factory=list, max_length=100)
+    session_id: str = Field(default="", max_length=160)
+
+
+class MenuPriceProjectionDTO(BaseModel):
+    item_id: str
+    base_price: int = Field(ge=0)
+    effective_price: int = Field(ge=0)
+    discount: int = Field(ge=0)
+    activity_id: str = ""
+    activity_name: str = ""
+    conditional: bool = False
+    conditional_price: int | None = Field(default=None, ge=0)
+    required_cart_item_ids: list[str] = Field(default_factory=list)
+
+
 class RecommendationEventDTO(BaseModel):
     event_id: str
     event_type: str
     session_id: str
     item_id: str
+    item_name: str = ""
+    surface: str = ""
+    source: str = ""
+    audience: str = "guest"
+    offer_ids: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    experiment_id: str = ""
+    variant_id: str = ""
+    strategy: str = ""
     timestamp: datetime | None = None
+
+
+class CommercialTouchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(min_length=1, max_length=140)
+    event_type: str = Field(min_length=1, max_length=80)
+    decision_id: str = Field(default="", max_length=140)
+    impression_id: str = Field(default="", max_length=140)
+    campaign_id: str = Field(default="", max_length=120)
+    campaign_version: int | None = Field(default=None, ge=1)
+    placement: str = Field(default="", max_length=80)
+    item_id: str = Field(default="", max_length=100)
+    session_id: str = Field(default="", max_length=160)
+    strategy: str = Field(default="", max_length=100)
+    strategy_version: str = Field(default="", max_length=100)
+    experiment_id: str = Field(default="", max_length=100)
+    variant_id: str = Field(default="", max_length=100)
+    audience: str = Field(default="guest", max_length=40)
+    fallback_status: str = Field(default="", max_length=80)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+    occurred_at: str = Field(default="", max_length=60)
+
+
+class CommercialTouchReceiptDTO(BaseModel):
+    event_id: str
+    accepted: bool
+    duplicate: bool
+    data_quality: str
+
+
+class EffectivenessBreakdownDTO(BaseModel):
+    variant_id: str
+    impressions: int = Field(ge=0)
+    clicks: int = Field(ge=0)
+    add_to_carts: int = Field(ge=0)
+
+
+class RecommendationEffectivenessDTO(BaseModel):
+    filters: dict[str, str]
+    impressions: int = Field(ge=0)
+    clicks: int = Field(ge=0)
+    add_to_carts: int = Field(ge=0)
+    purchases: int = Field(ge=0)
+    click_through_rate: float = Field(ge=0)
+    add_to_cart_rate: float = Field(ge=0)
+    purchase_rate: float = Field(ge=0)
+    attributed_revenue: int = Field(ge=0)
+    attributed_discount: int = Field(ge=0)
+    provisional_attributions: int = Field(ge=0)
+    incomplete_events: int = Field(ge=0)
+    sample_warning: str
+    breakdowns: list[EffectivenessBreakdownDTO]
+    comparisons: list[dict[str, JsonValue]]
 
 
 class AuditRecordDTO(BaseModel):
@@ -169,6 +293,75 @@ class PromotionCreateRequest(BaseModel):
     enabled: bool = True
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
     idempotency_key: str | None = Field(default=None, max_length=200)
+
+
+class CampaignScheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    starts_at: str = Field(default="", max_length=60)
+    ends_at: str = Field(default="", max_length=60)
+
+
+class CampaignPromotionRuleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["fixed_item_price", "add_on_fixed_price"]
+    item_ids: list[str] = Field(min_length=1, max_length=50)
+    required_cart_item_ids: list[str] = Field(default_factory=list, max_length=50)
+    promotion_price: int = Field(gt=0, le=999_999)
+
+
+class CampaignCreativeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    badge: str = Field(default="", max_length=80)
+    title: str = Field(default="", max_length=120)
+    description: str = Field(default="", max_length=240)
+    cta: str = Field(default="立即查看", max_length=40)
+    theme: Literal["gold", "red", "dark", "simple"] = "gold"
+
+
+class CampaignDraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    objective: Literal["promote_item", "increase_add_on", "increase_order_value", "member_return", "clear_inventory"]
+    audience: Literal["all", "member"] = "all"
+    schedule: CampaignScheduleRequest
+    promotion_rules: list[CampaignPromotionRuleRequest] = Field(min_length=1, max_length=1)
+    placements: list[Literal["menu_card", "item_detail", "pos_home_banner", "kiosk_cart_banner", "recommendation", "voice"]] = Field(min_length=1, max_length=6)
+    creatives: CampaignCreativeRequest = Field(default_factory=CampaignCreativeRequest)
+
+
+class CampaignDraftUpdateRequest(CampaignDraftRequest):
+    expected_version: int = Field(ge=1)
+
+
+class CampaignPreviewRequest(CampaignDraftRequest):
+    campaign_id: str = Field(default="", max_length=120)
+
+
+class CampaignTransitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_status: Literal["draft", "review", "scheduled", "active", "paused", "ended", "archived"]
+    expected_version: int = Field(ge=1)
+
+
+class CampaignSnapshotDTO(BaseModel):
+    campaign_id: str
+    version: int = Field(ge=1)
+    status: str
+    payload: dict[str, JsonValue]
+
+
+class CampaignPreviewDTO(BaseModel):
+    valid: bool
+    field_errors: list[dict[str, str]]
+    conflicts: list[dict[str, str]]
+    impact_count: int = Field(ge=0)
+    summary: str
+    price_previews: list[dict[str, JsonValue]]
 
 
 class RagDocumentCreateRequest(BaseModel):

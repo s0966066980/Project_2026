@@ -1,15 +1,14 @@
 """POS/Kiosk promotion banner selection and response shaping."""
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
 from models.commercial_scope import CommercialScope
+from modules.promotion import PromotionContext, evaluate_promotion
 from repositories import promotion_repository
 
-ACTIVE_STATUSES = {"active", "published", "enabled"}
 VALID_TARGET_TYPES = {"category", "item", "recommendation", "none"}
 VALID_THEMES = {"gold", "red", "dark", "simple"}
 VALID_SURFACES = {"pos_home_banner", "kiosk_cart_banner"}
@@ -65,61 +64,17 @@ def _as_list(value: Any, *, limit: int = 80) -> list[str]:
     return rows
 
 
-def _default_timezone_name() -> str:
-    return str(config.get("PROMOTION_DEFAULT_TIMEZONE", "Asia/Taipei") or "Asia/Taipei").strip() or "Asia/Taipei"
-
-
-def _promotion_timezone(row: dict) -> ZoneInfo:
-    timezone_name = _text(row.get("timezone"), 80) or _default_timezone_name()
-    try:
-        return ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo(_default_timezone_name())
-
-
-def _parse_datetime(value: Any, *, local_timezone: ZoneInfo, end_of_day: bool = False) -> datetime | None:
-    text = _text(value, 40)
-    if not text:
-        return None
-    if len(text) == 10:
-        try:
-            parsed_date = datetime.strptime(text, "%Y-%m-%d").date()
-        except ValueError:
-            return None
-        parsed_time = time.max if end_of_day else time.min
-        return datetime.combine(parsed_date, parsed_time, tzinfo=local_timezone)
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=local_timezone)
-    return parsed
-
-
-def _is_active_banner(row: dict, now: datetime, *, surface: str) -> bool:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
-    status = _text(row.get("status") or metadata.get("status"), 40).lower()
-    if status not in ACTIVE_STATUSES:
-        return False
-    if not _as_bool(row.get("enabled"), default=True):
-        return False
-    if _text(row.get("surface"), 80) != surface:
-        return False
-
-    local_timezone = _promotion_timezone(row)
-    current_time = now if now.tzinfo is not None else now.replace(tzinfo=local_timezone)
-    starts_at = _parse_datetime(row.get("start_at") or row.get("starts_at") or row.get("valid_from"), local_timezone=local_timezone)
-    ends_at = _parse_datetime(
-        row.get("end_at") or row.get("ends_at") or row.get("valid_until"),
-        local_timezone=local_timezone,
-        end_of_day=True,
-    )
-    if starts_at and current_time < starts_at:
-        return False
-    if ends_at and current_time > ends_at:
-        return False
-    return True
+def _is_active_banner(
+    row: dict,
+    now: datetime,
+    *,
+    surface: str,
+    scope: CommercialScope | None = None,
+) -> bool:
+    return evaluate_promotion(
+        row,
+        PromotionContext(now=now, placement=surface, scope=scope),
+    ).eligible
 
 
 def _banner_item(row: dict) -> dict | None:
@@ -176,7 +131,7 @@ def get_active_pos_banners(
         else promotion_repository.list_promotions()
     )
     for row in promotion_rows:
-        if not _is_active_banner(row, current_time, surface=selected_surface):
+        if not _is_active_banner(row, current_time, surface=selected_surface, scope=scope):
             continue
         item = _banner_item(row)
         if item:

@@ -7,10 +7,12 @@ from fastapi.testclient import TestClient
 V1_PATHS = {
     "/api/v1/auth/me",
     "/api/v1/commercial-context",
+    "/api/v1/campaigns",
     "/api/v1/members",
     "/api/v1/orders",
     "/api/v1/promotions",
     "/api/v1/recommendations",
+    "/api/v1/recommendation-effectiveness",
     "/api/v1/audits",
     "/api/v1/settings",
     "/api/v1/rag/reviews",
@@ -119,3 +121,28 @@ def test_legacy_api_contract_remains_available(monkeypatch) -> None:
     client = _client(monkeypatch)
     assert client.get("/api/public_settings").status_code == 200
     assert client.get("/api/v1/settings").status_code == 200
+
+
+def test_v1_cart_quote_uses_authoritative_prices(monkeypatch) -> None:
+    from services import checkout_pricing_service, promotion_service
+
+    client = _client(monkeypatch)
+    schema = client.get("/openapi.json").json()
+    assert schema["paths"]["/api/v1/cart/quote"]["post"]["operationId"] == "v1_quote_cart"
+    monkeypatch.setattr(
+        checkout_pricing_service.menu_repository,
+        "get_menu",
+        lambda: [{"id": "meal", "name": "套餐", "category": "主餐", "price": 120}],
+    )
+    monkeypatch.setattr(promotion_service, "list_promotions", lambda _scope=None: [])
+    response = client.post(
+        "/api/v1/cart/quote",
+        json={"cart_items": [{"id": "meal", "quantity": 2, "price": 1}]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["subtotal"] == 240
+    assert data["total"] == 240
+    assert data["items"][0]["base_unit_price"] == 120
+    assert data["quote_version"] == "checkout-v1"

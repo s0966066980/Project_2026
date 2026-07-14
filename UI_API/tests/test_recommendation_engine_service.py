@@ -208,6 +208,34 @@ def test_rag_category_offer_requires_cart_when_configured():
     assert "rag_category_offer" in by_id["MCD030"]["reasons"]
 
 
+def test_rag_offer_requires_every_configured_cart_item():
+    from services import recommendation_engine_service
+    importlib.reload(recommendation_engine_service)
+
+    context = _context()
+    context["preferences"]["usual_item_ids"] = []
+    context["preferences"]["recent_item_ids"] = []
+    context["global"]["popular_item_ids"] = []
+    context["global"]["priority_categories"] = []
+    context["rag"]["offers"] = [{
+        "offer_id": "complete_combo_drink",
+        "title": "完整套餐加購飲料",
+        "categories": ["飲料"],
+        "required_cart_item_ids": ["MCD001", "MCD012"],
+        "category_score_boost": 6,
+    }]
+
+    context["cart"]["item_ids"] = ["MCD001"]
+    by_id = {candidate["id"]: candidate for candidate in recommendation_engine_service.build_candidates(context)}
+    assert by_id["MCD030"]["score"] == 1
+    assert "rag_category_offer" not in by_id["MCD030"]["reasons"]
+
+    context["cart"]["item_ids"] = ["MCD001", "MCD012"]
+    by_id = {candidate["id"]: candidate for candidate in recommendation_engine_service.build_candidates(context)}
+    assert by_id["MCD030"]["score"] == 6
+    assert "rag_category_offer" in by_id["MCD030"]["reasons"]
+
+
 def test_recent_ignored_feedback_penalizes_item_and_offer():
     from services import recommendation_engine_service
     importlib.reload(recommendation_engine_service)

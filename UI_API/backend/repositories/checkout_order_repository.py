@@ -85,6 +85,7 @@ def _order_result(cur, order_id: UUID, *, replayed: bool) -> dict:
         "total": int(order["total"]),
         "items": [
             {
+                "order_item_id": int(item["id"]),
                 "item_id": str(item["item_id"]),
                 "product_name": str(item["product_name"]),
                 "quantity": int(item["quantity"]),
@@ -98,6 +99,80 @@ def _order_result(cur, order_id: UUID, *, replayed: bool) -> dict:
         ],
         "replayed": replayed,
     }
+
+
+def upsert_order_touch_attributions_scoped(
+    scope: CommercialScope,
+    rows: list[dict],
+) -> int:
+    if not rows or not postgres_utils.use_postgres():
+        return 0
+    postgres_utils.init_schema()
+    count = 0
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        for row in rows:
+            decision_id = str(row.get("decision_id") or "")
+            if decision_id:
+                cur.execute("SELECT 1 FROM recommendation_decisions WHERE decision_id = %s", (decision_id,))
+                if cur.fetchone() is None:
+                    decision_id = ""
+            cur.execute(
+                """
+                INSERT INTO order_touch_attributions (
+                    id, tenant_id, store_id, order_id, order_item_id,
+                    decision_id, impression_id, attribution_type,
+                    attributed_revenue, attributed_discount, status
+                ) VALUES (%s, %s, %s, %s, %s, %s, NULLIF(%s, ''), %s, %s, %s, %s)
+                ON CONFLICT (order_item_id, attribution_type) DO UPDATE SET
+                    decision_id = EXCLUDED.decision_id,
+                    impression_id = EXCLUDED.impression_id,
+                    attributed_revenue = EXCLUDED.attributed_revenue,
+                    attributed_discount = EXCLUDED.attributed_discount,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()
+                WHERE order_touch_attributions.tenant_id = EXCLUDED.tenant_id
+                  AND order_touch_attributions.store_id = EXCLUDED.store_id
+                """,
+                (
+                    uuid4(), scope.tenant_id, scope.store_id, UUID(str(row["order_id"])),
+                    int(row["order_item_id"]), decision_id or None,
+                    str(row.get("impression_id") or ""), str(row["attribution_type"]),
+                    int(row["attributed_revenue"]), int(row["attributed_discount"]), str(row["status"]),
+                ),
+            )
+            count += max(0, int(cur.rowcount or 0))
+        conn.commit()
+    return count
+
+
+def list_order_touch_attributions_scoped(
+    scope: CommercialScope,
+    *,
+    since: str = "",
+    until: str = "",
+) -> list[dict]:
+    if not postgres_utils.use_postgres():
+        return []
+    postgres_utils.init_schema()
+    where = "tenant_id = %s AND store_id = %s"
+    params: list[object] = [scope.tenant_id, scope.store_id]
+    if since:
+        where += " AND created_at >= %s"
+        params.append(since)
+    if until:
+        where += " AND created_at <= %s"
+        params.append(until)
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"""SELECT order_id, order_item_id, decision_id, impression_id,
+                       attribution_type, attributed_revenue, attributed_discount,
+                       status, created_at
+                FROM order_touch_attributions
+                WHERE {where}
+                ORDER BY created_at ASC""",
+            tuple(params),
+        )
+        return [dict(row) for row in cur.fetchall()]
 
 
 def create_checkout_order_scoped(
@@ -295,6 +370,16 @@ def transition_order_scoped(order_id: UUID, target: OrderStatus, scope: Commerci
                     event_type,
                     _jsonb({"order_id": str(order_id), "status": target.value}),
                 ),
+            )
+        if target is OrderStatus.CANCELLED:
+            cur.execute(
+                "UPDATE order_touch_attributions SET status = 'reversed', updated_at = NOW() WHERE order_id = %s",
+                (order_id,),
+            )
+        elif target is OrderStatus.COMPLETED:
+            cur.execute(
+                "UPDATE order_touch_attributions SET status = 'confirmed', updated_at = NOW() WHERE order_id = %s",
+                (order_id,),
             )
         result = _order_result(cur, order_id, replayed=False)
         conn.commit()

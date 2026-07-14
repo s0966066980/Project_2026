@@ -129,6 +129,40 @@ export async function getMenu() {
 }
 
 /**
+ * @param {string[]} [cartItemIds]
+ * @param {string} [sessionId]
+ * @returns {Promise<import('../types.d.ts').MenuPriceProjection[]>}
+ */
+export async function getMenuPriceProjections(cartItemIds = [], sessionId = '') {
+  const envelope = await postJson(
+    `${API_BASE}/api/v1/menu/price-projection`,
+    { cart_item_ids: cartItemIds, session_id: sessionId },
+    kioskHeaders(),
+  );
+  return Array.isArray(envelope?.data) ? envelope.data : [];
+}
+
+/**
+ * @param {import('../types.d.ts').CartItem[]} cartItems
+ * @param {string} [sessionId]
+ * @returns {Promise<import('../types.d.ts').CartQuote>}
+ */
+export async function quoteCart(cartItems, sessionId = '') {
+  const requestItems = cartItems.map(item => ({
+    id: item.id,
+    quantity: Number(item.quantity || 1),
+    options: Array.isArray(item.options) ? item.options : [],
+    applied_offer_id: item.applied_offer_id || '',
+  }));
+  const envelope = await postJson(
+    `${API_BASE}/api/v1/cart/quote`,
+    { cart_items: requestItems, session_id: sessionId },
+    kioskHeaders(),
+  );
+  return envelope.data;
+}
+
+/**
  * @param {string} [surface]
  * @returns {Promise<Record<string, unknown>>}
  */
@@ -230,6 +264,14 @@ export async function reportInteractionEvent(payload) {
  */
 export async function reportRecommendationEvent(payload) {
   return postJson(`${API_BASE}/api/recommendation_events`, payload, kioskHeaders());
+}
+
+/**
+ * @param {Record<string, unknown>} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function reportCommercialTouch(payload) {
+  return postJson(`${API_BASE}/api/v1/commercial-touches`, payload, kioskHeaders());
 }
 
 /**

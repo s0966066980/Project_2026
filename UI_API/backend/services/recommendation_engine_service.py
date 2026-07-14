@@ -78,7 +78,7 @@ def _eligible_offers(context: dict) -> list[dict]:
             for item_id in offer.get("required_cart_item_ids") or []
             if str(item_id or "").strip()
         }
-        if required_cart_ids and not cart_ids.intersection(required_cart_ids):
+        if required_cart_ids and not required_cart_ids.issubset(cart_ids):
             continue
         rows.append(offer)
     return rows

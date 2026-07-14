@@ -11,6 +11,7 @@ from datetime import datetime
 import database
 
 from models.commercial_scope import CommercialScope
+from modules.analytics import build_order_attributions
 from repositories import (
     checkout_order_repository,
     interaction_event_repository,
@@ -183,6 +184,16 @@ async def process_checkout(
     if recommendation_events:
         log_entry = dict(log_entry or {})
         log_entry["recommendation_events"] = recommendation_events
+    if order_result is not None and scope is not None:
+        try:
+            attribution_rows = build_order_attributions(order_result, recommendation_events)
+            await asyncio.to_thread(
+                checkout_order_repository.upsert_order_touch_attributions_scoped,
+                scope,
+                attribution_rows,
+            )
+        except Exception:
+            observability_service.increment_metric("recommendation_attribution", status="failed")
 
     try:
         finalize_args = (

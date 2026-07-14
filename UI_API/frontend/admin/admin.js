@@ -2,10 +2,17 @@ import { createRealtimeClient } from '../shared/realtimeClient.js';
 import { createAvailabilityAdmin } from './modules/availabilityAdmin.js';
 import { createHealthAdmin } from './modules/healthAdmin.js';
 import { createRecommendationEventsAdmin } from './modules/recommendationEventsAdmin.js';
+import { createCampaignAdmin } from './modules/campaignAdmin.js';
+import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 
 const API = window.location.origin;
 const CIRC = 2 * Math.PI * 49;
+let adminPermissionSet = new Set();
+
+function hasAdminPermission(permission) {
+  return adminPermissionSet.has('*') || adminPermissionSet.has(permission);
+}
 
 const DEFAULT_PUSH_PROMPT =
   '你是麥當勞自助點餐機的 AI 推播助手。' +
@@ -73,7 +80,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'stats') loadStats();
     if (page === 'settings') loadSettings();
     if (page === 'recommendations') loadRecommendationEvents();
-    if (page === 'promotions') { loadPromotions(); preparePromotionPickers(); }
+    if (page === 'promotions') loadCampaigns();
     if (page === 'availability') loadAvailability();
     if (page === 'health') loadAdminHealth();
     if (page === 'rag') { loadRagSettings(); loadRagHealth(); loadRagAlerts(); loadRagReviews(); loadRagDocs(); }
@@ -381,6 +388,15 @@ const recommendationEventsAdmin = createRecommendationEventsAdmin({
   menuName,
 });
 
+const campaignAdmin = createCampaignAdmin({
+  apiBaseUrl: API,
+  adminHeaders,
+  getElement: g,
+  loadMenu,
+  getMenuItems: () => Object.values(menuCache),
+  hasPermission: hasAdminPermission,
+});
+
 const availabilityAdmin = createAvailabilityAdmin({
   apiBaseUrl: API,
   adminHeaders,
@@ -399,6 +415,7 @@ const healthAdmin = createHealthAdmin({
 });
 
 function loadRecommendationEvents() { return recommendationEventsAdmin.loadRecommendationEvents(); }
+function loadCampaigns() { return campaignAdmin.loadCampaigns(); }
 function clearRecommendationEvents() { return recommendationEventsAdmin.clearRecommendationEvents(); }
 function renderRecommendationDashboard() { return recommendationEventsAdmin.renderRecommendationDashboard(); }
 function loadAvailability() { return availabilityAdmin.loadAvailability(); }
@@ -2131,14 +2148,17 @@ document.getElementById('availabilitySearch')?.addEventListener('input', renderA
 document.getElementById('availabilityStatusFilter')?.addEventListener('change', renderAvailabilityRows);
 document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
 bindPromotionPickers();
+campaignAdmin.bind();
 [
   'recommendationEventTypeFilter',
   'recommendationSurfaceFilter',
   'recommendationAudienceFilter',
+  'recommendationSince',
+  'recommendationUntil',
   'recommendationLimit',
 ].forEach(id => {
   document.getElementById(id)?.addEventListener('change', () => {
-    if (id === 'recommendationLimit') loadRecommendationEvents();
+    if (['recommendationLimit', 'recommendationSurfaceFilter', 'recommendationAudienceFilter', 'recommendationSince', 'recommendationUntil'].includes(id)) loadRecommendationEvents();
     else renderRecommendationDashboard();
   });
 });
@@ -2146,6 +2166,10 @@ document.getElementById('recommendationSessionFilter')?.addEventListener('input'
 
 createAdminAuthController({
   apiBaseUrl: API,
+  onPrincipal: principal => {
+    adminPermissionSet = new Set(principal?.permissions || []);
+    applyAdminNavigation(principal);
+  },
   onAuthenticated: async () => {
     await loadMenu();
     await loadStats();

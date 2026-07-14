@@ -1895,6 +1895,21 @@
     line-height: 1;
     font-weight: 950;
   }
+  .kiosk-menu-original-price {
+    margin-right: 10px;
+    color: #6b625d;
+    font-size: 0.72em;
+    font-weight: 700;
+    text-decoration: line-through;
+  }
+  .kiosk-menu-activity {
+    display: block;
+    margin-top: 10px;
+    color: #8a3f00;
+    font-size: clamp(14px, 1.8vw, 19px);
+    font-weight: 750;
+    line-height: 1.4;
+  }
   .kiosk-add-btn {
     width: clamp(54px, 6vw, 68px);
     height: clamp(54px, 6vw, 68px);

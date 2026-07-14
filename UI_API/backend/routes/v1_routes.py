@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, TypeVar
 from uuid import UUID, uuid5
 
-from fastapi import APIRouter, Query, Request, Security
+from fastapi import APIRouter, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 
 from api.v1.contracts import (
@@ -19,16 +19,30 @@ from api.v1.contracts import (
     AuditRecordDTO,
     AvailabilityDTO,
     AvailabilityPutRequest,
+    CartQuoteDTO,
+    CartQuoteLineDTO,
+    CartQuoteRequest,
+    CampaignDraftRequest,
+    CampaignDraftUpdateRequest,
+    CampaignPreviewDTO,
+    CampaignPreviewRequest,
+    CampaignSnapshotDTO,
+    CampaignTransitionRequest,
     CommercialContextDTO,
+    CommercialTouchReceiptDTO,
+    CommercialTouchRequest,
     FleetCommandDTO,
     FleetCommandRequest,
     MemberSummaryDTO,
+    MenuPriceProjectionDTO,
+    MenuPriceProjectionRequest,
     OrderSummaryDTO,
     OrderTransitionRequest,
     PaginatedResponse,
     PaginationMeta,
     PromotionCreateRequest,
     PromotionSummaryDTO,
+    RecommendationEffectivenessDTO,
     RagDocumentActionRequest,
     RagDocumentCreateRequest,
     RagDocumentDTO,
@@ -39,18 +53,34 @@ from api.v1.contracts import (
 )
 from models.commercial_scope import CommercialScope
 from models.order import OrderStatus
-from repositories import checkout_order_repository, commercial_settings_repository, recommendation_event_repository
+from modules.promotion import (
+    CampaignConflictError,
+    CampaignStateError,
+    PromotionContext,
+    create_campaign_draft,
+    get_campaign,
+    list_campaigns,
+    preview_campaign,
+    project_item_price,
+    revise_campaign_draft,
+    transition_campaign,
+)
+from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
+from modules.recommendation import list_events as list_recommendation_events
+from repositories import checkout_order_repository, commercial_settings_repository
 from repositories import availability_repository
 from services import (
     admin_audit_service,
+    checkout_pricing_service,
     fleet_management_service,
     member_service,
     promotion_service,
     rag_governance_service,
     rag_review_service,
 )
-from services.commercial_context_service import scope_from_admin_principal
-from utils.auth_utils import authorize_admin_request
+from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
+from services import analytics_pipeline_service
+from utils.auth_utils import authorize_admin_request, require_kiosk_token
 
 _admin_cookie = APIKeyCookie(name="admin_session", scheme_name="AdminSessionCookie", auto_error=False)
 _admin_bearer = HTTPBearer(scheme_name="BearerAuth", auto_error=False)
@@ -108,6 +138,19 @@ def _optional_datetime(value: object) -> datetime | None:
         return None
 
 
+def _campaign_dto(snapshot) -> CampaignSnapshotDTO:
+    return CampaignSnapshotDTO(
+        campaign_id=snapshot.campaign_id,
+        version=snapshot.version,
+        status=snapshot.status,
+        payload=snapshot.payload,
+    )
+
+
+def _campaign_actor(request: Request) -> str:
+    return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
+
+
 def create_router(_deps: dict | None = None) -> APIRouter:
     router = APIRouter(
         prefix="/api/v1",
@@ -160,6 +203,176 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             ),
             meta=_meta(request),
         )
+
+    @router.post(
+        "/cart/quote",
+        tags=["v1-cart"],
+        operation_id="v1_quote_cart",
+        response_model=ApiResponse[CartQuoteDTO],
+    )
+    async def quote_cart(request: Request, body: CartQuoteRequest) -> ApiResponse[CartQuoteDTO]:
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
+        request.state.commercial_scope = scope
+        member = None
+        if body.session_id:
+            member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
+        try:
+            priced = await asyncio.to_thread(
+                checkout_pricing_service.price_checkout_cart,
+                [item.model_dump() for item in body.cart_items],
+                [item.id for item in body.cart_items],
+                is_member=bool(member),
+                scope=scope,
+            )
+        except checkout_pricing_service.CartValidationError as exc:
+            raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+        return ApiResponse(
+            data=CartQuoteDTO(
+                items=[
+                    CartQuoteLineDTO(
+                        item_id=str(item["id"]),
+                        name=str(item["name"]),
+                        category=str(item.get("category") or ""),
+                        quantity=int(item["quantity"]),
+                        base_unit_price=int(item["base_unit_price"]),
+                        effective_unit_price=int(item["final_unit_price"]),
+                        option_unit_total=int(item["option_unit_total"]),
+                        discount_unit_total=int(item["discount_unit_total"]),
+                        activity_id=str(item.get("applied_offer_id") or ""),
+                        activity_name=str(item.get("promotion_title") or ""),
+                    )
+                    for item in priced["cart_items"]
+                ],
+                subtotal=int(priced["subtotal"]),
+                option_total=int(priced["option_total"]),
+                discount_total=int(priced["discount_total"]),
+                tax_total=int(priced["tax_total"]),
+                total=int(priced["total"]),
+                currency=str(priced["currency"]),
+                quote_version=str(priced["calculation_version"]),
+            ),
+            meta=_meta(request),
+        )
+
+    @router.post(
+        "/menu/price-projection",
+        tags=["v1-menu"],
+        operation_id="v1_project_menu_prices",
+        response_model=ApiResponse[list[MenuPriceProjectionDTO]],
+    )
+    async def project_menu_prices(
+        request: Request,
+        body: MenuPriceProjectionRequest,
+    ) -> ApiResponse[list[MenuPriceProjectionDTO]]:
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
+        request.state.commercial_scope = scope
+        member = None
+        if body.session_id:
+            member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
+        menu = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        promotions = await asyncio.to_thread(promotion_service.list_promotions, scope)
+        now = datetime.now(timezone.utc)
+        data = []
+        for item in menu:
+            try:
+                base_price = int(float(item.get("price") or 0))
+            except (TypeError, ValueError):
+                continue
+            projection = project_item_price(
+                promotions,
+                PromotionContext(
+                    now=now,
+                    is_member=bool(member),
+                    item_id=str(item.get("id") or ""),
+                    category=str(item.get("category") or ""),
+                    cart_item_ids=frozenset(body.cart_item_ids),
+                    scope=scope,
+                ),
+                base_price=base_price,
+            )
+            data.append(MenuPriceProjectionDTO(
+                item_id=str(item.get("id") or ""),
+                base_price=projection.base_price,
+                effective_price=projection.effective_price,
+                discount=projection.discount,
+                activity_id=projection.promotion_ref,
+                activity_name=projection.promotion_title,
+                conditional=projection.conditional,
+                conditional_price=projection.conditional_price,
+                required_cart_item_ids=list(projection.required_cart_item_ids),
+            ))
+        return ApiResponse(data=data, meta=_meta(request))
+
+    @router.post(
+        "/commercial-touches",
+        tags=["v1-analytics"],
+        operation_id="v1_record_commercial_touch",
+        response_model=ApiResponse[CommercialTouchReceiptDTO],
+    )
+    async def record_commercial_touch(
+        request: Request,
+        body: CommercialTouchRequest,
+    ) -> ApiResponse[CommercialTouchReceiptDTO]:
+        principal = require_kiosk_token(request)
+        scope = scope_from_device_principal(principal)
+        request.state.commercial_scope = scope
+        try:
+            receipt = await asyncio.to_thread(record_touch, body.model_dump(), scope)
+        except TouchValidationError as exc:
+            raise HTTPException(status_code=422, detail={"code": str(exc), "message": "事件資料無法接受"}) from exc
+        return ApiResponse(data=CommercialTouchReceiptDTO(
+            event_id=receipt.event_id,
+            accepted=receipt.accepted,
+            duplicate=receipt.duplicate,
+            data_quality=receipt.data_quality,
+        ), meta=_meta(request))
+
+    @router.get(
+        "/recommendation-effectiveness",
+        tags=["v1-analytics"],
+        operation_id="v1_get_recommendation_effectiveness",
+        response_model=ApiResponse[RecommendationEffectivenessDTO],
+    )
+    async def recommendation_effectiveness(
+        request: Request,
+        since: Annotated[str, Query(max_length=60)] = "",
+        until: Annotated[str, Query(max_length=60)] = "",
+        placement: Annotated[str, Query(max_length=80)] = "",
+        campaign_id: Annotated[str, Query(max_length=120)] = "",
+        strategy_version: Annotated[str, Query(max_length=100)] = "",
+        variant_id: Annotated[str, Query(max_length=100)] = "",
+        audience: Annotated[str, Query(max_length=40)] = "",
+    ) -> ApiResponse[RecommendationEffectivenessDTO]:
+        scope = _scope(request, "recommendations.effectiveness.read")
+        events, attributions = await asyncio.gather(
+            asyncio.to_thread(
+                analytics_pipeline_service.list_events,
+                tenant_id=scope.tenant_id,
+                store_id=scope.store_id,
+                since=since,
+                until=until,
+            ),
+            asyncio.to_thread(
+                checkout_order_repository.list_order_touch_attributions_scoped,
+                scope,
+                since=since,
+                until=until,
+            ),
+        )
+        report = build_effectiveness_report(
+            events,
+            attributions,
+            filters={
+                "placement": placement,
+                "campaign_id": campaign_id,
+                "strategy_version": strategy_version,
+                "variant_id": variant_id,
+                "audience": audience,
+            },
+        )
+        return ApiResponse(data=RecommendationEffectivenessDTO(**report.__dict__), meta=_meta(request))
 
     @router.get(
         "/members",
@@ -234,6 +447,132 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         return PaginatedResponse(data=data, pagination=pagination, meta=_meta(request))
 
     @router.get(
+        "/campaigns",
+        tags=["v1-campaigns"],
+        operation_id="v1_list_campaigns",
+        response_model=ApiResponse[list[CampaignSnapshotDTO]],
+    )
+    async def campaigns(request: Request) -> ApiResponse[list[CampaignSnapshotDTO]]:
+        scope = _scope(request, "campaigns.read")
+        rows = await asyncio.to_thread(list_campaigns, scope)
+        return ApiResponse(data=[_campaign_dto(row) for row in rows], meta=_meta(request))
+
+    @router.get(
+        "/campaigns/{campaign_id}",
+        tags=["v1-campaigns"],
+        operation_id="v1_get_campaign",
+        response_model=ApiResponse[CampaignSnapshotDTO],
+    )
+    async def campaign_detail(request: Request, campaign_id: str) -> ApiResponse[CampaignSnapshotDTO]:
+        scope = _scope(request, "campaigns.read")
+        row = await asyncio.to_thread(get_campaign, campaign_id, scope)
+        if row is None:
+            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"})
+        return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
+
+    @router.post(
+        "/campaigns/preview",
+        tags=["v1-campaigns"],
+        operation_id="v1_preview_campaign",
+        response_model=ApiResponse[CampaignPreviewDTO],
+    )
+    async def campaign_preview(request: Request, body: CampaignPreviewRequest) -> ApiResponse[CampaignPreviewDTO]:
+        scope = _scope(request, "campaigns.read")
+        payload = body.model_dump(exclude={"campaign_id"})
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        result = await asyncio.to_thread(
+            preview_campaign,
+            payload,
+            scope,
+            exclude_campaign_id=body.campaign_id,
+            catalog_items=catalog_items,
+        )
+        return ApiResponse(data=CampaignPreviewDTO(**result.__dict__), meta=_meta(request))
+
+    @router.post(
+        "/campaigns",
+        tags=["v1-campaigns"],
+        operation_id="v1_create_campaign_draft",
+        response_model=ApiResponse[CampaignSnapshotDTO],
+    )
+    async def create_campaign(request: Request, body: CampaignDraftRequest) -> ApiResponse[CampaignSnapshotDTO]:
+        scope = _scope(request, "campaigns.write")
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        try:
+            row = await asyncio.to_thread(
+                create_campaign_draft,
+                body.model_dump(),
+                scope,
+                actor_id=_campaign_actor(request),
+                catalog_items=catalog_items,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+        return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
+
+    @router.put(
+        "/campaigns/{campaign_id}/draft",
+        tags=["v1-campaigns"],
+        operation_id="v1_revise_campaign_draft",
+        response_model=ApiResponse[CampaignSnapshotDTO],
+    )
+    async def revise_campaign(
+        request: Request,
+        campaign_id: str,
+        body: CampaignDraftUpdateRequest,
+    ) -> ApiResponse[CampaignSnapshotDTO]:
+        scope = _scope(request, "campaigns.write")
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        try:
+            row = await asyncio.to_thread(
+                revise_campaign_draft,
+                campaign_id,
+                body.model_dump(exclude={"expected_version"}),
+                scope,
+                expected_version=body.expected_version,
+                actor_id=_campaign_actor(request),
+                catalog_items=catalog_items,
+            )
+        except CampaignConflictError as exc:
+            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+        except CampaignStateError as exc:
+            raise HTTPException(status_code=409, detail={"code": str(exc), "message": "目前活動狀態無法修改。"}) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+        return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
+
+    @router.post(
+        "/campaigns/{campaign_id}/transition",
+        tags=["v1-campaigns"],
+        operation_id="v1_transition_campaign",
+        response_model=ApiResponse[CampaignSnapshotDTO],
+    )
+    async def campaign_transition(
+        request: Request,
+        campaign_id: str,
+        body: CampaignTransitionRequest,
+    ) -> ApiResponse[CampaignSnapshotDTO]:
+        scope = _scope(request, "campaigns.publish")
+        try:
+            row = await asyncio.to_thread(
+                transition_campaign,
+                campaign_id,
+                body.target_status,
+                scope,
+                expected_version=body.expected_version,
+                actor_id=_campaign_actor(request),
+            )
+        except CampaignConflictError as exc:
+            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+        except CampaignStateError as exc:
+            raise HTTPException(status_code=409, detail={"code": "campaign_transition_not_allowed", "message": "目前狀態不能執行此操作。"}) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+        return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
+
+    @router.get(
         "/promotions",
         tags=["v1-promotions"],
         operation_id="v1_list_promotions",
@@ -266,15 +605,22 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         request: Request, page: Page = 1, page_size: PageSize = 25
     ) -> PaginatedResponse[RecommendationEventDTO]:
         scope = _scope(request, "recommendations.read")
-        records = await asyncio.to_thread(
-            recommendation_event_repository.get_recommendation_events_scoped, scope, "", 5000
-        )
+        records = await asyncio.to_thread(list_recommendation_events, scope, limit=5000)
         mapped = [
             RecommendationEventDTO(
                 event_id=str(row.get("event_id") or row.get("id") or ""),
                 event_type=str(row.get("event_type") or ""),
                 session_id=str(row.get("session_id") or ""),
                 item_id=str(row.get("item_id") or ""),
+                item_name=str(row.get("item_name") or ""),
+                surface=str(row.get("surface") or ""),
+                source=str(row.get("source") or ""),
+                audience=str(row.get("audience") or ("member" if row.get("is_member") else "guest")),
+                offer_ids=[str(value) for value in (row.get("offer_ids") or [])],
+                reasons=[str(value) for value in (row.get("reasons") or [])],
+                experiment_id=str(row.get("experiment_id") or (row.get("metadata") or {}).get("experiment_id") or ""),
+                variant_id=str(row.get("variant_id") or (row.get("metadata") or {}).get("variant_id") or ""),
+                strategy=str(row.get("strategy") or (row.get("metadata") or {}).get("strategy") or ""),
                 timestamp=_optional_datetime(row.get("timestamp")),
             )
             for row in records

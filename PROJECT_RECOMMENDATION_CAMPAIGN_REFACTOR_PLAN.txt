@@ -1,0 +1,1333 @@
+Project_2026 推薦成效、曝光與活動管理整合重構規劃
+========================================================
+
+文件狀態：實作基準（Loop 1–22 已完成；Loop 23 僅保留仍有 caller／觀察期需求的相容層）
+盤點日期：2026-07-14
+適用範圍：UI_API Backend、Kiosk、Admin、PostgreSQL migration、相關測試
+部署前提：單店本地端／LAN local pilot；目前 NOT_READY，Payment／POS 仍為 manual adapter
+
+
+0. 本文件要解決的問題
+----------------------
+
+這份文件把以下需求收斂成一個可以逐輪實作、逐輪驗證的計畫：
+
+1. 說清楚專案目前做到哪裡，哪些只是基礎建設，哪些已能支持實際門市流程。
+2. 重新設計「推薦成效」：不再只看事件數，而能回答推薦是否增加購買、營收與客單。
+3. 整合推薦與曝光：每一次真正顯示、點擊、加購、成交都能連回同一次推薦決策。
+4. 重構活動管理：讓不懂程式邏輯的一般員工也能建立、預覽、排程、啟用與暫停活動。
+5. 讓同一活動的優惠規則同步反映在菜單、品項詳情、推薦、Banner、購物車、結帳與訂單紀錄。
+6. 所有一般員工可見文字使用繁體中文；不得把函式名、事件代碼、英文 enum 或內部欄位直接顯示給員工。
+7. 將工作拆成小型 Loop，每輪只處理一個可驗證目標，避免一次性大改。
+
+此段為 2026-07-14 初始盤點快照；後續實作結果請以第 13 節的 Loop 執行紀錄為準。
+
+
+1. 結論摘要
+-----------
+
+1.1 目前專案進度判定
+
+整體判定：已具備「local pilot 技術基礎」，但推薦成效與活動整合尚未達到可做營運決策的程度。
+
+已具備：
+
+- Kiosk 有菜單、購物車、會員、推薦、活動 Banner、語音、結帳等主流程。
+- Admin 有登入／RBAC、設定、推薦事件、活動、供應、RAG、會員與健康檢查。
+- Backend 有 commercial scope、PostgreSQL 商用路徑、訂單快照、活動使用快照、outbox、worker 與 analytics sink。
+- 推薦已蒐集曝光、點擊、加購、成交、忽略等事件，也有簡單的固定分流實驗。
+- 活動已有結構化欄位、有效期間、會員條件、品項／分類、固定優惠價與 Banner 呈現。
+- Migration 已到 0011，具備 recommendation／promotion governance 與 analytics 的資料表基礎。
+- Backend 約有 67 個 test modules；Frontend 目前只有 6 個 test/spec files，前端行為覆蓋明顯較薄。
+
+尚未具備：
+
+- 菜單與所有顧客接觸點沒有共用同一個「有效售價投影」，一般菜單仍顯示原價。
+- 活動只有單一 surface 欄位，同一活動不能明確設定多個呈現位置。
+- 活動 Banner 的實際曝光與點擊未進入統一成效鏈路。
+- 推薦事件沒有可靠連結到 order_id／order_item_id／實際營收／折扣金額。
+- Admin 顯示的是最近 N 筆事件的前端即時計算，不是可重現、可比較的期間報表。
+- 沒有可信的 control baseline、增量轉換率、增量營收、客單提升或資料完整度警示。
+- recommendation governance、analytics sink、既有 recommendation events 目前是多套平行機制，尚未形成單一 runtime 路徑。
+- 活動管理表單暴露 Offer ID、surface、target_value、theme、score boost、timezone 等技術概念。
+- Admin 雖由 server 強制 RBAC，前端沒有依登入者權限隱藏一般員工不需要的進階頁面。
+- typed /api/v1 promotion contract 過薄，無法完整表達目前活動資料；Admin 仍直接使用 legacy raw fetch。
+
+1.2 最優先的產品原則
+
+優先順序必須是：價格一致性 > 成效資料可信度 > 活動操作體驗 > 推薦演算法調權重。
+
+原因：目前最大的風險不是推薦分數不夠聰明，而是顧客在不同畫面看到不同價格，以及營運人員無法判斷成效數字是否真的代表增量效果。在價格與事件鏈路完成前，不應用新的圖表包裝舊資料，也不應宣稱推薦有效。
+
+
+2. 現況架構與能力盤點
+---------------------
+
+2.1 專案層級
+
+現況：Transitional Modular Monolith。
+
+目前主要呼叫路徑：
+
+  Route -> Service -> Repository -> JSON / PostgreSQL
+
+目標路徑：
+
+  Route -> modules/<domain>/application.py -> Domain / Port -> Adapter
+
+具體證據：
+
+- App 入口：UI_API/main.py -> backend/app_factory.py -> backend/api/router.py -> backend/api/route_registry.py。
+- backend/bootstrap/module_registry.py 已列出 identity、catalog、ordering、promotion、recommendation、analytics 等候選模組。
+- backend/modules/ 目前實際只有 identity；其他候選模組尚未建立可用的 Application Interface。
+- backend/routes/v1_routes.py 已有 typed read/write endpoints，但仍直接呼叫多個 service／repository。
+- Admin 的 admin.js 仍約 2,226 行，並有大量 raw fetch 與 inline event wiring；只有 auth、settings、availability、health、recommendation events 局部拆出。
+
+判定：模組化方向清楚，但完成度仍屬早期。這次應利用 promotion、recommendation、analytics 三個既定候選 seam 漸進切換，不新增 microservice 或跨程序 HTTP。
+
+2.2 活動資料流現況
+
+活動建立：
+
+  Admin admin.html/admin.js
+    -> /api/rag/promotions
+    -> promotion_service
+    -> promotion_repository
+    -> development/test: rag_documents/promotions/*.json
+       pilot/staging/production: promotion_records.payload JSONB
+
+活動消費目前分成三條：
+
+  A. Banner
+     promotion_banner_service
+       -> 依 surface、status、enabled、期間篩選
+       -> /api/promotions/pos-banner
+       -> Kiosk promoBannerController
+
+  B. 推薦／語音
+     rag_offer_service
+       -> recommendation_context_service
+       -> recommendation_engine_service
+       -> AI push / assist / voice
+
+  C. 結帳
+     checkout_pricing_service
+       -> 依 applied_offer_id 重新查活動
+       -> server-side validation / final pricing
+       -> order_items + order_promotion_usages snapshot
+
+這表示「資料來源有共用」，但「活動規則的判斷實作沒有共用」。有效狀態、期間、會員、購物車先決條件、目標品項與價格判斷分散在 promotion_service、promotion_banner_service、rag_offer_service、recommendation_engine_service、checkout_pricing_service 與 Kiosk app.js。
+
+2.3 推薦資料流現況
+
+推薦決策：
+
+  recommendation_context_service
+    -> menu / member preference / popular items / availability / RAG offers / recent feedback
+    -> recommendation_engine_service
+    -> weighted_random 或 ranked_top_score
+    -> ai_push_service / assist recommendation / voice
+
+事件回報：
+
+  Kiosk browser
+    -> /api/recommendation_events
+    -> recommendation_event_service
+    -> recommendation_event_repository
+    -> recommendation_events table 或 JSON compatibility file
+
+目前事件型別：
+
+- recommendation_generated（contract 已列出，但主要前端流程未形成完整使用）
+- recommendation_shown
+- recommendation_clicked
+- recommendation_added_to_cart
+- recommendation_removed_from_cart
+- recommendation_checked_out
+- recommendation_ignored
+
+目前 Admin：
+
+- 載入最近 200／500／1000 筆事件。
+- 在 browser 再次計算曝光、點擊、加購、成交、忽略。
+- 依 surface、source、offer、variant 做簡單事件數比較。
+- 顯示 click/add/checkout ÷ shown 的比率。
+
+2.4 訂單與分析基礎
+
+已存在的重要基礎：
+
+- orders：server authoritative 金額、狀態與 scope。
+- order_items：原價、選項、折扣、最終單價快照。
+- order_promotion_usages：活動、活動名稱、折扣金額與活動快照。
+- order_outcomes：checkout_success 與 recommendation_success 欄位。
+- order_outbox：order_confirmed／completed／cancelled durable events。
+- analytics_event_log：0011 建立的 durable analytics sink。
+- recommendation_assignments／strategy versions／governance events：0011 已建立資料表。
+
+目前缺口是這些基礎沒有被串成「推薦曝光 -> 商品 -> 訂單品項 -> 營收」的可查詢鏈路。
+
+
+3. 主要問題與風險分級
+---------------------
+
+P0：價格與優惠顯示不一致
+
+現況：
+
+- /api/menu 直接回傳 menu_repository 的原始菜單。
+- kioskMenuController 直接用 item.price 顯示一般菜單卡。
+- 只有從活動 Banner 或推薦 item.offers 進入時，Kiosk app.js 才在 browser 產生帶 applied_offer_id 的 cart item。
+- checkout_pricing_service 只在 client 已提交 applied_offer_id 時套用活動。
+
+結果：
+
+- 同一餐點可能在活動 Banner 顯示優惠價，但菜單卡、會員常點、品項詳情或其他入口仍顯示原價。
+- 顧客若從一般菜單加入，可能不會取得同一活動優惠。
+- Client 暫時改價、Server 最後重算的方向雖安全，但顧客體驗不一致，且容易產生客訴。
+
+P0 驗收方向：任何活動優惠只能由 server 的同一個 Pricing Quote 計算，所有畫面只顯示該 quote 的投影；checkout 再用相同 evaluator 驗證，不依賴 browser 決定是否有優惠。
+
+P0：活動規則在多處重複，語意已出現漂移
+
+具體例子：
+
+- Banner 會檢查 enabled；rag_offer_service 的 active 判斷沒有同樣的 enabled 判斷。
+- 推薦的 required_cart_item_ids 目前以 intersection 判斷；checkout 使用 subset，條件不完全相同。
+- 期間、timezone、status alias、target matching 在多個 service 各自解析。
+- Kiosk 又有一套 promotionTargetItem、promotionOfferFromBanner、required item 檢查。
+
+結果：同一活動可能「被推薦但結帳拒絕」、「Banner 可見但語音不可用」，或不同入口對 active 的解讀不同。
+
+P0：成效數字不能代表增量效果
+
+目前 checkout_rate = recommendation_checked_out 事件數 ÷ recommendation_shown 事件數。
+
+這只能回答事件漏斗比例，不能回答：
+
+- 沒有推薦時是否也會買。
+- 同一 session 多次曝光是否重複計算。
+- 推薦帶來多少實際營收與折扣成本。
+- control 與 treatment 是否在同一期間、同一受眾、同一入口可比較。
+- 樣本是否足夠，資料是否完整。
+
+此外事件沒有 order_id／order_item_id，無法可靠歸因到實際成交快照。
+
+P1：活動與曝光整合不完整
+
+- 活動只有一個 surface，不是多選 placements。
+- 購物車 Banner 若沒有資料，前端會隱性 fallback 到首頁 Banner，Admin 看不出這個實際行為。
+- promoBannerController 沒有形成活動 impression/click 的統一事件。
+- 由活動加入購物車雖可能產生 recommendation_added_to_cart，但前面沒有同一 recommendation_id／impression_id 的曝光鏈路。
+- promotion 尚與 rag.write permission 綁在一起，業務活動與 RAG 知識治理責任混雜。
+
+P1：推薦治理與 runtime 尚未合一
+
+- recommendation_experiment_service.assign 已在 AI push runtime 使用。
+- recommendation_governance_service 的 strategy version、assignment、data quality 主要由獨立測試覆蓋，沒有成為主要推薦 Application Interface。
+- 0011 的 recommendation_strategies、recommendation_governance_events 與 analytics_event_log 已存在，但推薦事件主路徑仍是舊 recommendation_events。
+
+結果：有治理資料表與測試，不代表實際每次推薦都使用已發布策略，也不代表 Admin 看到的是 governance sink 的資料。
+
+P1：Admin 不適合一般員工
+
+目前活動表單直接要求員工理解：
+
+- Offer ID
+- status 與 enabled 兩組重複狀態
+- surface、priority、rotation seconds
+- timezone 與 ISO datetime
+- item ID／CSV
+- target_type／target_value
+- gold／red／dark／simple
+- score boost／category score boost
+- RAG content
+
+一般員工真正想回答的是：
+
+- 這個活動叫什麼？
+- 誰可以用？
+- 什麼時候開始／結束？
+- 買什麼、要先買什麼、便宜多少？
+- 要顯示在哪些畫面？
+- 現在是否已生效？是否有衝突？
+- 實際效果如何？
+
+P1：Admin 中文化不完整
+
+目前仍可見 Session、Offer、Prompt、System Prompt、API、LLM、STT、TTS、Token、Base URL、Temperature、Runtime Logs、sample、theme enum 與 recommendation reason codes。部分內容是維運必要資訊，但不應出現在一般員工的主要工作流。
+
+P2：API 與前端維護性
+
+- Admin promotion 與 recommendation dashboard 仍使用 legacy raw fetch。
+- /api/v1 PromotionCreateRequest 只有 offer_id、title、enabled、metadata，無法建立現在 promotion_service 要求的完整活動；對非 Banner 活動甚至可能因缺少品項／分類而驗證失敗。
+- Backend 已計算 recommendation stats，但 Admin 忽略 response stats，在 browser 重算另一套。
+- 推薦詳細事件仍可整批刪除；對一般員工而言這是高風險且不必要的操作。
+
+
+4. 建議的統一領域語言
+---------------------
+
+以下詞彙先作為本計畫的 canonical language；實作第一輪需用 characterization tests 固定語意。
+
+活動（Campaign）
+  一個有營運目的、期間、受眾與生命週期的安排。活動本身不等於折扣，也不等於 Banner。
+  避免：用 promotion、offer、RAG 文件混稱整個活動。
+
+優惠規則（Promotion Rule）
+  活動提供的價格或購買利益，以及取得利益必須符合的條件。
+  例：會員購買主餐後，可用 30 元加購薯條。
+
+適用條件（Eligibility）
+  活動是否適用於目前門市、時間、會員、品項與購物車狀態的判斷。
+
+呈現位置（Placement）
+  活動或推薦可被顧客看見的位置，例如菜單卡、品項詳情、首頁 Banner、購物車 Banner、AI 推薦卡、語音回答。
+  避免：讓員工直接操作 surface enum。
+
+活動素材（Creative）
+  某一呈現位置使用的標題、說明、按鈕文字、主題與法規備註。素材不承擔價格規則。
+
+有效售價（Effective Price）
+  Server 依目前 context 與活動規則計算後，顧客現在應看到與可支付的價格。
+
+價格試算（Pricing Quote）
+  某一時間點、會員、購物車與活動版本下的 server authoritative 金額結果，包含原價、折扣、最終價與原因。
+
+推薦決策（Recommendation Decision）
+  推薦模組針對一次機會產生的排序結果，具有 decision_id、策略版本與實驗版本。
+
+曝光（Impression）
+  推薦或活動素材真的進入顧客可視區，而不是只有後端產生。Web 建議門檻為至少 50% 可見且持續 1 秒；短暫 render 不算。
+  避免：把 recommendation_generated 或 API response 直接稱為曝光。
+
+互動（Engagement）
+  顧客對一筆曝光進行點擊、展開、加購、移除等操作，必須保留 impression_id。
+
+歸因（Attribution）
+  依固定規則，把訂單品項的成交連回先前的推薦／活動觸點。歸因不等於因果增量。
+
+增量效果（Incremental Lift）
+  Treatment 相對於可比較 control 的差異；只有歸因營收不能直接稱為增量營收。
+
+
+5. 目標架構
+-----------
+
+5.1 設計原則
+
+- 保持 modular monolith，不引入微服務、Kafka 或 cloud-first infrastructure。
+- 建立三個深 Module；讓複雜度藏在小 Interface 後，不讓 Route／Frontend 重做規則。
+- JSON 只保留 development/test compatibility；pilot/staging/production 使用 PostgreSQL 並 fail closed。
+- 新 typed /api/v1 漸進承接，legacy API 先相容、再切 caller、最後移除，不做 Big Bang。
+- AI、RAG、語音失敗不得影響菜單、價格、活動 eligibility 或 checkout。
+
+5.2 Promotion Module
+
+建議 seam：UI_API/backend/modules/promotion/application.py
+
+對外 Interface 建議只提供：
+
+- save_draft(command) -> CampaignDraft
+- preview(command, context) -> CampaignPreview
+- publish(campaign_id, expected_version, actor) -> PublishedCampaign
+- pause(campaign_id, actor) -> Campaign
+- list_campaigns(query) -> CampaignPage
+- resolve_offers(context) -> EligibleOfferSet
+- quote_catalog(items, context) -> MenuPriceProjection
+- quote_cart(cart, context) -> PricingQuote
+
+Implementation 內部統一：
+
+- status／enabled／期間／timezone。
+- member、store、item、category、required cart eligibility。
+- 固定價與未來其他折扣型別。
+- 衝突、互斥、疊加與最佳優惠選擇。
+- multi-placement 與各 placement creative。
+- version snapshot、publish、pause、archive、audit。
+
+既有 promotion_service 在 callers 尚未切完前只當 compatibility shim，不再新增規則。
+
+5.3 Recommendation Module
+
+建議 seam：UI_API/backend/modules/recommendation/application.py
+
+對外 Interface：
+
+- decide(RecommendationRequest) -> RecommendationDecision
+- record_feedback(RecommendationFeedback) -> None
+- get_strategy_status(scope) -> StrategyStatusView
+
+RecommendationDecision 至少包含：
+
+- decision_id
+- request/session opaque ref
+- placement
+- strategy_id + strategy_version
+- experiment_id + variant_id
+- generated_at
+- ordered items：item_id、rank、score、中文 reason label key、eligible offer references、PriceProjection
+- fallback_status 與 model_status
+
+推薦模組只使用 Promotion Application 的公開 resolve_offers／price projection，不讀 promotion repository 或 RAG 文件。
+
+5.4 Analytics / Measurement Module
+
+建議 seam：UI_API/backend/modules/analytics/application.py
+
+對外 Interface：
+
+- record_touch(TouchEvent) -> EventReceipt
+- attribute_order(order_id) -> AttributionResult
+- effectiveness(query) -> EffectivenessReport
+- quality_report(query) -> MeasurementQualityReport
+
+TouchEvent 統一承接 recommendation 與 campaign：
+
+- decision_generated
+- impression
+- click
+- add_to_cart
+- remove_from_cart
+- checkout
+- purchase
+- dismiss
+
+必要欄位：
+
+- event_id（冪等）
+- schema_version
+- content_type：recommendation / campaign
+- decision_id
+- impression_id
+- campaign_id + campaign_version（可空）
+- strategy_id + strategy_version（可空）
+- experiment_id + variant_id（可空）
+- tenant/store/device scope
+- opaque session ref，不存原始 PII
+- placement
+- item_id + rank
+- order_id + order_item_id（成交時）
+- occurred_at TIMESTAMPTZ + received_at
+- price snapshot / discount snapshot（成交事件）
+- quality flags
+
+PostgreSQL adapter 是 pilot 商用實作，JSON／memory adapter 只供 development/test。分析聚合必須在 Backend 完成，Admin 不再從最後 N 筆事件自行推算全局成效。
+
+5.5 Catalog / Ordering 的價格整合
+
+目標請求路徑：
+
+  Kiosk menu request
+    -> Catalog Application
+    -> Promotion Application.quote_catalog
+    -> MenuItemView[]
+
+  Kiosk cart change
+    -> Ordering / Promotion Application.quote_cart
+    -> PricingQuote
+    -> Kiosk render
+
+  Checkout
+    -> 同一 quote evaluator 再驗證
+    -> Order + Item + Promotion snapshots
+
+MenuItemView 建議欄位：
+
+- item_id、name、category、image、availability
+- base_price
+- effective_price
+- savings_amount
+- price_display_state：regular / discounted / conditional
+- applied_offer_summary（可空）
+- conditional_offer_summaries（例如「購買主餐可 30 元加購」）
+- quote_version / priced_at
+
+Browser 不再修改 item.price 來模擬優惠，也不自行決定哪一個活動有效。
+
+
+6. 活動資料模型與生命週期
+-------------------------
+
+6.1 建議 Aggregate
+
+Campaign：
+
+- campaign_id：系統自動產生，員工不必手動輸入。
+- name：員工可理解的活動名稱。
+- objective：提升指定品項、增加加購、提升客單、會員回購、清理庫存。
+- audience：所有顧客／會員／其他未來 segment。
+- schedule：門市時區內的日期時間。
+- status：draft / review / scheduled / active / paused / ended / archived。
+- promotion_rules[]：優惠條件與利益。
+- placements[]：多個顯示位置。
+- creatives{}：各位置素材。
+- recommendation_policy：由營運目的映射的 preset；一般員工不直接輸入權重。
+- version、created_by、reviewed_by、published_by、timestamps。
+
+6.2 生命週期中文顯示
+
+- draft：草稿
+- review：待確認
+- scheduled：已排程
+- active：進行中
+- paused：已暫停
+- ended：已結束
+- archived：已封存
+
+移除目前 status + enabled 的雙重控制。狀態轉移由 server 驗證：
+
+  草稿 -> 待確認 -> 已排程／進行中 -> 已暫停／已結束 -> 已封存
+
+已發布版本不可原地覆寫；修改產生新版本。已開始活動不可硬刪除，只能暫停、結束或封存，以保留訂單快照與報表可追溯性。
+
+6.3 第一階段支援的優惠型別
+
+為降低風險，第一階段只完整做好兩種：
+
+1. 指定品項固定優惠價。
+2. 滿足購物車先決條件後的指定品項加購價。
+
+第二階段再加入：
+
+- 指定品項百分比折扣。
+- 滿額折抵。
+- 套餐組合固定價。
+- 買 X 送 Y／第 N 件折扣。
+
+每增加一種 rule，必須同時新增 domain tests、catalog projection tests、cart quote tests、checkout tests、conflict tests 與 Admin preview；不得只改前端文案。
+
+6.4 優惠衝突規則
+
+預設 stackable = false。當多個活動同時適用：
+
+1. 先排除未發布、過期、門市不符、會員不符、供應不足者。
+2. 計算每個候選對目前購物車的實際最終金額。
+3. 預設選顧客最有利的有效價格。
+4. 金額相同時以明確 business priority 決定。
+5. priority 相同時以 campaign_id 穩定排序，避免每次結果不同。
+6. 若業務允許疊加，必須放入明確 exclusivity_group 與疊加順序，不能由陣列順序決定。
+
+Admin 預覽必須以中文列出「與哪個活動衝突、最後採用哪一個、原因是什麼」。
+
+6.5 資料庫策略
+
+不得改寫 0001–0011。新增 forward migration（暫定 0012）時採 expand-first：
+
+- 優先復用 0011 promotion_rule_versions 作為 immutable version store。
+- promotion_records 暫作目前活動 projection 與 legacy compatibility。
+- 增加 campaign header／published_version／actor／lifecycle 所需欄位或新表。
+- 增加統一 commercial touch event 與必要索引；不要只把所有查詢欄位藏在 JSONB。
+- 增加 order item attribution table，或為 order item 建立可查詢的 attribution reference。
+- 舊 recommendation_events 先保留相容讀，建立 backfill／dual-read checkpoint，caller cutover 後才另案清理。
+
+實際 schema 在 Loop 開始前需做一次 ADR，因為這是難回復且會影響報表的決策。本文件不先假設 0012 的最終 table 名稱。
+
+
+7. 推薦與曝光成效系統重設計
+---------------------------
+
+7.1 事件鏈路
+
+一次推薦必須能形成以下鏈路：
+
+  Opportunity
+    -> Decision(decision_id)
+    -> Impression(impression_id, decision_id)
+    -> Click(impression_id)
+    -> AddToCart(impression_id)
+    -> Purchase(order_id, order_item_id, impression_id)
+
+活動 Banner 形成相同鏈路，只是 content_type = campaign，decision_id 可由 placement decision 產生。
+
+「後端有產生候選」不算曝光。「DOM 已 render 但顧客看不到」也不算曝光。Kiosk 以 IntersectionObserver 加最短可視時間記錄一次 impression；同一 impression_id 重送由 server 冪等去重。
+
+7.2 歸因規則
+
+初版採透明且容易解釋的規則：
+
+- Scope：同一 tenant/store/device/session。
+- Window：同一點餐 session，且事件發生在訂單確認前。
+- Direct attribution：顧客點擊／加購後購買同一 item。
+- View-through attribution：有曝光但未點擊，之後購買同一 item；報表與 direct 分開顯示。
+- 多觸點：優先最後一次 direct touch；沒有 direct 才用最後一次 impression。
+- 同一訂單品項只歸因一次，避免不同推薦入口重複計算營收。
+- 活動與推薦可同時有 assisted credit，但「唯一歸因營收」只能有一個 primary attribution。
+- 取消訂單不得保留成交；completed／paid 的正式營收需與 local pilot 的實際訂單狀態能力一致。
+
+7.3 成效指標定義
+
+資料品質（永遠先顯示）：
+
+- 曝光鏈路完整率 = 有合法 decision_id 的 impressions / all impressions。
+- 成交連結率 = 可連到 order item 的 purchase events / purchase events。
+- 重複事件率。
+- 未知 placement／strategy／campaign version 比例。
+- Client event 延遲與遺失率。
+
+漏斗：
+
+- 推薦機會數：符合呈現條件的 unique opportunities。
+- 決策數：成功產生 decision 的 unique opportunities。
+- 實際曝光數：unique impressions。
+- 點擊率 = 有 click 的 unique impressions / unique impressions。
+- 加購率 = 有 add_to_cart 的 unique impressions / unique impressions。
+- 購買率 = 有 attributed purchase 的 unique impressions / unique impressions。
+- Session 推薦轉換率 = 有 attributed purchase 的 exposed sessions / exposed sessions。
+
+商業結果：
+
+- 推薦歸因訂單數。
+- 推薦歸因品項數。
+- 推薦歸因營收 = attributed order item final revenue。
+- 活動折扣支出 = order_promotion_usages.discount_amount。
+- 曝光組平均客單與 control 組平均客單。
+- 客單差異 = treatment AOV - control AOV。
+- 轉換差異 = treatment conversion - control conversion。
+- 相對提升 = (treatment - control) / control；control 為 0 時顯示「無法計算」，不得顯示無限大。
+- 淨營收觀察值 = 歸因營收 - 折扣金額；沒有商品成本前不得稱為利潤或 ROI。
+
+保護指標：
+
+- 推薦 fallback rate／AI provider failure rate。
+- 無庫存品項曝光率。
+- 活動結帳拒絕率。
+- 推薦後移除率。
+- checkout latency 與 failure rate。
+- 取消率。
+
+7.4 實驗設計
+
+目前 control=weighted_random、ranked=ranked_top_score 可以比較策略，但不是完整「有推薦 vs 無推薦」增量試驗。
+
+建議保留兩類實驗：
+
+1. 策略品質實驗：相同 placement，比較熱門基準、加權隨機、個人化排序。
+2. 產品增量實驗：control 不顯示該推薦 placement，treatment 顯示；用來估計推薦 UI 本身的增量。
+
+必要規則：
+
+- 以 opaque session key 做 deterministic assignment。
+- assignment 要落 durable store，不能只依 runtime config 推導後失去版本歷史。
+- 事件必帶 strategy version 與 variant。
+- control／treatment 使用相同期間與 eligibility。
+- Admin 顯示每組樣本數與資料完整度。
+- Local pilot 樣本小時只顯示「觀察差異」，不得顯示「已證明有效」。
+- 顯著性／信賴區間可在資料品質穩定後加入，不應先用複雜統計掩蓋資料缺口。
+
+7.5 新 Admin 成效頁
+
+第一屏回答四個問題：
+
+1. 推薦有多少人真的看見？
+2. 看見後有多少人加購與完成購買？
+3. 推薦／活動帶來多少歸因營收與折扣？
+4. 相對於比較組，轉換與客單差多少？
+
+建議結構：
+
+- 期間：今天、昨天、近 7 天、近 30 天、自訂。
+- 比較：前一期間、control 組。
+- 篩選：門市、呈現位置、活動、推薦策略、會員／訪客。
+- KPI：實際曝光、加購率、購買率、歸因營收、平均客單差異、資料完整度。
+- 漏斗：決策 -> 曝光 -> 點擊 -> 加購 -> 購買；每段同時顯示數字與流失率。
+- 成效排行：用 horizontal bar 比較活動／呈現位置／策略，最多 15 筆，附可排序表格。
+- 活動詳情：顯示優惠使用、折扣支出、direct／view-through、各 placement 成效。
+- 技術事件：收在「進階資料檢查」，不作一般員工首頁。
+- 圖表必有文字表格替代，不只用顏色表達結果。
+
+
+8. 活動管理 Admin UX 重構
+-------------------------
+
+8.1 導覽分層
+
+一般員工預設只看到：
+
+- 今日營運
+- 菜單與供應
+- 活動優惠
+- 推薦成效
+- 會員
+
+主管／系統維護權限才看到：
+
+- 系統維護
+- AI 與語音設定
+- 知識庫管理
+- 健康與記錄
+- 測試工具
+
+Frontend 讀取 /api/admin/auth/me 回傳的 permissions，做 discoverability 控制；Server RBAC 仍是唯一安全邊界。前端隱藏不能取代 server authorization。
+
+8.2 活動清單首頁
+
+不要一進頁就顯示長表單。首頁先顯示：
+
+- 進行中、已排程、草稿、已結束數量。
+- 今天有影響的活動。
+- 搜尋與狀態篩選。
+- 每張活動卡：名稱、日期、受眾、優惠摘要、呈現位置、生效狀態、衝突／錯誤。
+- 主要按鈕：「建立活動」。
+- 次要動作：「查看」、「複製」、「暫停」、「結束」。
+- 已發布活動不顯示「刪除」；改為封存，破壞性操作二次確認並有 audit。
+
+8.3 建立活動精靈
+
+Step 1 基本資料
+
+- 活動名稱。
+- 活動目標（提升指定品項／增加加購／提高客單／會員回購／清理庫存）。
+- 顧客範圍（所有顧客／會員）。
+- 開始與結束，使用 date/time picker；門市固定 Asia/Taipei 時不顯示 timezone input。
+- 系統自動產生 internal ID。
+
+Step 2 設定優惠
+
+- 選擇「指定餐點特價」或「搭配餐點加購價」。
+- 使用可搜尋的中文品項 picker 與 chips，不輸入 CSV／品項 ID。
+- 顯示原價並輸入優惠價；系統自動計算現省金額與折扣比例。
+- 搭配價用「顧客購物車需要先有」的中文選擇器。
+- 即時檢查優惠價不可高於原價、品項存在、活動期間與供應時段。
+
+Step 3 選擇顯示位置
+
+- 菜單餐點卡。
+- 餐點詳細資料。
+- Kiosk 首頁活動區。
+- 購物車活動區。
+- AI 推薦。
+- 語音優惠回答。
+
+使用多選 checkbox，而不是單一 surface select。每個位置可設定是否啟用及其素材；預設依活動目標給安全 preset。
+
+Step 4 文案與預覽
+
+- 活動標籤、標題、短說明、按鈕文字、注意事項。
+- theme 顯示為「金色醒目」、「紅色促銷」、「深色質感」、「簡潔」並提供縮圖，不顯示 gold/red/dark/simple。
+- 同頁預覽菜單卡、Banner、推薦卡、購物車與結帳摘要。
+- 預覽價格必由 Backend preview endpoint 計算，不由 browser 猜測。
+
+Step 5 檢查並發布
+
+- 中文摘要：對誰、何時、買什麼、便宜多少、顯示在哪。
+- 衝突檢查：重疊活動、供應狀態、會員限制、先決品項、價格錯誤。
+- 顯示「發布後會影響 6 個顧客畫面」等明確 impact summary。
+- 按鈕：「儲存草稿」、「送出確認／發布」。
+- 儲存時按鈕 disabled + loading，成功後明確回饋；欄位錯誤顯示在欄位旁並聚焦第一個錯誤。
+
+8.4 員工防呆
+
+- 長表單自動儲存草稿。
+- 關閉未儲存表單前確認。
+- 日期與價格 on blur 驗證，不等送出後才顯示所有錯誤。
+- 發布前提供「用測試購物車試算」。
+- 活動開始後若商品售罄，列表顯示警告，可一鍵暫停該 placement 或活動。
+- 發布失敗要說明原因與修正方法，不只顯示 HTTP 422。
+- 主要操作每頁只保留一個 primary CTA。
+- 點擊區至少 44x44px、完整鍵盤操作、visible focus、顏色以外另有文字／icon。
+
+
+9. 全面中文化策略
+-----------------
+
+9.1 原則
+
+- 一般員工看到的是業務概念，不是 machine value。
+- 程式內部 enum／permission／event 名稱保持穩定英文，不把中文當資料庫 key。
+- Frontend 以集中 label catalog 映射；未知值顯示「未知項目」，技術代碼只在可展開的進階資訊顯示。
+- Kiosk 可保留顧客主動切換英文的能力，但任何語言都不得直接顯示函式名或未翻譯 enum。
+- Admin 預設與主要流程必須完整繁體中文。
+
+9.2 必須優先替換的可見文字
+
+- Admin -> 管理後台
+- Session -> 點餐工作階段；表格可簡化為「點餐編號」
+- Offer -> 優惠活動／優惠方案
+- Prompt -> AI 指令內容（只在進階設定）
+- System Prompt -> 系統指令內容
+- Runtime Logs -> 執行記錄
+- sample -> 抽樣筆數
+- API / Base URL / Token / Temperature -> 收到「進階連線設定」，並加中文說明
+- STT -> 語音辨識
+- TTS -> 語音合成
+- LLM -> AI 文字模型
+- target_type / target_value -> 點擊後前往的位置
+- score boost -> 推薦優先程度；一般員工改用低／標準／高 preset，最好由活動目標自動決定
+- member / guest -> 會員／一般顧客
+- unknown -> 未知
+- reason codes：
+  member_usual -> 會員常點
+  member_recent -> 最近點過
+  member_category -> 符合偏好分類
+  member_pairing -> 常見搭配
+  global_popular -> 熱門餐點
+  priority_category -> 門市主打分類
+  member_offer -> 會員優惠
+  rag_offer -> 符合活動優惠
+  rag_category_offer -> 符合分類優惠
+  recently_ignored -> 最近略過
+  low_stock -> 庫存偏低
+  menu_available -> 目前可供應
+  local_fallback -> 本機備援推薦
+
+9.3 中文化驗收
+
+- 建立一份 employee-visible string allowlist / machine-label mapping test。
+- Admin E2E 掃描主要頁面，不得出現已知 raw enums 與 function-like identifiers。
+- Unknown enum 不可直接 fallback 顯示原字串。
+- 日期、金額、百分比使用 zh-TW locale formatting。
+- 技術人員仍可在進階診斷複製原始代碼，但必須有中文標籤與權限限制。
+
+
+10. API 更新與相容策略
+--------------------
+
+10.1 建議 typed endpoints
+
+- GET  /api/v1/campaigns
+- POST /api/v1/campaigns/drafts
+- GET  /api/v1/campaigns/{id}
+- PUT  /api/v1/campaigns/{id}/draft
+- POST /api/v1/campaigns/{id}/preview
+- POST /api/v1/campaigns/{id}/publish
+- POST /api/v1/campaigns/{id}/pause
+- POST /api/v1/campaigns/{id}/archive
+- GET  /api/v1/kiosk/menu-view?session_ref=...
+- POST /api/v1/cart/quote
+- POST /api/v1/commercial-touch-events
+- GET  /api/v1/effectiveness/recommendations
+- GET  /api/v1/effectiveness/campaigns
+- GET  /api/v1/effectiveness/data-quality
+
+實際 endpoint 命名可在 Loop 的 contract review 微調，但 response 必須 typed、scoped、有 request ID、safe error 與 pagination／time range。
+
+10.2 Legacy 相容
+
+- /api/rag/promotions 暫時由 Promotion Application adapter 提供相同形狀。
+- /api/promotions/pos-banner 暫時由 placements projection 產生。
+- /api/menu 在 Kiosk 切換前保持現有欄位，若新增價格欄位只能 additive。
+- /api/recommendation_events 暫時接受舊 event，server 轉成新 TouchEvent 並標 quality flag。
+- Admin 新模組先切 typed client；caller 全部切完並有 architecture test 後，才移除 legacy allowlist。
+
+10.3 權限
+
+新增業務導向 permission machine names（實際名稱於安全 Loop 決定）：
+
+- campaigns.read
+- campaigns.write
+- campaigns.publish
+- effectiveness.read
+
+一般員工不可取得 settings.write、rag.write、system.debug。所有 campaign mutation 需記錄 actor、scope、前後版本與 audit event。
+
+
+11. 分階段 Loop 實作計畫
+----------------------
+
+共通規則：
+
+- 每輪開始先 git status --short，保留使用者修改。
+- 每輪只有一個 objective，預計不超過約 6 個 source files；超過就拆 checkpoint。
+- 先補 characterization／regression test，再做最小 patch。
+- 先 target check，再依影響擴大。
+- 每輪結尾執行 git diff --check、git diff --stat 並讀實際 diff。
+- 未執行的整合測試明確標 NOT RUN。
+- API、migration、安全、資料語意改變時保留 compatibility／roll-forward 說明。
+
+Phase A：先固定規則與價格一致性
+
+Loop 1 — 活動規則 Characterization
+
+Goal：以測試固定目前 active、期間、會員、品項、分類、required cart、固定價格與錯誤案例。
+主要範圍：
+
+- tests/test_promotion_service.py
+- tests/test_promotion_banner_service.py
+- 新增 tests/test_checkout_promotion_pricing.py
+- tests/test_recommendation_engine_service.py
+
+Acceptance：同一案例在 Banner、推薦 eligibility 與 checkout 的期望被明確寫出；補上 enabled drift、required items 多筆、一般菜單未帶 applied_offer_id 等 regression case。
+Verification：pytest -q 上述 target tests。
+
+Loop 2 — Promotion Application 最小 Interface
+
+Goal：建立單一 eligibility evaluator，不先改 public API。
+主要範圍：
+
+- backend/modules/promotion/application.py
+- backend/modules/promotion/contracts.py（只有真實 typed contract，不建空殼）
+- backend/modules/promotion/__init__.py
+- backend/services/promotion_service.py compatibility shim
+- tests/test_promotion_application.py
+
+Acceptance：期間、status、enabled、member、scope、item/category、required cart 只由 Application Interface 判斷；JSON/Postgres I/O 仍在 adapter/repository。
+Verification：target pytest + tests/architecture/test_module_boundaries.py。
+
+Loop 3 — Banner 與推薦共用 Eligibility
+
+Goal：切換 promotion_banner_service 與 rag_offer_service，不再各自解析 active 規則。
+主要範圍：
+
+- backend/services/promotion_banner_service.py
+- backend/services/rag_offer_service.py
+- backend/modules/promotion/application.py
+- 對應兩個 test files
+
+Acceptance：同一 context 得到一致結果；enabled=false 不進推薦；多個 required item 必須全部符合。
+Verification：test_promotion_banner_service.py、test_rag_offer_service.py、test_recommendation_engine_service.py。
+
+Loop 4 — Checkout 共用 Promotion Quote
+
+Goal：checkout pricing 改用同一 evaluator，client offer ID 只作選擇提示，不作優惠權威。
+主要範圍：
+
+- backend/services/checkout_pricing_service.py
+- backend/modules/promotion/application.py
+- tests/test_checkout_promotion_pricing.py
+- tests/test_order_checkout_hardening.py
+
+Acceptance：從一般菜單與活動入口送出相同 cart context 時，server quote 相同；偽造／過期／不符活動不會取得折扣；衝突規則 deterministic。
+Verification：target pytest；PostgreSQL integration 有服務時再跑。
+
+Loop 5 — Typed Cart Quote
+
+Goal：提供 typed server quote endpoint，尚不移除 checkout 最終重算。
+主要範圍：
+
+- backend/api/v1/contracts.py
+- backend/modules/promotion/application.py 或 ordering Application public caller
+- backend/routes/v1_routes.py（之後由 module api 取代）
+- tests/test_api_v1_contracts.py
+- tests/test_api_v1_write_contracts.py
+
+Acceptance：quote response 含 base/effective price、discount、applied activity、conditional benefit、quote version；未授權 device fail closed。
+Verification：target contract/security tests + app import smoke。
+
+Loop 6 — Kiosk Menu Price Projection
+
+Goal：菜單卡與品項詳情顯示 server projected price。
+主要範圍：
+
+- frontend/shared/apiClient.js 或 typed v1 client
+- frontend/kiosk/controllers/kioskMenuController.js
+- frontend/kiosk/menuVisuals.js
+- frontend/kiosk/app.js 的 item modal 小範圍
+- frontend unit test
+
+Acceptance：活動品項在菜單與詳情同時顯示原價、優惠價、活動名稱；條件式優惠顯示條件而不是誤顯已折價。
+Verification：npm run typecheck、npm run syntax、npm run test、target E2E。
+
+Loop 7 — Kiosk Cart 使用 Server Quote
+
+Goal：購物車、底部總計、結帳摘要都由最新 quote render。
+主要範圍：
+
+- frontend/kiosk/cart.js
+- frontend/kiosk/app.js
+- shared typed client
+- frontend unit/E2E test
+
+Acceptance：加入、移除、改數量、登入會員、活動到期時重算；菜單／cart／checkout 金額一致；網路失敗顯示「價格確認中／請重試」，不能用舊優惠價直接結帳。
+Verification：frontend checks + critical cart E2E。
+
+Phase B：建立可信的推薦／曝光／訂單鏈路
+
+Loop 8 — Touch Event Contract 與資料品質
+
+Goal：定義 decision_id、impression_id 與冪等 event receipt，先用現有 storage compatibility。
+主要範圍：
+
+- backend/modules/analytics/application.py
+- backend/modules/analytics/contracts.py
+- adapter／repository（只建立實際 Postgres + test adapters）
+- tests/test_commercial_touch_events.py
+
+Acceptance：重送 event_id 不重複；scope 衝突 fail closed；PII／secret 拒絕；legacy event 會標示缺少欄位。
+Verification：target test + security tests + architecture tests。
+
+Loop 9 — Forward Migration 與 Cutover Contract
+
+Goal：新增 0012 expand-only schema，支援活動版本、touch events 與 order attribution。
+主要範圍：
+
+- backend/schemas/migrations/0012_*.sql
+- backend/schemas/README.md
+- tests/test_postgres_migration_foundation.py
+- 新增/更新 PostgreSQL integration test
+
+Acceptance：migration 可 forward apply；既有 0001–0011 checksum 不變；scope FK、冪等 unique key、查詢 indexes 完整；有 roll-forward/recovery 說明。
+Verification：migration validate + integration test（有 PostgreSQL 時）；否則明確 NOT RUN。
+
+Loop 10 — Recommendation Decision Runtime
+
+Goal：AI push／assist／voice 共用 Recommendation Application 並產生 durable decision metadata。
+主要範圍：
+
+- backend/modules/recommendation/application.py
+- existing recommendation engine/context 作 implementation 或逐步搬移
+- ai_push_service.py
+- 對應推薦 tests
+
+Acceptance：每次推薦 response 都有 decision_id、strategy version、variant、rank、offer version、fallback status；AI 失敗仍回 deterministic fallback。
+Verification：recommendation context/engine/experiment/AI push target tests。
+
+Loop 11 — 真實曝光與點擊
+
+Goal：Recommendation card 與 Campaign Banner 只在實際可見時送 impression。
+主要範圍：
+
+- frontend/kiosk/controllers/promoBannerController.js
+- frontend/kiosk/app.js 的 recommendation display helper
+- shared touch-event client
+- frontend unit/E2E tests
+
+Acceptance：50%/1 秒門檻；同一顯示只送一次；click/add 帶同一 impression_id；rotation 每張素材有獨立 impression；離線不阻擋點餐。
+Verification：frontend tests + backend idempotency target test。
+
+Loop 12 — 訂單品項歸因
+
+Goal：order confirm/completion 將 purchase 與唯一 touch 連結。
+主要範圍：
+
+- backend/modules/analytics/application.py
+- checkout_order_repository.py 或 ordering Application
+- checkout_service.py
+- outbox delivery handler
+- tests/test_recommendation_attribution.py
+- PostgreSQL integration test
+
+Acceptance：同一 order item 不重複歸因；direct/view-through 分開；取消訂單撤銷正式成交；營收、折扣來自 order snapshot，不採 client value。
+Verification：target unit + Postgres integration + failure injection。
+
+Loop 13 — Effectiveness Query
+
+Goal：Backend 產生可重現的期間成效報表。
+主要範圍：
+
+- backend/modules/analytics/application.py
+- analytics repository adapter
+- typed report contracts/API
+- tests/test_recommendation_effectiveness.py
+
+Acceptance：time range、placement、campaign、strategy、variant、audience filters；unique denominators；control comparison；資料品質與 sample warning；同 query 可重現。
+Verification：target tests + query integration test。
+
+Loop 14 — 新推薦成效 Admin
+
+Goal：以中文商業結果取代「最近事件數」首頁。
+主要範圍：
+
+- frontend/admin/modules/recommendationEffectivenessAdmin.js
+- frontend/admin/admin.html 的 recommendation section
+- typed client/contracts
+- frontend tests
+
+Acceptance：期間、比較組、漏斗、歸因營收、折扣、客單差異、資料完整度；圖表有 table fallback；技術事件收在進階區。
+Verification：typecheck、syntax、unit、Admin E2E、375/768/1024/1440 responsive check。
+
+Phase C：活動治理與一般員工工作流
+
+Loop 15 — Versioned Campaign Application
+
+Goal：draft/preview/publish/pause/archive 進入 Promotion Application。
+主要範圍：
+
+- promotion Application/contracts
+- Postgres adapter
+- legacy promotion shim
+- tests/test_campaign_lifecycle.py
+
+Acceptance：expected_version optimistic concurrency；已發布版本 immutable；狀態轉移合法；所有 mutation audit；legacy projection 可繼續供舊 caller。
+Verification：lifecycle、audit、scope、security target tests。
+
+Loop 16 — Typed Campaign API 與權限
+
+Goal：提供完整 typed campaign endpoints 與新 permissions。
+主要範圍：
+
+- module api/router
+- v1 contracts
+- admin_permissions.py
+- route registry/module registry
+- API/security tests
+
+Acceptance：read/write/publish 分權；一般員工不可進系統設定；error body 提供可翻譯 code + field path；server 始終 fail closed。
+Verification：API contract、admin identity、security boundaries、app import smoke。
+
+Loop 17 — Admin 活動清單與基本精靈
+
+Goal：先完成 Step 1/2 與草稿，不一次完成所有 placement UI。
+主要範圍：
+
+- frontend/admin/modules/campaignAdmin.js
+- frontend/admin/admin.html 的 activities shell
+- typed client
+- styles／tests
+
+Acceptance：不顯示 Offer ID、timezone、CSV、status/enabled 雙欄；品項中文搜尋；inline errors；草稿可離開後恢復。
+Verification：frontend checks + Admin E2E 建立草稿。
+
+Loop 18 — 多呈現位置與預覽
+
+Goal：完成 placement checkboxes、各畫面 preview 與 impact summary。
+主要範圍：
+
+- campaignAdmin.js
+- campaign preview UI helper
+- Backend preview contract/Application
+- tests
+
+Acceptance：同一活動可同時選菜單、詳情、首頁、cart、推薦、語音；預覽價格由 server quote；不再有隱性 cart fallback。
+Verification：Backend preview tests + frontend unit/E2E。
+
+Loop 19 — 發布、暫停、衝突與 Audit UX
+
+Goal：完成員工可安全操作的活動 lifecycle。
+主要範圍：
+
+- campaign Admin module
+- lifecycle endpoints/Application
+- audit display/client
+- tests
+
+Acceptance：發布前中文衝突摘要；雙擊不重複發布；暫停快速生效；已發布不可刪；列表顯示 actor/version/影響面。
+Verification：lifecycle、idempotency、audit、安全、E2E。
+
+Loop 20 — Admin 權限導覽與全面中文化
+
+Goal：一般員工主要流程不再出現 raw technical labels。
+主要範圍：
+
+- admin auth controller 保存 principal capability view
+- Admin navigation helper
+- centralized zh-TW label catalog
+- targeted admin sections
+- frontend tests
+
+Acceptance：依 permission 顯示頁面；所有 enum/reason/event 有中文；未知值不直接 fallback；技術設定集中到進階區。
+Verification：string mapping unit test、architecture test、Admin E2E、keyboard/accessibility smoke。
+
+Phase D：Cutover 與清理
+
+Loop 21 — 對帳與 Shadow Comparison
+
+Goal：新舊 pricing／event/report 路徑並行比較，不影響顧客交易。
+
+Acceptance：至少一個 pilot 觀察期內記錄 mismatch，不自動套用未驗證差異；價格 mismatch 必須為 0 才可切主路徑；事件完整率達門檻後才切 dashboard。
+Verification：comparison report、failure injection、manual pilot checklist。
+
+Loop 22 — Caller Cutover
+
+Goal：Kiosk/Admin callers 切 typed v1 與 module Application。
+
+Acceptance：legacy allowlist 逐項縮小；route 不直接依賴新 repository；architecture tests 防止回歸。
+Verification：backend/frontend full target suite + critical E2E + build。
+
+Loop 23 — 相容層清理
+
+Goal：只有在無 caller 且新路徑觀察穩定後，移除舊 stats、重複 eligibility 與 dead shim。
+
+Acceptance：刪除模組後複雜度不回到 callers；測試只透過新 Interface；不改寫舊 migration，不刪歷史訂單／活動 snapshot。
+Verification：rg caller audit、architecture tests、full relevant suite、git diff review。
+
+
+12. 驗證矩陣
+---------------
+
+Backend promotion/recommendation/analytics：
+
+  cd UI_API
+  APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+  pytest -q tests/test_promotion_service.py \
+            tests/test_promotion_banner_service.py \
+            tests/test_rag_offer_service.py \
+            tests/test_recommendation_context_service.py \
+            tests/test_recommendation_engine_service.py \
+            tests/test_recommendation_event_service.py \
+            tests/test_recommendation_experiment_service.py
+
+Checkout pricing：
+
+  cd UI_API
+  APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+  pytest -q tests/test_order_checkout_hardening.py tests/test_checkout_member.py
+
+API／安全／架構：
+
+  cd UI_API
+  APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+  pytest -q tests/test_api_v1_contracts.py \
+            tests/test_api_v1_write_contracts.py \
+            tests/test_admin_identity_foundation.py \
+            tests/test_security_boundaries.py \
+            tests/architecture
+
+App import smoke：
+
+  cd UI_API
+  APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+  python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
+
+Frontend：
+
+  cd UI_API/frontend
+  npm run typecheck
+  npm run syntax
+  npm run test
+  npm run build
+
+只有關鍵跨頁流程才跑：
+
+  npm run test:e2e
+
+PostgreSQL／migration：
+
+- 先確認 DATABASE_URL 與 PostgreSQL 可用。
+- 執行 migration validate、forward apply、schema data validation。
+- 執行 promotion/quote/order/attribution integration tests。
+- 外部服務不存在時標示 NOT RUN，不為了跑測試擴大 dependency。
+
+每輪 Review：
+
+  git diff --check
+  git diff --stat
+  git diff -- <本輪檔案>
+
+
+13. 每輪必備情境測試
+-------------------
+
+價格一致性：
+
+- 一般顧客、會員、未登入會員。
+- 活動開始前、開始中、結束後、跨午夜、Asia/Taipei。
+- 品項固定價、required cart 加購價。
+- 從菜單、首頁 Banner、cart Banner、推薦、會員常點、語音加入。
+- 菜單、詳情、cart、結帳、收據／訂單快照價格一致。
+- 活動進行中暫停、商品售罄、會員登出、cart 條件被移除。
+- 多活動衝突與 deterministic best price。
+- Browser 偽造價格、offer ID、member_only 均被 server 拒絕或重算。
+
+曝光與歸因：
+
+- API 產生但未顯示：沒有 impression。
+- 顯示不足 1 秒：沒有 impression。
+- rotation 到第二張：兩個 impression，各自只有一次。
+- impression -> click -> add -> purchase 使用同一鏈路。
+- 同一 event retry 不重複。
+- 同一 item 經多入口曝光，只歸因一次 primary revenue。
+- view-through 與 direct 分開。
+- 取消訂單不算正式成交。
+- provider failure 不阻擋 checkout。
+
+活動 Admin：
+
+- 一般員工不需輸入任何 ID、enum、timezone 或 JSON。
+- 欄位錯誤顯示中文原因與修正方式。
+- 草稿恢復、未儲存離開確認、發布 loading/idempotency。
+- 已發布活動不可刪除。
+- 權限不足頁面不可見，直接呼叫仍由 server 403。
+- 所有 machine code 有中文 mapping，未知值不裸露。
+
+
+13. 2026-07-14 Loop 執行紀錄
+------------------------------
+
+已完成：
+
+- Loop 1–4：以 Promotion Application 統一活動期間、狀態、會員、品項、分類、購物車先決條件與 deterministic 最優惠價格；Banner、推薦與 checkout 已共用。
+- Loop 5–7：新增 typed 購物車報價與菜單價格投影；菜單卡、詳情、購物車與結帳皆顯示 server authoritative 價格；報價失敗時禁止用舊優惠價結帳。
+- Loop 8–12：新增 decision／impression／click／add／purchase touch contract、0012 expand-only migration、真實可視曝光、訂單品項 direct/view-through 歸因與取消反轉。
+- Loop 13–14：新增期間成效查詢、unique funnel、已完成訂單營收／折扣、control comparison、資料完整度與樣本警示；Admin 首頁已改用中文商業指標。
+- Loop 15–19：新增活動 immutable version、optimistic concurrency、draft/review/scheduled/active/paused/ended/archived lifecycle、audit、typed API、五步中文精靈、多位置、server 價格預覽、衝突與安全發布。
+- Loop 20：新增權限導覽與集中 zh-TW label catalog；一般員工看不到未授權的系統維護頁，未知 machine value 不直接顯示。
+- Loop 21：新增非阻斷 shadow comparison，將自動套用最佳優惠分類為預期切換，另行計數 unexpected mismatch；新舊量測可產生對帳摘要。
+- Loop 22：Kiosk 價格與活動 touch、Admin 活動與成效 caller 已切 typed v1；推薦明細讀取經 Recommendation Application；清除全部事件不再顯示於一般介面。
+
+Loop 23 狀態：條件式完成。
+
+- 已移除 runtime eligibility 重複實作並停止擴大 identity shim。
+- legacy promotion routes、recommendation event write 與隱藏的舊 Admin DOM 暫留 compatibility；在單店 pilot 尚未達到本文件 Gate 1／2 的實際觀察期以前不得硬刪。
+- 清理觸發條件：unexpected price mismatch = 0、完整曝光 >= 100、incomplete event = 0，且 rg caller audit 確認無 caller。達標後另做純刪除 checkpoint，不改 migration 或歷史快照。
+
+本機驗證結果：
+
+- PASS：Frontend typecheck、syntax、8 個 test files／17 tests、production build、3 個 Chromium critical E2E（含 768px 中文活動精靈發布流程）。
+- PASS：86 個 Backend／API contract／security-adjacent／architecture target tests、FastAPI app import、Python py_compile、migration plan validation。
+- NOT RUN：PostgreSQL integration；本輪未提供 PostgreSQL 服務。
+
+
+14. 成功門檻與上線 Gate
+----------------------
+
+Gate 1：價格
+
+- 所有 Kiosk 顧客接觸點使用同一 server quote projection。
+- Shadow comparison 的 price mismatch = 0。
+- Checkout 仍 server authoritative。
+
+Gate 2：資料品質
+
+- Event duplicate rate 接近 0，且所有 retry 冪等。
+- 推薦 impressions 具有 decision_id 的比例 >= 99%。
+- attributed purchase 可連到 order item 的比例 >= 99%。
+- 未知 placement／strategy version 有明確告警，不靜默忽略。
+
+Gate 3：Admin
+
+- 一般員工可在不輸入技術代碼下完成草稿、預覽、發布、暫停。
+- 主要 Admin 流程繁體中文完整。
+- 權限、audit、version、conflict preview 通過 target tests。
+
+Gate 4：成效聲明
+
+- Dashboard 同時顯示樣本數、資料完整度與比較基準。
+- 沒有 control 時只稱「歸因成效」，不稱「增量效果」。
+- 沒有商品成本時不顯示 ROI／利潤。
+- 樣本不足時顯示「資料不足，暫不判定」。
+
+
+15. 主要風險與緩解
+-----------------
+
+風險：活動價自動套用可能改變既有營收。
+緩解：先 shadow quote、對帳、feature flag、單店 pilot，再切 authoritative display；checkout 保留 server validation。
+
+風險：新舊事件雙寫產生重複或數字不一致。
+緩解：全域 event_id 冪等、schema version、quality flags、dual-read reconciliation；報表切換前先對帳。
+
+風險：promotion_records、promotion_rule_versions 與 RAG 文件三套來源互相覆蓋。
+緩解：明定 version store 為活動 source of truth、promotion_records 為 projection、RAG 只消費已發布摘要；禁止 RAG 反向決定價格。
+
+風險：Admin 一次重寫造成 DOM／操作回歸。
+緩解：新 campaign module 漸進掛入既有 page shell，保留 DOM contract；每個 wizard step 獨立 Loop 與 E2E。
+
+風險：local pilot 樣本太小。
+緩解：先確保資料正確，顯示 observed difference 與樣本警示，不急著加入虛假的統計結論。
+
+風險：一般員工誤碰系統設定。
+緩解：依 permission 分層導覽，技術頁移到進階維護區；Server RBAC 與 audit 不變且加強。
+
+
+16. 不做事項
+-------------
+
+- 不導入 Docker、Kubernetes、Kafka、microservices 或 cloud-only analytics。
+- 不讓 RAG／LLM 決定活動 eligibility 或最終價格。
+- 不把價格與 promotion business rule 搬到 browser。
+- 不一次改完所有 legacy /api endpoints。
+- 不為了漂亮圖表先加入大型前端 framework；現有 Vite/JS 可先完成可靠資料與可用流程。
+- 不修改已發布 migrations 0001–0011。
+- 不刪除使用者 runtime data、推薦事件或已發布活動歷史來讓測試通過。
+- 不把 Payment/POS manual adapter 描述成 production ready。
+
+
+17. 下一個部署驗證起點
+--------------------
+
+下一步不是再擴大功能，而是在具備完整 Python／PostgreSQL／Chromium 的 local-pilot 環境執行：0012 forward migration、target pytest、活動建立到結帳 Playwright E2E、取消訂單歸因反轉、權限矩陣，以及至少 100 次有效曝光的 shadow observation。
+
+只有 Gate 1／2 達標後，才執行 Loop 23 最後的 legacy route／DOM／event write 純刪除 checkpoint；未達標時保留相容讀寫並依 mismatch 修正，不得用刪除歷史資料或放寬驗證來製造通過結果。
+
+本計畫的最終完成定義：一般員工建立一個活動後，能在發布前看懂影響範圍；發布後，符合條件的顧客在菜單、詳情、推薦、Banner、購物車與結帳看到一致價格；Admin 能用可信的曝光、歸因與 control comparison 判斷活動和推薦的實際效果，且所有一般員工操作與結果皆以繁體中文呈現。

@@ -15,6 +15,12 @@ import { resolveItemPrice } from './menuVisuals.js';
 export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh', getVisual }) {
   /** @type {Record<string, CartItem>} */
   const cart = {};
+  /** @type {{ status: "idle" | "pending" | "ready" | "failed", total: number | null, version: string }} */
+  let quoteState = { status: 'idle', total: null, version: '' };
+
+  function invalidateQuote() {
+    quoteState = { status: 'idle', total: null, version: '' };
+  }
   /**
    * @param {string} key
    * @param {string} [fallback]
@@ -58,7 +64,8 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
       card.classList.add('selected');
       setTimeout(() => card.classList.remove('selected'), 250);
     }
-    renderCart();
+    invalidateQuote();
+    renderCart('cart_change');
   }
 
   /**
@@ -79,13 +86,15 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     if (!item) return;
     item.quantity += delta;
     if (item.quantity <= 0) delete cart[id];
-    renderCart();
+    invalidateQuote();
+    renderCart('cart_change');
   }
 
   /** @param {string} id */
   function deleteCartItem(id) {
     delete cart[id];
-    renderCart();
+    invalidateQuote();
+    renderCart('cart_change');
   }
 
   /**
@@ -108,7 +117,8 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
   }
 
   /** @returns {void} */
-  function renderCart() {
+  /** @param {"cart_change" | "quote_applied" | "quote_pending" | "quote_failed"} [reason] */
+  function renderCart(reason = 'cart_change') {
     const keys = Object.keys(cart);
     if (!keys.length) {
       ui.cartList.innerHTML = `
@@ -119,12 +129,13 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
         </div>`;
       ui.checkoutBtn.disabled = true;
       ui.totalPrice.textContent = '$0';
+      quoteState = { status: 'idle', total: null, version: '' };
       ui.cartCountBadge.textContent = translateCartText('cartCount', '共 {count} 項').replace('{count}', '0');
-      onCartChange?.(getCartItems());
+      onCartChange?.(getCartItems(), reason);
       return;
     }
 
-    ui.checkoutBtn.disabled = false;
+    ui.checkoutBtn.disabled = quoteState.status !== 'ready';
     let total = 0;
     let quantity = 0;
     ui.cartList.innerHTML = '';
@@ -164,9 +175,12 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
           </div>
         </div>`;
     });
-    ui.totalPrice.textContent = `$${total}`;
+    const quotedTotal = quoteState.status === 'ready' && quoteState.total !== null ? quoteState.total : total;
+    ui.totalPrice.textContent = quoteState.status === 'pending'
+      ? '價格確認中'
+      : (quoteState.status === 'failed' ? '請重新確認價格' : `$${quotedTotal}`);
     ui.cartCountBadge.textContent = translateCartText('cartCount', '共 {count} 項').replace('{count}', String(quantity));
-    onCartChange?.(getCartItems());
+    onCartChange?.(getCartItems(), reason);
   }
 
   /** @returns {string[]} */
@@ -181,13 +195,53 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
 
   /** @returns {number} */
   function getCartTotal() {
+    if (quoteState.status === 'ready' && quoteState.total !== null) return quoteState.total;
     return getCartItems().reduce((sum, item) => sum + resolveItemPrice(item) * Number(item.quantity || 0), 0);
+  }
+
+  function markQuotePending() {
+    if (!Object.keys(cart).length) return;
+    quoteState = { status: 'pending', total: null, version: '' };
+    renderCart('quote_pending');
+  }
+
+  function markQuoteFailed() {
+    if (!Object.keys(cart).length) return;
+    quoteState = { status: 'failed', total: null, version: '' };
+    renderCart('quote_failed');
+  }
+
+  /** @param {import('../types.d.ts').CartQuote} quote */
+  function applyServerQuote(quote) {
+    (quote.items || []).forEach(line => {
+      const item = cart[line.item_id];
+      if (!item) return;
+      item.price = line.effective_unit_price;
+      item.effective_price = line.effective_unit_price;
+      item.base_price = line.base_unit_price;
+      item.original_price = line.discount_unit_total > 0 ? line.base_unit_price : undefined;
+      item.discount = line.discount_unit_total;
+      item.applied_offer_id = line.activity_id || undefined;
+      item.promotion_title = line.activity_name || undefined;
+      item.offer_ids = line.activity_id ? [line.activity_id] : undefined;
+    });
+    quoteState = {
+      status: 'ready',
+      total: Number(quote.total || 0),
+      version: String(quote.quote_version || ''),
+    };
+    renderCart('quote_applied');
+  }
+
+  function getQuoteState() {
+    return { ...quoteState };
   }
 
   /** @returns {void} */
   function clearCart() {
     Object.keys(cart).forEach(id => { delete cart[id]; });
-    renderCart();
+    invalidateQuote();
+    renderCart('cart_change');
   }
 
   return {
@@ -201,5 +255,9 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     getCartItems,
     getCartTotal,
     clearCart,
+    markQuotePending,
+    markQuoteFailed,
+    applyServerQuote,
+    getQuoteState,
   };
 }

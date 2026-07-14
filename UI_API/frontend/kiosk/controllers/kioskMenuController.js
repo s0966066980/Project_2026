@@ -14,7 +14,10 @@
 
 /**
  * @typedef {object} KioskMenuControllerOptions
- * @property {{ getMenu: () => Promise<MenuItem[]> }} api
+ * @property {{
+ *   getMenu: () => Promise<MenuItem[]>,
+ *   getMenuPriceProjections?: (cartItemIds?: string[], sessionId?: string) => Promise<import('../../types.d.ts').MenuPriceProjection[]>
+ * }} api
  * @property {{ menuData: MenuItem[], kioskScreen: string, kioskActiveGroup: string, kioskActiveFilter: string }} state
  * @property {{
  *   menuGrid: HTMLElement,
@@ -33,6 +36,7 @@
  * @property {(group: KioskGroup) => string} translateGroup
  * @property {(item: MenuItem, source?: string) => void} showItemConfirmModal
  * @property {() => void} updateKioskCartSummary
+ * @property {() => string} [getSessionId]
  * @property {(groupId: string, filter: string) => void} onCategorySwitchRepeat
  */
 
@@ -56,11 +60,46 @@ export function createKioskMenuController({
   translateGroup,
   showItemConfirmModal,
   updateKioskCartSummary,
+  getSessionId = () => '',
   onCategorySwitchRepeat,
 }) {
   /** @type {Promise<MenuItem[]> | null} */
   let menuLoadPromise = null;
   let hasLoadedRemoteMenu = false;
+
+  /** @param {import('../../types.d.ts').MenuPriceProjection[]} projections */
+  function applyPriceProjections(projections) {
+    const byId = new Map((projections || []).map(projection => [String(projection.item_id), projection]));
+    const menuNames = new Map(state.menuData.map(item => [String(item.id), String(item.name || item.id)]));
+    state.menuData = state.menuData.map(item => {
+      const projection = byId.get(String(item.id));
+      if (!projection) return item;
+      const requiredNames = projection.required_cart_item_ids.map(id => menuNames.get(String(id)) || String(id));
+      return {
+        ...item,
+        price: projection.effective_price,
+        base_price: projection.base_price,
+        effective_price: projection.effective_price,
+        original_price: projection.discount > 0 ? projection.base_price : undefined,
+        discount: projection.discount,
+        applied_offer_id: projection.conditional ? undefined : projection.activity_id,
+        promotion_title: projection.activity_name,
+        price_conditional: projection.conditional,
+        conditional_price: Number(projection.conditional_price || 0),
+        price_condition_text: projection.conditional
+          ? `需先加入：${requiredNames.join('、')}，即可享 $${Number(projection.conditional_price || 0)}`
+          : '',
+      };
+    });
+  }
+
+  /** @param {string[]} [cartItemIds] */
+  async function refreshPriceProjections(cartItemIds = []) {
+    if (typeof api.getMenuPriceProjections !== 'function' || !state.menuData.length) return;
+    const projections = await api.getMenuPriceProjections(cartItemIds, getSessionId());
+    applyPriceProjections(projections);
+    renderMenu();
+  }
 
   async function loadMenu() {
     if (hasLoadedRemoteMenu && state.menuData.length) {
@@ -76,6 +115,11 @@ export function createKioskMenuController({
       menuLoadPromise = api.getMenu();
       state.menuData = await menuLoadPromise;
       hasLoadedRemoteMenu = true;
+      try {
+        await refreshPriceProjections([]);
+      } catch {
+        // 菜單仍可瀏覽，但價格投影失敗時不宣稱有優惠。
+      }
     } catch {
       hasLoadedRemoteMenu = false;
       state.menuData = [
@@ -225,6 +269,15 @@ export function createKioskMenuController({
       const row = document.createElement('div');
       row.id = `menu-${item.id}`;
       row.className = 'kiosk-menu-row';
+      const currentPrice = formatItemPrice(item, getLanguage());
+      const basePrice = Number(item.base_price || item.original_price || 0);
+      const effectivePrice = Number(item.effective_price || item.price || 0);
+      const originalPrice = !item.price_conditional && basePrice > effectivePrice
+        ? `<span class="kiosk-menu-original-price">$${basePrice}</span>`
+        : '';
+      const activityText = item.price_conditional
+        ? item.price_condition_text
+        : item.promotion_title;
       row.innerHTML = `
         <div class="kiosk-menu-photo">
           <img src="${escapeHTML(visual.image)}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
@@ -232,7 +285,8 @@ export function createKioskMenuController({
         </div>
         <div class="kiosk-menu-copy">
           <h3>${escapeHTML(item.name)}</h3>
-          <strong>${escapeHTML(formatItemPrice(item, getLanguage()))}</strong>
+          <strong>${originalPrice}<span>${escapeHTML(currentPrice)}</span></strong>
+          ${activityText ? `<small class="kiosk-menu-activity">${escapeHTML(activityText)}</small>` : ''}
         </div>
         <button class="kiosk-add-btn" type="button" aria-label="${escapeHTML(translate('addToCart'))}"><i class="fas fa-plus"></i></button>`;
       row.querySelector('.kiosk-add-btn')?.addEventListener('click', event => {
@@ -251,5 +305,6 @@ export function createKioskMenuController({
     renderKioskCategories,
     showMenuGroup,
     itemMatchesSubFilter,
+    refreshPriceProjections,
   };
 }

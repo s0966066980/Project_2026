@@ -6,6 +6,7 @@ import time
 import config
 from models.commercial_scope import CommercialScope
 from models.llm import LLMModelPolicy, LLMRequest
+from modules.recommendation import decide
 from repositories import menu_repository
 from services import (
     llm_gateway_service,
@@ -262,12 +263,14 @@ async def generate(
 
     # 推薦品項由統一推薦引擎決定；此服務只負責 AI push 文案。
     recommendation = await asyncio.to_thread(
-        recommendation_engine_service.recommend,
+        decide,
         context,
-        1,
-        True,
-        experiment.get("strategy", ""),
-        experiment,
+        session_id=session_id,
+        scope=scope,
+        limit=1,
+        randomize=True,
+        strategy=experiment.get("strategy", ""),
+        experiment=experiment,
     )
     picked = (recommendation.get("items") or [None])[0]
     if not picked:
@@ -292,6 +295,9 @@ async def generate(
         "strategy": recommendation.get("strategy", experiment.get("strategy", "")),
         "experiment_id": experiment.get("experiment_id", ""),
         "variant_id": experiment.get("variant_id", ""),
+        "decision_id": recommendation.get("decision_id", ""),
+        "strategy_version": recommendation.get("strategy_version", ""),
+        "fallback_status": recommendation.get("fallback_status", ""),
         "recommendation": _recommendation_metadata(
             picked,
             1,
@@ -320,12 +326,14 @@ async def generate_three(
     experiment = recommendation_experiment_service.assign(session_id)
     context["experiment"] = experiment
     recommendation = await asyncio.to_thread(
-        recommendation_engine_service.recommend,
+        decide,
         context,
-        3,
-        True,
-        experiment.get("strategy", ""),
-        experiment,
+        session_id=session_id,
+        scope=scope,
+        limit=3,
+        randomize=True,
+        strategy=experiment.get("strategy", ""),
+        experiment=experiment,
     )
 
     results = []
@@ -354,6 +362,9 @@ async def generate_three(
             "strategy": recommendation.get("strategy", experiment.get("strategy", "")),
             "experiment_id": experiment.get("experiment_id", ""),
             "variant_id": experiment.get("variant_id", ""),
+            "decision_id": recommendation.get("decision_id", ""),
+            "strategy_version": recommendation.get("strategy_version", ""),
+            "fallback_status": recommendation.get("fallback_status", ""),
             "offers": [
                 {
                     "offer_id": offer.get("offer_id", ""),

@@ -129,6 +129,39 @@ class PostgresAnalyticsSink:
                     str(envelope.get("source") or ""),
                 ),
             )
+            if str(envelope.get("schema_version") or "") == "commercial-touch-v1":
+                payload = dict(envelope.get("payload") or {})
+                decision_id = str(payload.get("decision_id") or "")
+                if decision_id:
+                    cur.execute("SELECT 1 FROM recommendation_decisions WHERE decision_id = %s", (decision_id,))
+                    if cur.fetchone() is None:
+                        decision_id = ""
+                event_type = str(envelope.get("type") or "").removeprefix("commercial_touch.")
+                cur.execute(
+                    """
+                    INSERT INTO commercial_touch_events (
+                        event_id, tenant_id, store_id, device_id, decision_id,
+                        impression_id, event_type, placement, campaign_id,
+                        campaign_version, item_id, session_ref, data_quality,
+                        payload, occurred_at, received_at
+                    ) VALUES (
+                        %s, %s, %s, NULLIF(%s, '')::uuid, NULLIF(%s, ''),
+                        NULLIF(%s, ''), %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, %s, %s
+                    ) ON CONFLICT (event_id) DO NOTHING
+                    """,
+                    (
+                        event_id, UUID(str(scope.get("tenant_id"))), UUID(str(scope["store_id"])),
+                        str(payload.get("device_id") or ""), decision_id,
+                        str(payload.get("impression_id") or ""), event_type,
+                        str(payload.get("placement") or ""), str(payload.get("campaign_id") or ""),
+                        int(payload["campaign_version"]) if str(payload.get("campaign_version") or "").isdigit() else None,
+                        str(payload.get("item_id") or ""), str(envelope.get("session_ref") or ""),
+                        str(payload.get("data_quality") or "complete"), Jsonb(payload),
+                        envelope.get("occurred_at") or _now(), envelope.get("received_at") or _now(),
+                    ),
+                )
             conn.commit()
         return True
 
@@ -244,6 +277,19 @@ def _load_source_rows() -> list[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return []
     return rows if isinstance(rows, list) else []
+
+
+def list_events(*, tenant_id: UUID, store_id: UUID, since: str = "", until: str = "") -> list[dict[str, Any]]:
+    """Read immutable analytics facts within one commercial scope."""
+
+    rows = _load_source_rows()
+    return [
+        row for row in rows
+        if (row.get("scope") or {}).get("tenant_id") == str(tenant_id)
+        and (row.get("scope") or {}).get("store_id") == str(store_id)
+        and (not since or str(row.get("occurred_at") or "") >= since)
+        and (not until or str(row.get("occurred_at") or "") <= until)
+    ]
 
 
 def replay(

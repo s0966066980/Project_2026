@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="referrer" content="no-referrer">
-<title>AI 推播系統 · Admin</title>
+<title>AI 推播系統 · 管理後台</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <style>
@@ -510,6 +510,41 @@ tbody tr:hover td { background: #f8fafd; }
 }
 .promotion-actions button:hover { background:#edf2ff; color:#3b7aee; }
 .promotion-actions button.danger:hover { background:#feecec; color:#c0392b; border-color:#f5c6c0; }
+.campaign-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.campaign-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; border:1px solid #e7ebf0; border-radius:14px; padding:16px; }
+.campaign-kpis { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:12px; }
+.campaign-kpi { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:14px; }
+.campaign-kpi b { display:block; font-size:24px; color:#1a2233; }
+.campaign-kpi span { color:#6d7890; font-size:12px; font-weight:800; }
+.campaign-list { display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:12px; }
+.campaign-card { background:#fff; border:1px solid #e1e6ed; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.campaign-card header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.campaign-card h3 { margin:0; font-size:16px; color:#1a2233; }
+.campaign-card p { margin:0; color:#66728a; font-size:12px; line-height:1.6; }
+.campaign-card-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.campaign-card-actions button, .campaign-primary, .campaign-secondary { min-height:44px; border-radius:9px; border:1px solid #cfd7e4; background:#fff; padding:8px 14px; font-weight:800; cursor:pointer; }
+.campaign-primary { background:#276fe8; color:#fff; border-color:#276fe8; }
+.campaign-danger { color:#a52d25; }
+.campaign-wizard { background:#fff; border:1px solid #dfe5ed; border-radius:16px; overflow:hidden; }
+.campaign-wizard[hidden] { display:none; }
+.campaign-wizard-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 18px; border-bottom:1px solid #edf0f4; }
+.campaign-steps { display:grid; grid-template-columns:repeat(5,1fr); background:#f7f9fc; }
+.campaign-step-tab { padding:12px 8px; border:0; border-bottom:3px solid transparent; background:transparent; color:#69758d; font-weight:800; }
+.campaign-step-tab.active { color:#276fe8; border-bottom-color:#276fe8; background:#fff; }
+.campaign-step-panel { padding:20px; display:none; }
+.campaign-step-panel.active { display:block; }
+.campaign-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.campaign-field { display:flex; flex-direction:column; gap:6px; }
+.campaign-field.full { grid-column:1 / -1; }
+.campaign-field label, .campaign-field legend { color:#3e4a63; font-size:12px; font-weight:900; }
+.campaign-field input, .campaign-field select, .campaign-field textarea { min-height:44px; border:1px solid #cfd7e4; border-radius:9px; padding:9px 11px; font:inherit; }
+.campaign-field-error { color:#b22d25; font-size:11px; min-height:15px; }
+.campaign-checks { display:grid; grid-template-columns:repeat(2,minmax(180px,1fr)); gap:10px; }
+.campaign-checks label { display:flex; align-items:center; gap:9px; min-height:44px; border:1px solid #dfe5ed; border-radius:10px; padding:8px 12px; }
+.campaign-preview-grid { display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:12px; }
+.campaign-preview-card { border:1px solid #dfe5ed; border-radius:12px; padding:14px; background:#fafcff; }
+.campaign-wizard-actions { display:flex; justify-content:space-between; gap:10px; padding:16px 20px; border-top:1px solid #edf0f4; }
+@media (max-width:800px) { .campaign-page { padding:16px; } .campaign-list,.campaign-fields,.campaign-preview-grid { grid-template-columns:1fr; } .campaign-kpis { grid-template-columns:repeat(2,1fr); } .campaign-steps { grid-template-columns:1fr; } .campaign-step-tab { text-align:left; } }
 @media (max-width:1000px) { #page-rag, #page-promotions { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
 @media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
 /* ── 語音對話展開列 ── */
@@ -741,6 +776,8 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-tag.ignored { background:#feecec; color:#c0392b; }
 .recommendation-tag.checked { background:#e6f7ef; color:#128257; }
 .recommendation-muted { color:#9aa4b1; font-size:12px; }
+.recommendation-notice { background:#fff8e8; border:1px solid #f0d89b; color:#76530b; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.5; }
+.recommendation-notice.error { background:#fff0ef; border-color:#f2c1bd; color:#9e2f28; }
 .availability-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
 .availability-layout { display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start; }
 .availability-form { display:flex; flex-direction:column; gap:12px; }
@@ -819,8 +856,8 @@ tbody tr:hover td { background: #f8fafd; }
 
 <div id="adminAuthBackdrop" class="admin-auth-backdrop" role="dialog" aria-modal="true" aria-labelledby="adminAuthTitle">
   <form id="adminAuthForm" class="admin-auth-card">
-    <h1 id="adminAuthTitle">Admin 登入</h1>
-    <p>使用個人管理者帳號登入。Session 只保存在安全的 HttpOnly Cookie。</p>
+    <h1 id="adminAuthTitle">管理後台登入</h1>
+    <p>使用個人員工帳號登入。登入憑證只保存在安全的瀏覽器 Cookie。</p>
     <label for="adminLoginIdentity">登入帳號</label>
     <input id="adminLoginIdentity" name="login_identity" autocomplete="username" maxlength="254" required>
     <label for="adminLoginPassword">密碼</label>
@@ -834,7 +871,7 @@ tbody tr:hover td { background: #f8fafd; }
 <aside class="sidebar">
   <div class="sidebar-brand">
     <div class="sidebar-brand-title">AI 多模態點餐機</div>
-    <div class="sidebar-brand-sub">Admin 管理台</div>
+    <div class="sidebar-brand-sub">管理後台</div>
   </div>
   <nav class="sidebar-nav">
     <button class="nav-item active" data-page="stats" type="button">
@@ -971,7 +1008,7 @@ tbody tr:hover td { background: #f8fafd; }
             <thead>
               <tr>
                 <th>時間</th>
-                <th>Session ID</th>
+                <th>點餐工作階段編號</th>
                 <th>AI 加購次數</th>
                 <th>推播結果</th>
                 <th>最終購物車</th>
@@ -1010,22 +1047,25 @@ tbody tr:hover td { background: #f8fafd; }
           <option value="member">會員</option>
           <option value="guest">訪客</option>
         </select>
-        <input id="recommendationSessionFilter" class="recommendation-input" type="text" placeholder="Session ID">
+        <input id="recommendationSince" class="recommendation-input" type="date" aria-label="開始日期">
+        <input id="recommendationUntil" class="recommendation-input" type="date" aria-label="結束日期">
+        <input id="recommendationSessionFilter" class="recommendation-input" type="text" placeholder="搜尋工作階段編號">
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
         <select id="recommendationLimit" class="recommendation-select" style="min-width:96px">
-          <option value="200">最近 200 筆</option>
-          <option value="500">最近 500 筆</option>
-          <option value="1000">最近 1000 筆</option>
+          <option value="50">最近 50 筆</option>
+          <option value="100" selected>最近 100 筆</option>
         </select>
         <button class="refresh-btn" id="recommendationRefreshBtn" type="button">
           <i class="fas fa-sync-alt"></i> 重新整理
         </button>
-        <button class="clear-btn" id="recommendationClearBtn" type="button">
+        <button class="clear-btn" id="recommendationClearBtn" type="button" hidden>
           <i class="fas fa-trash-alt"></i> 清除事件
         </button>
       </div>
     </div>
+
+    <div id="recommendationEffectivenessNotice" class="recommendation-notice" hidden></div>
 
     <div id="recommendationKpis" class="recommendation-kpis">
       <div class="recommendation-kpi"><b>—</b><span>載入中</span><small>最近事件</small></div>
@@ -1041,7 +1081,7 @@ tbody tr:hover td { background: #f8fafd; }
         <div id="recommendationSourceStats"></div>
       </div>
       <div class="card">
-        <div class="card-title"><i class="fas fa-ticket-alt"></i> 活動 Offer 成效</div>
+        <div class="card-title"><i class="fas fa-ticket-alt"></i> 活動優惠成效</div>
         <div id="recommendationOfferStats"></div>
       </div>
       <div class="card">
@@ -1060,13 +1100,13 @@ tbody tr:hover td { background: #f8fafd; }
           <thead>
             <tr>
               <th>時間</th>
-              <th>Session</th>
+              <th>工作階段</th>
               <th>受眾</th>
               <th>事件</th>
               <th>入口</th>
               <th>來源</th>
               <th>餐點</th>
-              <th>Offer</th>
+              <th>活動優惠</th>
               <th>理由</th>
             </tr>
           </thead>
@@ -1102,7 +1142,7 @@ tbody tr:hover td { background: #f8fafd; }
         <div id="healthCoreChecks"></div>
       </div>
       <div class="health-card">
-        <div class="card-title"><i class="fas fa-file-alt"></i> Runtime Logs</div>
+        <div class="card-title"><i class="fas fa-file-alt"></i> 執行記錄</div>
         <div id="healthRuntimeLogs" class="health-log-list"></div>
       </div>
     </div>
@@ -1201,7 +1241,7 @@ tbody tr:hover td { background: #f8fafd; }
           <!-- AI 文字生成 API -->
           <section>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <div class="section-title" style="margin:0">AI 文字生成 API</div>
+              <div class="section-title" style="margin:0">AI 文字模型與進階連線</div>
               <span style="font-size:11px;color:#8494b0">影響：AI 推播、語音問答、協助推薦</span>
             </div>
             <div class="setting-row">
@@ -1222,7 +1262,7 @@ tbody tr:hover td { background: #f8fafd; }
             <!-- Ollama 欄位 -->
             <div id="settings-fields-ollama" class="api-provider-section">
               <div class="setting-row">
-                <label class="setting-label">主要 LLM 模型</label>
+                <label class="setting-label">主要 AI 文字模型</label>
                 <div class="model-select-wrap">
                   <select id="inp-model-name" class="setting-input">
                     <option value="">載入中…</option>
@@ -1231,7 +1271,7 @@ tbody tr:hover td { background: #f8fafd; }
                 <span style="font-size:11px;color:#8494b0;flex-shrink:0">推播</span>
               </div>
               <div class="setting-row">
-                <label class="setting-label">語音 LLM 模型</label>
+                <label class="setting-label">語音用 AI 文字模型</label>
                 <div class="model-select-wrap">
                   <select id="inp-voice-model" class="setting-input">
                     <option value="">載入中…</option>
@@ -1255,9 +1295,9 @@ tbody tr:hover td { background: #f8fafd; }
 
             <!-- OpenAI 欄位 -->
             <div id="settings-fields-openai" class="api-provider-section hidden">
-              <div class="provider-note"><i class="fas fa-info-circle"></i>支援 OpenAI 及相容 API（vLLM、LocalAI）。API Key 讀取自 <code>.env</code> 的 <b>OPENAI_API_KEY</b>。</div>
+              <div class="provider-note"><i class="fas fa-info-circle"></i>支援 OpenAI 及相容服務（vLLM、LocalAI）。存取金鑰讀取自進階環境設定。</div>
               <div class="setting-row">
-                <label class="setting-label">Base URL</label>
+                <label class="setting-label">服務連線位址</label>
                 <input id="inp-openai-base-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1">
               </div>
               <div class="setting-row">
@@ -1271,11 +1311,11 @@ tbody tr:hover td { background: #f8fafd; }
             </div>
 
             <div class="setting-row">
-              <label class="setting-label">Temperature</label>
+              <label class="setting-label">回覆變化程度</label>
               <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8">
             </div>
             <div class="setting-row">
-              <label class="setting-label">最大輸出 Token</label>
+              <label class="setting-label">最大輸出長度</label>
               <input id="inp-num-predict" class="setting-input" type="number" min="64" max="8192" placeholder="2048">
             </div>
           </section>
@@ -1284,7 +1324,7 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- STT -->
           <section>
-            <div class="section-title">STT（語音辨識）</div>
+            <div class="section-title">語音辨識</div>
             <div class="setting-row">
               <label class="setting-label">提供者</label>
               <select id="inp-stt-provider" class="setting-input" onchange="onSttProviderChange()">
@@ -1301,11 +1341,11 @@ tbody tr:hover td { background: #f8fafd; }
               </select>
             </div>
             <div class="setting-row hidden" id="row-stt-api">
-              <label class="setting-label">API URL</label>
+              <label class="setting-label">服務連線位址</label>
               <input id="inp-stt-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
             </div>
             <div class="setting-row hidden" id="row-stt-key">
-              <label class="setting-label">API Key</label>
+              <label class="setting-label">服務存取金鑰</label>
               <input id="inp-stt-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
             </div>
           </section>
@@ -1314,7 +1354,7 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- TTS -->
           <section>
-            <div class="section-title">TTS（語音合成）</div>
+            <div class="section-title">語音合成</div>
             <div class="setting-row">
               <label class="setting-label">提供者</label>
               <select id="inp-tts-provider" class="setting-input" onchange="onTtsProviderChange()">
@@ -1332,11 +1372,11 @@ tbody tr:hover td { background: #f8fafd; }
               <input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural">
             </div>
             <div class="setting-row hidden" id="row-tts-api">
-              <label class="setting-label">API URL</label>
+              <label class="setting-label">服務連線位址</label>
               <input id="inp-tts-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
             </div>
             <div class="setting-row hidden" id="row-tts-key">
-              <label class="setting-label">API Key</label>
+              <label class="setting-label">服務存取金鑰</label>
               <input id="inp-tts-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
             </div>
             <div class="setting-row hidden" id="row-tts-voice">
@@ -1358,14 +1398,14 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- Voice Prompt -->
           <section>
-            <div class="section-title">語音 System Prompt</div>
+            <div class="section-title">語音系統指令內容</div>
             <div style="margin-bottom:12px">
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文 Prompt（空白 = 使用系統預設）</label>
-              <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文指令內容（空白時使用系統預設）</label>
+              <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
             </div>
             <div>
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文 Prompt（空白 = 使用系統預設）</label>
-              <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 English Prompt"></textarea>
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文指令內容（空白時使用系統預設）</label>
+              <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設英文指令"></textarea>
             </div>
           </section>
 
@@ -1373,7 +1413,7 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- AI Push Prompt -->
           <section>
-            <div class="section-title">AI 推播 System Prompt</div>
+            <div class="section-title">AI 推薦系統指令內容</div>
             <div class="setting-row" style="margin-bottom:12px">
               <label class="setting-label">push_text 字數範圍</label>
               <div style="display:flex;align-items:center;gap:8px">
@@ -1384,8 +1424,8 @@ tbody tr:hover td { background: #f8fafd; }
               </div>
             </div>
             <div>
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推播 Prompt（空白 = 使用系統預設）</label>
-              <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推播 Prompt"></textarea>
+              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推薦指令內容（空白時使用系統預設）</label>
+              <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推薦指令"></textarea>
             </div>
           </section>
 
@@ -1393,12 +1433,12 @@ tbody tr:hover td { background: #f8fafd; }
 
           <!-- 付款逾時協助 Prompt -->
           <section>
-            <div class="section-title">付款逾時情緒摘要 Prompt（員工用）</div>
+            <div class="section-title">付款逾時情緒摘要指令（員工用）</div>
             <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
               付款倒數逾時後，Ollama 根據情緒分析結果產生一段<b>給員工閱讀</b>的中文情緒摘要，說明顧客目前狀態與建議應對方式，顯示於後台「人員協助付款」彈窗。輸出請使用 JSON 格式：<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">{"assist_message":"..."}</code>
             </p>
             <div>
-              <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設 Prompt"></textarea>
+              <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
             </div>
           </section>
 
@@ -1438,8 +1478,56 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
   </div>
 
-  <!-- Promotions page -->
-  <div class="content" id="page-promotions" style="display:none">
+  <!-- Activities page for general employees -->
+  <section id="page-promotions" class="campaign-page" style="display:none">
+    <div class="campaign-toolbar">
+      <div>
+        <div class="card-title" style="margin-bottom:4px"><i class="fas fa-ticket-alt"></i> 活動優惠</div>
+        <div class="recommendation-muted">建立一次，菜單、活動區、推薦、購物車與結帳價格會同步套用。</div>
+      </div>
+      <button id="campaignCreateBtn" class="campaign-primary" type="button"><i class="fas fa-plus"></i> 建立活動</button>
+    </div>
+    <div id="campaignKpis" class="campaign-kpis"></div>
+    <div class="campaign-toolbar">
+      <input id="campaignSearch" class="recommendation-input" type="search" placeholder="搜尋活動名稱">
+      <select id="campaignStatusFilter" class="recommendation-select">
+        <option value="">全部狀態</option><option value="active">進行中</option><option value="scheduled">已排程</option><option value="draft">草稿</option><option value="review">待確認</option><option value="paused">已暫停</option><option value="ended">已結束</option><option value="archived">已封存</option>
+      </select>
+      <button id="campaignRefreshBtn" class="campaign-secondary" type="button"><i class="fas fa-sync-alt"></i> 重新整理</button>
+    </div>
+    <div id="campaignList" class="campaign-list"><div class="adm-empty">載入中…</div></div>
+
+    <section id="campaignWizard" class="campaign-wizard" hidden aria-labelledby="campaignWizardTitle">
+      <div class="campaign-wizard-head"><div><b id="campaignWizardTitle">建立活動</b><div id="campaignSaveState" class="recommendation-muted">尚未儲存</div></div><button id="campaignCloseBtn" class="campaign-secondary" type="button">關閉</button></div>
+      <div class="campaign-steps" role="tablist">
+        <button class="campaign-step-tab active" data-campaign-step="1" type="button">1. 基本資料</button><button class="campaign-step-tab" data-campaign-step="2" type="button">2. 優惠內容</button><button class="campaign-step-tab" data-campaign-step="3" type="button">3. 顯示位置</button><button class="campaign-step-tab" data-campaign-step="4" type="button">4. 文案預覽</button><button class="campaign-step-tab" data-campaign-step="5" type="button">5. 檢查發布</button>
+      </div>
+      <div class="campaign-step-panel active" data-campaign-panel="1"><div class="campaign-fields">
+        <div class="campaign-field full"><label for="campaignName">活動名稱</label><input id="campaignName" maxlength="120" placeholder="例如：夏日薯條加購優惠"><span class="campaign-field-error" data-error-for="name"></span></div>
+        <div class="campaign-field"><label for="campaignObjective">活動目標</label><select id="campaignObjective"><option value="promote_item">提升指定餐點銷售</option><option value="increase_add_on">增加搭配加購</option><option value="increase_order_value">提高每筆消費</option><option value="member_return">鼓勵會員回購</option><option value="clear_inventory">協助庫存銷售</option></select></div>
+        <div class="campaign-field"><label for="campaignAudience">適用顧客</label><select id="campaignAudience"><option value="all">所有顧客</option><option value="member">僅限會員</option></select></div>
+        <div class="campaign-field"><label for="campaignStart">開始時間</label><input id="campaignStart" type="datetime-local"></div><div class="campaign-field"><label for="campaignEnd">結束時間</label><input id="campaignEnd" type="datetime-local"><span class="campaign-field-error" data-error-for="schedule.ends_at"></span></div>
+      </div></div>
+      <div class="campaign-step-panel" data-campaign-panel="2"><div class="campaign-fields">
+        <div class="campaign-field"><label for="campaignRuleType">優惠方式</label><select id="campaignRuleType"><option value="fixed_item_price">指定餐點特價</option><option value="add_on_fixed_price">搭配餐點加購價</option></select></div>
+        <div class="campaign-field"><label for="campaignItem">優惠餐點</label><select id="campaignItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.item_ids"></span></div>
+        <div id="campaignRequiredField" class="campaign-field"><label for="campaignRequiredItem">顧客購物車需要先有</label><select id="campaignRequiredItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.required_cart_item_ids"></span></div>
+        <div class="campaign-field"><label for="campaignPrice">優惠價（元）</label><input id="campaignPrice" type="number" min="1" step="1"><span id="campaignPriceHelp" class="recommendation-muted"></span><span class="campaign-field-error" data-error-for="promotion_rules.0.promotion_price"></span></div>
+      </div></div>
+      <div class="campaign-step-panel" data-campaign-panel="3"><fieldset class="campaign-field"><legend>要在哪些畫面顯示？</legend><div class="campaign-checks">
+        <label><input type="checkbox" name="campaignPlacement" value="menu_card" checked> 菜單餐點卡</label><label><input type="checkbox" name="campaignPlacement" value="item_detail" checked> 餐點詳細資料</label><label><input type="checkbox" name="campaignPlacement" value="pos_home_banner"> Kiosk 首頁活動區</label><label><input type="checkbox" name="campaignPlacement" value="kiosk_cart_banner"> 購物車活動區</label><label><input type="checkbox" name="campaignPlacement" value="recommendation"> AI 推薦</label><label><input type="checkbox" name="campaignPlacement" value="voice"> 語音優惠回答</label>
+      </div><span class="campaign-field-error" data-error-for="placements"></span></fieldset></div>
+      <div class="campaign-step-panel" data-campaign-panel="4"><div class="campaign-fields">
+        <div class="campaign-field"><label for="campaignBadge">活動標籤</label><input id="campaignBadge" maxlength="80" placeholder="例如：會員限定"></div><div class="campaign-field"><label for="campaignTheme">呈現風格</label><select id="campaignTheme"><option value="gold">金色醒目</option><option value="red">紅色促銷</option><option value="dark">深色質感</option><option value="simple">簡潔</option></select></div>
+        <div class="campaign-field full"><label for="campaignDescription">短說明</label><textarea id="campaignDescription" maxlength="240" rows="3"></textarea></div><div class="campaign-field"><label for="campaignCta">按鈕文字</label><input id="campaignCta" value="立即查看" maxlength="40"></div>
+      </div><div id="campaignPricePreview" class="campaign-preview-grid"></div></div>
+      <div class="campaign-step-panel" data-campaign-panel="5"><div id="campaignReviewSummary" class="promotion-help">請先完成前面資料並執行檢查。</div><div id="campaignConflictList"></div></div>
+      <div class="campaign-wizard-actions"><div><button id="campaignPreviousBtn" class="campaign-secondary" type="button">上一步</button><button id="campaignNextBtn" class="campaign-secondary" type="button">下一步</button></div><div><button id="campaignSaveDraftBtn" class="campaign-secondary" type="button">儲存草稿</button><button id="campaignPublishBtn" class="campaign-primary" type="button">檢查並發布</button></div></div>
+    </section>
+  </section>
+
+  <!-- Legacy promotions compatibility surface; hidden during typed campaign cutover. -->
+  <div class="content" id="page-promotions-legacy" style="display:none" hidden>
     <div class="rag-left">
       <div class="card promotion-form">
         <div class="card-title"><i class="fas fa-ticket-alt"></i> 結構化活動管理</div>
@@ -1764,7 +1852,7 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
 
         <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">結果注入語音 Prompt</label>
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">將結果加入語音指令</label>
           <input type="checkbox" id="inp-emotion-affect-voice">
         </div>
 
@@ -1798,13 +1886,13 @@ tbody tr:hover td { background: #f8fafd; }
 
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="display:flex;align-items:baseline;justify-content:space-between">
-            <label style="font-size:13px;color:var(--text2)">分析 Prompt 模板（{speech_text} 為語音文字佔位，無語音時該行自動省略）</label>
+            <label style="font-size:13px;color:var(--text2)">分析指令範本（{speech_text} 代表語音文字，無語音時自動省略）</label>
             <span id="emotion-prompt-counter" style="font-size:11px;color:var(--text2);white-space:nowrap;margin-left:12px">0 字</span>
           </div>
           <textarea id="inp-emotion-prompt" class="setting-input" rows="6"
             style="resize:vertical;font-size:12px;line-height:1.5"
             oninput="updateEmotionPromptCounter()"></textarea>
-          <span id="emotion-prompt-warn" style="font-size:11px;color:var(--danger);display:none">⚠️ Prompt 過長，建議控制在 800 字以內</span>
+          <span id="emotion-prompt-warn" style="font-size:11px;color:var(--danger);display:none">⚠️ 指令內容過長，建議控制在 800 字以內</span>
         </div>
 
         <div style="display:flex;align-items:center;gap:10px">
@@ -1923,9 +2011,9 @@ tbody tr:hover td { background: #f8fafd; }
 
         <!-- OpenAI 欄位 -->
         <div id="test-fields-openai" class="hidden">
-          <div class="provider-note"><i class="fas fa-info-circle"></i>使用 .env 中的 OPENAI_API_KEY；Base URL 留空則使用 api.openai.com。</div>
+          <div class="provider-note"><i class="fas fa-info-circle"></i>存取金鑰由進階環境設定提供；服務位址留空時使用供應商預設位址。</div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <label class="setting-label" style="width:auto">Base URL（可選）</label>
+            <label class="setting-label" style="width:auto">服務連線位址（可選）</label>
             <input id="test-inp-openai-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1" style="width:100%">
           </div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
@@ -1936,10 +2024,10 @@ tbody tr:hover td { background: #f8fafd; }
 
         <hr style="border:none;border-top:1px solid #edf0f7;margin:12px 0">
 
-        <div class="section-title" style="margin-bottom:8px">System Prompt（留空 = 預設）</div>
+        <div class="section-title" style="margin-bottom:8px">系統指令內容（留空時使用預設）</div>
         <textarea id="test-inp-system-prompt" class="setting-input" rows="4"
           style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"
-          placeholder="載入中… 自動帶入目前功能設定的語音 System Prompt，可直接修改測試不同 prompt。"></textarea>
+          placeholder="載入中… 會自動帶入目前的語音系統指令，可直接修改測試。"></textarea>
       </div>
 
       <div style="display:flex;gap:8px">
@@ -1974,7 +2062,7 @@ tbody tr:hover td { background: #f8fafd; }
       <div id="test-chat-view" class="chat-window" style="flex:1">
         <div class="chat-bubble ai">
           <span class="bubble-label">AI 助理</span>
-          <div class="bubble-text">你好！輸入問題測試 LLM 回答，例如：<br>「有什麼推薦套餐？」<br>「大麥克多少錢？」</div>
+          <div class="bubble-text">你好！輸入問題測試 AI 回答，例如：<br>「有什麼推薦套餐？」<br>「大麥克多少錢？」</div>
         </div>
       </div>
 

@@ -12,9 +12,14 @@ export function adminHeaders(extra = {}) {
 }
 
 /**
- * @param {{apiBaseUrl: string, onAuthenticated: () => Promise<void>, fetchImpl?: typeof fetch}} options
+ * @param {{
+ *   apiBaseUrl: string,
+ *   onAuthenticated: (principal?: any) => Promise<void>,
+ *   onPrincipal?: (principal: any) => void,
+ *   fetchImpl?: typeof fetch
+ * }} options
  */
-export function createAdminAuthController({ apiBaseUrl, onAuthenticated, fetchImpl = fetch }) {
+export function createAdminAuthController({ apiBaseUrl, onAuthenticated, onPrincipal = () => {}, fetchImpl = fetch }) {
   const backdrop = () => document.getElementById('adminAuthBackdrop');
 
   async function bootstrap() {
@@ -24,9 +29,12 @@ export function createAdminAuthController({ apiBaseUrl, onAuthenticated, fetchIm
         credentials: 'same-origin',
       });
       if (!response.ok) throw new Error('authentication required');
+      const body = await response.json();
+      const principal = body?.principal || null;
+      onPrincipal(principal);
       const element = backdrop();
       if (element) element.style.display = 'none';
-      await onAuthenticated();
+      await onAuthenticated(principal);
     } catch {
       const element = backdrop();
       if (element) element.style.display = 'flex';

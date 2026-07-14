@@ -12,11 +12,11 @@
 export const STORE_PRICE_FALLBACK = 100;
 
 /**
- * @param {MenuItem | { price?: unknown }} item
+ * @param {MenuItem | { price?: unknown, effective_price?: unknown }} item
  * @returns {number}
  */
 export function resolveItemPrice(item) {
-  const price = Number(item?.price || 0);
+  const price = Number(item?.effective_price || item?.price || 0);
   return price > 0 ? price : STORE_PRICE_FALLBACK;
 }
 
@@ -64,4 +64,20 @@ export function getMenuVisual(item) {
  */
 export function formatItemPrice(item, lang = 'zh') {
   return `$${resolveItemPrice(item)}`;
+}
+
+/**
+ * @param {MenuItem} item
+ * @returns {string}
+ */
+export function formatItemPriceDetail(item) {
+  const effectivePrice = resolveItemPrice(item);
+  const basePrice = Number(item.base_price || item.original_price || 0);
+  if (item.price_conditional && Number(item.conditional_price || 0) > 0) {
+    return `$${effectivePrice}；${item.price_condition_text || `符合活動條件可享 $${item.conditional_price}`}`;
+  }
+  if (basePrice > effectivePrice && item.promotion_title) {
+    return `優惠價 $${effectivePrice}（原價 $${basePrice}） · ${item.promotion_title}`;
+  }
+  return `$${effectivePrice}`;
 }
