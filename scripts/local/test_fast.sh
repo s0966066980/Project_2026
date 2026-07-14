@@ -22,7 +22,7 @@ echo "=== Tier 1: fast core subset ==="
   tests/test_security_boundaries.py \
   tests/test_worker_production_path.py \
   tests/test_failure_injection_recovery.py \
-  tests/test_deployment_operations.py \
+  tests/test_local_operations.py \
   tests/test_object_storage_production_path.py \
   tests/test_llm_gateway_production_cutover.py \
   tests/test_local_profiles.py \
