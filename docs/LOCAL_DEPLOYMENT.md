@@ -14,7 +14,18 @@ Project_2026 的**主要執行方式**是本機或區域網路的原生 Process�
 | Emotion-LLaMA | `bash scripts/start_emotion_llama.sh` | Optional |
 | R1-Omni | `bash scripts/start_r1_omni.sh` | Optional |
 
-Orchestration scripts under `scripts/local/` are added in Milestone L2.
+Orchestration (Milestone L2):
+
+```bash
+bash scripts/local/setup.sh
+bash scripts/local/doctor.sh
+bash scripts/local/start.sh
+bash scripts/local/status.sh
+bash scripts/local/stop.sh
+bash scripts/local/test_fast.sh
+```
+
+Runtime state: `runtime/{pids,logs,object_storage,tmp,state}` (gitignored contents).
 
 ## Config
 

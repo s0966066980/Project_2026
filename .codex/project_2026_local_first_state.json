@@ -3,15 +3,17 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "55fce0b4b6a940f366ee51fe4bfdb04efcb6492c",
   "program": "local_first",
-  "current_milestone": "L1",
+  "current_milestone": "L2",
   "status": "passed",
   "completed_milestones": [
     "L0",
-    "L1"
+    "L1",
+    "L2"
   ],
   "checkpoint_commits": {
     "L0": "622da46b18aba8ae4855dca187d73486f41e43c8",
-    "L1": "ec70aa907bcd5a3c9ba1b12dfb1e49cdd79f88a4"
+    "L1": "39d8abf003397e197c7987e4470e38b901f00511",
+    "L2": "067b67a5d56ac9f5498925c74318b4290702e980"
   },
   "verification": {
     "L0": {
@@ -32,6 +34,13 @@
       "docs_local_first": "PASS",
       "deployment_tests": "PASS",
       "full_json_backend": "PASS (351)"
+    },
+    "L2": {
+      "shell_syntax": "PASS",
+      "doctor": "PASS (warn-only without .env)",
+      "test_fast": "PASS (40 + typecheck)",
+      "start_status_stop": "PASS (live OK)",
+      "docker_required": "no"
     }
   },
   "test_inventory": {
@@ -65,6 +74,6 @@
       }
     ]
   },
-  "next_milestone": "L2",
-  "updated_at": "2026-07-14T12:02:20.740738+08:00"
+  "next_milestone": "L3",
+  "updated_at": "2026-07-14T12:05:02.732734+08:00"
 }

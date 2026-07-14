@@ -50,6 +50,19 @@ tmp_visual_checks/
 *.bak
 *~
 
+# Local-first runtime state (pids, logs, temp objects)
+runtime/pids/
+runtime/logs/
+runtime/object_storage/
+runtime/tmp/
+runtime/state/
+!runtime/.gitkeep
+!runtime/pids/.gitkeep
+!runtime/logs/.gitkeep
+!runtime/object_storage/.gitkeep
+!runtime/tmp/.gitkeep
+!runtime/state/.gitkeep
+
 # Runtime/generated local data
 UI_API/chroma_db/
 UI_API/chroma_db_versions/
