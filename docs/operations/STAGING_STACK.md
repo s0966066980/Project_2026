@@ -1,25 +1,25 @@
-# Staging Stack Contract
+# Staging / Local-full Stack Contract (Native)
 
-Topology source: `deploy/compose.staging.yml`.
+Primary topology is **host processes**, not containers.
 
-Required processes:
+Required for commercial-like local:
 
-1. PostgreSQL 16 (commercial SoT)
-2. Redis 8 (ephemeral shared infra)
-3. API container (`deploy/Dockerfile.api`)
-4. Worker container (`deploy/Dockerfile.worker`)
-5. Optional AI gateways on separate hosts/images (not in API image)
+1. PostgreSQL 16+ (host service)
+2. Redis (optional for local-postgres; recommended for local-full)
+3. API process (`python UI_API/main.py`)
+4. Worker process (`python UI_API/backend/scripts/run_worker.py`)
+5. Optional AI gateways (Ollama / Emotion-LLaMA / R1-Omni) on separate processes
 
 Pre-boot:
 
 ```bash
 export DATABASE_URL=...
-export REDIS_URL=...
+export REDIS_URL=...   # optional
 export OBJECT_STORAGE_SIGNING_SECRET=...
 export ADMIN_MEMBER_REF_SECRET=...
-# commercial fail-fast fields from deploy/env-templates/staging.example
-python UI_API/backend/scripts/manage_postgres_migrations.py apply
-python UI_API/backend/scripts/manage_postgres_migrations.py validate --require-clean
+cd UI_API
+python backend/scripts/manage_postgres_migrations.py apply
+python backend/scripts/manage_postgres_migrations.py validate --require-clean
 ```
 
 Post-boot:
@@ -28,4 +28,4 @@ Post-boot:
 bash scripts/post_deploy_smoke.sh
 ```
 
-This environment does not run Docker; staging image build remains an operator exercise.
+Docker is **not** required. Archived compose/Dockerfiles: `docs/archive/docker/`.

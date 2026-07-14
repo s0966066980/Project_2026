@@ -1,14 +1,19 @@
-# Deployment Assets
+# Deploy notes (Local-first)
 
-Process and image boundaries for Project_2026 commercial runtimes.
+Primary runtime is **native local/LAN processes**, not Docker.
 
-| Asset | Role |
+| Active path | Role |
 | --- | --- |
-| `Dockerfile.api` | FastAPI API process only |
-| `Dockerfile.worker` | Background worker / outbox consumer |
-| `compose.staging.yml` | Staging-like API + Worker + PostgreSQL + Redis |
-| `env-templates/*.example` | Environment contract templates (no real secrets) |
+| `UI_API/main.py` | API process |
+| `UI_API/backend/scripts/run_worker.py` | Worker process |
+| Host PostgreSQL / Redis | Data & ephemeral infra |
+| `.env.example` | Environment template |
 
-GPU AI runtimes (`Emotion-LLaMA`, `R1-Omni`, Ollama) are **not** packaged into API/Worker images.
+Archived Docker artifacts (reference only):
 
-See [docs/operations/DEPLOYMENT.md](../docs/operations/DEPLOYMENT.md).
+- `docs/archive/docker/Dockerfile.api`
+- `docs/archive/docker/Dockerfile.worker`
+- `docs/archive/docker/compose.staging.yml`
+- `docs/archive/docker/env-templates/*`
+
+Do not require Docker for local setup, CI developer loops, or Local-first gates.

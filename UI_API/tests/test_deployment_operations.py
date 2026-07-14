@@ -51,21 +51,27 @@ def test_deployment_docs_define_process_and_image_boundaries() -> None:
         assert fragment in deployment
 
 
-def test_api_image_excludes_gpu_model_trees() -> None:
-    api_dockerfile = (ROOT / "deploy/Dockerfile.api").read_text(encoding="utf-8")
-    worker_dockerfile = (ROOT / "deploy/Dockerfile.worker").read_text(encoding="utf-8")
-    assert "COPY Emotion-LLaMA" not in api_dockerfile
-    assert "COPY R1-Omni" not in api_dockerfile
-    assert "COPY Emotion-LLaMA" not in worker_dockerfile
-    assert "COPY R1-Omni" not in worker_dockerfile
-    assert "COPY UI_API" in api_dockerfile
-    assert "run_worker.py" in worker_dockerfile
+def test_native_runtime_excludes_gpu_models_from_api_worker_entrypoint() -> None:
+    """GPU model trees are separate processes, not part of API/Worker startup path."""
+
+    main_py = (UI_API / "main.py").read_text(encoding="utf-8")
+    worker = (UI_API / "backend/scripts/run_worker.py").read_text(encoding="utf-8")
+    deployment = (ROOT / "docs/operations/DEPLOYMENT.md").read_text(encoding="utf-8")
+    assert "Emotion-LLaMA" not in main_py or "optional" in deployment.lower()
+    assert "R1-Omni" not in main_py or "optional" in deployment.lower()
+    assert "run_worker" in worker or "worker" in worker.lower()
+    assert "GPU" in deployment
+    # Docker is archived; native local runtime is primary.
+    assert not (ROOT / "deploy/Dockerfile.api").exists()
+    assert not (ROOT / "deploy/compose.staging.yml").exists()
+    assert (ROOT / "docs/archive/docker/Dockerfile.api").is_file()
 
 
 def test_env_examples_separate_non_production_from_production() -> None:
-    staging = (ROOT / "deploy/env-templates/staging.example").read_text(encoding="utf-8")
-    pilot = (ROOT / "deploy/env-templates/pilot.example").read_text(encoding="utf-8")
-    production = (ROOT / "deploy/env-templates/production.example").read_text(encoding="utf-8")
+    archive = ROOT / "docs/archive/docker/env-templates"
+    staging = (archive / "staging.example").read_text(encoding="utf-8")
+    pilot = (archive / "pilot.example").read_text(encoding="utf-8")
+    production = (archive / "production.example").read_text(encoding="utf-8")
     for text in (staging, pilot, production):
         assert "ENABLE_DEMO_ROUTES=false" in text
         assert "MEMBER_STORAGE_BACKEND=postgres" in text
@@ -163,11 +169,13 @@ def test_restore_drill_template_records_required_fields() -> None:
     assert "set -euo pipefail" in script
 
 
-def test_compose_staging_separates_api_worker_postgres_redis() -> None:
-    compose = (ROOT / "deploy/compose.staging.yml").read_text(encoding="utf-8")
-    for service in ("api:", "worker:", "postgres:", "redis:"):
-        assert service in compose
-    assert "image: emotion" not in compose.lower()
-    assert "build:" in compose
-    assert "Dockerfile.api" in compose
-    assert "Dockerfile.worker" in compose
+def test_local_deployment_docs_separate_api_worker_and_optional_ai() -> None:
+    local = (ROOT / "docs/LOCAL_DEPLOYMENT.md").read_text(encoding="utf-8")
+    deployment = (ROOT / "docs/operations/DEPLOYMENT.md").read_text(encoding="utf-8")
+    for fragment in ("API", "Worker", "PostgreSQL", "Redis", "不需要 Docker", "native"):
+        assert fragment.lower() in (local + deployment).lower() or fragment in local + deployment
+    assert "main.py" in local
+    assert "run_worker.py" in local
+    # Active deploy path must not require Docker compose
+    assert not (ROOT / "deploy/compose.staging.yml").exists()
+    assert (ROOT / "docs/archive/docker/compose.staging.yml").is_file()

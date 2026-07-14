@@ -3,12 +3,16 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "55fce0b4b6a940f366ee51fe4bfdb04efcb6492c",
   "program": "local_first",
-  "current_milestone": "L0",
+  "current_milestone": "L1",
   "status": "passed",
   "completed_milestones": [
-    "L0"
+    "L0",
+    "L1"
   ],
-  "checkpoint_commits": {},
+  "checkpoint_commits": {
+    "L0": "622da46b18aba8ae4855dca187d73486f41e43c8",
+    "L1": "ec70aa907bcd5a3c9ba1b12dfb1e49cdd79f88a4"
+  },
   "verification": {
     "L0": {
       "inventory_tool": "PASS",
@@ -21,6 +25,13 @@
       "baseline_collect": "PASS (351)",
       "baseline_smoke_core": "PASS (27)",
       "functional_changes": "none"
+    },
+    "L1": {
+      "docker_primary_removed": "PASS",
+      "artifacts_archived": "docs/archive/docker/",
+      "docs_local_first": "PASS",
+      "deployment_tests": "PASS",
+      "full_json_backend": "PASS (351)"
     }
   },
   "test_inventory": {
@@ -54,6 +65,6 @@
       }
     ]
   },
-  "next_milestone": "L1",
-  "updated_at": "2026-07-14T12:00:08.100588+08:00"
+  "next_milestone": "L2",
+  "updated_at": "2026-07-14T12:02:20.740738+08:00"
 }

@@ -19,6 +19,7 @@
 | P0 | Member UUID / PII contract phase | 移除已驗證無使用者的 phone compatibility column | 1F production metrics、法務/隱私審查 | uuid_only 穩定、rotation/recovery 演練、forward contract migration |
 | 完成 | Order outbox consumption | 可靠發布 Order lifecycle event | 1G transactional outbox、Worker | retry、backoff、dead letter、idempotent delivery、backlog metrics 已建立；外部 sink 後續擴充 |
 | P1 EXTERNAL | External telemetry backend | 將既有 metrics/trace contract 接到 deployment backend | 1H observability contract、Deployment | exporter、dashboard、paging、retention、實測 SLO report — EXTERNAL_BLOCKED |
+| P0 LOCAL | Local-first orchestration | 本機 setup/start/stop/doctor/test tiers | L0 inventory | `scripts/local/*`、profiles、fast gate |
 | P0 EXTERNAL | Actual restore drill | 真實 backup → 隔離 DB restore | ops scripts | 需 TARGET_DATABASE_URL + backup artifact |
 | P0 EXTERNAL | Payment / Cloud storage / POS pilot | 商戶與雲端 wiring | 4A/4B/5B contracts | 需外部憑證與認證 |
 | 完成 | API v1 contracts | typed、versioned read surface | Pydantic/OpenAPI | `/api/v1`、統一 error、相容層已建立；write caller 逐步遷移 |

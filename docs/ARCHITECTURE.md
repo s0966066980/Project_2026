@@ -1,9 +1,10 @@
 # Project_2026 架構
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 狀態：Active
-- 最後更新：2026-07-13
+- 最後更新：2026-07-14
 - 架構策略：Modular Monolith First
+- 執行模式：**Local-first native processes**（本機 / LAN）；Docker 僅 `docs/archive/docker/` 歷史參考
 
 ## 1. 系統目的
 
@@ -12,6 +13,14 @@ Project_2026 提供自助點餐、營運後台、會員個人化、推薦、語�
 ## 2. 目前架構
 
 ```text
+Local Machine / LAN
+├── PostgreSQL (commercial profiles)
+├── Redis (optional)
+├── API: python UI_API/main.py
+├── Worker: python UI_API/backend/scripts/run_worker.py
+├── Kiosk / Admin (served by API)
+└── Optional: Ollama / Emotion-LLaMA / R1-Omni
+
 Browser
 ├── /kiosk ───────────────┐
 └── /admin ───────────────┤

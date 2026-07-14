@@ -26,31 +26,29 @@ Project_2026/
 └── .github/workflows/ci.yml
 ```
 
-## 快速開始
+## 快速開始（Local-first，不需要 Docker）
+
+本專案以**本機 / 區域網路原生 Process** 為主要執行方式。Docker 非必要；歷史 Docker 檔案僅存於 `docs/archive/docker/`。
 
 ### 1. 建立環境
 
 ```bash
-conda create -n emotion_ui python=3.10 -y
-conda activate emotion_ui
-pip install -r UI_API/requirements.txt
-cp .env.example .env
+cd UI_API
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp ../.env.example ../.env
 ```
 
-依本機環境調整 `.env`，不要提交真實 Secret。
+依本機環境調整 `.env`，不要提交真實 Secret。JSON 開發模式可維持 `MEMBER_STORAGE_BACKEND=json`；商用本機再接 PostgreSQL。
 
-### 2. 啟動
-
-Emotion-LLaMA：
+### 2. 啟動核心應用
 
 ```bash
-bash scripts/start_emotion_llama.sh
-```
-
-R1-Omni：
-
-```bash
-bash scripts/start_r1_omni.sh
+cd UI_API
+python main.py
+# 另開終端（PostgreSQL 模式需要）：
+python backend/scripts/run_worker.py
 ```
 
 預設入口：
@@ -60,12 +58,14 @@ Kiosk: http://127.0.0.1:9000/kiosk
 Admin: http://127.0.0.1:9001/admin
 ```
 
-只啟動核心應用：
+可選模型服務：
 
 ```bash
-cd UI_API
-python main.py
+bash scripts/start_emotion_llama.sh
+bash scripts/start_r1_omni.sh
 ```
+
+詳細： [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md)、[docs/LOCAL_RUNTIME_INVENTORY.md](docs/LOCAL_RUNTIME_INVENTORY.md)。
 
 ## 驗證
 
@@ -120,7 +120,7 @@ bash -n scripts/restore_postgres.sh
 - 保持 Modular Monolith，先建立清楚模組邊界，再依實際 scaling 與故障隔離需求拆服務。
 - 正式環境使用 PostgreSQL、受管 Secret、明確 CORS allowlist，並關閉 demo/test/debug routes。
 - Admin 身分、角色權限、多租戶/多門市、Kiosk device credential、PII 保護與 migration 需依 Roadmap 漸進導入。
-- UI_API、PostgreSQL、Redis/Worker 與大型 AI 模型應使用獨立 runtime 或容器。
+- UI_API、PostgreSQL、Redis/Worker 與大型 AI 模型應使用獨立 process；本機以原生啟動為主，不強制容器。
 - 商用前逐項確認模型、資料集、圖片、品牌素材與第三方套件授權。
 
 具體門檻見 [docs/COMMERCIAL_GOVERNANCE.md](docs/COMMERCIAL_GOVERNANCE.md)。
