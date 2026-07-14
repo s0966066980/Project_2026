@@ -2,7 +2,7 @@
 
 `UI_API/frontend/` 是由 Vite 建置的兩個獨立 browser applications：Kiosk 與 Admin；兩者共用有限的 HTTP/API/realtime/UI primitives。
 
-> 實作盤點：2026-07-14。現有程式以 JavaScript + `// @ts-check` 漸進型別化，typed `/api/v1` client 已建立但 legacy `/api/*` 仍在使用。
+現有程式以 JavaScript + `// @ts-check` 漸進型別化，typed `/api/v1` client 已建立但 legacy `/api/*` 仍在使用。
 
 ## 結構
 
@@ -38,24 +38,6 @@ frontend/
 - Server 是價格、promotion eligibility、member scope、order/payment result 與 permission 的最終真相。
 - DOM id/class 是相容 contract；未驗證內容使用 `textContent` 或 escaping。
 - Demo/legacy token 只存 `sessionStorage` 並從 URL 移除；長期 credential 不放 URL/`localStorage`。
-
-## 驗證
-
-```bash
-cd UI_API/frontend
-npm ci --ignore-scripts
-npm run typecheck
-npm run syntax
-npm run test
-npm run build
-```
-
-需要 coverage 或關鍵 browser flow 時再執行：
-
-```bash
-npm run test:coverage
-npm run test:e2e
-```
 
 子模組：
 

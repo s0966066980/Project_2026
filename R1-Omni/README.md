@@ -2,7 +2,7 @@
 
 `R1-Omni/` 是 Project_2026 的可選多模態情緒分析執行單元，透過 `r1_omni_server.py` 提供 UI_API 可使用的 HTTP 推論能力。
 
-> Project_2026 整合盤點：2026-07-14。此服務是可選 local provider，不是 checkout 必要條件。
+此服務是可選 local provider，不是 checkout 必要條件。
 
 ## 責任
 

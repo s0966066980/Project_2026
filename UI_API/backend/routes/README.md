@@ -2,8 +2,6 @@
 
 `routes/` 是 FastAPI HTTP/WebSocket transport。所有 route 由 `api/route_registry.py` 註冊，再由 `api/router.py` 注入 dependency container。
 
-> 實作盤點：2026-07-14。
-
 ## Route 群組
 
 - Core/UI：`core_routes.py` 提供 `/`、`/kiosk`、`/pos`、`/admin`、settings、health、logs、stats 與 legacy checkout。
@@ -21,13 +19,4 @@
 
 Read surface 包含 auth principal、commercial context、members、orders、promotions、recommendations、audits、settings 與 RAG reviews。Write surface 包含 settings patch、availability put、promotion create、RAG document create/review/publish/rollback、fleet command 與 order transition。
 
-這些 contracts 已 typed，但目前集中在單一 `v1_routes.py`，且直接依賴部分 service/repository。後續應按 domain 漸進移至 `modules/<domain>/api.py`，保持 URL、operation ID、envelope 與權限相容。
-
-## 維護規則
-
-- Route 只處理 authentication/authorization、rate limit、validation、HTTP mapping 與 request/trace context。
-- 不在 route 直接讀寫 JSON/PostgreSQL/Redis/檔案，也不新增 route → repository 依賴。
-- Kiosk、Admin、Device 與 WebSocket 使用各自 server policy；query-string token 只保留 legacy/demo 相容。
-- 新公開 contract 優先使用 `/api/v1/*`、Pydantic DTO、唯一 operation ID 與 safe error envelope。
-- Demo/test/debug route 在 `staging`、`pilot`、`production` 必須 fail closed。
-- Route 變更至少執行對應 route/contract/security tests。
+這些 contracts 已 typed，但目前集中在單一 `v1_routes.py`，且直接依賴部分 service/repository；其他 domain module routers 尚未完成切換。

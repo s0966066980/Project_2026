@@ -2,8 +2,6 @@
 
 `repositories/` 隔離 JSON、PostgreSQL 與 Redis I/O。它是 persistence adapter 集合，不是業務規則層。
 
-> 實作盤點：2026-07-14。
-
 ## Repository 分組
 
 - Identity/scope：`admin_identity_repository.py`、`device_identity_repository.py`、`admin_audit_repository.py`。
@@ -23,11 +21,3 @@
 - `staging` / `pilot` / `production` 必須設定 PostgreSQL，且禁止 DB failure 靜默 fallback 到 JSON。
 - Redis 提供 shared cache、rate limiting 與 lock，不是商業資料 Source of Truth。
 - Object bytes 由 local/S3 storage service 處理；PostgreSQL repository 保存 metadata，不把 binary 塞入資料表。
-
-## 維護規則
-
-- Repository 不 import route，也不決定價格、推薦、promotion eligibility、權限或狀態轉移策略。
-- 每個 scoped read/write 必須保留 tenant/store/device ownership，不能只靠前端過濾。
-- 新 schema 使用 forward migration；已發布 migration 不改寫。
-- Repository 變更至少跑最近的 unit test；PostgreSQL/Redis 路徑再跑對應 integration test。
-- 不在 log/test output 顯示 raw credential、完整 PII、document content 或 production payload。

@@ -2,8 +2,6 @@
 
 `backend/scripts/` 保存 production-adjacent 的 migration、bootstrap、validation 與 worker CLI；demo/一次性工具仍放 Repository `tools/`。
 
-> 實作盤點：2026-07-14。
-
 ## 腳本
 
 | 腳本 | 用途 |
@@ -33,6 +31,5 @@ python backend/scripts/validate_local_environment.py --list
 
 - 寫入型腳本應預設 dry-run、需要明確 flag，或提供可觀察的冪等行為。
 - 不把 secret、完整 PII、document content 或 production payload 印到 stdout/log。
-- 新正式資料流程需補 target test/smoke、失敗恢復與 operator 說明。
 - Worker 是獨立 process；不要把長期工作 loop 塞進 FastAPI request 或 lifespan。
 - `pilot` 執行 migration/bootstrap 前先備份，並準備 roll-forward/recovery。

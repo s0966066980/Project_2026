@@ -1,8 +1,8 @@
 # UI_API 核心應用
 
-`UI_API/` 是 Project_2026 的 production path，包含 FastAPI、Kiosk、Admin、資料存取、可靠 worker、RAG/AI integrations 與自動化測試。
+`UI_API/` 是 Project_2026 的 production path，包含 FastAPI、Kiosk、Admin、資料存取、可靠 worker 與 RAG/AI integrations。
 
-> 實作盤點：2026-07-14。部署目標是單店 local pilot；目前尚未 production certified。
+部署目標是單店 local pilot；目前尚未 production certified。
 
 ## 功能範圍
 
@@ -16,7 +16,7 @@
 
 ```text
 UI_API/
-├── main.py                    # FastAPI app 與開發 server 入口
+├── main.py                    # FastAPI app 與本機 server 入口
 ├── config.py                  # 環境、動態設定與 commercial fail-closed 驗證
 ├── backend/
 │   ├── app_factory.py         # middleware、health、static、route 組裝
@@ -34,9 +34,7 @@ UI_API/
 ├── rag_documents/             # 可審核與重建的 RAG 原始來源
 ├── learning_data/             # local runtime compatibility data
 ├── tests/                     # Backend/architecture/integration tests
-├── requirements-ci.txt        # CPU-only CI dependencies
-├── requirements.txt           # 完整 local runtime dependencies
-└── pyproject.toml             # Ruff、mypy、pytest 設定
+└── requirements.txt           # 完整 local runtime dependencies
 ```
 
 ## 執行路徑
@@ -49,7 +47,7 @@ main.py → app_factory.create_app()
         → repository / integration
 ```
 
-`main.py` 的開發 server 可讓同一 app 綁定 `APP_PORT` 與 `ADMIN_PORT`。`/live` 只表示 process 存活；`/ready` 會回報 dependency readiness。AI/STT/TTS/RAG 在 lifespan 背景初始化，失敗只降級相關能力。
+`main.py` 的本機 server 可讓同一 app 綁定 `APP_PORT` 與 `ADMIN_PORT`。`/live` 只表示 process 存活；`/ready` 會回報 dependency readiness。AI/STT/TTS/RAG 在 lifespan 背景初始化，失敗只降級相關能力。
 
 可靠工作另以 process 啟動：
 
@@ -60,7 +58,7 @@ python backend/scripts/run_worker.py --help
 
 ## 啟動
 
-核心開發模式：
+核心應用：
 
 ```bash
 cd UI_API
@@ -75,19 +73,6 @@ python backend/scripts/validate_local_environment.py --profile local-pilot
 ```
 
 模型整合啟動方式見 [Repository README](../README.md#本機啟動)。
-
-## 驗證
-
-```bash
-cd UI_API
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
-
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-pytest -q tests/test_documentation_integrity.py
-```
-
-依修改範圍再執行最近的 target test。PostgreSQL/Redis integration 與 Playwright 需要對應服務或瀏覽器；不要把未執行的檢查描述為通過。
 
 ## 邊界與限制
 

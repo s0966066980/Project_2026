@@ -2,7 +2,7 @@
 
 `UI_API/rag_documents/` 是可版本化的 RAG 原始來源。Admin 的 validate/rebuild 與 review/publish 流程會使用此目錄；本 `README.md` 會被 ingestion 明確略過。
 
-> 實作盤點：2026-07-14。系統同時存在 filesystem review compatibility flow 與 PostgreSQL/object-storage durable governance flow，尚在漸進切換。
+系統同時存在 filesystem review compatibility flow 與 PostgreSQL/object-storage durable governance flow。
 
 ## 支援格式與目錄
 

@@ -2,8 +2,6 @@
 
 `frontend/shared/` 只保存 Kiosk 與 Admin 可共同使用的 transport、contracts、hooks 與 UI primitives。
 
-> 實作盤點：2026-07-14。
-
 ## 目前內容
 
 - `apiClient.js`：legacy `/api/*` facade、Kiosk/Admin compatibility headers、token URL cleanup、voice streaming/checkout helpers。

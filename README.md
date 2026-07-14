@@ -2,7 +2,7 @@
 
 Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用位於 `UI_API/`，提供 Kiosk、Admin、會員、推薦、RAG、語音、情緒分析與結帳流程；`Emotion-LLaMA/`、`R1-Omni/` 為可選模型服務，不應阻擋核心點餐與結帳。
 
-> 實作盤點：2026-07-14。現在是 **local pilot / NOT_READY**，Payment 與 POS 只有 manual adapter，尚未通過 production certification。
+目前部署階段是 **local pilot / NOT_READY**；Payment 與 POS 只有 manual adapter，尚未通過 production certification。
 
 > 架構狀態：**Transitional Modular Monolith（模組化單體過渡期）**。目前同時存在既有的 `routes → services → repositories` 分層，以及逐步抽離中的 `modules/<domain>` 公開 Application API。文件會區分「目前實作」與「目標邊界」，避免把尚未完成的重構視為既成事實。
 
@@ -13,7 +13,6 @@ Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用
 - **Backend**：FastAPI、HTTP / WebSocket、Admin/Device identity、RBAC、健康檢查、結構化 logging、JSON 相容儲存與 PostgreSQL 商用路徑。
 - **資料與非同步工作**：11 個 forward PostgreSQL migrations、Redis shared rate-limit/cache/lock、可靠 worker、transactional outbox、local/S3 object-storage contract。
 - **AI**：Ollama、Gemini、Emotion-LLaMA、R1-Omni、STT / TTS；AI provider 必須保持可替換，失敗時不得破壞核心交易流程。
-- **Frontend toolchain**：Vite、Vitest、Playwright、TypeScript typecheck，現有瀏覽器程式以 JavaScript + `// @ts-check` 漸進型別化。
 
 ## 專案結構
 
@@ -45,8 +44,7 @@ Project_2026/
 ├── R1-Omni/                        # 可選多模態模型服務
 ├── scripts/                        # 本機模型與 UI_API 啟動腳本
 ├── config/profiles/                # local-pilot 環境範例
-├── tools/                          # Demo、維運或一次性工具；非 production path
-└── .github/workflows/ci.yml        # CI 定義
+└── tools/                          # Demo、維運或一次性工具；非 production path
 ```
 
 ## Runtime 與請求路徑
@@ -131,7 +129,7 @@ npm ci --ignore-scripts
 
 ## 本機啟動
 
-### UI_API 開發模式
+### UI_API 單獨啟動
 
 ```bash
 cd UI_API
@@ -147,12 +145,7 @@ Live:  http://127.0.0.1:8000/live
 Ready: http://127.0.0.1:8000/ready
 ```
 
-`main.py` 會在 `APP_PORT` 與 `ADMIN_PORT` 啟動相同 FastAPI app；若兩者相同只會啟動一次。local pilot 設定範例位於 `config/profiles/local-pilot.env.example`，可先執行：
-
-```bash
-cd UI_API
-python backend/scripts/validate_local_environment.py --profile local-pilot
-```
+`main.py` 會在 `APP_PORT` 與 `ADMIN_PORT` 啟動相同 FastAPI app；若兩者相同只會啟動一次。local pilot 的環境設定範例位於 `config/profiles/local-pilot.env.example`。
 
 ### 搭配 Emotion-LLaMA
 
@@ -171,60 +164,3 @@ bash scripts/start_r1_omni.sh
 ```
 
 兩個啟動腳本目前帶有開發機的預設 Python 路徑；其他機器請明確設定 `UI_PY`、`LLAMA_PY` 或 `R1_PY`。腳本模式預設使用 Kiosk `9000`、Admin `9001`。
-
-## 驗證
-
-先跑最接近修改範圍的檢查，再決定是否擴大。
-
-### Backend import smoke
-
-```bash
-cd UI_API
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
-```
-
-### Backend target / full tests
-
-```bash
-cd UI_API
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-pytest -q tests/test_target.py
-
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-pytest -q tests
-```
-
-### Frontend
-
-```bash
-cd UI_API/frontend
-npm run typecheck
-npm run syntax
-npm run test
-npm run build
-# 只有關鍵瀏覽器流程或跨頁面修改才執行：
-npm run test:e2e
-```
-
-### Shell
-
-```bash
-bash -n scripts/start_emotion_llama.sh
-bash -n scripts/start_r1_omni.sh
-```
-
-## Baseline 與 CI
-
-CI 使用 `UI_API/requirements-ci.txt` 安裝不含大型模型的 CPU-only 驗證依賴，並由 `UI_API/pyproject.toml` 定義 Ruff、mypy 與 pytest 設定。目前 workflow 分為 Backend（Python 3.10/3.12）、PostgreSQL migration、Frontend、Redis integration 與 Shell jobs；完整 runtime 依賴仍使用 `UI_API/requirements.txt`。
-
-PostgreSQL、Redis 與 Playwright 檢查需要對應服務或瀏覽器；本機文件變更只需先跑文件連結測試，不應把未執行的完整 CI 描述為已通過。
-
-## 目前建議維護順序
-
-1. 完成 `routes/services/repositories` 到 `modules/<domain>` 的漸進切換，先移除 Identity 相容 shim，再處理下一個 bounded context。
-2. 將 `v1_routes.py` 拆成 domain routers，避免大型 route 直接依賴多個 repository。
-3. 持續拆分 `frontend/admin/admin.js`，並把 raw `fetch()` 漸進集中到 shared/typed clients。
-4. 將 `config.py` 的環境設定、動態設定與商用驗證分離；避免單檔持續膨脹。
-5. 以真實 payment/POS adapter 與營運驗證取代 manual-only pilot，再進行 production certification。
-6. 重新拆分 backend core / dev / local-AI dependencies，降低安裝成本與 CI 時間。

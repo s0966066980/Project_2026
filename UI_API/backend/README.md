@@ -2,7 +2,7 @@
 
 `UI_API/backend/` 是 FastAPI transport、application workflows、資料 adapters、realtime、可靠 worker 與啟動組裝所在處。
 
-> 實作盤點：2026-07-14。架構是 Transitional Modular Monolith，不是已完成的 domain modularization。
+架構是 Transitional Modular Monolith，不是已完成的 domain modularization。
 
 ## 結構與責任
 
@@ -60,17 +60,6 @@ FastAPI route
 - Voice/STT/TTS、multimodal evidence、barrier/intervention pipeline。
 - Fleet commands、analytics pipeline、audit、observability、health。
 - Reliable worker、transactional outbox、Redis shared infrastructure。
-
-## 驗證
-
-```bash
-cd UI_API
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
-
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
-pytest -q tests/architecture
-```
 
 子層文件：
 
