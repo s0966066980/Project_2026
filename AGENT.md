@@ -1,5 +1,7 @@
 # Agent Instructions
 
+> 與 Repository 實作最後對照：2026-07-14。
+
 Codex / coding agent 的權威工作規則位於 [`AGENTS.md`](AGENTS.md)。
 
 開始任何程式修改前，請先讀取 `AGENTS.md`，依其中的低 token loop 執行：

@@ -1,36 +1,41 @@
-# Backend Schemas 與 Migration
+# Backend Schemas 與 PostgreSQL Migrations
 
-`UI_API/backend/schemas/` 保存資料庫 schema、migration 資產與逐步擴大的跨層資料契約。
+`backend/schemas/migrations/` 是正式 PostgreSQL schema source of truth；`membership_postgres.sql` 只是 migration 前的 legacy snapshot。
 
-## 目前內容
+> 實作盤點：2026-07-14。現有 forward migrations 為 `0001`–`0011`。
 
-- `membership_postgres.sql`：Milestone 1A 前的 legacy membership snapshot，不再作為正式 schema source，也不與每次 migration 手動同步。
-- `migrations/*.sql`：不可變、連續版本的正式 schema source of truth。
-- `backend/scripts/manage_postgres_migrations.py`：status、validate 與 apply 入口。
+## Migration 清單
 
-## 規則
+| 版本 | 範圍 |
+| --- | --- |
+| `0001` | Membership commercial baseline |
+| `0002` | Tenant/store/device commercial scope foundation |
+| `0003` | Admin identity、RBAC、revocable sessions |
+| `0004` | Device credentials、sessions、events |
+| `0005` | Scoped availability/settings/promotion/interaction/RAG ownership 與 NOT NULL contracts |
+| `0006` | Member UUID、keyed lookup、encrypted phone metadata 與 child references |
+| `0007` | Order aggregate、item/pricing snapshots、idempotency、promotion usage、outcome、transactional outbox |
+| `0008` | Durable background jobs、claim/visibility/retry/dead-letter controls |
+| `0009` | Durable object-storage metadata；binary 留在 storage backend |
+| `0010` | Durable RAG governance metadata；content 以 object reference 管理 |
+| `0011` | Recommendation/promotion governance、fleet state/commands、analytics sink |
 
-- 新資料表使用明確主鍵、必要 foreign key/index，以及可排序的 `created_at`/`updated_at`。
-- 新 schema 變更使用新的 versioned migration；已套用 migration 不直接改寫。
-- Migration 應有版本保護、checksum/重複執行策略與資料驗證。
+## 操作
+
+```bash
+cd UI_API
+python backend/scripts/manage_postgres_migrations.py status
+python backend/scripts/manage_postgres_migrations.py validate
+python backend/scripts/manage_postgres_migrations.py apply
+```
+
+`apply` 需要 `DATABASE_URL`。CI 會在 disposable PostgreSQL 上驗證 migration、重複套用、scope integrity、Member PII、Order/outbox 與 worker production path。
+
+## 維護規則
+
+- 已發布 migration 不修改；修正一律新增下一個 forward migration。
 - 破壞性變更採 `expand → dual write/backfill → verify → switch read → contract`。
-- Migration PR 必須說明 backup、restore、rollback 或 roll-forward。
-- 新 API request/response 與大型跨層 contract 使用 Pydantic model、TypedDict 或 dataclass，避免無型別 `dict` 擴散。
-- 商用資料逐步加入 `tenant_id`、`store_id`、`device_id` scope。
-- `0003_admin_identity_rbac_foundation.sql` 是 Admin identity/RBAC schema source；permission/user bootstrap 透過受信任 CLI 執行，不將 password 或 token seed 寫入 migration。
-- `0004_device_identity_foundation.sql` 是 per-device credential/session/event schema source；raw credential 只在受權 issue/rotate response 出現一次。
-- `0005_commercial_scope_contract_enforcement.sql` 收緊 core ownership `NOT NULL`，並建立 availability、settings version、promotion、interaction/outcome 與 RAG ownership metadata 的正式 scoped persistence。
-- `0006_member_uuid_pii_migration.sql` 將 Member primary key 切換為 UUID，加入 tenant-scoped keyed lookup、encrypted phone metadata 與 child `member_id` references；phone compatibility column 暫時保留供漸進切換。
-- `0007_order_checkout_hardening.sql` 建立正式 Order aggregate、items/pricing snapshots、promotion usage、outcome、scoped idempotency 與 transactional outbox；legacy `member_orders` 保留為相容 read model。
-- `0008_worker_reliable_async_jobs.sql` 建立 durable `background_jobs` queue，並為 `order_outbox` 補上 claim/visibility、retry 與 dead-letter 控制欄位。
-
-## 驗證
-
-至少執行對應 migration/repository tests；若影響既有會員或訂單資料，再執行完整 Backend tests。
-
-詳細治理見：
-
-- [架構](../../../docs/ARCHITECTURE.md)
-- [PostgreSQL migration 與 recovery](../../../docs/POSTGRESQL_MIGRATIONS.md)
-- [商業化治理](../../../docs/COMMERCIAL_GOVERNANCE.md)
-- [後續模組](../../../docs/FUTURE_MODULES.md)
+- 新表使用明確 primary/foreign keys、必要 indexes、scope ownership 與可排序 timestamps。
+- Secret、password、raw token、PII key material 不寫入 migration；bootstrap 由 trusted CLI 執行。
+- Migration 變更需說明 backup、restore、rollback 或 roll-forward，並驗證 checksum、資料結果與冪等性。
+- 商用 runtime 對 PostgreSQL fail closed；不得用 JSON fallback 掩蓋 migration/DB failure。

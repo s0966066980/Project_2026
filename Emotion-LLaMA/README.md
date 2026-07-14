@@ -2,6 +2,8 @@
 
 `Emotion-LLaMA/` 是 Project_2026 的可選情緒分析執行單元。UI_API 可將 `EMOTION_PROVIDER` 設為 `emotion_llama`，透過 HTTP 呼叫模型服務。
 
+> Project_2026 整合盤點：2026-07-14。此服務是可選 local provider，不是 checkout 必要條件。
+
 ## 責任
 
 - 載入 Emotion-LLaMA 模型與本機 checkpoint。
@@ -56,11 +58,11 @@ python app_EmotionLlamaClient.py --cfg-path eval_configs/demo.yaml --port 7889
 ## 整合與商用規則
 
 - UI_API 應透過 Emotion Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
-- 商用部署使用獨立 process、container 或 GPU node。
+- 目前 local pilot 以獨立本機 process 部署；其他部署型態需另行設計與驗證。
 - 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
 - Request/response contract 需版本化並做 schema validation。
 - 模型不可用時，核心點餐流程應可降級，不得整體失效。
 - 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
 - 影像/影片保存需符合告知、同意、用途、最小收集與保留政策。
 
-架構決策見 [`docs/adr/0003-ai-provider-port-adapter.md`](../docs/adr/0003-ai-provider-port-adapter.md)。
+目前 UI_API provider/gateway 邊界見 [Backend Services](../UI_API/backend/services/README.md)。

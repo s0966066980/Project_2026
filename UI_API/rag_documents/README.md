@@ -1,25 +1,12 @@
 # RAG Documents
 
-`UI_API/rag_documents/` 保存 RAG 知識庫的原始來源。Admin 可觸發清空/重建流程；此目錄內容應可版本化、審核與重建。
+`UI_API/rag_documents/` 是可版本化的 RAG 原始來源。Admin 的 validate/rebuild 與 review/publish 流程會使用此目錄；本 `README.md` 會被 ingestion 明確略過。
 
-## 重要規則
+> 實作盤點：2026-07-14。系統同時存在 filesystem review compatibility flow 與 PostgreSQL/object-storage durable governance flow，尚在漸進切換。
 
-後端會略過本 `README.md`，因此本文件只做維護說明，不進入 Chroma。
+## 支援格式與目錄
 
-支援格式：
-
-- `.txt`
-- `.json`
-- `.csv`
-- `.md` / `.markdown`
-
-為避免工程文件與知識內容混雜：
-
-- FAQ、政策、菜單說明優先使用 TXT。
-- 活動、優惠與需要機器驗證的內容優先使用 JSON/CSV。
-- 工程架構、Roadmap、ADR 與治理文件只放 Repository `docs/`。
-
-## 目錄
+支援 `.txt`、`.json`、`.csv`、`.md`、`.markdown`。目前內容分類：
 
 ```text
 rag_documents/
@@ -30,20 +17,25 @@ rag_documents/
 └── store_policy/
 ```
 
+- FAQ、政策、菜單說明優先使用 TXT/Markdown。
+- 價格、期間、條件與 target 需要機器驗證的活動優先使用 JSON/CSV。
+- 工程架構、roadmap、agent 規則不應放入本目錄，避免進入顧客知識庫。
+
+## Governance 流程
+
+Legacy Admin routes 提供 documents/reviews/alerts、validate、preview、rebuild 與 promotions。Typed `/api/v1/rag/documents` 提供 draft → review → publish/rollback contract；durable metadata 由 migrations `0010`/`0011` 保存，binary/content 可透過 object reference 管理。
+
+重建前應：
+
+1. 驗證格式、scope、checksum 與 structured offer。
+2. 修正所有 blocking errors；不要先清空現有 collection。
+3. 執行 preview/rebuild，確認 imported/deleted/failed counts。
+4. 抽樣查詢並檢查 alert/review/audit；失敗時保留可回復版本。
+
 ## 內容規則
 
-- 每份內容需有明確 owner、來源與適用範圍。
-- 不發布未確認的價格、折扣、優惠、營業時間或過敏原資訊。
-- 活動/優惠使用結構化欄位，包含穩定 ID、目標品項/分類、條件、期間、狀態與時區。
-- AI 回覆仍需經菜單、活動與供應狀態白名單驗證。
-- 不放 Secret、真實會員資料、未授權素材或不必要 PII。
-- 商用環境需建立版本、review、publish、rebuild result 與 rollback 流程。
-
-## 重建
-
-1. 開啟 Admin。
-2. 進入 `RAG 知識庫`。
-3. 執行重建。
-4. 確認文件數、索引版本、錯誤、耗時與抽樣查詢結果。
-
-RAG 商用 Gate 見 [`docs/COMMERCIAL_GOVERNANCE.md`](../../docs/COMMERCIAL_GOVERNANCE.md)。
+- 每份內容有穩定 ID、owner、來源、tenant/store scope、版本與狀態。
+- 不發布未確認的價格、折扣、營業時間、庫存或過敏原資訊。
+- 活動包含 target、條件、期間、時區、enabled/status；AI 仍須經 menu/promotion/availability 白名單驗證。
+- 不放 secret、真實會員資料、production dump、未授權素材或不必要 PII。
+- RAG/LLM output 不是 payment、order、permission 或 promotion eligibility authority。

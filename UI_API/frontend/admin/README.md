@@ -1,40 +1,47 @@
 # Admin Frontend
 
-`UI_API/frontend/admin/` 是營運、設定、分析與維運介面。
+`frontend/admin/` 是單頁營運介面，負責設定、治理、分析與維運；server-side RBAC/scoping 才是權限邊界。
 
-## 主要能力
+> 實作盤點：2026-07-14。`admin.js` 仍是大型 orchestrator，只有部分 feature 已拆模組。
 
-- 狀態統計與推薦成效。
-- 系統與 AI 功能設定。
-- 活動、優惠與供應狀態。
-- 會員管理。
-- RAG 文件、審核、告警與重建。
-- 情緒分析設定與紀錄。
-- 健康檢查、診斷與 AI 測試工具。
+## 目前頁面能力
 
-## 主要入口與模組
+- 狀態統計、session 結果與熱門品項。
+- 系統/AI/語音/推薦功能設定。
+- 推薦事件成效、活動/promotions、供應狀態。
+- RAG status、documents、review、alerts、validation/rebuild。
+- Member list/detail/export/delete 與 Admin audit。
+- Health/dependency diagnostics、Emotion logs/settings、AI 問答測試。
+- Admin login/session gate；Device/Fleet typed API 已在 backend，但目前 UI 尚非完整 fleet console。
 
-- `admin.html`：Admin DOM 與頁面結構；樣式應逐步移出大型 inline 區塊。
-- `admin.js`：現行 orchestrator；新功能避免繼續集中。
-- `modules/`：依 feature 拆分的資料載入、rendering 與事件處理。
-- `features/auth/`：Admin session compatibility header、login gate 與 authenticated bootstrap。
+## 入口與模組
 
-## 維護規則
+- `admin.html`：DOM、sidebar/pages 與目前部分 inline styles。
+- `admin.js`：主要 navigation、data loading、rendering 與 event orchestration。
+- `features/auth/adminAuth.js`：login gate、session cookie 與 legacy header compatibility。
+- `features/settings/settingsApi.js`：設定 API 邊界。
+- `modules/availabilityAdmin.js`：供應狀態。
+- `modules/healthAdmin.js`：維運健康。
+- `modules/recommendationEventsAdmin.js`：推薦事件。
 
-- Admin 可以顯示診斷資訊，但不得暴露不必要的 Secret、完整 PII 或原始敏感模型內容。
-- 高風險操作，例如刪除、清空、匯出、發布活動、RAG rebuild，需 server-side 權限、確認與 audit。
-- API 呼叫與 credential handling 集中於 client，不在各 feature 重複實作。
-- 新 feature 優先建立獨立 module，不讓 `admin.js`/`admin.html` 無限制成長。
-- 顯示表格與錯誤時使用安全 DOM API，不插入未驗證 HTML。
-- 長期目標是 user/RBAC 與 tenant/store scope；共用 Token 只保留為相容或開發路徑。
-- 不 import Kiosk business state、page state 或 feature controller。
+## 已知技術債
 
-## 最小驗證
+- `admin.js`/`admin.html` 體積大，RAG、promotion、member、stats、emotion/test 等能力尚未各自拆 module。
+- Admin 多數呼叫仍是 legacy `/api/*` raw `fetch()`；typed `shared/api/v1Client.ts` 尚未全面導入。
+- 部分 rendering 仍使用經 `escHtml()` 處理的 `innerHTML`；新 code 優先建立 DOM node/`textContent`。
+
+## 維護與驗證
+
+- 高風險操作需 server permission、明確確認與 audit；UI 隱藏按鈕不等於授權。
+- 不顯示 secret、raw token、完整 PII、未遮罩模型內容或 provider error。
+- 新 feature 優先放獨立 module，並透過 shared client；不 import Kiosk state/controller。
+- 保持現有 DOM ids/classes 與 sidebar page contracts。
 
 ```bash
 cd UI_API/frontend
 npm run typecheck
 npm run syntax
+npm run test
 ```
 
-影響主要營運流程時，另驗證 Dashboard、活動、會員、RAG 與健康頁載入。
+影響 Admin critical flow 時再執行 `npm run test:e2e`。

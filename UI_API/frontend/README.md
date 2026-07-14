@@ -1,32 +1,43 @@
 # UI_API Frontend
 
-`UI_API/frontend/` 包含 Kiosk、Admin、共用 client、樣式與圖片資源。
+`UI_API/frontend/` 是由 Vite 建置的兩個獨立 browser applications：Kiosk 與 Admin；兩者共用有限的 HTTP/API/realtime/UI primitives。
+
+> 實作盤點：2026-07-14。現有程式以 JavaScript + `// @ts-check` 漸進型別化，typed `/api/v1` client 已建立但 legacy `/api/*` 仍在使用。
 
 ## 結構
 
 ```text
 frontend/
-├── kiosk/          # 顧客自助點餐
-├── admin/          # 營運後台
-├── shared/         # 通用 API/realtime client、UI helper、style
-├── menu_images/    # 菜單圖片
-├── mcd_categories/ # 分類圖片
-├── package.json
+├── kiosk/                    # 顧客點餐 application
+├── admin/                    # 營運後台 application
+├── shared/
+│   ├── apiClient.js          # legacy API facade
+│   ├── httpClient.js         # generic HTTP helpers
+│   ├── realtimeClient.js     # WebSocket client
+│   ├── api/v1Client.ts       # typed /api/v1 client
+│   ├── contracts/api-v1.ts   # v1 transport types
+│   ├── components/、hooks/   # 共用 primitives
+│   └── styles.css、ui.js
+├── tests/architecture/       # raw fetch/feature boundary checks
+├── tests/unit/               # client/module/allowlist tests
+├── tests/e2e/                # Kiosk/Admin critical flows
+├── menu_images/、mcd_categories/
+├── legacy-api-allowlist.json
 ├── vite.config.ts
 ├── vitest.config.ts
 ├── playwright.config.ts
 └── tsconfig.json
 ```
 
-## 邊界
+## 現況與邊界
 
-- Kiosk 與 Admin 是不同 application boundary，不互相 import business state、page state、DOM state、authentication state 或 feature controller。
-- `shared/` 只放 generic HTTP/API/realtime client、contract、design token、UI primitive 與純 utility。
-- 新 API 呼叫優先集中到 client，不持續散落 raw `fetch`。
-- 現有 DOM id/class contract 在有明確 migration 與測試前保持穩定。
-- 大型畫面依 feature 拆 controller、rendering 與 state；不要只把程式搬到更多無責任邊界的檔案。
-- 未驗證資料使用 `textContent` 或明確 escaping，不直接寫入 `innerHTML`。
-- 長期 credential 不放 URL 或 `localStorage`。
+- Kiosk/Admin 是不同 application boundary，不互相 import business/page/auth/controller state。
+- `shared/` 只放雙方真正共用的 transport、contract、hook、UI primitive 與 design token。
+- Kiosk 的 API 呼叫大多經 `shared/apiClient.js`；Admin `admin.js` 仍有多處 raw `fetch()`，是已知漸進切換債。
+- `shared/api/v1Client.ts` 提供 same-origin credentials、request ID、timeout、GET retry 與 safe error；尚未代表所有頁面已切到 v1。
+- Server 是價格、promotion eligibility、member scope、order/payment result 與 permission 的最終真相。
+- DOM id/class 是相容 contract；未驗證內容使用 `textContent` 或 escaping。
+- Demo/legacy token 只存 `sessionStorage` 並從 URL 移除；長期 credential 不放 URL/`localStorage`。
 
 ## 驗證
 
@@ -34,15 +45,20 @@ frontend/
 cd UI_API/frontend
 npm ci --ignore-scripts
 npm run typecheck
-npm run build
-npm run test:coverage
 npm run syntax
+npm run test
+npm run build
+```
+
+需要 coverage 或關鍵 browser flow 時再執行：
+
+```bash
+npm run test:coverage
 npm run test:e2e
 ```
 
-Vite 保持 Kiosk/Admin 獨立 entry；Vitest 測 shared utility/client，Playwright 在本機 JSON test server 驗證 critical DOM/interaction。詳細契約見 [`docs/FRONTEND_TOOLCHAIN.md`](../../docs/FRONTEND_TOOLCHAIN.md)。
-
-## 子模組
+子模組：
 
 - [Kiosk](kiosk/README.md)
 - [Admin](admin/README.md)
+- [Shared](shared/README.md)

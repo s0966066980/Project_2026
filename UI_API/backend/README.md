@@ -1,79 +1,81 @@
 # UI_API Backend
 
-`UI_API/backend/` 是核心後端，負責 API、application workflow、資料存取、WebSocket、啟動流程與共用基礎能力。
+`UI_API/backend/` 是 FastAPI transport、application workflows、資料 adapters、realtime、可靠 worker 與啟動組裝所在處。
 
-## 結構
+> 實作盤點：2026-07-14。架構是 Transitional Modular Monolith，不是已完成的 domain modularization。
+
+## 結構與責任
 
 ```text
 backend/
-├── api/             # Router registry 與應用組裝
-├── bootstrap/       # 啟動、初始化與開發 server
-├── core/            # 常數、async/settings 等基礎能力
-├── models/          # Dependency model
-├── prompts/         # 預設 Prompt
-├── realtime/        # WebSocket 與事件匯流
-├── repositories/    # JSON/PostgreSQL adapter
-├── routes/          # FastAPI routes
-├── schemas/         # DB schema、migration、跨層 contract
-├── scripts/         # Migration/validation 工具
-├── services/        # Application service 與業務規則
-└── utils/           # 通用 helper
+├── app_factory.py      # FastAPI、middleware、health、static、routes
+├── api/                # route registry、/api/v1 DTO/error/組裝
+├── bootstrap/          # startup、dev servers、process/module registry
+├── core/               # constants、async helper
+├── models/             # typed domain/contract models
+├── modules/identity/   # 目前唯一已抽離的 domain Application API
+├── routes/             # HTTP/WebSocket transport
+├── services/           # use cases、policies、legacy application layer
+├── repositories/       # JSON/PostgreSQL/Redis adapters
+├── integrations/       # Payment/POS 外部邊界；目前 manual-only
+├── realtime/           # WebSocket connection manager/event bus
+├── schemas/            # PostgreSQL schema/migrations
+├── scripts/            # trusted maintenance/worker CLIs
+├── prompts/            # 預設 prompts
+├── shared/             # 跨後端錯誤型別
+└── utils/              # 通用解析、auth、檔案與 scope helper
 ```
 
-## 依賴方向
+## 目前依賴方向
 
 ```text
-routes → services → repositories
+FastAPI route
+  ├─→ modules/identity/application.py → internal policy/adapter
+  └─→ service → repository/integration
 ```
 
-演進目標：
+目標方向是 `Route → Module Application API → Domain/Port → Adapter`。`bootstrap/module_registry.py` 已列出未來 domain routers，但除了 Identity 外尚未有對應 `modules/<domain>/api.py`；不可把候選清單視為已實作模組。
 
-```text
-Route/API
-   ↓
-Application Service
-   ↓
-Domain Policy
-   ↓
-Repository Port
-   ↓
-Infrastructure Adapter
-```
+已知過渡債：
 
-規則：
+- `services/admin_identity_service.py`、`admin_access_service.py`、`admin_authorization_service.py` 是 Identity compatibility shims。
+- `routes/v1_routes.py` 同時提供多 domain typed read/write endpoints，仍直接呼叫 service/repository。
+- JSON 與 PostgreSQL 雙路徑仍共存；只有 development/test 可使用 JSON 相容模式。
 
-- Route 不直接實作複雜推薦、價格、會員或 RAG 規則。
-- Service 不處理 HTTP status、Request/Response 或前端 rendering。
-- Repository 不 import service/route，不決定業務策略。
-- `utils` 必須保持通用，避免成為無邊界的共用雜物區。
-- 外部 LLM、STT、TTS、Emotion 與儲存逐步使用 Port/Adapter。
-- 新公開 API 優先使用 `/api/v1/*` 與 Pydantic schema；現有 `/api/*` 保持相容。
+## 執行與安全邊界
 
-## 主要能力
+- `app_factory.create_app()` 執行 commercial startup validation、logging、CORS、安全 headers、request/trace correlation、`/live`、`/ready` 與 route 註冊。
+- demo/test/debug routes 由 registry feature flags 控制；商用環境預設 fail closed。
+- Admin session、Device session/credential、RBAC 與 tenant/store/device scope 由 server 強制。
+- 阻塞資料庫、模型與 I/O 應離開 async event loop。
+- Worker 由 `scripts/run_worker.py` 獨立執行 durable job/outbox claim、retry、visibility timeout 與 DLQ。
+- AI、RAG、STT/TTS、Emotion provider 是可降級能力，不是 checkout authority。
 
-- 會員、偏好、Session 與訂單歷史。
-- 菜單、活動、供應狀態、Checkout pricing。
-- AI 推薦、推薦上下文、事件與回饋。
-- RAG 文件、審核、offer guard 與告警。
-- 語音點餐、STT、TTS。
-- Emotion-LLaMA / R1-Omni provider。
-- WebSocket、健康檢查、audit 與 observability。
-- PostgreSQL migration status/validate、advisory lock、integration CI、備份與還原支援。
+## 主要功能群
+
+- Identity/RBAC、Device identity、Member UUID/PII、Session。
+- Menu/availability、promotion、checkout pricing、Order aggregate、manual payment/POS。
+- Recommendation context/engine/events/feedback/experiments/governance。
+- RAG document/review/publish/rollback、offer guard、alerts、object storage metadata。
+- Voice/STT/TTS、multimodal evidence、barrier/intervention pipeline。
+- Fleet commands、analytics pipeline、audit、observability、health。
+- Reliable worker、transactional outbox、Redis shared infrastructure。
 
 ## 驗證
 
-依變更執行目標測試；需要完整回歸時：
-
 ```bash
 cd UI_API
-MEMBER_STORAGE_BACKEND=json DATABASE_URL= pytest -q tests
+APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+python -c "from main import app; assert app.title == 'Smart Ordering Kiosk API'"
+
+APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+pytest -q tests/architecture
 ```
 
-Core/API/utils 的 static check 範圍以 `.github/workflows/ci.yml` 為準。
+子層文件：
 
-## 文件
-
-- [整體架構](../../docs/ARCHITECTURE.md)
-- [PostgreSQL migration 與 recovery](../../docs/POSTGRESQL_MIGRATIONS.md)
-- [商業化治理](../../docs/COMMERCIAL_GOVERNANCE.md)
-- [後續模組](../../docs/FUTURE_MODULES.md)
+- [Routes](routes/README.md)
+- [Services](services/README.md)
+- [Repositories](repositories/README.md)
+- [Schemas/Migrations](schemas/README.md)
+- [Maintenance scripts](scripts/README.md)

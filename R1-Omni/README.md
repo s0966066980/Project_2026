@@ -2,6 +2,8 @@
 
 `R1-Omni/` 是 Project_2026 的可選多模態情緒分析執行單元，透過 `r1_omni_server.py` 提供 UI_API 可使用的 HTTP 推論能力。
 
+> Project_2026 整合盤點：2026-07-14。此服務是可選 local provider，不是 checkout 必要條件。
+
 ## 責任
 
 - 載入本機 R1-Omni 模型權重。
@@ -69,11 +71,11 @@ UI_API 會將 `result` 正規化為 facial、body、vocal、emotion、intensity 
 ## 整合與商用規則
 
 - UI_API 透過 Emotion Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
-- 商用部署使用獨立 process、container 或 GPU node。
+- 目前 local pilot 以獨立本機 process 部署；其他部署型態需另行設計與驗證。
 - 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
 - 模型不可用時，核心點餐流程應可降級。
 - 不以未驗證的 client file path 作為長期跨服務 contract；正式部署應使用受控 upload/object reference。
 - 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
 - 影像、影片、音訊與情緒結果遵守最小收集、明確用途與保留政策。
 
-架構決策見 [`docs/adr/0003-ai-provider-port-adapter.md`](../docs/adr/0003-ai-provider-port-adapter.md)。
+目前 UI_API provider/gateway 邊界見 [Backend Services](../UI_API/backend/services/README.md)。

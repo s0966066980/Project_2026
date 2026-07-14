@@ -1,5 +1,7 @@
 # Project_2026 — Codex / Agent Working Contract
 
+> 實作與工作契約最後對照：2026-07-14。
+
 本文件是 Repository 內 Codex 與其他 coding agent 的主要工作規則。目標是：**小範圍、可驗證、可回復、低 token**。
 
 `AGENT.md` 只提供入口；規則以本文件為準。子目錄若新增更具體的 `AGENTS.md`，以距離目標檔案最近的規則優先。
@@ -11,6 +13,8 @@
 - Admin：`UI_API/frontend/admin/`。
 - 共用 frontend：`UI_API/frontend/shared/`。
 - Backend：`UI_API/backend/`。
+- 本機 pilot profile：`config/profiles/local-pilot.env.example`。
+- API 外的可靠非同步工作入口：`UI_API/backend/scripts/run_worker.py`。
 - 可選模型：`Emotion-LLaMA/`、`R1-Omni/`；除非任務明確涉及 provider / adapter，否則不要讀取或修改模型核心。
 - `tools/` 是 demo、維運或一次性工具，不是 production path。
 - 部署方向是單店本地端 / LAN 原生 process；不要自行導入 Docker、Kubernetes、microservices、Kafka 或 cloud-first infrastructure。
@@ -35,6 +39,7 @@ Route → modules/<domain>/application.py
 - Identity 已開始抽離到 `backend/modules/identity/`。
 - `backend/services/admin_identity_service.py` 是暫時相容 shim；不要擴大 shim 的責任。
 - `/api/v1` 已有 typed contracts，但 `backend/routes/v1_routes.py` 仍直接依賴部分 service / repository；不要把「完全模組化」當成已完成。
+- PostgreSQL forward migrations 目前為 `0001`–`0011`；Payment/POS 目前只有 manual adapter，專案狀態是 local pilot / NOT_READY，不得描述為已 production certified。
 - Frontend 同時存在 legacy `/api/*` 與 typed `/api/v1/*`；只做漸進切換，不做 Big Bang rewrite。
 
 ## 3. Token-efficient Loop
@@ -236,20 +241,16 @@ npm run build
 
 不要因為局部修改而重裝全部 `UI_API/requirements.txt`；它包含大型 RAG / STT / vision dependencies。缺少環境時回報 `NOT RUN`，不要為了跑無關測試擴大 dependency 變更。
 
-## 7. 目前 baseline drift（先辨識，勿在無關任務中順手修）
+## 7. CI 與環境現況（先辨識，勿盲目擴大）
 
-目前 `main` 有已知不一致：
+目前 `.github/workflows/ci.yml` 所引用的 `UI_API/requirements-ci.txt`、`UI_API/pyproject.toml`、migration/local scripts 均存在。CI 包含 Backend、PostgreSQL migration、Frontend/Playwright、Redis integration 與 Shell jobs。
 
-- `.github/workflows/ci.yml` 仍引用已移除的 `UI_API/requirements-ci.txt`、`UI_API/pyproject.toml` 與部分 local / PostgreSQL scripts。
-- `UI_API/tests/test_local_operations.py` 仍 assert 已移除的 `scripts/local/*`、deployment scripts。
-- 因此完整 CI / full suite 可能在產品程式測試前失敗。
+執行原則：
 
-除非 Goal 是 CI / Operations alignment，否則：
-
-1. 不重建已刪除的整套工具鏈。
-2. 不刪除測試來讓 CI 綠燈。
-3. 只執行與當前變更相關且路徑存在的 target checks。
-4. 在交付結果列出 baseline blocker，與本次 patch 的結果分開。
+1. 先確認 target command 的依賴與服務存在；PostgreSQL、Redis、Chromium 與完整模型依賴不是每個本機環境都有。
+2. 局部任務先跑最近的 target checks，不為了跑無關 full suite 重裝大型 runtime dependencies。
+3. 不刪除或放寬測試來讓 CI 綠燈。
+4. 外部服務未提供時標示 `NOT RUN` 或實際 blocker，與本次 patch 的結果分開。
 
 ## 8. 安全與資料規則
 
