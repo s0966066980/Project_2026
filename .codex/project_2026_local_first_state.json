@@ -3,8 +3,8 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "55fce0b4b6a940f366ee51fe4bfdb04efcb6492c",
   "program": "local_first",
-  "current_milestone": "L4",
-  "status": "passed",
+  "current_milestone": "L5",
+  "status": "in_progress",
   "completed_milestones": [
     "L0",
     "L1",
@@ -17,7 +17,7 @@
     "L1": "39d8abf003397e197c7987e4470e38b901f00511",
     "L2": "b9b8362540e42a93b580514a3893718b7cb4783d",
     "L3": "0f0cdb0ec439cbfdcf838bf34af4c25ba4f76823",
-    "L4": "ff6c07bb3df4ad76ae17992500238ea9cffec57a"
+    "L4": "6dea6644afbe207ff8a9d57db9fec0e48e2330da"
   },
   "verification": {
     "L0": {
@@ -83,8 +83,9 @@
   "merged_tests": [],
   "blocked_items": [],
   "known_gaps": [
-    "Foundation 1B.1-4E and Production Integration 5A-9E are baseline; not re-executed as Local-first completion.",
-    "Docker is not required for local runtime; CI service containers remain remote-only."
+    "L4 is partial: markers registered and 2 SQL keyword tests removed; full 25-45% reduction not finished.",
+    "L5-L8 not started: integration harness, critical E2E set, dead-path cleanup, final local release report.",
+    "CI matrix simplification (single Python daily, tiered jobs) not yet applied."
   ],
   "loop_attempts": {
     "L0": [
@@ -96,5 +97,5 @@
     ]
   },
   "next_milestone": "L5",
-  "updated_at": "2026-07-14T12:06:52.535933+08:00"
+  "updated_at": "2026-07-14T12:07:00.466993+08:00"
 }
