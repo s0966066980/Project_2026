@@ -1,0 +1,740 @@
+======================================================================
+1. 目前狀態判讀
+======================================================================
+
+已建立：
+
+- Tenant / Store / Device Scope
+- Admin Identity / RBAC
+- Device Identity
+- Member UUID / PII
+- Order / Checkout / Idempotency / Outbox
+- Worker Handler / Outbox ACK
+- Local Object Storage / HMAC Signed Access
+- LLM Gateway Production Cutover
+- Multimodal Gateway Production Cutover
+- RAG Governance PostgreSQL Path
+- Recommendation / Fleet / Analytics Durable Path
+- API v1 Write Contracts
+- Frontend Typed Client Baseline
+- Legacy API Freeze
+- Failure Injection Baseline
+
+目前需收斂：
+
+1. Docker Staging 文件與 Artifact 不符合 Local-first。
+2. CI 每次同時跑 Python 3.10/3.12、完整 Backend、PostgreSQL、Redis、Frontend E2E，成本過高。
+3. Backend 已累積 300+ 測試，多個里程碑測試重複保護相同 Contract。
+4. 部分測試只驗檔案、Markdown、字串、Dataclass 欄位或 Protocol 存在。
+5. PostgreSQL Integration 分散成過多單檔。
+6. Frontend 每次安裝 Chromium 與跑 E2E 不適合日常迴圈。
+7. 本地 API、Worker、PostgreSQL、Redis、Ollama、Emotion 尚缺一致的啟停與診斷。
+8. External Telemetry、Cloud Storage、Payment/POS 不是當前本地核心目標。
+
+======================================================================
+2. 最終本地架構
+======================================================================
+
+Local Machine / LAN
+├── PostgreSQL（local-postgres / local-full）
+├── Redis（可選；local-full 可要求）
+├── FastAPI API Process
+├── Worker Process
+├── Kiosk Web
+├── Admin Web
+├── Ollama / Local LLM（可選）
+├── Emotion-LLaMA 或 R1-Omni（可選）
+└── Local Object Storage Directory
+
+一鍵操作：
+
+scripts/local/setup.ps1
+scripts/local/start.ps1
+scripts/local/stop.ps1
+scripts/local/status.ps1
+scripts/local/doctor.ps1
+scripts/local/test_fast.ps1
+scripts/local/test_full.ps1
+
+若保留 Linux：
+
+scripts/local/setup.sh
+scripts/local/start.sh
+scripts/local/stop.sh
+scripts/local/status.sh
+scripts/local/doctor.sh
+scripts/local/test_fast.sh
+scripts/local/test_full.sh
+
+必要能力：
+
+- 不使用 Docker 也能完整啟動。
+- JSON Dev Mode 與 PostgreSQL Local Commercial Mode 分離。
+- PostgreSQL / Redis 未啟動時有明確診斷。
+- API、Worker、模型服務可獨立啟停。
+- PID、Log、Port、Runtime Data 一致管理。
+- Optional AI 不阻斷 Checkout。
+- 日常修改不必跑完整 300+ Tests。
+
+======================================================================
+3. Local-first State
+======================================================================
+
+建立：
+
+.codex/project_2026_local_first_state.json
+
+初始：
+
+{
+  "plan_version": "2026-07-14",
+  "repository": "s0966066980/Project_2026",
+  "base_head": "55fce0b4b6a940f366ee51fe4bfdb04efcb6492c",
+  "program": "local_first",
+  "current_milestone": "L0",
+  "status": "not_started",
+  "completed_milestones": [],
+  "checkpoint_commits": {},
+  "verification": {},
+  "test_inventory": {},
+  "deleted_tests": [],
+  "merged_tests": [],
+  "blocked_items": [],
+  "known_gaps": [],
+  "loop_attempts": {},
+  "next_milestone": "L1",
+  "updated_at": ""
+}
+
+狀態：
+
+not_started
+in_progress
+verification_failed
+blocked_internal
+blocked_external
+passed
+complete
+
+每次修正迴圈記錄 milestone、attempt、command、failure_summary、root_cause、changed_files、result。
+不得記錄 Secret、Token、PII 或 Credential。
+
+======================================================================
+4. 自主修正 Loop
+======================================================================
+
+DISCOVER
+→ BASELINE
+→ PLAN
+→ CHANGE
+→ FAST TEST
+→ DIAGNOSE
+→ FIX
+→ FAST TEST
+→ MILESTONE TEST
+→ REVIEW
+→ COMMIT
+→ CONTINUE
+
+規則：
+
+- Fast Gate 最多修正 5 輪。
+- Milestone Gate 最多修正 5 輪。
+- 同一錯誤連續兩次沒有新資訊時，改用最小重現、單檔測試或 Debug Log。
+- 同一錯誤連續三次時，重新檢查設計假設。
+- 第五次仍失敗，標 BLOCKED_INTERNAL。
+- 不得只重跑相同命令。
+- 不得刪除真正抓到 Bug 的 Regression Test。
+
+禁止手段：
+
+- 空測試
+- 無理由 skip / xfail
+- except Exception: pass
+- 放寬 Scope/Auth/Security
+- 把 Integration 改成全 Mock
+- No-op Side Effect
+- 用 sleep 掩蓋 Race
+
+======================================================================
+5. 測試保留與刪減規則
+======================================================================
+
+必須保留：
+
+Security：
+- Admin auth
+- Device auth
+- Permission deny/allow
+- Scope isolation
+- Session revoke/expire
+- Upload validation
+- Secret/PII redaction
+
+Commercial Data：
+- Migration apply/reapply/checksum
+- Tenant/Store/Device FK
+- Member UUID/PII
+- Checkout server pricing
+- Order state transition
+- Idempotency
+- Transaction rollback
+- Outbox ACK
+- Worker retry/DLQ
+
+Core Product：
+- Kiosk start
+- Menu
+- Cart
+- Checkout
+- Admin login
+- Critical settings
+- Recommendation fallback
+- Emotion degraded path
+- RAG published-only retrieval
+
+Local Operation：
+- Local config validation
+- Start/stop/status/doctor
+- PostgreSQL unavailable
+- Redis optional/degraded
+- Worker restart
+- PID/Log/Port
+
+可刪除或合併：
+
+1. 只檢查檔案存在。
+2. 只檢查 Markdown 是否包含某個字串。
+3. 舊里程碑測試已被更強 Integration 完整涵蓋。
+4. 同一 Happy Path 在多個檔案重複。
+5. Dataclass、DTO、Protocol 的 trivial existence test。
+6. Migration SQL keyword/string test 已被真實 Migration Integration 涵蓋。
+7. 同一 Scope 機制在多 Repository 重複；保留共用 Contract 與高風險 Repository。
+8. API schema 同時做欄位存在、DTO 建構、OpenAPI snapshot 的重複測試。
+9. TDD Evidence 專用 Runtime Test。
+10. Adapter 正常路徑重複；改成 parameterized Contract Test。
+11. E2E 與 Unit 完全重複的 DOM implementation detail。
+12. 只為提高 Coverage 的 getter/setter test。
+
+禁止刪除：
+
+- 曾抓到真實 Bug 的 Regression
+- Historical Migration Upgrade
+- Money / Checkout / Identity / Scope / Worker / Outbox
+- Failure Recovery
+- External Input Security
+
+每個刪除／合併記錄：
+
+docs/TEST_REMOVAL_LOG.md
+
+欄位：test path、reason、replacement coverage、risk、verification command。
+
+======================================================================
+6. 新測試分層
+======================================================================
+
+Tier 0 — Static / Syntax（30–60 秒目標）
+
+Backend：
+ruff check affected
+ruff format --check affected
+python -m compileall affected
+
+Frontend：
+npm run typecheck
+npm run syntax
+
+Tier 1 — Fast Core（1–3 分鐘目標）
+
+Markers：smoke、core、security
+
+pytest -q -m "smoke or core or security" --maxfail=1
+
+包含 App Import、Auth、Scope、Checkout Pure Domain、Worker Handler、LLM Fallback、Multimodal No-evidence。
+
+Tier 2 — Domain（3–8 分鐘目標）
+
+Markers：identity、checkout、worker、rag、recommendation、fleet、analytics、api。
+只跑受影響 Domain。
+
+Tier 3 — Local Integration
+
+需要本機 PostgreSQL；Redis 視 Profile。
+由 scripts/local/test_integration.* 建立隔離 Test DB。
+
+Tier 4 — Extended Regression
+
+完整 Backend、Frontend Unit、Critical E2E、Migration、Failure Injection。
+只在 Milestone、Release 或手動執行。
+
+Tier 5 — External
+
+Payment、Cloud、POS、Telemetry。
+目前不作 Local Gate。
+
+在 pyproject.toml 註冊所有 markers。
+
+======================================================================
+7. Milestone 順序
+======================================================================
+
+L0 Repository and Test Inventory
+L1 Remove Docker as Primary Runtime
+L2 Local Process Orchestration
+L3 Local Configuration Profiles
+L4 Test Suite Consolidation
+L5 Local Integration Harness
+L6 Core Product Workflow Validation
+L7 Codebase Simplification and Dead-path Removal
+L8 Final Local Release Gate
+
+======================================================================
+MILESTONE L0 — Repository and Test Inventory
+======================================================================
+
+目標：先量測，不盲刪。
+
+建立 tools/test_inventory.py，輸出：
+
+- Test file count
+- Test function count
+- Marker
+- Modules covered
+- Duplicate names
+- Similar bodies
+- File/document-only tests
+- Integration dependency
+- Estimated tier
+
+掃描：
+
+UI_API/tests
+UI_API/frontend/tests
+.github/tdd
+deploy
+scripts
+docs/operations
+
+建立：
+
+docs/LOCAL_RUNTIME_INVENTORY.md
+docs/TEST_INVENTORY.md
+docs/TEST_STRATEGY.md
+
+分類：
+
+KEEP_CORE
+KEEP_INTEGRATION
+MERGE
+REMOVE_REDUNDANT
+MOVE_EXTENDED
+EXTERNAL_NOT_LOCAL
+
+盤點所有 Docker-only 與目前本地啟動入口。
+本 Milestone 不修改功能。
+
+Gate：Inventory 完整、所有測試分類、Docker 使用點清單、Local Process Map、Baseline 結果。
+
+Commit：chore: inventory local runtime and test suite
+
+======================================================================
+MILESTONE L1 — Remove Docker as Primary Runtime
+======================================================================
+
+目標：Docker 不再是主要或必要執行方式。
+
+文件改成 Local Native Runtime：
+
+README
+docs/ARCHITECTURE.md
+docs/FUTURE_MODULES.md
+docs/LOCAL_DEPLOYMENT.md
+
+Docker Artifact：
+
+若 deploy/Dockerfile.*、deploy/compose.staging.yml、Docker-only env template 只有 Roadmap 產物且無使用需求，刪除。
+若未來可能參考，移到 docs/archive/docker/，不得保留成 Active Runtime。
+
+刪除：
+
+- Docker build tests
+- Compose config tests
+- Docker-specific documentation assertions
+
+GitHub Actions service container可保留作遠端 Integration，因為不影響本地端；但文件不得要求本地安裝 Docker。
+
+Gate：本地完全不依賴 Docker、README Local-first、Docker Runtime 已刪除或 Archive、Core Tests PASS。
+
+Commit：chore: make native local runtime the primary deployment path
+
+======================================================================
+MILESTONE L2 — Local Process Orchestration
+======================================================================
+
+建立 scripts/local/：
+
+setup.ps1
+start.ps1
+stop.ps1
+status.ps1
+doctor.ps1
+test_fast.ps1
+test_full.ps1
+
+若保留 Linux，再建立同名 .sh。
+
+管理：
+
+API
+Worker
+PostgreSQL check
+Redis optional
+Ollama optional
+Emotion-LLaMA optional
+R1-Omni optional
+
+要求：
+
+- Port check
+- PID file
+- Log directory
+- Stale PID recovery
+- Graceful stop
+- Duplicate start protection
+- Readiness polling
+- Timeout
+- Optional Service 不阻斷 Core
+- 正確 Exit Code
+
+Runtime：
+
+runtime/pids
+runtime/logs
+runtime/object_storage
+runtime/tmp
+runtime/state
+
+runtime/ 加 .gitignore。
+
+start：驗 config、Python env、依賴、Migration、啟 Worker/API、等 /ready、顯示 URL。
+stop：只停止本專案啟動的 Process，不誤殺其他 Ollama/PostgreSQL。
+doctor：Python、import、Node、DB、Migration、Scope、Member、Redis、Ollama、Emotion、Port、目錄、Secret placeholder。
+
+Gate：PowerShell PASS、Shell syntax（若保留）、start/status/stop、stale PID、AI unavailable 仍可 Checkout、不使用 Docker。
+
+Commit：feat: add native local process orchestration
+
+======================================================================
+MILESTONE L3 — Local Configuration Profiles
+======================================================================
+
+建立 Profile：
+
+local-dev
+local-postgres
+local-full
+test
+ci
+
+local-dev：JSON/default scope、Dev security、In-memory Worker、Local Storage、AI optional。
+local-postgres：PostgreSQL、正式 Admin/Device auth、Postgres Worker、Local Storage、Redis optional。
+local-full：PostgreSQL、Redis、Worker、Ollama、Emotion、Strict Security、No demo/debug/test routes。
+
+優先序：Environment → Profile → Safe Default。
+
+建立：
+
+python backend/scripts/validate_local_environment.py
+
+只輸出 PASS/WARN/FAIL，不輸出 Secret Value。
+
+Gate：三個 Local Profile 可解析、local-full 缺必需設定 Fail、local-dev 快速啟動、文件有選擇表。
+
+Commit：refactor: introduce explicit local runtime profiles
+
+======================================================================
+MILESTONE L4 — Test Suite Consolidation
+======================================================================
+
+目標：降低 25–45% 測試函式數，保留核心風險。
+
+步驟：
+
+1. 記錄 Baseline count/runtime/failure/coverage。
+2. Object Storage 合併成 parameterized Adapter Contract。
+3. LLM/Multimodal 只保留 timeout、fallback、schema、no-evidence、main caller cutover。
+4. Worker 保留 handler、unknown handler、retry、DLQ、ACK、duplicate、crash recovery。
+5. Admin/Device Session 共用 Contract parameterize；保留權限與 Scope 差異。
+6. Migration 保留 fresh、historical upgrade、checksum、reapply、integrity；刪 SQL keyword test。
+7. API 保留 OpenAPI、auth/permission/scope、write validation、critical route；刪 trivial DTO。
+8. 文件完整性合併為單一 documentation links test。
+9. Frontend 保留 v1 client、legacy allowlist、feature boundary、critical utility、4–6 E2E；刪 DOM implementation detail。
+10. TDD Evidence 留文件，不作 Runtime Gate。
+11. 設 markers 與 Tier 命令。
+
+每刪一批：Domain → Fast Core；最後 Extended。
+
+Gate：Removal Log、無空測試、Core Risk Matrix 完整、數量/runtime 明顯降低、Full Regression PASS。
+
+Commit：test: consolidate the suite around high-value local gates
+
+======================================================================
+MILESTONE L5 — Local Integration Harness
+======================================================================
+
+目標：不用 Docker 跑 PostgreSQL/Redis Integration。
+
+建立：
+
+scripts/local/test_integration.ps1
+scripts/local/test_integration.sh（若保留）
+
+流程：
+
+1. 使用已安裝 PostgreSQL。
+2. 建立 project_2026_test_<random>。
+3. 套 Migration。
+4. 執行 Integration。
+5. Scope Validator。
+6. Member Validator。
+7. Worker/Outbox。
+8. Drop Test DB。
+9. finally Cleanup。
+10. 不碰 Development DB。
+
+Redis：有 REDIS_URL 才跑；獨立 DB index/key prefix；未啟用標 NOT RUN。
+
+將過多 postgres_*_integration.py 合併為：
+
+test_postgres_core.py
+test_postgres_identity.py
+test_postgres_checkout_worker.py
+test_postgres_governance.py
+
+Gate：不用 Docker、隔離 DB、Cleanup、Migration/Identity/Checkout/Worker PASS、Log 清楚。
+
+Commit：test: add native local integration harness
+
+======================================================================
+MILESTONE L6 — Core Product Workflow Validation
+======================================================================
+
+建立 4–6 條 Local Critical E2E：
+
+- kiosk_guest_checkout
+- kiosk_member_checkout
+- ai_degraded_checkout
+- admin_operations
+- worker_recovery
+- rag_publish_and_retrieve
+
+流程涵蓋：Menu、Cart、Member、Recommendation/Fallback、AI degraded、Server Pricing、Order、Outbox、Worker、Admin、RAG、Device/Realtime。
+
+日常 Fast Gate 不跑 E2E；Milestone/Release 才跑。
+不使用 Docker。
+
+Gate：Critical E2E PASS、AI 關閉仍 Checkout、Worker 真處理、Admin Scope、無新增 Legacy Caller。
+
+Commit：test: validate critical native local product workflows
+
+======================================================================
+MILESTONE L7 — Codebase Simplification and Dead-path Removal
+======================================================================
+
+掃描：
+
+- unused module/function/class
+- duplicate adapter
+- Docker-only config
+- external placeholder
+- TDD-only helper
+- duplicate docs
+- no-op abstraction
+- dead JSON compatibility path
+
+優先清理：
+
+1. Docker Runtime Artifact。
+2. 舊 Compose/Staging 文件。
+3. 未使用 Telemetry Skeleton。
+4. 過度實作的 Payment/POS/Cloud Placeholder；保留低成本 Port Contract。
+5. 重複 Roadmap/TDD 文件。
+6. 完全無 Caller 的 Legacy JSON Path。
+7. Duplicate API Compatibility Wrapper。
+
+禁止為減行數破壞可替換 Adapter Boundary。
+
+Gate：Dead import=0、Core PASS、Critical E2E PASS、Docs link PASS、結構簡化、Deletion Log。
+
+Commit：refactor: remove unused local-incompatible and redundant paths
+
+======================================================================
+MILESTONE L8 — Final Local Release Gate
+======================================================================
+
+建立：
+
+docs/LOCAL_RELEASE_READINESS.md
+docs/LOCAL_OPERATIONS.md
+docs/LOCAL_TROUBLESHOOTING.md
+docs/PROJECT_2026_LOCAL_FIRST_FINAL_REPORT.md
+
+最終驗證：
+
+Clean venv install
+local-dev start
+local-postgres start
+local-full optional service behavior
+API restart
+Worker restart
+Stale PID
+DB reconnect
+Local backup/restore to isolated DB
+Static
+Fast Core
+Domain
+Integration
+Critical E2E
+Security/Scope/Identity/PII
+
+最終狀態：
+
+LOCAL_RELEASE_READY
+LOCAL_RELEASE_READY_WITH_LIMITATIONS
+NOT_READY
+
+不得使用 PRODUCTION_CERTIFIED。
+
+Commit：chore: finalize native local release workflow
+
+======================================================================
+8. GitHub Actions 簡化
+======================================================================
+
+改成：
+
+1. fast
+- Python 3.12
+- Ruff maintained scope
+- Mypy maintained scope
+- pytest smoke/core/security
+- Frontend typecheck/syntax
+
+2. domain
+- pytest not integration/extended/external
+- frontend unit
+
+3. integration（只在 PR to main、workflow_dispatch、release tag）
+- PostgreSQL
+- Redis
+- Critical E2E
+
+Python 3.10 相容若仍需要，改成每日或 Release Matrix，不要每 Push 都跑。
+不要每次 Codex checkpoint 同時跑完整 Backend、所有 PostgreSQL 單檔、Redis、Chromium E2E、雙 Python。
+
+======================================================================
+9. 可直接使用的 Codex Loop Prompt
+======================================================================
+
+你正在維護 s0966066980/Project_2026。
+
+專案主要在本地端單機／區域網路執行，不使用 Docker 作主要 Runtime。
+請依 CODEX_LOCAL_FIRST_ROADMAP.txt，從
+.codex/project_2026_local_first_state.json 的 current_milestone 繼續。
+
+核心目標：
+
+1. 移除 Docker 作主要執行方式。
+2. 建立本地 API、Worker、PostgreSQL、Redis、Ollama、Emotion 的 setup/start/stop/status/doctor。
+3. 刪減重複、低價值、里程碑證據型測試。
+4. 保留 Identity、Scope、Migration、PII、Checkout、Worker、Outbox、Security、Failure Recovery。
+5. 建立 Static、Fast Core、Domain、Local Integration、Extended、External 分層。
+6. 自動修改、測試、診斷與修正。
+7. 最終達成 LOCAL_RELEASE_READY 或 LOCAL_RELEASE_READY_WITH_LIMITATIONS。
+
+每次工作：
+
+A. 讀 AGENTS.md 與最近 AGENTS.md。
+B. 讀目前 Milestone、State、入口、Caller、測試、文件。
+C. git status --short，保留使用者修改。
+D. 跑 Baseline。
+E. 建立最小計畫。
+F. 修改最小範圍。
+G. 跑 Fast Gate。
+H. 失敗時擷取第一個 Root Cause、建立最小重現、修正、重跑，最多 5 輪。
+I. Fast PASS 後跑 Milestone Gate。
+J. Milestone Gate 同樣最多修正 5 輪。
+K. 不得用刪除有效測試、skip、吞 Exception、放寬安全規則來通過。
+L. Gate PASS 後更新文件、State、git diff --check、Commit、Push、下一 Milestone。
+
+可刪測試：
+- 只驗檔案/Markdown。
+- 被更強 Integration 涵蓋。
+- 相同 Happy Path 重複。
+- trivial DTO/dataclass/interface。
+- 舊 Milestone Evidence。
+- 無風險 Coverage test。
+
+不可刪：
+- Security、Scope、Identity、Migration、PII。
+- Checkout Money/State/Idempotency。
+- Worker Retry/DLQ、Outbox ACK。
+- Failure Recovery。
+- 真實 Regression。
+
+每刪／合併測試更新 docs/TEST_REMOVAL_LOG.md。
+
+本地 Runtime 優先 PowerShell；不得要求 Docker；不得誤殺其他 Ollama/PostgreSQL；使用 PID、Log、Port、Readiness、Graceful Stop；Optional AI 不阻斷 Checkout。
+
+完成格式：
+
+Summary
+Milestone
+Changed Files
+Tests Removed/Merged
+Fast Gate
+Milestone Gate
+Loop Attempts
+Known Limitations
+Checkpoint Commit
+Next Milestone
+Autonomous Continuation Decision
+
+只有以下情況停止：
+- 破壞性資料操作無安全 Roll-forward。
+- 外部 Credential 無安全替代。
+- 使用者未提交修改與任務衝突。
+- 5 次有效修正仍無法解決同一 Root Cause。
+
+======================================================================
+10. 完成條件
+======================================================================
+
+State 只有在以下達成才 complete：
+
+1. Docker 非 Primary Runtime。
+2. setup/start/stop/status/doctor 完成。
+3. local-dev、local-postgres 可啟動。
+4. local-full Optional/Required 清楚。
+5. API/Worker 可獨立重啟。
+6. Runtime PID/Log/Data 管理完成。
+7. Test Inventory 完成。
+8. 低價值/重複測試已刪除或合併。
+9. Test count 降低 25–45%，或有合理證據說明最佳比例。
+10. Fast Core 1–3 分鐘目標。
+11. Domain 3–8 分鐘目標。
+12. PostgreSQL Local Integration 不需 Docker。
+13. Redis Integration 可選。
+14. 4–6 Critical E2E。
+15. AI unavailable 時 Checkout 正常。
+16. Security/Scope/Identity/Migration/PII 保留。
+17. Dead path 清理。
+18. README/Architecture Local-first。
+19. Local Backup/Restore 隔離驗證。
+20. LOCAL_RELEASE_READINESS 完成。
+21. 未宣稱 Production Certified。
+22. Full Local Gate PASS。
+23. 結果誠實標 PASS/FAIL/NOT RUN/BLOCKED。
+
+END OF ROADMAP
