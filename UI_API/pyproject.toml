@@ -26,6 +26,24 @@ known-first-party = [
 # main.py must add backend/ to sys.path before importing the application modules.
 "main.py" = ["E402"]
 
+[tool.pytest.ini_options]
+markers = [
+  "smoke: fastest process import and critical path probes",
+  "core: pure domain contracts used in daily local gate",
+  "security: auth, permission, scope, secret redaction",
+  "identity: admin/device/member identity",
+  "checkout: order pricing and transitions",
+  "worker: jobs outbox handlers",
+  "rag: rag governance",
+  "recommendation: recommendation/promotion",
+  "fleet: fleet management",
+  "analytics: analytics pipeline",
+  "api: http contract",
+  "integration: requires host postgres/redis",
+  "extended: full suite / milestone only",
+  "external: payment cloud pos telemetry",
+]
+
 [tool.mypy]
 python_version = "3.10"
 mypy_path = "backend"

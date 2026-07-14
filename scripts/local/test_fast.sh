@@ -19,6 +19,7 @@ echo "=== Tier 0: compile ==="
 "$PY" -m compileall -q backend/services/worker_service.py backend/scripts/run_worker.py main.py
 
 echo "=== Tier 1: fast core subset ==="
+# Explicit high-value modules (marker coverage expands gradually in L4).
 "$PY" -m pytest -q \
   tests/test_security_boundaries.py \
   tests/test_worker_production_path.py \
@@ -26,6 +27,7 @@ echo "=== Tier 1: fast core subset ==="
   tests/test_deployment_operations.py \
   tests/test_object_storage_production_path.py \
   tests/test_llm_gateway_production_cutover.py \
+  tests/test_local_profiles.py \
   --maxfail=1
 
 if [[ -d frontend/node_modules ]]; then

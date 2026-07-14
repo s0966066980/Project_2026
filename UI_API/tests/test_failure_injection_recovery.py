@@ -9,6 +9,11 @@ import pytest
 TENANT = UUID("00000000-0000-4000-8000-000000000001")
 
 
+import pytest
+
+
+@pytest.mark.smoke
+@pytest.mark.worker
 def test_worker_unknown_handler_does_not_succeed() -> None:
     from datetime import datetime, timezone
 
@@ -38,6 +43,8 @@ def test_worker_unknown_handler_does_not_succeed() -> None:
     assert "unknown" in (result.safe_error or "")
 
 
+@pytest.mark.core
+@pytest.mark.worker
 def test_outbox_requires_sink_ack_before_published() -> None:
     from services.outbox_delivery_router import OutboxDeliveryRouter
     from models.worker_jobs import OutboxDeliveryResult

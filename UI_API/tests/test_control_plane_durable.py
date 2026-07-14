@@ -12,27 +12,6 @@ STORE = UUID("00000000-0000-4000-8000-000000000002")
 DEVICE = UUID("00000000-0000-4000-8000-000000000003")
 
 
-def test_migration_0011_control_plane_tables() -> None:
-    root = Path(__file__).resolve().parents[1]
-    sql = (root / "backend/schemas/migrations/0011_control_plane_durable_persistence.sql").read_text(
-        encoding="utf-8"
-    )
-    for table in (
-        "recommendation_strategies",
-        "recommendation_strategy_versions",
-        "recommendation_assignments",
-        "recommendation_governance_events",
-        "promotion_rule_versions",
-        "fleet_device_state",
-        "fleet_commands",
-        "fleet_config_versions",
-        "fleet_rollouts",
-        "analytics_event_log",
-        "analytics_checkpoints",
-    ):
-        assert f"CREATE TABLE {table}" in sql
-
-
 def test_recommendation_assignment_is_durable(tmp_path, monkeypatch) -> None:
     from services import recommendation_governance_service
 

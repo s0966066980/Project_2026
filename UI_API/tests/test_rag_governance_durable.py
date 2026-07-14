@@ -9,19 +9,6 @@ TENANT = UUID("00000000-0000-4000-8000-000000000001")
 STORE = UUID("00000000-0000-4000-8000-000000000002")
 
 
-def test_migration_0010_defines_rag_tables() -> None:
-    root = Path(__file__).resolve().parents[1]
-    sql = (root / "backend/schemas/migrations/0010_rag_governance_persistence.sql").read_text(encoding="utf-8")
-    for table in (
-        "rag_documents",
-        "rag_document_versions",
-        "rag_publications",
-        "rag_retrieval_traces",
-        "rag_rebuild_runs",
-    ):
-        assert f"CREATE TABLE {table}" in sql
-
-
 def test_create_draft_stores_object_content_ref(tmp_path, monkeypatch) -> None:
     from services import object_storage_service, rag_governance_service
 

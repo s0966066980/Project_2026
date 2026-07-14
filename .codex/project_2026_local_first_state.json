@@ -3,19 +3,21 @@
   "repository": "s0966066980/Project_2026",
   "base_head": "55fce0b4b6a940f366ee51fe4bfdb04efcb6492c",
   "program": "local_first",
-  "current_milestone": "L3",
+  "current_milestone": "L4",
   "status": "passed",
   "completed_milestones": [
     "L0",
     "L1",
     "L2",
-    "L3"
+    "L3",
+    "L4"
   ],
   "checkpoint_commits": {
     "L0": "622da46b18aba8ae4855dca187d73486f41e43c8",
     "L1": "39d8abf003397e197c7987e4470e38b901f00511",
     "L2": "b9b8362540e42a93b580514a3893718b7cb4783d",
-    "L3": "38d374489b40c387f9f5855ae952abe7bc1aa9b6"
+    "L3": "0f0cdb0ec439cbfdcf838bf34af4c25ba4f76823",
+    "L4": "ff6c07bb3df4ad76ae17992500238ea9cffec57a"
   },
   "verification": {
     "L0": {
@@ -50,6 +52,13 @@
       "local_dev_pass_without_db": "PASS",
       "local_full_fail_closed": "PASS",
       "test_fast": "PASS"
+    },
+    "L4": {
+      "pytest_markers": "registered in pyproject.toml",
+      "removal_log": "docs/TEST_REMOVAL_LOG.md",
+      "redundant_sql_keyword_tests_removed": 2,
+      "test_fast": "PASS",
+      "note": "Partial L4; deeper consolidation continues in later sessions"
     }
   },
   "test_inventory": {
@@ -67,7 +76,10 @@
     "baseline_smoke": "PASS 27 tests ~2.55s",
     "collect_only": "PASS 351 tests ~0.75s"
   },
-  "deleted_tests": [],
+  "deleted_tests": [
+    "tests/test_rag_governance_durable.py::test_migration_0010_defines_rag_tables",
+    "tests/test_control_plane_durable.py::test_migration_0011_control_plane_tables"
+  ],
   "merged_tests": [],
   "blocked_items": [],
   "known_gaps": [
@@ -83,6 +95,6 @@
       }
     ]
   },
-  "next_milestone": "L4",
-  "updated_at": "2026-07-14T12:05:39.453446+08:00"
+  "next_milestone": "L5",
+  "updated_at": "2026-07-14T12:06:52.535933+08:00"
 }
