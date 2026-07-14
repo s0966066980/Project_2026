@@ -46,9 +46,7 @@ Project_2026/
 ├── scripts/                        # 本機模型與 UI_API 啟動腳本
 ├── config/profiles/                # local-pilot 環境範例
 ├── tools/                          # Demo、維運或一次性工具；非 production path
-├── .github/workflows/ci.yml        # CI 定義
-├── AGENTS.md                       # Codex / Agent 的主要工作契約
-└── AGENT.md                        # 短指引；權威規則仍以 AGENTS.md 為準
+└── .github/workflows/ci.yml        # CI 定義
 ```
 
 ## Runtime 與請求路徑
@@ -222,25 +220,6 @@ CI 使用 `UI_API/requirements-ci.txt` 安裝不含大型模型的 CPU-only 驗�
 
 PostgreSQL、Redis 與 Playwright 檢查需要對應服務或瀏覽器；本機文件變更只需先跑文件連結測試，不應把未執行的完整 CI 描述為已通過。
 
-## Codex 維護方式
-
-Codex 的權威工作規則位於 [`AGENTS.md`](AGENTS.md)。每次任務採小範圍 loop：
-
-```text
-Observe → Decide → Change → Verify → Review → Continue / Stop
-```
-
-建議 prompt：
-
-```text
-依 AGENTS.md 使用 Loop 模式處理。
-Goal: <單一明確目標>
-Scope: <允許修改的模組或檔案>
-Acceptance: <可驗證的完成條件>
-Constraints: 保持既有 API/DOM/資料相容；不要做無關重構。
-先讀目標檔、直接 caller/dependency 與最近測試；每個 loop 只做一個可驗證變更。
-```
-
 ## 目前建議維護順序
 
 1. 完成 `routes/services/repositories` 到 `modules/<domain>` 的漸進切換，先移除 Identity 相容 shim，再處理下一個 bounded context。
@@ -249,8 +228,3 @@ Constraints: 保持既有 API/DOM/資料相容；不要做無關重構。
 4. 將 `config.py` 的環境設定、動態設定與商用驗證分離；避免單檔持續膨脹。
 5. 以真實 payment/POS adapter 與營運驗證取代 manual-only pilot，再進行 production certification。
 6. 重新拆分 backend core / dev / local-AI dependencies，降低安裝成本與 CI 時間。
-
-## Agent 文件
-
-- [`AGENTS.md`](AGENTS.md)：Codex / Agent 的權威規則、架構邊界、loop、驗證矩陣。
-- [`AGENT.md`](AGENT.md)：依指定檔名保留的短入口，不重複規則內容。

@@ -19,7 +19,7 @@ rag_documents/
 
 - FAQ、政策、菜單說明優先使用 TXT/Markdown。
 - 價格、期間、條件與 target 需要機器驗證的活動優先使用 JSON/CSV。
-- 工程架構、roadmap、agent 規則不應放入本目錄，避免進入顧客知識庫。
+- 工程架構、roadmap 與開發工作規則不應放入本目錄，避免進入顧客知識庫。
 
 ## Governance 流程
 

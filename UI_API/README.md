@@ -97,4 +97,3 @@ pytest -q tests/test_documentation_integrity.py
 - `staging`、`pilot`、`production` 必須以 PostgreSQL 為商業資料 Source of Truth，並在啟動時 fail closed。
 - Payment/POS 目前只有 manual adapter；manual pending 不代表已自動扣款或送單。
 - 大型模型不是核心 API 的必要條件。
-- 工作規則與更完整邊界見 [AGENTS.md](../AGENTS.md)。
