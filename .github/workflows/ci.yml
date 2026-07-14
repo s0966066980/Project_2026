@@ -347,6 +347,3 @@ jobs:
         run: |
           bash -n scripts/start_emotion_llama.sh
           bash -n scripts/start_r1_omni.sh
-          bash -n scripts/lib_postgres.sh
-          bash -n scripts/backup_postgres.sh
-          bash -n scripts/restore_postgres.sh

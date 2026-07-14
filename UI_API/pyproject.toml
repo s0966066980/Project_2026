@@ -1,0 +1,92 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+  ".venv",
+  ".codegraph",
+  "learning_data",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "api",
+  "bootstrap",
+  "core",
+  "models",
+  "repositories",
+  "routes",
+  "services",
+  "utils",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py must add backend/ to sys.path before importing the application modules.
+"main.py" = ["E402"]
+
+[tool.pytest.ini_options]
+markers = [
+  "smoke: fastest process import and critical path probes",
+  "core: pure domain contracts used in daily local gate",
+  "security: auth, permission, scope, secret redaction",
+  "identity: admin/device/member identity",
+  "checkout: order pricing and transitions",
+  "worker: jobs outbox handlers",
+  "rag: rag governance",
+  "recommendation: recommendation/promotion",
+  "fleet: fleet management",
+  "analytics: analytics pipeline",
+  "api: http contract",
+  "integration: requires host postgres/redis",
+  "extended: full suite / milestone only",
+  "external: payment cloud pos telemetry",
+]
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "backend"
+explicit_package_bases = true
+follow_imports = "silent"
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+files = [
+  "backend/api",
+  "backend/core",
+  "backend/models",
+  "backend/repositories/postgres_utils.py",
+  "backend/repositories/admin_identity_repository.py",
+  "backend/repositories/device_identity_repository.py",
+  "backend/repositories/checkout_order_repository.py",
+  "backend/repositories/redis_shared_adapter.py",
+  "backend/repositories/worker_job_repository.py",
+  "backend/routes/admin_identity_routes.py",
+  "backend/routes/device_identity_routes.py",
+  "backend/routes/v1_routes.py",
+  "backend/scripts/manage_postgres_migrations.py",
+  "backend/scripts/manage_admin_identity.py",
+  "backend/scripts/validate_commercial_scope.py",
+  "backend/scripts/verify_member_identity_migration.py",
+  "backend/services/commercial_scope_service.py",
+  "backend/services/commercial_scope_readiness_service.py",
+  "backend/services/admin_access_service.py",
+  "backend/services/admin_authorization_service.py",
+  "backend/services/admin_identity_service.py",
+  "backend/services/device_identity_service.py",
+  "backend/services/member_key_provider.py",
+  "backend/services/member_pii_service.py",
+  "backend/services/health_service.py",
+  "backend/services/observability_service.py",
+  "backend/services/shared_infrastructure_service.py",
+  "backend/services/worker_service.py",
+  "backend/services/llm_gateway_service.py",
+  "backend/utils",
+]

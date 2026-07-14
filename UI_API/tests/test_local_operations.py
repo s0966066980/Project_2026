@@ -29,9 +29,8 @@ def _run_validate_startup(env: dict[str, str]) -> subprocess.CompletedProcess[st
 def test_native_entrypoint_files_exist() -> None:
     assert (UI_API / "main.py").is_file()
     assert (UI_API / "backend/scripts/run_worker.py").is_file()
-    assert (ROOT / "scripts/local/start.sh").is_file()
-    assert (ROOT / "scripts/local/stop.sh").is_file()
-    assert (ROOT / "scripts/local/doctor.sh").is_file()
+    assert (ROOT / "scripts/start_emotion_llama.sh").is_file()
+    assert (ROOT / "scripts/start_r1_omni.sh").is_file()
     assert not (ROOT / "deploy/Dockerfile.api").exists()
     assert not (ROOT / "deploy/compose.staging.yml").exists()
 
@@ -105,15 +104,14 @@ def test_staging_and_pilot_fail_fast_without_postgres() -> None:
         assert result.returncode != 0
 
 
-def test_pre_and_post_deploy_scripts_are_executable_shell() -> None:
+def test_launch_scripts_are_executable_shell() -> None:
     for rel in (
-        "scripts/pre_deploy_check.sh",
-        "scripts/post_deploy_smoke.sh",
-        "scripts/local/start.sh",
-        "scripts/local/setup.sh",
+        "scripts/start_emotion_llama.sh",
+        "scripts/start_r1_omni.sh",
     ):
         path = ROOT / rel
         assert path.is_file()
+        assert path.stat().st_mode & 0o111
         text = path.read_text(encoding="utf-8")
         assert "set -euo pipefail" in text or "set -e" in text
         # no git checkout of settings

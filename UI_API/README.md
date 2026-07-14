@@ -22,8 +22,7 @@ UI_API/
 ├── learning_data/       # 本機 runtime 資料，不提交內容
 ├── tests/               # Backend tests
 ├── requirements.txt     # 完整 runtime 依賴
-├── requirements-ci.txt  # CPU-only CI 依賴
-└── requirements-lock.txt
+└── requirements-ci.txt  # CPU-only CI 依賴
 ```
 
 ## 啟動
@@ -60,4 +59,4 @@ CI 另執行 Ruff、mypy 與 application import check，實際範圍以 `.github
 - 新跨層 contract 優先使用明確 schema，不擴大大型無型別 `dict`。
 - Kiosk 與 Admin 不互相 import business state。
 - 大型模型不應成為核心 API process 的必要 import 或啟動條件。
-- 新架構方向見 [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)。
+- 新架構方向與工作邊界見 [`AGENTS.md`](../AGENTS.md)。
