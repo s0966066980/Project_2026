@@ -151,10 +151,13 @@ def create_router(deps: dict) -> APIRouter:
         return {"status": "ok", "review": review}
 
     @router.post("/rebuild")
-    async def rebuild_docs(request: Request):
+    async def rebuild_docs(request: Request, payload: dict = Body(default={})):
         authorize_admin_request(request, "rag.write")
         check_rate_limit(request, "rag_rebuild", limit=3, window_seconds=600)
-        result = await rag_document_service.rebuild_from_source_documents()
+        selected_source_ids = payload.get("selected_source_ids") if "selected_source_ids" in payload else None
+        if selected_source_ids is not None and not isinstance(selected_source_ids, list):
+            return {"status": "error", "errors": ["selected_source_ids 必須是陣列"]}
+        result = await rag_document_service.rebuild_from_source_documents(selected_source_ids=selected_source_ids)
         await _publish_alert_if_new(result)
         return result
 
@@ -213,12 +216,13 @@ def create_router(deps: dict) -> APIRouter:
     async def delete_doc(request: Request, doc_id: str):
         authorize_admin_request(request, "rag.write")
         ok = await get_rag().delete_document(doc_id)
+        if ok:
+            rag_document_service.exclude_source_from_index(doc_id)
         return {"status": "ok" if ok else "not_found"}
 
     @router.delete("/docs")
     async def clear_docs(request: Request):
         authorize_admin_request(request, "rag.write")
-        deleted = await get_rag().clear_all()
-        return {"status": "ok", "deleted": deleted}
+        return await rag_document_service.clear_index()
 
     return router

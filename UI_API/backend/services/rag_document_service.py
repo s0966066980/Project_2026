@@ -33,6 +33,10 @@ def _status_path() -> Path:
     return Path(config.LEARNING_DATA_DIR) / "rag_rebuild_status.json"
 
 
+def _selection_path() -> Path:
+    return Path(config.LEARNING_DATA_DIR) / "rag_index_selection.json"
+
+
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -56,6 +60,50 @@ def _read_status() -> dict:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _normalize_source_ids(values) -> list[str]:
+    if not isinstance(values, (list, tuple, set)):
+        return []
+    result = []
+    seen = set()
+    for value in values:
+        source_id = str(value or "").strip()
+        if source_id and source_id not in seen:
+            seen.add(source_id)
+            result.append(source_id)
+    return result
+
+
+def _read_selection() -> tuple[bool, list[str]]:
+    path = _selection_path()
+    if not path.exists():
+        return False, []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # A damaged selection file must fail closed instead of restoring every source.
+        return True, []
+    if not isinstance(data, dict):
+        return True, []
+    return True, _normalize_source_ids(data.get("selected_source_ids"))
+
+
+def _write_selection(source_ids: list[str]) -> list[str]:
+    normalized = _normalize_source_ids(source_ids)
+    path = _selection_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(".json.tmp")
+    tmp_path.write_text(
+        json.dumps(
+            {"selected_source_ids": normalized, "updated_at": _now_iso()},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    os.replace(tmp_path, path)
+    return normalized
 
 
 def _alert_payload(alert: dict | None, created: bool = False) -> dict:
@@ -316,6 +364,7 @@ def validate_source_documents(include_documents: bool = False) -> dict:
                 "format": metadata.get("format", ""),
                 "content_preview": str(document.get("content") or "")[:160],
             })
+    selection_configured, selected_source_ids = _read_selection()
     result = {
         "status": "ok" if ok else "error",
         "ok": ok,
@@ -326,6 +375,8 @@ def validate_source_documents(include_documents: bool = False) -> dict:
         "errors": errors,
         "warnings": warnings,
         "documents": preview_documents,
+        "selection_configured": selection_configured,
+        "selected_source_ids": selected_source_ids,
         "checked_at": _now_iso(),
     }
     _write_status({"last_validation": result})
@@ -345,7 +396,7 @@ def load_source_documents() -> list[dict]:
     return documents
 
 
-async def rebuild_from_source_documents() -> dict:
+async def rebuild_from_source_documents(selected_source_ids: list[str] | None = None) -> dict:
     validation = validate_source_documents(include_documents=False)
     if not validation.get("ok"):
         alert, created = rag_alert_service.create_alert(
@@ -376,6 +427,55 @@ async def rebuild_from_source_documents() -> dict:
         return result
 
     documents = load_source_documents()
+    available_ids = {str(document.get("source_id") or "") for document in documents}
+    selection_configured, saved_source_ids = _read_selection()
+    if selected_source_ids is not None:
+        resolved_source_ids = _normalize_source_ids(selected_source_ids)
+        selection_source = "request"
+    elif selection_configured:
+        resolved_source_ids = saved_source_ids
+        selection_source = "saved"
+    else:
+        resolved_source_ids = [str(document.get("source_id") or "") for document in documents]
+        selection_source = "all_sources"
+
+    missing_source_ids = [source_id for source_id in resolved_source_ids if source_id not in available_ids]
+    if missing_source_ids and selected_source_ids is not None:
+        errors = [
+            _issue("error", None, "選取的來源文件已不存在，請重新檢查並選取", source_id)
+            for source_id in missing_source_ids
+        ]
+        result = {
+            "status": "error",
+            "deleted": 0,
+            "imported": 0,
+            "failed": len(errors),
+            "errors": errors,
+            "warnings": validation.get("warnings", []),
+            "total": None,
+            "source_dir": str(_documents_root()),
+            "selected_source_ids": resolved_source_ids,
+            "selection_source": selection_source,
+            "validated": validation,
+            "rebuild_at": _now_iso(),
+        }
+        _write_status({"last_validation": validation, "last_rebuild": result})
+        return result
+
+    selection_warnings = []
+    if missing_source_ids:
+        selection_warnings = [
+            _issue("warning", None, "已從正式選取移除不存在的來源文件", source_id)
+            for source_id in missing_source_ids
+        ]
+        resolved_source_ids = _write_selection(
+            [source_id for source_id in resolved_source_ids if source_id in available_ids]
+        )
+
+    selected_set = set(resolved_source_ids)
+    documents = [document for document in documents if document.get("source_id") in selected_set]
+    if selected_source_ids is not None:
+        resolved_source_ids = _write_selection(resolved_source_ids)
     rag = get_rag()
     deleted = await rag.clear_all()
     imported = 0
@@ -400,9 +500,11 @@ async def rebuild_from_source_documents() -> dict:
         "imported": imported,
         "failed": len(errors),
         "errors": errors,
-        "warnings": validation.get("warnings", []),
+        "warnings": [*validation.get("warnings", []), *selection_warnings],
         "total": await rag.count(),
         "source_dir": str(_documents_root()),
+        "selected_source_ids": resolved_source_ids,
+        "selection_source": selection_source,
         "validated": validation,
         "rebuild_at": _now_iso(),
     }
@@ -423,9 +525,33 @@ async def rebuild_from_source_documents() -> dict:
     return result
 
 
+async def clear_index() -> dict:
+    """Clear Chroma and persist an explicit empty selection to prevent old sources returning."""
+    selected_source_ids = _write_selection([])
+    deleted = await get_rag().clear_all()
+    return {
+        "status": "ok",
+        "deleted": deleted,
+        "selected_source_ids": selected_source_ids,
+        "selection_source": "saved",
+    }
+
+
+def exclude_source_from_index(source_id: str) -> list[str]:
+    """Remove one source from the durable selection without deleting its source file."""
+    normalized_id = str(source_id or "").strip()
+    selection_configured, selected_source_ids = _read_selection()
+    if not selection_configured:
+        selected_source_ids = [
+            str(document.get("source_id") or "")
+            for document in load_source_documents()
+        ]
+    return _write_selection([row for row in selected_source_ids if row != normalized_id])
+
+
 async def health_status() -> dict:
     root = _documents_root()
-    chroma_path = Path(config.LEARNING_DATA_DIR) / "chroma_rag"
+    chroma_path = Path(config.RAG_CHROMA_DIR)
     collection_ok = True
     collection_error = ""
     doc_count = 0
@@ -438,6 +564,7 @@ async def health_status() -> dict:
     chroma_parent = chroma_path if chroma_path.exists() else chroma_path.parent
     chroma_writable = chroma_parent.exists() and os.access(chroma_parent, os.W_OK)
     status = _read_status()
+    selection_configured, selected_source_ids = _read_selection()
     status_value = "ok" if collection_ok and source_readable and chroma_writable else "degraded"
     alert_info = {}
     if status_value == "degraded":
@@ -466,6 +593,12 @@ async def health_status() -> dict:
         "source_dir_exists": root.exists(),
         "source_dir_readable": source_readable,
         "chroma_writable": chroma_writable,
+        "chroma_path": str(chroma_path.resolve()),
+        "collection_name": str(config.RAG_COLLECTION),
+        "source_dir": str(root),
+        "selection_configured": selection_configured,
+        "selected_source_ids": selected_source_ids,
+        "selected_source_count": len(selected_source_ids),
         "last_validation": status.get("last_validation", {}),
         "last_rebuild": status.get("last_rebuild", {}),
         "alert": alert_info,
