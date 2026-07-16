@@ -277,9 +277,32 @@ test('一般員工可用中文精靈建立並發布活動', async ({ page }) => 
     await route.fulfill({ status: 200, json: { data: campaign, meta: { request_id: 'req_e2e', timestamp: new Date().toISOString() } } });
   });
 
+  await page.setViewportSize({ width: 375, height: 900 });
   await page.goto('/admin');
+  expect(await page.locator('#page-promotions-legacy').count()).toBe(0);
+  expect(await page.evaluate(() => typeof (window as any).savePromotion)).toBe('undefined');
   await page.getByRole('button', { name: /活動管理/ }).click();
   await page.getByRole('button', { name: /建立活動/ }).click();
+  const overflowMetrics = await page.locator('#page-promotions').evaluate(element => ({
+    page: { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth },
+    offenders: [...element.querySelectorAll('*')].map(node => {
+      const rect = node.getBoundingClientRect();
+      return { tag: node.tagName, id: node.id, className: node.className, left: rect.left, right: rect.right, width: rect.width };
+    }).filter(row => row.width > 0 && (row.left < 0 || row.right > window.innerWidth)).slice(0, 20),
+  }));
+  expect(overflowMetrics.page.scrollWidth).toBeLessThanOrEqual(overflowMetrics.page.clientWidth);
+  expect(overflowMetrics.offenders).toEqual([]);
+  await page.getByRole('button', { name: /3\. 顯示位置/ }).click();
+  const placementOverflow = await page.locator('#page-promotions').evaluate(element => ({
+    page: { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth },
+    offenders: [...element.querySelectorAll('*')].map(node => {
+      const rect = node.getBoundingClientRect();
+      return { tag: node.tagName, id: node.id, className: node.className, left: rect.left, right: rect.right, width: rect.width };
+    }).filter(row => row.width > 0 && (row.left < 0 || row.right > window.innerWidth)).slice(0, 20),
+  }));
+  expect(placementOverflow.page.scrollWidth).toBeLessThanOrEqual(placementOverflow.page.clientWidth);
+  expect(placementOverflow.offenders).toEqual([]);
+  await page.getByRole('button', { name: /1\. 基本資料/ }).click();
   await page.locator('#campaignName').fill('夏日薯條優惠');
   await page.getByRole('button', { name: /2\. 優惠內容/ }).click();
   await page.locator('#campaignItem').selectOption('fries');

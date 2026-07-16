@@ -60,8 +60,12 @@ if (dateTextEl) {
 // ── Sidebar navigation ──
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item[data-page]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('.nav-item[data-page]').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('active', active);
+      if (active) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
     const page = btn.dataset.page;
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
@@ -815,6 +819,9 @@ const RAG_REVIEW_STATUS_LABELS = {
 
 let ragReviewRows = [];
 let ragAlertRows = [];
+let ragSourceRows = [];
+let ragSourceSelection = new Set();
+let ragSelectionInitialized = false;
 
 function ragNotice(msg, ok = true) {
   const el = document.getElementById('rag-notice');
@@ -843,6 +850,16 @@ function renderRagHealth(data = {}) {
   box.innerHTML = rows
     .map(([value, label]) => `<div class="rag-health-chip"><b>${escHtml(String(value))}</b><span>${escHtml(label)}</span></div>`)
     .join('');
+  const storage = g('rag-storage-detail');
+  if (storage) {
+    const details = [
+      ['來源文件目錄', data.source_dir || '—'],
+      ['Chroma 保存位置', data.chroma_path || '—'],
+      ['Collection', data.collection_name || '—'],
+      ['已選正式來源', `${Number(data.selected_source_count || 0)} 筆`],
+    ];
+    storage.innerHTML = details.map(([label, value]) => `<div class="rag-storage-row"><b>${escHtml(label)}</b><code>${escHtml(String(value))}</code></div>`).join('');
+  }
 }
 
 async function loadRagHealth() {
@@ -962,9 +979,45 @@ function renderRagValidation(data = {}) {
       return `<div class="rag-validation-item ${level}"><b>${label}</b> ${escHtml(path + (issue.message || ''))}</div>`;
     }).join('')
     : `<div class="rag-validation-item ok">檢查通過，可安全重建 Chroma。</div>`;
+  ragSourceRows = Array.isArray(data.documents) ? data.documents : ragSourceRows;
+  if (Array.isArray(data.documents)) {
+    const availableSourceIds = new Set(ragSourceRows.map(row => String(row.source_id || '')).filter(Boolean));
+    if (!ragSelectionInitialized) {
+      ragSourceSelection = new Set(data.selection_configured ? (data.selected_source_ids || []) : []);
+      ragSelectionInitialized = true;
+    }
+    ragSourceSelection = new Set([...ragSourceSelection].filter(sourceId => availableSourceIds.has(sourceId)));
+  }
+  const sourceItems = ragSourceRows.map((row, index) => {
+    const sourceId = String(row.source_id || '');
+    const checked = ragSourceSelection.has(sourceId) ? ' checked' : '';
+    const title = row.title || row.path || sourceId;
+    return `<label class="rag-source-option"><input type="checkbox" data-rag-source-index="${index}"${checked}><span><b>${escHtml(title)}</b><span>${escHtml(sourceId)} · ${escHtml(row.source_type || 'manual')} · ${escHtml(row.path || '')}</span><span>${escHtml(row.content_preview || '')}</span></span></label>`;
+  }).join('');
+  const sourcePicker = Array.isArray(data.documents)
+    ? `<div class="rag-source-picker"><div class="rag-source-picker-head"><div><b>選擇下次正式索引內容</b><span id="rag-source-selection-summary">已選 ${ragSourceSelection.size} / ${ragSourceRows.length} 筆</span></div><div class="rag-source-picker-actions"><button id="rag-source-select-all" type="button">全部選取</button><button id="rag-source-clear-all" type="button">全部取消</button></div></div><div class="rag-source-list">${sourceItems || '<div class="adm-empty">來源目錄內沒有可選文件。</div>'}</div></div>`
+    : '';
   box.style.display = '';
   box.innerHTML = `<div class="rag-validation-head"><b>${ok ? 'RAG 文件檢查通過' : 'RAG 文件需要修正'}</b><span>${escHtml(summary)}</span></div>`
-    + `<div class="rag-validation-list">${items}</div>`;
+    + `<div class="rag-validation-list">${items}</div>${sourcePicker}`;
+  box.querySelectorAll('[data-rag-source-index]').forEach(input => {
+    input.addEventListener('change', () => {
+      const row = ragSourceRows[Number(input.dataset.ragSourceIndex)];
+      const sourceId = String(row?.source_id || '');
+      if (input.checked) ragSourceSelection.add(sourceId);
+      else ragSourceSelection.delete(sourceId);
+      const summaryEl = g('rag-source-selection-summary');
+      if (summaryEl) summaryEl.textContent = `已選 ${ragSourceSelection.size} / ${ragSourceRows.length} 筆`;
+    });
+  });
+  g('rag-source-select-all')?.addEventListener('click', () => {
+    ragSourceSelection = new Set(ragSourceRows.map(row => String(row.source_id || '')).filter(Boolean));
+    renderRagValidation(data);
+  });
+  g('rag-source-clear-all')?.addEventListener('click', () => {
+    ragSourceSelection.clear();
+    renderRagValidation(data);
+  });
 }
 
 async function validateRagDocs(showNotice = true) {
@@ -1028,15 +1081,20 @@ async function loadRagDocs() {
       tag.className = `rag-doc-tag ${tagClass[doc.source_type] || 'manual'}`;
       tag.textContent = RAG_TYPE_LABELS[doc.source_type] || doc.source_type;
 
+      const sourceId = document.createElement('small');
+      sourceId.className = 'rag-doc-id';
+      sourceId.textContent = doc.id || '未提供 source_id';
+
       const text = document.createElement('div');
       text.className = 'rag-doc-text';
       text.textContent = doc.content;
 
-      body.append(tag, text);
+      body.append(tag, sourceId, text);
 
       const del = document.createElement('button');
       del.className = 'rag-del-btn';
-      del.title = '刪除';
+      del.title = '從正式索引移除';
+      del.setAttribute('aria-label', `從正式索引移除 ${doc.id || '文件'}`);
       const icon = document.createElement('i');
       icon.className = 'fas fa-trash';
       del.appendChild(icon);
@@ -1210,42 +1268,60 @@ function archiveRagReview(reviewId) {
 }
 
 async function deleteRagDoc(id) {
-  if (!confirm('確定刪除這筆文件？')) return;
+  if (!confirm('確定從 Chroma 正式索引移除這筆文件？來源文件會保留，之後可重新勾選加入。')) return;
   try {
     const res = await fetch(`${API}/api/rag/docs/${encodeURIComponent(id)}`, {
       method: 'DELETE', headers: adminHeaders(),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    ragNotice('✓ 已刪除');
+    ragSourceSelection.delete(id);
+    ragNotice('✓ 已從正式索引移除');
     await loadRagDocs();
     await loadRagReviews();
+    await loadRagHealth();
   } catch (e) {
     ragNotice(`刪除失敗：${e.message}`, false);
   }
 }
 
 async function clearRagDocs() {
-  if (!confirm('確定清空全部 RAG 文件？此操作無法還原。')) return;
+  if (!confirm('確定清空 Chroma 正式索引？來源文件與審核紀錄會保留，但正式選取會設為 0 筆，之後重建不會自動復原舊內容。')) return;
   try {
     const res = await fetch(`${API}/api/rag/docs`, {
       method: 'DELETE', headers: adminHeaders(),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    ragNotice('✓ 已清空');
+    ragSourceSelection.clear();
+    ragSelectionInitialized = true;
+    ragNotice('✓ Chroma 已清空，正式來源選取已設為 0 筆');
     await loadRagDocs();
     await loadRagReviews();
+    await loadRagHealth();
   } catch (e) {
     ragNotice(`清空失敗：${e.message}`, false);
   }
 }
 
 async function rebuildRagDocs() {
-  if (!confirm('系統會先驗證 rag_documents；只有檢查通過才會清空並重建 Chroma。確定執行？')) return;
+  const button = g('rag-rebuild-btn');
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
+    const validation = await validateRagDocs(false);
+    if (!validation.ok) {
+      ragNotice('重建已停止：請先修正來源文件錯誤', false);
+      return;
+    }
+    const selectedSourceIds = [...ragSourceSelection];
+    const action = selectedSourceIds.length
+      ? `以目前勾選的 ${selectedSourceIds.length} 筆來源取代 Chroma 正式索引`
+      : '建立空的 Chroma 正式索引（不匯入任何來源）';
+    if (!confirm(`${action}。未勾選來源不會參與回答，確定執行？`)) return;
     ragNotice('驗證與重建中，請稍候…');
     const res = await fetch(`${API}/api/rag/rebuild`, {
       method: 'POST',
-      headers: adminHeaders(),
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected_source_ids: selectedSourceIds }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -1262,364 +1338,8 @@ async function rebuildRagDocs() {
     await loadRagReviews();
   } catch (e) {
     ragNotice(`重建失敗：${e.message}`, false);
-  }
-}
-
-// ── Promotion management ──
-
-let promotionRows = [];
-
-function splitCsv(value) {
-  return String(value || '').split(',').map(row => row.trim()).filter(Boolean);
-}
-
-function joinCsv(value) {
-  if (Array.isArray(value)) return value.join(', ');
-  return String(value || '');
-}
-
-function promotionNotice(message, ok = true) {
-  const el = g('promotion-notice');
-  if (!el) return;
-  el.textContent = message;
-  el.style.color = ok ? '#1db87a' : '#e84040';
-  el.style.display = '';
-  setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
-
-function promotionStatusLabel(status) {
-  const key = String(status || 'draft').toLowerCase();
-  return { active: '啟用', draft: '草稿', inactive: '停用' }[key] || key;
-}
-
-function getPromotionPayload() {
-  return {
-    offer_id: val('promotion-offer-id'),
-    title: val('promotion-title'),
-    status: val('promotion-status') || 'draft',
-    enabled: val('promotion-enabled') !== 'false',
-    surface: val('promotion-surface') || 'recommendation',
-    priority: parseInt(val('promotion-priority') || '0', 10),
-    rotation_seconds: parseInt(val('promotion-rotation-seconds') || '6', 10),
-    member_only: val('promotion-member-only') === 'true',
-    valid_from: val('promotion-valid-from'),
-    valid_until: val('promotion-valid-until'),
-    start_at: val('promotion-valid-from'),
-    end_at: val('promotion-valid-until'),
-    timezone: val('promotion-timezone') || 'Asia/Taipei',
-    item_ids: splitCsv(val('promotion-item-ids')),
-    categories: splitCsv(val('promotion-categories')),
-    required_cart_item_ids: splitCsv(val('promotion-required-items')),
-    pricing: {
-      type: 'add_on_fixed_price',
-      original_price: val('promotion-original-price') ? parseInt(val('promotion-original-price'), 10) : null,
-      promotion_price: val('promotion-promotion-price') ? parseInt(val('promotion-promotion-price'), 10) : null,
-      currency: 'TWD',
-    },
-    original_price: val('promotion-original-price') ? parseInt(val('promotion-original-price'), 10) : null,
-    promo_price: val('promotion-promotion-price') ? parseInt(val('promotion-promotion-price'), 10) : null,
-    save_text: val('promotion-save-text'),
-    ad: {
-      headline: val('promotion-ad-headline'),
-      copy: val('promotion-ad-copy'),
-      cta: val('promotion-ad-cta') || '立即查看',
-    },
-    badge: val('promotion-ad-headline'),
-    subtitle: val('promotion-ad-copy'),
-    cta_text: val('promotion-ad-cta') || '立即查看',
-    target_type: val('promotion-target-type') || 'none',
-    target_value: val('promotion-target-value'),
-    theme: val('promotion-theme') || 'gold',
-    legal_text: val('promotion-legal-text'),
-    score_boost: parseInt(val('promotion-score-boost') || '4', 10),
-    category_score_boost: parseInt(val('promotion-category-score-boost') || '2', 10),
-    content: val('promotion-content'),
-  };
-}
-
-function setPromotionForm(row = {}) {
-  const rawStatus = String(row.status || row.metadata?.status || 'draft').toLowerCase();
-  const formStatus = ['active', 'draft', 'inactive'].includes(rawStatus) ? rawStatus : 'draft';
-  setVal('promotion-editing-id', row.offer_id || '');
-  setVal('promotion-offer-id', row.offer_id || '');
-  setVal('promotion-title', row.title || row.name || '');
-  setVal('promotion-status', formStatus);
-  setVal('promotion-enabled', row.enabled === false ? 'false' : 'true');
-  setVal('promotion-surface', row.surface || 'recommendation');
-  setVal('promotion-priority', row.priority ?? 0);
-  setVal('promotion-rotation-seconds', row.rotation_seconds ?? 6);
-  setVal('promotion-member-only', row.member_only ? 'true' : 'false');
-  setVal('promotion-valid-from', row.start_at || row.valid_from || row.starts_at || '');
-  setVal('promotion-valid-until', row.end_at || row.valid_until || row.ends_at || '');
-  setVal('promotion-timezone', row.timezone || 'Asia/Taipei');
-  setVal('promotion-item-ids', joinCsv(row.item_ids || row.items));
-  setVal('promotion-categories', joinCsv(row.categories || row.category));
-  setVal('promotion-required-items', joinCsv(row.required_cart_item_ids || row.required_items));
-  const pricing = row.pricing && typeof row.pricing === 'object' ? row.pricing : {};
-  const ad = row.ad && typeof row.ad === 'object' ? row.ad : {};
-  setVal('promotion-original-price', pricing.original_price ?? '');
-  setVal('promotion-promotion-price', pricing.promotion_price ?? '');
-  setVal('promotion-save-text', row.save_text || '');
-  setVal('promotion-ad-headline', row.badge || ad.headline || '');
-  setVal('promotion-ad-copy', row.subtitle || ad.copy || '');
-  setVal('promotion-ad-cta', row.cta_text || ad.cta || '立即查看');
-  setVal('promotion-target-type', row.target_type || 'none');
-  setVal('promotion-target-value', row.target_value || '');
-  setVal('promotion-theme', row.theme || 'gold');
-  setVal('promotion-legal-text', row.legal_text || '');
-  setVal('promotion-score-boost', row.score_boost ?? 4);
-  setVal('promotion-category-score-boost', row.category_score_boost ?? 2);
-  setVal('promotion-content', row.content || row.description || '');
-  const offerInput = g('promotion-offer-id');
-  if (offerInput) offerInput.disabled = Boolean(row.offer_id);
-}
-
-function resetPromotionForm() {
-  setPromotionForm({});
-  const offerInput = g('promotion-offer-id');
-  if (offerInput) offerInput.disabled = false;
-}
-
-function appendCsvValue(inputId, value) {
-  const input = g(inputId);
-  const nextValue = String(value || '').trim();
-  if (!input || !nextValue) return;
-  const values = splitCsv(input.value);
-  if (!values.includes(nextValue)) values.push(nextValue);
-  input.value = values.join(', ');
-}
-
-function promotionCategoriesFromMenu() {
-  return Array.from(new Set(
-    Object.values(menuCache)
-      .map(item => String(item.category || '').trim())
-      .filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-}
-
-function fillSelect(selectId, rows, valueOf, labelOf) {
-  const select = g(selectId);
-  if (!select) return;
-  select.textContent = '';
-  rows.forEach(row => {
-    const option = document.createElement('option');
-    option.value = valueOf(row);
-    option.textContent = labelOf(row);
-    select.appendChild(option);
-  });
-}
-
-function fillPromotionTargetPicker() {
-  const targetType = val('promotion-target-type') || 'none';
-  if (targetType === 'category') {
-    fillSelect('promotion-target-picker', promotionCategoriesFromMenu(), row => row, row => row);
-    return;
-  }
-  if (targetType === 'item') {
-    fillSelect(
-      'promotion-target-picker',
-      Object.values(menuCache),
-      row => row.id || '',
-      row => `${row.id || ''}｜${row.name || row.id || ''}`
-    );
-    return;
-  }
-  fillSelect('promotion-target-picker', [{ id: '', name: '此目標類型不需要 target_value' }], row => row.id, row => row.name);
-}
-
-async function preparePromotionPickers() {
-  await loadMenu();
-  const menuRows = Object.values(menuCache);
-  fillSelect('promotion-item-picker', menuRows, row => row.id || '', row => `${row.id || ''}｜${row.name || row.id || ''}`);
-  fillSelect('promotion-required-picker', menuRows, row => row.id || '', row => `${row.id || ''}｜${row.name || row.id || ''}`);
-  fillSelect('promotion-category-picker', promotionCategoriesFromMenu(), row => row, row => row);
-  fillPromotionTargetPicker();
-}
-
-function bindPromotionPickers() {
-  document.querySelectorAll('[data-promotion-picker]').forEach(button => {
-    button.addEventListener('click', async () => {
-      await preparePromotionPickers();
-      const key = button.getAttribute('data-promotion-picker') || '';
-      document.querySelectorAll('.promotion-picker-panel').forEach(panel => panel.classList.remove('open'));
-      g(`promotion-picker-${key}`)?.classList.add('open');
-    });
-  });
-  document.querySelectorAll('[data-promotion-insert]').forEach(button => {
-    button.addEventListener('click', () => {
-      const key = button.getAttribute('data-promotion-insert') || '';
-      const mappings = {
-        items: ['promotion-item-picker', 'promotion-item-ids'],
-        categories: ['promotion-category-picker', 'promotion-categories'],
-        required: ['promotion-required-picker', 'promotion-required-items'],
-        target: ['promotion-target-picker', 'promotion-target-value'],
-      };
-      const mapping = mappings[key];
-      if (!mapping) return;
-      const select = g(mapping[0]);
-      const value = select?.value || '';
-      if (key === 'target') {
-        setVal(mapping[1], value);
-      } else {
-        appendCsvValue(mapping[1], value);
-      }
-    });
-  });
-  g('promotion-target-type')?.addEventListener('change', async () => {
-    await preparePromotionPickers();
-    g('promotion-picker-target')?.classList.add('open');
-  });
-}
-
-function promotionScope(row) {
-  const itemIds = Array.isArray(row.item_ids) ? row.item_ids : [];
-  const categories = Array.isArray(row.categories) ? row.categories : [];
-  const rows = [];
-  if (itemIds.length) rows.push(`品項 ${itemIds.slice(0, 4).join(', ')}`);
-  if (categories.length) rows.push(`分類 ${categories.slice(0, 4).join(', ')}`);
-  return rows.join(' · ') || '未設定範圍';
-}
-
-async function loadPromotions() {
-  const box = g('promotion-list');
-  if (box) box.innerHTML = '<div class="adm-empty">載入中…</div>';
-  try {
-    const res = await fetch(`${API}/api/rag/promotions`, { headers: adminHeaders() });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    promotionRows = Array.isArray(data.promotions) ? data.promotions : [];
-    renderPromotionList();
-  } catch (e) {
-    promotionRows = [];
-    if (box) box.innerHTML = `<div class="adm-empty" style="color:#e84040">載入失敗：${escHtml(e.message)}</div>`;
-  }
-}
-
-function renderPromotionList() {
-  const box = g('promotion-list');
-  const count = g('promotion-count');
-  if (count) count.textContent = `(${promotionRows.length})`;
-  if (!box) return;
-  if (!promotionRows.length) {
-    box.innerHTML = '<div class="adm-empty">尚無結構化活動。</div>';
-    return;
-  }
-  box.textContent = '';
-  promotionRows
-    .slice()
-    .sort((a, b) => String(a.status || '').localeCompare(String(b.status || '')) || String(a.offer_id || '').localeCompare(String(b.offer_id || '')))
-    .forEach(row => {
-      const status = String(row.status || row.metadata?.status || 'draft').toLowerCase();
-      const pricing = row.pricing && typeof row.pricing === 'object' ? row.pricing : {};
-      const promoPrice = row.promo_price || pricing.promotion_price;
-      const originalPrice = row.original_price || pricing.original_price;
-      const priceText = promoPrice
-        ? `優惠價 $${promoPrice}${originalPrice ? `（原價 $${originalPrice}）` : ''}`
-        : '未設定加購價';
-      const surfaceText = row.surface === 'pos_home_banner' ? `POS Banner｜優先級 ${row.priority || 0}` : '推薦 / RAG';
-      const card = document.createElement('div');
-      card.className = 'promotion-card';
-      card.innerHTML = `<div class="promotion-card-head">`
-        + `<div class="promotion-card-title"><b>${escHtml(row.title || row.offer_id || '未命名活動')}</b><span>${escHtml(row.offer_id || '')}</span></div>`
-        + `<span class="promotion-status ${escHtml(status)}">${escHtml(promotionStatusLabel(status))}</span>`
-        + `</div>`
-        + `<div class="promotion-meta">`
-        + `<span>${row.member_only ? '會員限定' : '一般活動'}</span>`
-        + `<span>${escHtml(surfaceText)}</span>`
-        + `<span>${escHtml(row.start_at || row.valid_from || '未設定')} - ${escHtml(row.end_at || row.valid_until || '未設定')}｜${escHtml(row.timezone || 'Asia/Taipei')}</span>`
-        + `<span>${escHtml(promotionScope(row))}</span>`
-        + `<span>${escHtml(priceText)}</span>`
-        + `<span>${escHtml(row.badge || row.ad?.headline || '未設定 Banner 標籤')}</span>`
-        + `</div>`
-        + `<div class="promotion-actions"></div>`;
-      const actions = card.querySelector('.promotion-actions');
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.textContent = '編輯';
-      edit.addEventListener('click', () => setPromotionForm(row));
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.textContent = status === 'active' ? '停用' : '啟用';
-      toggle.addEventListener('click', () => updatePromotionStatus(row.offer_id, status === 'active' ? 'inactive' : 'active'));
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'danger';
-      del.textContent = '刪除';
-      del.addEventListener('click', () => deletePromotion(row.offer_id, row.title || ''));
-      actions.append(edit, toggle, del);
-      box.appendChild(card);
-    });
-}
-
-async function savePromotion() {
-  const editingId = val('promotion-editing-id');
-  const payload = getPromotionPayload();
-  if (!payload.title) {
-    promotionNotice('儲存失敗：活動名稱不可為空', false);
-    return;
-  }
-  if (payload.start_at && payload.end_at && payload.start_at > payload.end_at) {
-    promotionNotice('儲存失敗：結束時間不可早於開始時間', false);
-    return;
-  }
-  const url = editingId
-    ? `${API}/api/rag/promotions/${encodeURIComponent(editingId)}`
-    : `${API}/api/rag/promotions`;
-  try {
-    const res = await fetch(url, {
-      method: editingId ? 'PUT' : 'POST',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.status !== 'ok') throw new Error((data.errors || [data.message || '儲存失敗']).join('；'));
-    promotionNotice('✓ 活動已儲存');
-    resetPromotionForm();
-    await loadPromotions();
-    await loadRagDocs();
-    await loadRagReviews();
-  } catch (e) {
-    promotionNotice(`儲存失敗：${e.message}`, false);
-  }
-}
-
-async function updatePromotionStatus(offerId, status) {
-  if (!offerId) return;
-  try {
-    const res = await fetch(`${API}/api/rag/promotions/${encodeURIComponent(offerId)}/status`, {
-      method: 'PATCH',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.status !== 'ok') throw new Error((data.errors || ['更新失敗']).join('；'));
-    promotionNotice(`✓ 已${status === 'active' ? '啟用' : '停用'}活動`);
-    await loadPromotions();
-  } catch (e) {
-    promotionNotice(`更新失敗：${e.message}`, false);
-  }
-}
-
-async function deletePromotion(offerId, title) {
-  if (!offerId) return;
-  if (!confirm(`確定刪除活動「${title || offerId}」？此操作會刪除 promotion JSON。`)) return;
-  try {
-    const res = await fetch(`${API}/api/rag/promotions/${encodeURIComponent(offerId)}`, {
-      method: 'DELETE',
-      headers: adminHeaders(),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (!data.deleted) throw new Error('找不到活動');
-    promotionNotice('✓ 活動已刪除');
-    resetPromotionForm();
-    await loadPromotions();
-    await loadRagDocs();
-    await loadRagReviews();
-  } catch (e) {
-    promotionNotice(`刪除失敗：${e.message}`, false);
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -2109,9 +1829,6 @@ window.validateRagDocs = validateRagDocs;
 window.deleteRagDoc    = deleteRagDoc;
 window.clearRagDocs    = clearRagDocs;
 window.rebuildRagDocs  = rebuildRagDocs;
-window.loadPromotions = loadPromotions;
-window.savePromotion = savePromotion;
-window.resetPromotionForm = resetPromotionForm;
 window.loadAvailability = loadAvailability;
 window.saveAvailability = saveAvailability;
 window.saveEmotionSettings        = saveEmotionSettings;
@@ -2147,7 +1864,6 @@ document.getElementById('availabilitySaveBtn')?.addEventListener('click', saveAv
 document.getElementById('availabilitySearch')?.addEventListener('input', renderAvailabilityRows);
 document.getElementById('availabilityStatusFilter')?.addEventListener('change', renderAvailabilityRows);
 document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
-bindPromotionPickers();
 campaignAdmin.bind();
 [
   'recommendationEventTypeFilter',

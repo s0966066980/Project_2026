@@ -9,6 +9,9 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline:3px solid rgba(59,122,238,.45); outline-offset:2px;
+}
 html, body { height: 100%; }
 body {
   font-family: 'Segoe UI', 'Noto Sans TC', system-ui, sans-serif;
@@ -94,6 +97,7 @@ body {
   background: none;
   width: 100%;
   text-align: left;
+  min-height: 44px;
 }
 .nav-item i { width: 16px; text-align: center; font-size: 14px; }
 .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
@@ -145,7 +149,8 @@ body {
   color: #3b4a6b; cursor: pointer; transition: background 0.15s;
 }
 .refresh-btn:hover { background: #e8ecf4; }
-.refresh-btn, .clear-btn { flex-shrink: 0; white-space: nowrap; }
+.refresh-btn:disabled { opacity:.5; cursor:not-allowed; }
+.refresh-btn, .clear-btn { min-height:44px; flex-shrink: 0; white-space: nowrap; }
 .clear-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 7px 14px;
@@ -308,45 +313,12 @@ tbody tr:hover td { background: #f8fafd; }
 }
 @media (max-width:900px) { .settings-grid { grid-template-columns:1fr; } }
 /* ── RAG page ── */
-#page-rag,
-#page-promotions {
+#page-rag {
   display: grid;
   grid-template-columns: 380px 1fr;
-  grid-template-rows: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 24px;
   overflow: hidden;
-}
-.promotion-picker-panel {
-  display:none;
-  margin-top:8px;
-  margin-left:134px;
-  padding:10px;
-  border:1px solid #dfe6f2;
-  border-radius:10px;
-  background:#f8fafd;
-  gap:8px;
-  grid-template-columns:minmax(0,1fr) auto;
-}
-.promotion-picker-panel.open { display:grid; }
-.promotion-picker-panel select {
-  min-width:0;
-}
-.promotion-picker-panel button {
-  border:1px solid #cfd8ea;
-  background:#fff;
-  border-radius:8px;
-  padding:0 12px;
-  color:#2d3a55;
-  font-size:12px;
-  font-weight:800;
-  cursor:pointer;
-}
-.promotion-picker-panel button:hover {
-  color:#3b7aee;
-  border-color:#3b7aee;
-}
-.promotion-list.expanded {
-  max-height:none;
 }
 .rag-left {
   display: flex;
@@ -370,28 +342,38 @@ tbody tr:hover td { background: #f8fafd; }
   gap: 10px;
   padding-top: 2px;
 }
-.promotion-form { display:flex; flex-direction:column; gap:10px; }
+.rag-flow-note {
+  grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px;
+  background:#f8fafd; border:1px solid #dfe6f2; border-radius:12px; padding:12px;
+}
+.rag-flow-note span { color:#5f6f89; font-size:12px; line-height:1.55; }
+.rag-flow-note b { display:block; color:#1f2d46; margin-bottom:3px; }
+.rag-storage-detail { margin-top:10px; display:grid; gap:6px; }
+.rag-storage-row { display:grid; grid-template-columns:112px minmax(0,1fr); gap:8px; font-size:11px; line-height:1.5; }
+.rag-storage-row b { color:#66758d; }
+.rag-storage-row code { color:#26344e; overflow-wrap:anywhere; white-space:normal; }
+.rag-source-picker { margin-top:12px; border:1px solid #dfe6f2; border-radius:12px; overflow:hidden; background:#fff; }
+.rag-source-picker-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px; background:#f8fafd; border-bottom:1px solid #e7ebf0; }
+.rag-source-picker-head b { display:block; color:#1a2233; font-size:13px; }
+.rag-source-picker-head span { display:block; color:#6f7c93; font-size:11px; margin-top:3px; }
+.rag-source-picker-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.rag-source-picker-actions button { min-height:44px; border:1px solid #cfd8e8; border-radius:8px; background:#fff; padding:8px 12px; color:#34425d; font-weight:800; cursor:pointer; }
+.rag-source-list { display:grid; gap:0; max-height:300px; overflow:auto; }
+.rag-source-option { display:grid; grid-template-columns:20px minmax(0,1fr); gap:10px; align-items:start; padding:11px 12px; border-bottom:1px solid #eef1f5; cursor:pointer; }
+.rag-source-option:last-child { border-bottom:0; }
+.rag-source-option:hover { background:#fbfcff; }
+.rag-source-option input { width:18px; height:18px; margin:2px 0 0; accent-color:#276fe8; }
+.rag-source-option b { display:block; color:#24324b; font-size:12px; overflow-wrap:anywhere; }
+.rag-source-option span { display:block; color:#718098; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
 .promotion-help {
   background:#f8fafd; border:1px solid #e5eaf2; border-radius:10px;
   padding:10px 12px; color:#5a6a8a; font-size:12px; line-height:1.6;
 }
-.promotion-help b { display:block; color:#1a2233; margin-bottom:4px; }
-.promotion-help ul { margin:6px 0 0 18px; padding:0; }
-.promotion-help li { margin:2px 0; }
-.promotion-field-hint {
-  color:#8494b0; font-size:11px; line-height:1.45; margin-top:-5px; margin-left:134px;
-}
-.promotion-pair {
-  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-  gap:8px; flex:1; min-width:0;
-}
-.promotion-actions-row {
-  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;
-}
 @media (max-width:520px) {
   .setting-row { align-items:flex-start; flex-direction:column; gap:6px; }
   .setting-label { width:auto; }
-  .promotion-field-hint { margin-left:0; }
+  .rag-flow-note { grid-template-columns:1fr; }
+  .rag-source-picker-head { flex-direction:column; }
 }
 .rag-doc-card {
   background: #f8fafd;
@@ -418,6 +400,7 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-doc-tag.nutrition { background:#f0edf9; color:#6f55d8; }
 .rag-doc-tag.customer_service { background:#eef8f9; color:#27818c; }
 .rag-doc-body { flex:1; min-width:0; }
+.rag-doc-id { display:block; color:#7a879c; font-family:monospace; font-size:10px; margin-bottom:5px; overflow-wrap:anywhere; }
 .rag-doc-text {
   font-size: 12px; color: #2d3a55; line-height: 1.6;
   white-space: pre-wrap; max-height: 72px;
@@ -426,7 +409,7 @@ tbody tr:hover td { background: #f8fafd; }
 }
 .rag-del-btn {
   flex-shrink: 0; color: #c8d0df; background: none; border: none;
-  cursor: pointer; font-size: 14px; padding: 2px 4px;
+  width:44px; height:44px; cursor: pointer; font-size: 14px; padding: 0;
   border-radius: 6px; transition: color 0.15s, background 0.15s;
   line-height: 1;
 }
@@ -448,7 +431,7 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-alert-status.acknowledged { background:#fff4e5; color:#9a650f; }
 .rag-alert-status.resolved { background:#e6f7ef; color:#128257; }
 .rag-alert-actions { display:flex; gap:6px; flex-wrap:wrap; }
-.rag-alert-actions button { border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:5px 9px; font-size:11px; color:#2d3a55; cursor:pointer; }
+.rag-alert-actions button { min-height:44px; border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:8px 11px; font-size:11px; color:#2d3a55; cursor:pointer; }
 .rag-alert-actions button:hover { border-color:#3b7aee; color:#3b7aee; }
 .rag-validation-box { margin-top:12px; background:#f8fafd; border:1px solid #e5eaf2; border-radius:10px; padding:10px; display:none; }
 .rag-validation-head { display:flex; justify-content:space-between; gap:10px; align-items:center; font-size:12px; color:#5a6a8a; margin-bottom:8px; }
@@ -482,51 +465,39 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-review-reason { font-size:11px; color:#b8322a; background:#feecec; border-radius:8px; padding:6px 8px; }
 .rag-review-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .rag-review-actions button {
-  border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:5px 9px;
+  min-height:44px; border:1px solid #d8dfec; background:#fff; border-radius:7px; padding:8px 11px;
   font-size:11px; color:#2d3a55; cursor:pointer;
 }
 .rag-review-actions button:hover { border-color:#3b7aee; color:#3b7aee; }
-.promotion-list {
-  display:flex; flex-direction:column; gap:10px; margin-bottom:18px;
-  max-height:260px; overflow:auto; padding-right:2px;
-}
-.promotion-card {
-  background:#f8fafd; border:1.5px solid #edf0f7; border-radius:12px;
-  padding:12px 14px; display:flex; flex-direction:column; gap:8px;
-}
-.promotion-card-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-.promotion-card-title { min-width:0; }
-.promotion-card-title b { display:block; font-size:13px; color:#1a2233; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.promotion-card-title span { display:block; font-family:monospace; color:#8494b0; font-size:11px; margin-top:3px; }
 .promotion-status { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:900; white-space:nowrap; }
 .promotion-status.active { background:#e6f7ef; color:#128257; }
 .promotion-status.draft { background:#fff4e5; color:#b9700f; }
 .promotion-status.inactive { background:#f2f4f8; color:#6b778c; }
-.promotion-meta { display:flex; flex-wrap:wrap; gap:6px; color:#5a6a8a; font-size:11px; line-height:1.4; }
-.promotion-actions { display:flex; flex-wrap:wrap; gap:6px; }
-.promotion-actions button {
-  border:1px solid #dce4f2; background:#fff; color:#3b4a6b;
-  border-radius:7px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer;
-}
-.promotion-actions button:hover { background:#edf2ff; color:#3b7aee; }
-.promotion-actions button.danger:hover { background:#feecec; color:#c0392b; border-color:#f5c6c0; }
-.campaign-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
-.campaign-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; border:1px solid #e7ebf0; border-radius:14px; padding:16px; }
+.campaign-page { display:flex; flex-direction:column; gap:16px; width:100%; max-width:1440px; margin:0 auto; padding:24px 28px 40px; overflow:auto; }
+.campaign-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; background:#fff; border:1px solid #e7ebf0; border-radius:14px; padding:18px 20px; }
+.campaign-filterbar { display:grid; grid-template-columns:minmax(220px,1fr) minmax(180px,240px) auto; }
+.campaign-filterbar .recommendation-input { width:100%; min-height:44px; }
+.campaign-filterbar .recommendation-select { min-height:44px; }
 .campaign-kpis { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:12px; }
 .campaign-kpi { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:14px; }
 .campaign-kpi b { display:block; font-size:24px; color:#1a2233; }
 .campaign-kpi span { color:#6d7890; font-size:12px; font-weight:800; }
-.campaign-list { display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:12px; }
-.campaign-card { background:#fff; border:1px solid #e1e6ed; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.campaign-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:16px; align-items:stretch; }
+.campaign-card { background:#fff; border:1px solid #e1e6ed; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; min-height:260px; box-shadow:0 1px 5px rgba(26,34,51,.04); }
 .campaign-card header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .campaign-card h3 { margin:0; font-size:16px; color:#1a2233; }
 .campaign-card p { margin:0; color:#66728a; font-size:12px; line-height:1.6; }
-.campaign-card-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.campaign-card-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; padding-top:4px; border-top:1px solid #eef1f5; }
+.campaign-empty { grid-column:1 / -1; min-height:180px; display:grid; place-items:center; background:#fff; border:1px dashed #cfd7e4; border-radius:14px; color:#66728a; }
 .campaign-card-actions button, .campaign-primary, .campaign-secondary { min-height:44px; border-radius:9px; border:1px solid #cfd7e4; background:#fff; padding:8px 14px; font-weight:800; cursor:pointer; }
 .campaign-primary { background:#276fe8; color:#fff; border-color:#276fe8; }
 .campaign-danger { color:#a52d25; }
 .campaign-wizard { background:#fff; border:1px solid #dfe5ed; border-radius:16px; overflow:hidden; }
 .campaign-wizard[hidden] { display:none; }
+.campaign-page.campaign-editing > #campaignKpis,
+.campaign-page.campaign-editing > .campaign-filterbar,
+.campaign-page.campaign-editing > #campaignList,
+.campaign-page.campaign-editing #campaignCreateBtn { display:none; }
 .campaign-wizard-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 18px; border-bottom:1px solid #edf0f4; }
 .campaign-steps { display:grid; grid-template-columns:repeat(5,1fr); background:#f7f9fc; }
 .campaign-step-tab { padding:12px 8px; border:0; border-bottom:3px solid transparent; background:transparent; color:#69758d; font-weight:800; }
@@ -534,19 +505,31 @@ tbody tr:hover td { background: #f8fafd; }
 .campaign-step-panel { padding:20px; display:none; }
 .campaign-step-panel.active { display:block; }
 .campaign-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-.campaign-field { display:flex; flex-direction:column; gap:6px; }
+.campaign-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
 .campaign-field.full { grid-column:1 / -1; }
 .campaign-field label, .campaign-field legend { color:#3e4a63; font-size:12px; font-weight:900; }
-.campaign-field input, .campaign-field select, .campaign-field textarea { min-height:44px; border:1px solid #cfd7e4; border-radius:9px; padding:9px 11px; font:inherit; }
+.campaign-field input, .campaign-field select, .campaign-field textarea { width:100%; max-width:100%; min-width:0; min-height:44px; border:1px solid #cfd7e4; border-radius:9px; padding:9px 11px; font:inherit; }
 .campaign-field-error { color:#b22d25; font-size:11px; min-height:15px; }
 .campaign-checks { display:grid; grid-template-columns:repeat(2,minmax(180px,1fr)); gap:10px; }
 .campaign-checks label { display:flex; align-items:center; gap:9px; min-height:44px; border:1px solid #dfe5ed; border-radius:10px; padding:8px 12px; }
 .campaign-preview-grid { display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:12px; }
 .campaign-preview-card { border:1px solid #dfe5ed; border-radius:12px; padding:14px; background:#fafcff; }
-.campaign-wizard-actions { display:flex; justify-content:space-between; gap:10px; padding:16px 20px; border-top:1px solid #edf0f4; }
-@media (max-width:800px) { .campaign-page { padding:16px; } .campaign-list,.campaign-fields,.campaign-preview-grid { grid-template-columns:1fr; } .campaign-kpis { grid-template-columns:repeat(2,1fr); } .campaign-steps { grid-template-columns:1fr; } .campaign-step-tab { text-align:left; } }
-@media (max-width:1000px) { #page-rag, #page-promotions { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
-@media (max-width:700px)  { .sidebar { display:none; } .content { padding:16px; } }
+.campaign-wizard-actions, .campaign-wizard-actions > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; }
+.campaign-wizard-actions { padding:16px 20px; border-top:1px solid #edf0f4; }
+@media (max-width:800px) { .campaign-page { padding:16px; } .campaign-toolbar { align-items:stretch; flex-direction:column; } .campaign-filterbar,.campaign-list,.campaign-fields,.campaign-checks,.campaign-preview-grid { grid-template-columns:1fr; } .campaign-kpis { grid-template-columns:repeat(2,1fr); } .campaign-steps { grid-template-columns:1fr; } .campaign-step-tab { min-height:44px; text-align:left; } }
+@media (max-width:1000px) { #page-rag { grid-template-columns:1fr; grid-template-rows:auto auto auto; overflow:auto; } .rag-left,.rag-right,.rag-right .rag-list-body { overflow:visible; } }
+@media (max-width:700px) {
+  body { flex-direction:column; }
+  .sidebar { width:100%; height:auto; max-height:64px; flex-direction:row; overflow:hidden; }
+  .sidebar-brand { display:none; }
+  .sidebar-nav { flex-direction:row; gap:8px; padding:8px; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
+  .nav-section-label { display:none; }
+  .nav-item { width:auto; min-height:44px; flex:0 0 auto; padding:10px 12px; }
+  .main { width:100%; min-height:0; }
+  .topbar { min-height:52px; padding:0 16px; }
+  .topbar-date { display:none; }
+  .content { padding:16px; }
+}
 /* ── 語音對話展開列 ── */
 .voice-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -758,16 +741,28 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-kpi span { display:block; font-size:11.5px; color:#8a94a3; margin-top:7px; font-weight:800; }
 .recommendation-kpi small { display:block; font-size:10.5px; color:#a1aab8; margin-top:6px; }
 .recommendation-grid { display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:16px; align-items:start; }
-.recommendation-row { display:grid; grid-template-columns:minmax(92px,1fr) repeat(5,48px); gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
+.recommendation-grid .card { overflow-x:auto; }
+.recommendation-row { display:grid; grid-template-columns:minmax(120px,1.25fr) repeat(5,minmax(68px,1fr)); min-width:560px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
 .recommendation-row:last-child { border-bottom:0; }
-.recommendation-row.head { color:#8494b0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.recommendation-row.head { color:#68758b; font-size:11px; font-weight:900; }
 .recommendation-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1a2233; font-size:12px; }
 .recommendation-row span { text-align:right; color:#3b4a6b; font-variant-numeric:tabular-nums; }
-.recommendation-strategy-row { display:grid; grid-template-columns:minmax(140px,1fr) repeat(6,48px); gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
-.recommendation-strategy-row:last-child { border-bottom:0; }
-.recommendation-strategy-row.head { color:#8494b0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
-.recommendation-strategy-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1a2233; font-size:12px; }
-.recommendation-strategy-row span { text-align:right; color:#3b4a6b; font-variant-numeric:tabular-nums; }
+.recommendation-strategy-card { grid-column:1 / -1; }
+.recommendation-comparison { border:1px solid #e1e6ed; border-radius:12px; padding:16px; background:#fafcff; }
+.recommendation-comparison + .recommendation-comparison { margin-top:12px; }
+.recommendation-comparison-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.recommendation-comparison-head b { color:#1a2233; }
+.recommendation-comparison-head b span { color:#8494b0; font-size:11px; margin:0 4px; }
+.recommendation-comparison-head strong { border-radius:999px; padding:5px 10px; font-size:12px; white-space:nowrap; }
+.recommendation-comparison-head strong.positive { background:#e6f7ef; color:#128257; }
+.recommendation-comparison-head strong.negative { background:#feecec; color:#a52d25; }
+.recommendation-comparison-head strong.neutral { background:#f2f4f8; color:#5f6b80; }
+.recommendation-comparison-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+.recommendation-comparison-metrics span { display:grid; grid-template-columns:1fr auto; gap:4px 12px; border-radius:9px; padding:10px 12px; background:#fff; }
+.recommendation-comparison-metrics small { color:#69758d; font-weight:800; }
+.recommendation-comparison-metrics b { color:#1a2233; font-variant-numeric:tabular-nums; }
+.recommendation-comparison-metrics em { grid-column:1 / -1; color:#9aa4b1; font-size:11px; font-style:normal; }
+.recommendation-comparison p { margin:12px 0 0; color:#66728a; font-size:12px; }
 .recommendation-events-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); overflow:hidden; }
 .recommendation-events-card .adm-table-wrap { max-height:calc(100dvh - 520px); overflow:auto; }
 .recommendation-tag { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:900; white-space:nowrap; background:#eef4ff; color:#2f67c7; }
@@ -776,6 +771,10 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-tag.ignored { background:#feecec; color:#c0392b; }
 .recommendation-tag.checked { background:#e6f7ef; color:#128257; }
 .recommendation-muted { color:#9aa4b1; font-size:12px; }
+.recommendation-card-description { margin:-4px 0 14px; color:#69758d; font-size:12px; line-height:1.6; }
+.recommendation-metric-guide { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:8px; padding:12px 14px; background:#f6f8fc; border:1px solid #e1e6ed; border-radius:12px; }
+.recommendation-metric-guide span { color:#69758d; font-size:11px; line-height:1.5; }
+.recommendation-metric-guide b { display:block; color:#34425d; font-size:12px; margin-bottom:2px; }
 .recommendation-notice { background:#fff8e8; border:1px solid #f0d89b; color:#76530b; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.5; }
 .recommendation-notice.error { background:#fff0ef; border-color:#f2c1bd; color:#9e2f28; }
 .availability-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
@@ -810,6 +809,7 @@ tbody tr:hover td { background: #f8fafd; }
   font-size:12px; font-weight:900; background:#e6f7ef; color:#128257;
 }
 .health-status-pill.degraded { background:#fff4e5; color:#b9700f; }
+.health-status-pill.failed, .health-status-pill.not_ready { background:#feecec; color:#a52d25; }
 .health-status-pill.skipped { background:#f2f4f8; color:#6b778c; }
 .health-kpis { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; }
 .health-kpi {
@@ -820,10 +820,26 @@ tbody tr:hover td { background: #f8fafd; }
 .health-kpi span { display:block; font-size:11.5px; color:#8a94a3; margin-top:7px; font-weight:800; }
 .health-grid { display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:16px; align-items:start; }
 .health-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); padding:16px; }
-.health-row { display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-bottom:1px solid #f0f2f5; font-size:12px; }
-.health-row:last-child { border-bottom:0; }
-.health-row b { color:#1a2233; }
-.health-row span { color:#3b4a6b; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+.health-card-wide { grid-column:1 / -1; }
+.health-context { margin:0; max-width:880px; color:#66758d; font-size:12px; line-height:1.65; }
+.health-service-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; }
+.health-service-card { border:1px solid #e3e8f0; border-radius:12px; padding:14px; background:#fbfcfe; min-width:0; }
+.health-service-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.health-service-head > b { color:#1a2233; font-size:13px; }
+.health-service-head > span { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.health-service-head em { display:inline-flex; align-items:center; min-height:28px; border-radius:999px; padding:4px 9px; background:#eef3fa; color:#52637d; font-size:10px; font-style:normal; font-weight:900; }
+.health-service-card p { color:#5f6f89; font-size:12px; line-height:1.6; margin:12px 0; }
+.health-service-card dl { display:grid; gap:8px; margin:0; }
+.health-service-card dl div { display:grid; grid-template-columns:64px minmax(0,1fr); gap:8px; font-size:11px; line-height:1.5; }
+.health-service-card dt { color:#7b879b; font-weight:800; }
+.health-service-card dd { color:#34425b; margin:0; overflow-wrap:anywhere; }
+.health-readiness-list { display:grid; gap:0; }
+.health-readiness-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px,.7fr); gap:16px; padding:11px 0; border-bottom:1px solid #edf0f4; align-items:center; }
+.health-readiness-row:last-child { border-bottom:0; }
+.health-readiness-row > div:first-child b { display:block; color:#1a2233; font-size:12px; }
+.health-readiness-row > div:first-child span { display:block; color:#6e7b91; font-size:11px; line-height:1.5; margin-top:3px; }
+.health-readiness-row > div:last-child { display:flex; align-items:center; justify-content:flex-end; gap:8px; min-width:0; }
+.health-readiness-row small { color:#6e7b91; overflow-wrap:anywhere; }
 .health-log-list { display:flex; flex-direction:column; gap:8px; }
 .health-log-item {
   display:grid; grid-template-columns:minmax(150px,1fr) 70px 90px; gap:8px; align-items:center;
@@ -835,6 +851,7 @@ tbody tr:hover td { background: #f8fafd; }
 @media (max-width:1320px) {
   .recommendation-kpis { grid-template-columns:repeat(4,1fr); }
   .recommendation-grid { grid-template-columns:1fr; }
+  .recommendation-metric-guide { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
   .availability-layout { grid-template-columns:1fr; }
   .health-kpis { grid-template-columns:repeat(3,1fr); }
 }
@@ -842,6 +859,7 @@ tbody tr:hover td { background: #f8fafd; }
   .recommendation-page { padding:16px; }
   .recommendation-toolbar { align-items:stretch; flex-direction:column; }
   .recommendation-kpis { grid-template-columns:repeat(2,1fr); }
+  .recommendation-metric-guide { grid-template-columns:1fr; }
   .recommendation-input { width:100%; }
   .availability-page { padding:16px; }
   .availability-periods { grid-template-columns:1fr; }
@@ -849,6 +867,8 @@ tbody tr:hover td { background: #f8fafd; }
   .health-grid { grid-template-columns:1fr; }
   .health-kpis { grid-template-columns:repeat(2,1fr); }
   .health-log-item { grid-template-columns:minmax(120px,1fr) 60px 76px; }
+  .health-readiness-row { grid-template-columns:1fr; gap:8px; }
+  .health-readiness-row > div:last-child { justify-content:flex-start; }
 }
 </style>
 </head>
@@ -874,7 +894,7 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="sidebar-brand-sub">管理後台</div>
   </div>
   <nav class="sidebar-nav">
-    <button class="nav-item active" data-page="stats" type="button">
+    <button class="nav-item active" data-page="stats" type="button" aria-current="page">
       <i class="fas fa-chart-pie"></i> 狀態統計
     </button>
     <button class="nav-item" data-page="settings" type="button">
@@ -1071,21 +1091,32 @@ tbody tr:hover td { background: #f8fafd; }
       <div class="recommendation-kpi"><b>—</b><span>載入中</span><small>最近事件</small></div>
     </div>
 
+    <div class="recommendation-metric-guide" aria-label="推薦成效指標說明">
+      <span><b>有效曝光</b>推薦在畫面上達到可見門檻。</span>
+      <span><b>點擊推薦</b>顧客點選推薦內容。</span>
+      <span><b>加入購物車</b>顧客將推薦餐點加入購物車。</span>
+      <span><b>完成購買</b>推薦餐點最終完成結帳。</span>
+      <span><b>忽略推薦</b>顧客看過後未採用該推薦。</span>
+    </div>
+
     <div class="recommendation-grid">
       <div class="card">
         <div class="card-title"><i class="fas fa-window-restore"></i> 推薦入口成效</div>
+        <p class="recommendation-card-description">比較顧客在哪個畫面看到推薦後最常互動與購買，用來決定推薦應放在首頁、購物車或點餐協助等位置。</p>
         <div id="recommendationSurfaceStats"></div>
       </div>
       <div class="card">
         <div class="card-title"><i class="fas fa-code-branch"></i> 推薦來源成效</div>
+        <p class="recommendation-card-description">比較推薦排序引擎、語音點餐推薦、選擇協助與門市備用推薦等產生路徑，用來找出哪種推薦機制最常被採用，並決定優先優化哪條路徑。</p>
         <div id="recommendationSourceStats"></div>
       </div>
       <div class="card">
         <div class="card-title"><i class="fas fa-ticket-alt"></i> 活動優惠成效</div>
         <div id="recommendationOfferStats"></div>
       </div>
-      <div class="card">
-        <div class="card-title"><i class="fas fa-vials"></i> 策略版本比較</div>
+      <div class="card recommendation-strategy-card">
+        <div class="card-title"><i class="fas fa-vials"></i> 策略實驗差異</div>
+        <p class="recommendation-card-description">在同類顧客流量中比較兩種選餐方式。控制組依候選餐點分數加權隨機挑選，保留多樣性；最高分排序組固定優先顯示最高分餐點。購買率百分點差用來觀察哪種方式較有效，樣本不足時不應當作定論。</p>
         <div id="recommendationVariantStats"></div>
       </div>
     </div>
@@ -1132,17 +1163,24 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
     </div>
 
+    <p class="health-context">此頁區分「正式營運必要條件」與「可選的 AI／分析／維運能力」。正常只代表本次檢查取得預期結果；是否真的有效仍需看文件數、近期事件、migration 與實際設定等證據。</p>
+
     <div id="healthKpis" class="health-kpis">
       <div class="health-kpi"><b>—</b><span>載入中</span></div>
     </div>
 
     <div class="health-grid">
+      <div class="health-card health-card-wide">
+        <div class="card-title"><i class="fas fa-server"></i> 功能、必要性與有效性證據</div>
+        <div id="healthCoreChecks" class="health-service-list"></div>
+      </div>
       <div class="health-card">
-        <div class="card-title"><i class="fas fa-server"></i> 核心服務</div>
-        <div id="healthCoreChecks"></div>
+        <div class="card-title"><i class="fas fa-clipboard-check"></i> 正式營運必要檢查</div>
+        <div id="healthReadinessChecks" class="health-readiness-list"></div>
       </div>
       <div class="health-card">
         <div class="card-title"><i class="fas fa-file-alt"></i> 執行記錄</div>
+        <p class="recommendation-card-description">只用於故障追查與保留週期管理，不是顧客點餐或結帳的必要依賴。</p>
         <div id="healthRuntimeLogs" class="health-log-list"></div>
       </div>
     </div>
@@ -1488,10 +1526,10 @@ tbody tr:hover td { background: #f8fafd; }
       <button id="campaignCreateBtn" class="campaign-primary" type="button"><i class="fas fa-plus"></i> 建立活動</button>
     </div>
     <div id="campaignKpis" class="campaign-kpis"></div>
-    <div class="campaign-toolbar">
+    <div class="campaign-toolbar campaign-filterbar">
       <input id="campaignSearch" class="recommendation-input" type="search" placeholder="搜尋活動名稱">
       <select id="campaignStatusFilter" class="recommendation-select">
-        <option value="">全部狀態</option><option value="active">進行中</option><option value="scheduled">已排程</option><option value="draft">草稿</option><option value="review">待確認</option><option value="paused">已暫停</option><option value="ended">已結束</option><option value="archived">已封存</option>
+        <option value="current" selected>目前與待處理</option><option value="history">歷史活動</option><option value="">全部狀態</option><option value="active">進行中</option><option value="scheduled">已排程</option><option value="draft">草稿</option><option value="review">待確認</option><option value="paused">已暫停</option><option value="ended">已結束</option><option value="archived">已封存</option>
       </select>
       <button id="campaignRefreshBtn" class="campaign-secondary" type="button"><i class="fas fa-sync-alt"></i> 重新整理</button>
     </div>
@@ -1526,187 +1564,14 @@ tbody tr:hover td { background: #f8fafd; }
     </section>
   </section>
 
-  <!-- Legacy promotions compatibility surface; hidden during typed campaign cutover. -->
-  <div class="content" id="page-promotions-legacy" style="display:none" hidden>
-    <div class="rag-left">
-      <div class="card promotion-form">
-        <div class="card-title"><i class="fas fa-ticket-alt"></i> 結構化活動管理</div>
-        <div class="promotion-help">
-          <b>活動會同步影響 Kiosk 廣告、推薦與語音優惠回答</b>
-          <ul>
-            <li>首頁 Banner 與右側購物車廣告都由這裡的結構化欄位產生，不在前端硬編碼文案。</li>
-            <li>若設定品項 ID 與優惠價，Kiosk 點擊 CTA 後會帶入該品項並套用優惠價格。</li>
-            <li>RAG 只引用已建立的活動內容，避免 AI 生成無來源優惠。</li>
-          </ul>
-        </div>
-        <input id="promotion-editing-id" type="hidden" value="">
-        <div class="setting-row">
-          <label class="setting-label">Offer ID</label>
-          <input id="promotion-offer-id" class="setting-input" type="text" placeholder="summer_combo_2026">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">活動名稱</label>
-          <input id="promotion-title" class="setting-input" type="text" placeholder="夏季套餐推薦">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">狀態 / 啟用</label>
-          <div class="promotion-pair">
-            <select id="promotion-status" class="setting-input">
-              <option value="draft">草稿</option>
-              <option value="active">啟用</option>
-              <option value="inactive">停用</option>
-            </select>
-            <select id="promotion-enabled" class="setting-input">
-              <option value="true">啟用</option>
-              <option value="false">停用</option>
-            </select>
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">顯示位置 / 優先</label>
-          <div class="promotion-pair">
-            <select id="promotion-surface" class="setting-input">
-              <option value="recommendation">推薦 / RAG</option>
-              <option value="pos_home_banner">Kiosk 首頁 Banner</option>
-              <option value="kiosk_cart_banner">Kiosk 購物車右側廣告</option>
-            </select>
-            <input id="promotion-priority" class="setting-input" type="number" min="0" max="1000" value="0" placeholder="優先級">
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">輪播秒數 / 會員</label>
-          <div class="promotion-pair">
-            <input id="promotion-rotation-seconds" class="setting-input" type="number" min="2" max="120" value="6" placeholder="每幾秒切換">
-            <select id="promotion-member-only" class="setting-input">
-              <option value="false">一般活動</option>
-              <option value="true">會員限定</option>
-            </select>
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">開始 / 結束</label>
-          <div class="promotion-pair">
-            <input id="promotion-valid-from" class="setting-input" type="text" placeholder="2026-06-01T00:00:00+08:00">
-            <input id="promotion-valid-until" class="setting-input" type="text" placeholder="2026-06-30T23:59:59+08:00">
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">活動時區</label>
-          <input id="promotion-timezone" class="setting-input" type="text" value="Asia/Taipei" placeholder="Asia/Taipei">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">品項 ID</label>
-          <div class="promotion-pair">
-            <input id="promotion-item-ids" class="setting-input" type="text" placeholder="MCD115">
-            <button class="refresh-btn" data-promotion-picker="items" type="button">選擇品項</button>
-          </div>
-        </div>
-        <div id="promotion-picker-items" class="promotion-picker-panel">
-          <select id="promotion-item-picker" class="setting-input"></select>
-          <button data-promotion-insert="items" type="button">帶入</button>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">分類</label>
-          <div class="promotion-pair">
-            <input id="promotion-categories" class="setting-input" type="text" placeholder="點心">
-            <button class="refresh-btn" data-promotion-picker="categories" type="button">選擇分類</button>
-          </div>
-        </div>
-        <div id="promotion-picker-categories" class="promotion-picker-panel">
-          <select id="promotion-category-picker" class="setting-input"></select>
-          <button data-promotion-insert="categories" type="button">帶入</button>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">需先有品項</label>
-          <div class="promotion-pair">
-            <input id="promotion-required-items" class="setting-input" type="text" placeholder="可留空，例如主餐 ID">
-            <button class="refresh-btn" data-promotion-picker="required" type="button">選擇品項</button>
-          </div>
-        </div>
-        <div id="promotion-picker-required" class="promotion-picker-panel">
-          <select id="promotion-required-picker" class="setting-input"></select>
-          <button data-promotion-insert="required" type="button">帶入</button>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">加購價格</label>
-          <div class="promotion-pair">
-            <input id="promotion-original-price" class="setting-input" type="number" min="0" max="9999" placeholder="原價，例如 45">
-            <input id="promotion-promotion-price" class="setting-input" type="number" min="1" max="9999" placeholder="優惠價，例如 30">
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">省下金額</label>
-          <input id="promotion-save-text" class="setting-input" type="text" placeholder="現省 $15">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">Banner 文案</label>
-          <div class="promotion-pair">
-            <input id="promotion-ad-headline" class="setting-input" type="text" placeholder="活動標籤，例如 會員限定">
-            <input id="promotion-ad-cta" class="setting-input" type="text" placeholder="CTA，例如 加入優惠">
-          </div>
-        </div>
-        <textarea id="promotion-ad-copy" class="setting-input" rows="2" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="副標題，例如 主餐加購薯條只要 $30"></textarea>
-        <div class="setting-row">
-          <label class="setting-label">Banner 目標</label>
-          <div class="promotion-pair">
-            <select id="promotion-target-type" class="setting-input">
-              <option value="none">不跳轉</option>
-              <option value="category">分類</option>
-              <option value="item">品項</option>
-              <option value="recommendation">推薦</option>
-            </select>
-            <input id="promotion-target-value" class="setting-input" type="text" placeholder="分類名稱或品項 ID">
-          </div>
-        </div>
-        <div id="promotion-picker-target" class="promotion-picker-panel">
-          <select id="promotion-target-picker" class="setting-input"></select>
-          <button data-promotion-insert="target" type="button">帶入</button>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">主題 / 備註</label>
-          <div class="promotion-pair">
-            <select id="promotion-theme" class="setting-input">
-              <option value="gold">gold</option>
-              <option value="red">red</option>
-              <option value="dark">dark</option>
-              <option value="simple">simple</option>
-            </select>
-            <input id="promotion-legal-text" class="setting-input" type="text" placeholder="活動依門市供應狀態為準">
-          </div>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">加權</label>
-          <div class="promotion-pair">
-            <input id="promotion-score-boost" class="setting-input" type="number" min="1" max="20" value="4" placeholder="品項">
-            <input id="promotion-category-score-boost" class="setting-input" type="number" min="1" max="20" value="2" placeholder="分類">
-          </div>
-        </div>
-        <textarea id="promotion-content" class="setting-input" rows="4" style="resize:vertical;font-size:13px;line-height:1.6;width:100%" placeholder="描述活動限制、門市說明或客服回答需要知道的內容。"></textarea>
-        <div class="promotion-actions-row">
-          <button class="refresh-btn" onclick="savePromotion()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> 儲存活動
-          </button>
-          <button class="refresh-btn" onclick="resetPromotionForm()" type="button">
-            <i class="fas fa-undo"></i> 清空表單
-          </button>
-          <span id="promotion-notice" style="font-size:12px;display:none"></span>
-        </div>
-      </div>
-    </div>
-    <div class="card rag-right">
-      <div class="card-title" style="flex-shrink:0">
-        <i class="fas fa-ticket-alt"></i> 已建立活動
-        <span id="promotion-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
-        <button class="refresh-btn" onclick="loadPromotions()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
-          <i class="fas fa-sync-alt"></i> 重新整理
-        </button>
-      </div>
-      <div id="promotion-list" class="promotion-list expanded"></div>
-    </div>
-  </div>
-
   <!-- RAG page — inside .main, two-column full-panel layout -->
   <div class="content" id="page-rag" style="display:none">
+
+    <div class="rag-flow-note" aria-label="RAG 資料流程說明">
+      <span><b>1. 來源文件</b>發布後保存在 RAG 文件目錄，是可再次重建的原始資料。</span>
+      <span><b>2. 正式選取</b>只有管理員勾選的 source_id 會進入下一次重建；未勾選文件仍保留但不參與回答。</span>
+      <span><b>3. Chroma 索引</b>實際查詢使用的持久化向量庫。清空索引不會刪除來源，但會保存「目前不選任何文件」。</span>
+    </div>
 
     <!-- ── 左欄：設定 + 新增表單 ── -->
     <div class="rag-left">
@@ -1740,6 +1605,7 @@ tbody tr:hover td { background: #f8fafd; }
           <div class="rag-health-chip"><b>—</b><span>Chroma 狀態</span></div>
           <div class="rag-health-chip"><b>—</b><span>文件數</span></div>
         </div>
+        <div class="rag-storage-detail" id="rag-storage-detail"></div>
         <div class="rag-alert-list" id="rag-alert-list"></div>
       </div>
 
@@ -1776,9 +1642,9 @@ tbody tr:hover td { background: #f8fafd; }
             <i class="fas fa-times"></i> 取消編輯
           </button>
           <button class="refresh-btn" onclick="validateRagDocs()" type="button">
-            <i class="fas fa-check-circle"></i> 檢查 RAG 文件
+            <i class="fas fa-check-circle"></i> 檢查並選擇來源
           </button>
-          <button class="refresh-btn" onclick="rebuildRagDocs()" type="button" style="background:#1db87a;color:#fff;border-color:#1db87a">
+          <button id="rag-rebuild-btn" class="refresh-btn" onclick="rebuildRagDocs()" type="button" style="background:#1db87a;color:#fff;border-color:#1db87a">
             <i class="fas fa-sync-alt"></i> 安全重建 Chroma
           </button>
           <button class="clear-btn" onclick="clearRagDocs()" type="button">
@@ -1803,7 +1669,7 @@ tbody tr:hover td { background: #f8fafd; }
       <div id="rag-review-list" class="rag-review-list"></div>
 
       <div class="card-title" style="flex-shrink:0">
-        <i class="fas fa-database"></i> 已儲存文件
+        <i class="fas fa-database"></i> 目前 Chroma 正式索引
         <span id="rag-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
         <button class="refresh-btn" onclick="loadRagDocs()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
           <i class="fas fa-sync-alt"></i> 重新整理

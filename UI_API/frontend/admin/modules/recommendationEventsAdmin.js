@@ -4,6 +4,7 @@ import {
   RECOMMENDATION_REASON_LABELS,
   zhLabel,
 } from './zhTWLabels.js';
+import { strategyComparisonView } from './recommendationStrategyComparison.js';
 
 function recommendationLabel(map, key) {
   return zhLabel(map, key, '其他／未分類');
@@ -125,9 +126,9 @@ export function createRecommendationEventsAdmin({
     if (effectivenessReport?.provisional_attributions) {
       warnings.push(`${effectivenessReport.provisional_attributions} 筆訂單尚未完成，營收暫不計入。`);
     }
-    (effectivenessReport?.comparisons || []).forEach(comparison => {
-      const difference = Math.round(Number(comparison.purchase_rate_difference || 0) * 1000) / 10;
-      warnings.push(`${comparison.variant_id} 相較 ${comparison.control_variant} 的購買率觀察差異為 ${difference >= 0 ? '+' : ''}${difference} 個百分點；${comparison.conclusion}。`);
+    strategyComparisonView(effectivenessReport).forEach(comparison => {
+      const difference = comparison.differencePoints;
+      warnings.push(`${comparison.variantLabel} 相較 ${comparison.controlLabel} 的購買率觀察差異為 ${difference >= 0 ? '+' : ''}${difference} 個百分點；${comparison.conclusion}。`);
     });
     renderEffectivenessNotice(warnings.join(' '));
   }
@@ -171,7 +172,7 @@ export function createRecommendationEventsAdmin({
       ['點擊', clicked, recommendationRate(clicked, shown)],
       ['加入購物車', added, recommendationRate(added, shown)],
       ['完成購買', checked, recommendationRate(checked, shown)],
-      ['忽略', ignored, recommendationRate(ignored, shown)],
+      ['忽略推薦', ignored, recommendationRate(ignored, shown)],
       ['追蹤活動', Object.keys(stats.offerCounts).length, '活動數量'],
     ];
     box.innerHTML = cards
@@ -194,8 +195,8 @@ export function createRecommendationEventsAdmin({
       box.innerHTML = `<div class="adm-empty">${escapeHtml(emptyText)}</div>`;
       return;
     }
-    box.innerHTML = '<div class="recommendation-row head"><b>名稱</b><span>曝</span><span>點</span><span>加</span><span>成</span><span>忽</span></div>'
-      + rows.map(row => `<div class="recommendation-row" title="${escapeHtml(row.key)}">`
+    box.innerHTML = '<div class="recommendation-row head"><b>名稱</b><span>有效曝光</span><span>點擊推薦</span><span>加入購物車</span><span>完成購買</span><span>忽略推薦</span></div>'
+      + rows.map(row => '<div class="recommendation-row">'
         + `<b>${escapeHtml(recommendationLabel(labelMap, row.key))}</b>`
         + `<span>${recommendationCount(row.counts, 'recommendation_shown')}</span>`
         + `<span>${recommendationCount(row.counts, 'recommendation_clicked')}</span>`
@@ -206,35 +207,30 @@ export function createRecommendationEventsAdmin({
         .join('');
   }
 
-  function renderRecommendationVariantRows(containerId, groupedCounts, emptyText) {
+  function renderRecommendationVariantRows(containerId, report) {
     const box = getElement(containerId);
     if (!box) return;
-    const rows = Object.entries(groupedCounts || {})
-      .map(([key, counts]) => ({
-        key,
-        counts,
-        shown: recommendationCount(counts, 'recommendation_shown'),
-        total: Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0),
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-    if (!rows.length) {
-      box.innerHTML = `<div class="adm-empty">${escapeHtml(emptyText)}</div>`;
+    if (!report) {
+      box.innerHTML = '<div class="adm-empty">精準成效載入後才會顯示策略差異。</div>';
       return;
     }
-    box.innerHTML = '<div class="recommendation-strategy-row head"><b>版本</b><span>曝</span><span>點</span><span>加</span><span>成</span><span>忽</span><span>成率</span></div>'
-      + rows.map(row => {
-        const checked = recommendationCount(row.counts, 'recommendation_checked_out');
-        return `<div class="recommendation-strategy-row" title="${escapeHtml(row.key)}">`
-          + `<b>${escapeHtml(row.key)}</b>`
-          + `<span>${row.shown}</span>`
-          + `<span>${recommendationCount(row.counts, 'recommendation_clicked')}</span>`
-          + `<span>${recommendationCount(row.counts, 'recommendation_added_to_cart')}</span>`
-          + `<span>${checked}</span>`
-          + `<span>${recommendationCount(row.counts, 'recommendation_ignored')}</span>`
-          + `<span>${recommendationRate(checked, row.shown)}</span>`
-          + '</div>';
-      }).join('');
+    const rows = strategyComparisonView(report);
+    if (!rows.length) {
+      box.innerHTML = '<div class="adm-empty">尚未啟用策略實驗或只有一個分組，因此沒有版本差異。</div>';
+      return;
+    }
+    box.innerHTML = rows.map(row => {
+      const difference = `${row.differencePoints >= 0 ? '+' : ''}${row.differencePoints} 個百分點`;
+      const tone = row.differencePoints > 0 ? 'positive' : (row.differencePoints < 0 ? 'negative' : 'neutral');
+      return '<article class="recommendation-comparison">'
+        + `<div class="recommendation-comparison-head"><b>${escapeHtml(row.variantLabel)} <span>對照</span> ${escapeHtml(row.controlLabel)}</b><strong class="${tone}">${escapeHtml(difference)}</strong></div>`
+        + '<div class="recommendation-comparison-metrics">'
+        + `<span><small>${escapeHtml(row.controlLabel)}購買率</small><b>${row.controlRate}%</b><em>${row.controlSample} 次有效曝光</em></span>`
+        + `<span><small>${escapeHtml(row.variantLabel)}購買率</small><b>${row.variantRate}%</b><em>${row.variantSample} 次有效曝光</em></span>`
+        + '</div>'
+        + `<p>${escapeHtml(row.conclusion || '僅顯示觀察差異。')}</p>`
+        + '</article>';
+    }).join('');
   }
 
   function renderRecommendationSurfaceOptions(events) {
@@ -297,7 +293,7 @@ export function createRecommendationEventsAdmin({
     renderRecommendationCountRows('recommendationSurfaceStats', stats.surfaceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦入口資料。');
     renderRecommendationCountRows('recommendationSourceStats', stats.sourceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦來源資料。');
     renderRecommendationCountRows('recommendationOfferStats', stats.offerCounts, {}, '尚無 offer 追蹤資料。');
-    renderRecommendationVariantRows('recommendationVariantStats', stats.variantCounts, '尚無策略版本資料。');
+    renderRecommendationVariantRows('recommendationVariantStats', effectivenessReport);
     renderRecommendationEventTable(events);
   }
 

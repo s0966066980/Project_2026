@@ -9,6 +9,18 @@ const OBJECTIVE_LABELS = {
 /** @param {unknown} value */
 function text(value) { return String(value ?? '').trim(); }
 
+const CURRENT_CAMPAIGN_STATUSES = new Set(['draft', 'review', 'scheduled', 'active', 'paused']);
+const HISTORICAL_CAMPAIGN_STATUSES = new Set(['ended', 'archived']);
+
+/** @param {any} row @param {string} query @param {string} statusFilter */
+export function campaignMatchesFilter(row, query, statusFilter) {
+  const normalizedQuery = text(query).toLocaleLowerCase('zh-TW');
+  if (normalizedQuery && !text(row?.payload?.name).toLocaleLowerCase('zh-TW').includes(normalizedQuery)) return false;
+  if (statusFilter === 'current') return CURRENT_CAMPAIGN_STATUSES.has(text(row?.status));
+  if (statusFilter === 'history') return HISTORICAL_CAMPAIGN_STATUSES.has(text(row?.status));
+  return !statusFilter || row?.status === statusFilter;
+}
+
 /**
  * @param {{
  *   apiBaseUrl: string,
@@ -239,6 +251,8 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     if (getElement('campaignWizardTitle')) getElement('campaignWizardTitle').textContent = snapshot ? `編輯「${snapshot.payload?.name || '活動'}」` : '建立活動';
     if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = snapshot ? `目前版本 ${snapshot.version}・${statusLabel(snapshot.status)}` : (saved ? '已恢復此裝置的未完成草稿' : '尚未儲存');
     getElement('campaignWizard').hidden = false;
+    getElement('page-promotions')?.classList.add('campaign-editing');
+    getElement('page-promotions')?.scrollTo({ top: 0 });
     clearErrors();
     setStep(1);
     getElement('campaignName')?.focus();
@@ -247,6 +261,7 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
   function closeWizard() {
     saveLocalDraft();
     getElement('campaignWizard').hidden = true;
+    getElement('page-promotions')?.classList.remove('campaign-editing');
     current = null;
   }
 
@@ -346,12 +361,20 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   function renderList() {
     const query = text(value('campaignSearch')).toLocaleLowerCase('zh-TW');
-    const status = value('campaignStatusFilter');
-    const visible = rows.filter(row => (!status || row.status === status) && (!query || text(row.payload?.name).toLocaleLowerCase('zh-TW').includes(query)));
+    const status = value('campaignStatusFilter') || 'current';
+    const visible = rows.filter(row => campaignMatchesFilter(row, query, status));
     const list = getElement('campaignList');
     if (!list) return;
     list.textContent = '';
-    if (!visible.length) { const empty = document.createElement('div'); empty.className = 'adm-empty'; empty.textContent = '沒有符合條件的活動。'; list.appendChild(empty); return; }
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'adm-empty campaign-empty';
+      empty.textContent = status === 'current' && !query
+        ? '目前沒有進行中、已排程或待處理的活動。'
+        : (status === 'history' && !query ? '尚無已結束或已封存的活動。' : '沒有符合條件的活動。');
+      list.appendChild(empty);
+      return;
+    }
     visible.forEach(snapshot => {
       const card = document.createElement('article'); card.className = 'campaign-card';
       const header = document.createElement('header');

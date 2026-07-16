@@ -4,11 +4,11 @@ export const CAMPAIGN_STATUS_LABELS = Object.freeze({
 });
 
 export const CAMPAIGN_PLACEMENT_LABELS = Object.freeze({
-  menu_card: '菜單餐點卡', item_detail: '餐點詳細資料', pos_home_banner: 'Kiosk 首頁活動區',
-  kiosk_cart_banner: '購物車活動區', recommendation: 'AI 推薦', voice: '語音優惠回答',
-  ai_push: 'AI 推薦提示', assist_recommend: '點餐協助推薦', choice_hesitation: '選擇協助',
+  menu_card: '菜單餐點卡', item_detail: '餐點詳細資料', pos_home_banner: '自助點餐機首頁活動區',
+  kiosk_cart_banner: '購物車活動區', recommendation: '智慧推薦', voice: '語音優惠回答',
+  ai_push: '智慧推薦提示', assist_recommend: '點餐協助推薦', choice_hesitation: '選擇協助',
   voice_assist: '語音點餐推薦', member_usual: '會員常點', global_popular: '熱門餐點',
-  local_default: '門市預設', local_fallback: '門市備用推薦',
+  local_default: '門市預設', local_fallback: '門市備用推薦', recommendation_engine: '推薦排序引擎',
 });
 
 export const RECOMMENDATION_EVENT_LABELS = Object.freeze({
