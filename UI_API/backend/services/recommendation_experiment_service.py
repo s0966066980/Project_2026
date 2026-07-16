@@ -50,7 +50,9 @@ def _bucket(experiment_id: str, session_id: str, total: int) -> int:
 
 
 def assign(session_id: str, experiment_id: str | None = None) -> dict:
-    enabled = bool(config.get("RECOMMENDATION_EXPERIMENT_ENABLED", True))
+    enabled = bool(config.get("RECOMMENDATION_EXPERIMENT_ENABLED", False)) and bool(
+        config.get("RECOMMENDATION_EXPERIMENT_CONFIGURED", False)
+    )
     normalized_experiment_id = _safe_text(
         experiment_id or config.get("RECOMMENDATION_EXPERIMENT_ID", DEFAULT_EXPERIMENT_ID),
         DEFAULT_EXPERIMENT_ID,
@@ -60,8 +62,8 @@ def assign(session_id: str, experiment_id: str | None = None) -> dict:
         variant = variants[0]
         return {
             "enabled": False,
-            "experiment_id": normalized_experiment_id,
-            "variant_id": variant["variant_id"],
+            "experiment_id": "",
+            "variant_id": "",
             "strategy": variant["strategy"],
         }
 

@@ -260,7 +260,8 @@ DEFAULT_SETTINGS = {
     "RECOMMENDATION_IGNORED_ITEM_EXCLUDE_THRESHOLD": 3, # 同品項忽略達門檻時短期排除
     "RECOMMENDATION_AVAILABILITY_ENABLED": True,    # 店鋪供應狀態影響推薦候選
     "RECOMMENDATION_LOW_STOCK_PENALTY": 1,          # 低庫存品項推薦降權
-    "RECOMMENDATION_EXPERIMENT_ENABLED": True,      # 推薦策略 A/B testing 開關
+    "RECOMMENDATION_EXPERIMENT_ENABLED": False,     # 推薦策略 A/B testing 需由管理者明確啟用
+    "RECOMMENDATION_EXPERIMENT_CONFIGURED": False,  # 區分管理者設定與舊版本自動寫入的 enabled
     "RECOMMENDATION_EXPERIMENT_ID": "recommendation_strategy_v1",
     "RECOMMENDATION_EXPERIMENT_VARIANTS": [
         {"variant_id": "control", "strategy": "weighted_random", "traffic": 50},

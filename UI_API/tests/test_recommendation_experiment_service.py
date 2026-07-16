@@ -8,6 +8,7 @@ def test_assignment_is_stable_for_same_session(monkeypatch):
     def fake_config_get(key, default=None):
         values = {
             "RECOMMENDATION_EXPERIMENT_ENABLED": True,
+            "RECOMMENDATION_EXPERIMENT_CONFIGURED": True,
             "RECOMMENDATION_EXPERIMENT_ID": "recommendation_strategy_v1",
             "RECOMMENDATION_EXPERIMENT_VARIANTS": [
                 {"variant_id": "control", "strategy": "weighted_random", "traffic": 50},
@@ -48,7 +49,42 @@ def test_assignment_falls_back_to_first_variant_when_disabled(monkeypatch):
 
     assert assignment == {
         "enabled": False,
-        "experiment_id": "recommendation_strategy_v1",
-        "variant_id": "control",
+        "experiment_id": "",
+        "variant_id": "",
         "strategy": "weighted_random",
     }
+
+
+def test_assignment_requires_experiment_to_be_explicitly_enabled(monkeypatch):
+    from services import recommendation_experiment_service
+    importlib.reload(recommendation_experiment_service)
+
+    monkeypatch.setattr(
+        recommendation_experiment_service.config,
+        "get",
+        lambda _key, default=None: default,
+    )
+
+    assert recommendation_experiment_service.assign("session-a") == {
+        "enabled": False,
+        "experiment_id": "",
+        "variant_id": "",
+        "strategy": "weighted_random",
+    }
+
+
+def test_legacy_auto_enabled_setting_is_not_treated_as_admin_configuration(monkeypatch):
+    from services import recommendation_experiment_service
+    importlib.reload(recommendation_experiment_service)
+
+    monkeypatch.setattr(
+        recommendation_experiment_service.config,
+        "get",
+        lambda key, default=None: True if key == "RECOMMENDATION_EXPERIMENT_ENABLED" else default,
+    )
+
+    assignment = recommendation_experiment_service.assign("session-a")
+
+    assert assignment["enabled"] is False
+    assert assignment["experiment_id"] == ""
+    assert assignment["variant_id"] == ""
