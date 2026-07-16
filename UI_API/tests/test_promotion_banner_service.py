@@ -8,7 +8,11 @@ def _setup(tmp_path, monkeypatch):
     from services import promotion_banner_service
 
     importlib.reload(promotion_banner_service)
-    monkeypatch.setattr(promotion_banner_service.config, "RAG_DOCUMENTS_DIR", str(tmp_path / "rag_documents"))
+    monkeypatch.setattr(
+        promotion_banner_service.promotion_repository.config,
+        "RAG_DOCUMENTS_DIR",
+        str(tmp_path / "rag_documents"),
+    )
     return promotion_banner_service
 
 

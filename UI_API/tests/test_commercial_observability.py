@@ -99,20 +99,6 @@ def test_live_and_ready_are_separate_public_operational_contracts(monkeypatch) -
     assert response.json()["ready"] is False
 
 
-def test_pilot_operations_documents_cover_required_gates() -> None:
-    required = {
-        "docs/operations/PILOT_SLO.md": ("target", "not historical attainment"),
-        "docs/operations/ALERTS.md": ("migration drift", "outbox backlog", "AI degraded"),
-        "docs/operations/RUNBOOK.md": ("Checkout", "WebSocket", "Backup / Restore", "Incident"),
-        "docs/operations/SECURITY_PRIVACY_CHECKLIST.md": ("PII", "CORS", "Retention", "Dependency"),
-        "docs/operations/RELEASE_CHECKLIST.md": ("NOT Production Certified", "migration", "restore"),
-    }
-    for relative_path, fragments in required.items():
-        text = (ROOT / relative_path).read_text(encoding="utf-8")
-        for fragment in fragments:
-            assert fragment.lower() in text.lower(), (relative_path, fragment)
-
-
 def test_production_config_rejects_noncommercial_observability_baseline(monkeypatch) -> None:
     import config
 

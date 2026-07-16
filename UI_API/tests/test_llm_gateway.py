@@ -5,9 +5,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-import pytest
-
-
 @dataclass
 class _FakeResult:
     content: str

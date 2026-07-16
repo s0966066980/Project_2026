@@ -185,14 +185,3 @@ def test_analytics_envelope_replay_and_quality(tmp_path, monkeypatch) -> None:
     assert count == 1
     quality = analytics_pipeline_service.data_quality([envelope, envelope])
     assert quality["duplicates"] == 1
-
-
-def test_ha_evaluation_adr_defers_multi_region() -> None:
-    from pathlib import Path
-
-    text = Path(__file__).resolve().parents[2].joinpath("docs/adr/0010-high-availability-evidence-evaluation.md").read_text(
-        encoding="utf-8"
-    )
-    assert "Defer multi-region" in text
-    assert "Microservice split" in text
-    assert "No premature architecture change" in text

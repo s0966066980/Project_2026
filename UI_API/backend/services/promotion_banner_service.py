@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import config
 from models.commercial_scope import CommercialScope
 from modules.promotion import PromotionContext, evaluate_promotion
 from repositories import promotion_repository

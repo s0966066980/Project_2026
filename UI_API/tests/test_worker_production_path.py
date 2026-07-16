@@ -6,8 +6,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 TENANT = UUID("00000000-0000-4000-8000-000000000001")
 STORE = UUID("00000000-0000-4000-8000-000000000002")

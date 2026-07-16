@@ -9,9 +9,6 @@ import pytest
 TENANT = UUID("00000000-0000-4000-8000-000000000001")
 
 
-import pytest
-
-
 @pytest.mark.smoke
 @pytest.mark.worker
 def test_worker_unknown_handler_does_not_succeed() -> None:

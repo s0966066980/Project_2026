@@ -78,7 +78,6 @@ def menu_aliases(item: dict) -> list[str]:
         "早餐": ["早餐"],
         "飲料": ["飲料", "喝的"],
         "McCafé": ["咖啡", "mcafe", "mccafe"],
-        "McCafé": ["咖啡", "mcafe", "mccafe"],
         "點心": ["點心", "小點"],
     }
     for alias in category_aliases.get(category, []):

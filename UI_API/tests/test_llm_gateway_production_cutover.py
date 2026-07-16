@@ -28,9 +28,6 @@ _FORBIDDEN_DIRECT_AI_IMPORT = frozenset(
 )
 
 
-import pytest
-
-
 @pytest.mark.security
 @pytest.mark.core
 def test_production_services_do_not_import_ai_services_directly() -> None:

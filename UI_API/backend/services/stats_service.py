@@ -11,22 +11,22 @@ from services import scenario_service
 # ── session 統計（AI 推播成效） ──────────────────────────────────────────
 def compute_session_stats(logs: list) -> dict:
     total = len(logs)
-    total_clicks = sum(int(l.get("ai_push_cart_count", 0)) for l in logs)
-    success_count = sum(1 for l in logs if l.get("ai_push_success", False))
+    total_clicks = sum(int(log.get("ai_push_cart_count", 0)) for log in logs)
+    success_count = sum(1 for log in logs if log.get("ai_push_success", False))
     failure_count = total - success_count
     rate = round(success_count / total, 4) if total > 0 else 0.0
 
     sessions = [
         {
-            "timestamp": l.get("timestamp", ""),
-            "session_id": l.get("session_id", ""),
-            "ai_push_cart_count": int(l.get("ai_push_cart_count", 0)),
-            "ai_push_success": bool(l.get("ai_push_success", False)),
-            "final_cart_ids": l.get("final_cart_ids", []),
-            "cart_sources": l.get("cart_sources", []),
-            "voice_turns": l.get("voice_turns", []),
+            "timestamp": log.get("timestamp", ""),
+            "session_id": log.get("session_id", ""),
+            "ai_push_cart_count": int(log.get("ai_push_cart_count", 0)),
+            "ai_push_success": bool(log.get("ai_push_success", False)),
+            "final_cart_ids": log.get("final_cart_ids", []),
+            "cart_sources": log.get("cart_sources", []),
+            "voice_turns": log.get("voice_turns", []),
         }
-        for l in reversed(logs)
+        for log in reversed(logs)
     ]
     return {
         "total_sessions": total,

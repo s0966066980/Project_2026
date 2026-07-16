@@ -42,7 +42,6 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("MEMBER_STORAGE_BACKEND", "postgres")
     from repositories import postgres_utils
     from services import admin_identity_service
-    from models.commercial_scope import CommercialScope
 
     if not postgres_utils.use_postgres():
         print("FAIL: MEMBER_STORAGE_BACKEND must be postgres")
@@ -98,7 +97,6 @@ def main(argv: list[str] | None = None) -> int:
             )
         conn.commit()
 
-    scope = CommercialScope(tenant_id=tenant_id, store_id=store_id, device_id=device_id)
     admin_identity_service.sync_admin_permission_catalog()
     login = admin_identity_service.normalize_admin_login(args.admin_login)
     from repositories import admin_identity_repository

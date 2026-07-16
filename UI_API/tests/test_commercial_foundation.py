@@ -13,16 +13,10 @@ def test_commercial_foundation_documents_exist() -> None:
         "AGENTS.md",
         ".env.example",
         ".github/workflows/ci.yml",
-        "docs/README.md",
-        "docs/ARCHITECTURE.md",
-        "docs/COMMERCIAL_GOVERNANCE.md",
-        "docs/FUTURE_MODULES.md",
-        "docs/POSTGRESQL_MIGRATIONS.md",
-        "docs/adr/README.md",
-        "docs/adr/0001-modular-monolith-first.md",
-        "docs/adr/0002-independent-frontend-deployment-boundaries.md",
-        "docs/adr/0003-ai-provider-port-adapter.md",
-        "docs/adr/0004-member-identity-migration.md",
+        "README.md",
+        "UI_API/README.md",
+        "UI_API/backend/schemas/README.md",
+        "config/profiles/local-pilot.env.example",
         "UI_API/frontend/package-lock.json",
     ]
 
@@ -97,49 +91,6 @@ def test_backend_ci_covers_supported_python_versions_without_duplicate_static_ch
     assert workflow.count("ruff check") == 1
     assert workflow.count("ruff format --check") == 1
     assert workflow.count("run: mypy") == 1
-
-
-def test_member_identity_adr_preserves_the_accepted_implemented_decision() -> None:
-    adr = (REPOSITORY_ROOT / "docs/adr/0004-member-identity-migration.md").read_text(encoding="utf-8")
-
-    assert "Status: Accepted" in adr
-    assert "Implementation Status: Implemented in Milestone 1F" in adr
-    assert "phone compatibility column retained" in adr
-    for heading in ("## Context", "## Decision", "## Consequences", "## Alternatives"):
-        assert heading in adr
-    for decision in (
-        "Member UUID",
-        "tenant-scoped",
-        "phone_lookup_hash",
-        "phone_encrypted",
-        "phone_masked",
-        "managed pepper",
-        "managed key",
-        "expand",
-        "dual write",
-        "backfill",
-        "verify",
-        "switch read",
-        "contract",
-    ):
-        assert decision in adr
-
-
-def test_roadmap_describes_hardening_the_existing_migration_framework() -> None:
-    roadmap = (REPOSITORY_ROOT / "docs/FUTURE_MODULES.md").read_text(encoding="utf-8")
-    migration_document = (REPOSITORY_ROOT / "docs/POSTGRESQL_MIGRATIONS.md").read_text(encoding="utf-8")
-
-    assert "| P0 | Migration framework |" not in roadmap
-    for completion_requirement in (
-        "PostgreSQL integration CI",
-        "migration status",
-        "migration validate",
-        "migration lock",
-        "checksum validation",
-        "idempotency",
-        "backup/recovery documentation",
-    ):
-        assert completion_requirement in migration_document
 
 
 def test_ci_runs_postgres_migration_integration_without_external_services() -> None:

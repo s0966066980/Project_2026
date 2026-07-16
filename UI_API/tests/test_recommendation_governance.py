@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-import pytest
-
 TENANT = UUID("00000000-0000-4000-8000-000000000001")
 STORE = UUID("00000000-0000-4000-8000-000000000002")
 
