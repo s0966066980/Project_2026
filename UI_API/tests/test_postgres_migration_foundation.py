@@ -76,6 +76,24 @@ def test_campaign_touch_migration_is_expand_only_and_scoped() -> None:
     assert "ALTER TABLE promotion_records" not in sql
 
 
+def test_retired_promotion_cleanup_migration_covers_all_durable_activity_stores() -> None:
+    migration = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0013_retire_legacy_summer_promotions.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    for fragment in (
+        "DELETE FROM commercial_touch_events",
+        "DELETE FROM analytics_event_log",
+        "DELETE FROM recommendation_events",
+        "DELETE FROM recommendation_governance_events",
+        "DELETE FROM promotion_rule_versions",
+        "DELETE FROM promotion_records",
+        "DELETE FROM campaign_definitions",
+        "summer_drink",
+        "summer_food",
+    ):
+        assert fragment in sql
+
+
 def test_migration_manifest_rejects_noncanonical_filename(tmp_path: Path) -> None:
     from repositories import postgres_utils
 

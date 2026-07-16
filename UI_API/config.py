@@ -202,7 +202,10 @@ for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
 MENU_JSON_PATH = os.getenv("MENU_JSON_PATH", os.path.join(PROJECT_DIR, "menu_data", "menu.json"))
 LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", os.path.join(PROJECT_DIR, "learning_data"))
 SETTINGS_JSON_PATH = os.getenv("SETTINGS_JSON_PATH", os.path.join(LEARNING_DATA_DIR, "settings.json"))
-RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR", os.path.join(PROJECT_DIR, "rag_documents"))
+RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR") or os.path.join(PROJECT_DIR, "rag_documents")
+_rag_chroma_dir = os.getenv("RAG_CHROMA_DIR") or os.path.join(LEARNING_DATA_DIR, "chroma_rag")
+RAG_CHROMA_DIR = _rag_chroma_dir if os.path.isabs(_rag_chroma_dir) else os.path.join(PROJECT_DIR, _rag_chroma_dir)
+RAG_COLLECTION = os.getenv("RAG_COLLECTION") or "kiosk_rag"
 os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
 
 _settings_cache = None
@@ -275,7 +278,7 @@ DEFAULT_SETTINGS = {
     # ── RAG ───────────────────────────────────────────────────────
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
-    "RAG_COLLECTION": "kiosk_rag",
+    "RAG_COLLECTION": RAG_COLLECTION,
     "RAG_TOP_K": 3,
     "RAG_ALERT_MAX_RECORDS": int(os.getenv("RAG_ALERT_MAX_RECORDS", "1000")),
     "RAG_ALERT_WEBHOOK_ENABLED": os.getenv("RAG_ALERT_WEBHOOK_ENABLED", "false").lower() in ("1", "true", "yes", "on"),

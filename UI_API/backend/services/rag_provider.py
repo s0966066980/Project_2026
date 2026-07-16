@@ -14,6 +14,7 @@ fastembed 優點：不依賴 transformers/PyTorch，安裝乾淨，用 ONNX 執�
 import asyncio
 import os
 import uuid
+from pathlib import Path
 
 import config
 
@@ -22,6 +23,7 @@ class RAGProvider:
     _model = None       # SentenceTransformer
     _client = None      # ChromaDB PersistentClient
     _collection = None  # ChromaDB Collection
+    _source_reconciled = False
 
     # BM25 in-memory index（從 ChromaDB 同步重建）
     _bm25 = None
@@ -41,16 +43,44 @@ class RAGProvider:
 
         if RAGProvider._collection is None:
             import chromadb
-            db_path = os.path.join(config.LEARNING_DATA_DIR, "chroma_rag")
+            db_path = config.RAG_CHROMA_DIR
             os.makedirs(db_path, exist_ok=True)
             RAGProvider._client = chromadb.PersistentClient(path=db_path)
-            collection_name = config.get("RAG_COLLECTION", "kiosk_rag")
+            collection_name = config.RAG_COLLECTION
             RAGProvider._collection = RAGProvider._client.get_or_create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"},
             )
-            # ChromaDB 初始化後立即同步 BM25
+
+        if not RAGProvider._source_reconciled:
+            self._prune_missing_source_documents()
+            RAGProvider._source_reconciled = True
+            # ChromaDB reconciliation 後立即同步 BM25。
             self._rebuild_bm25()
+
+    def _prune_missing_source_documents(self) -> int:
+        """Remove indexed source files that no longer exist; preserve direct-write documents."""
+        root = Path(config.RAG_DOCUMENTS_DIR)
+        if not root.is_absolute():
+            root = Path(config.PROJECT_DIR) / root
+        root = root.resolve()
+        result = RAGProvider._collection.get(include=["metadatas"])
+        orphaned_ids = []
+        for doc_id, metadata in zip(result.get("ids", []), result.get("metadatas", [])):
+            relative_path = str((metadata or {}).get("path") or "").strip()
+            if not relative_path:
+                continue
+            source_path = (root / relative_path).resolve()
+            try:
+                source_path.relative_to(root)
+            except ValueError:
+                orphaned_ids.append(doc_id)
+                continue
+            if not source_path.is_file():
+                orphaned_ids.append(doc_id)
+        if orphaned_ids:
+            RAGProvider._collection.delete(ids=orphaned_ids)
+        return len(orphaned_ids)
 
     # ── BM25 工具 ─────────────────────────────────────────────────
 
@@ -262,9 +292,10 @@ class RAGProvider:
 
         def _run() -> int:
             n = RAGProvider._collection.count()
-            collection_name = config.get("RAG_COLLECTION", "kiosk_rag")
+            collection_name = config.RAG_COLLECTION
             RAGProvider._client.delete_collection(collection_name)
             RAGProvider._collection = None
+            RAGProvider._source_reconciled = False
             RAGProvider._bm25 = None
             RAGProvider._bm25_ids = []
             RAGProvider._bm25_docs = []
