@@ -177,198 +177,20 @@
     max-height: calc(100vh - 140px);
   }
 
-  /* 情緒提示維持左下角顯示。 */
-  #emotionFeed {
-    position: fixed;
-    left: 24px;
-    bottom: 22px;
-    z-index: 100;
-    pointer-events: none;
-    width: min(88vw, 520px);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-  }
-  .emotion-card {
-    position: relative;
-    pointer-events: all;
-    background: rgba(251,252,250,0.96);
-    border: 1.5px solid rgba(72,111,168,0.32);
-    border-radius: 8px 8px 8px 2px;
-    padding: 15px 18px;
-    box-shadow: 0 18px 42px rgba(23,35,33,0.16);
-    width: fit-content;
-    min-width: min(78vw, 300px);
-    max-width: min(88vw, 520px);
-    animation: emotionIn 0.35s ease;
-    backdrop-filter: blur(8px);
-  }
-  .emotion-card::after {
-    content: "";
-    position: absolute;
-    left: -1px;
-    bottom: -10px;
-    width: 18px;
-    height: 18px;
-    background: rgba(251,252,250,0.96);
-    border-left: 1.5px solid rgba(72,111,168,0.32);
-    border-bottom: 1.5px solid rgba(72,111,168,0.32);
-    clip-path: polygon(0 0, 100% 0, 0 100%);
-  }
-  .emotion-card.fade-out { animation: pushOut 1.8s ease forwards; }
-  @keyframes emotionIn { from { opacity:0; transform:translate(-24px, 14px) scale(0.95); } to { opacity:1; transform:translate(0, 0) scale(1); } }
-  .emotion-title {
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:13px;
-    font-weight:900;
-    color:var(--info);
-    margin-bottom:8px;
-  }
-  .emotion-text {
-    font-size:16px;
-    line-height:1.55;
-    font-weight:600;
-    color:var(--text);
-  }
-  .emotion-evidence {
-    margin-top:8px;
-    font-size:12px;
-    line-height:1.45;
-    color:var(--text2);
-  }
-  .emotion-bars {
-    margin-top:10px;
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .emotion-bar-row {
-    display:grid;
-    grid-template-columns:48px 1fr 38px;
-    align-items:center;
-    gap:8px;
-    font-size:11px;
-    color:var(--text2);
-  }
-  .emotion-bar-row div {
-    height:6px;
-    background:var(--surface3);
-    border-radius:999px;
-    overflow:hidden;
-  }
-  .emotion-bar-row i {
-    display:block;
-    height:100%;
-    background:var(--info);
-    border-radius:999px;
-  }
-  .emotion-bar-row b {
-    text-align:right;
-    color:var(--text);
-  }
-  #emotionCameraPanel {
-    position: fixed;
-    left: 18px;
-    top: 18px;
-    z-index: 101;
-    width: 300px;
-    background: rgba(251,252,250,0.96);
-    border: 1.5px solid rgba(72,111,168,0.32);
-    border-radius: 8px;
-    padding: 10px;
-    box-shadow: 0 18px 42px rgba(23,35,33,0.16);
-    pointer-events: all;
-    backdrop-filter: blur(8px);
-  }
-  #emotionCameraPanel.hidden { display:none; }
-  .camera-head {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:8px;
-    font-size:12px;
-    font-weight:900;
-    color:var(--info);
-    margin-bottom:8px;
-  }
-  #emotionCameraStatus {
-    color:var(--text2);
-    font-weight:700;
-  }
-  .camera-frame {
-    position:relative;
-    overflow:hidden;
-    border-radius:8px;
-    background:#18201d;
-    aspect-ratio:4 / 3;
-  }
-  #emotionCameraVideo {
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    transform:scaleX(-1);
-    display:block;
-  }
-  .detect-box {
-    position:absolute;
-    left:18%;
-    right:18%;
-    top:12%;
-    bottom:16%;
-    border:2px solid rgba(255,255,255,0.56);
-    border-radius:0;
-    display:flex;
-    align-items:flex-start;
-    justify-content:flex-start;
-    pointer-events:none;
-  }
-  .detect-box span {
-    margin-top:-22px;
-    margin-left:-2px;
-    padding:3px 8px;
-    border-radius:0;
-    background:rgba(24,32,29,0.72);
-    color:white;
-    font-size:11px;
-    font-weight:900;
-  }
-  .detect-box.detected {
-    border-color:#00ff66;
-    box-shadow:0 0 0 999px rgba(11,23,18,0.08), 0 0 16px rgba(0,255,102,0.18);
-  }
-  .detect-box.detected span { background:#00ff66; color:#0e1a13; }
-  .detect-box.undetected {
-    border-color:rgba(255,92,64,0.9);
-  }
-  .detect-box.undetected span { background:rgba(255,92,64,0.95); }
   @media (max-width: 780px) {
     #aiOverlayStack { right: 12px; bottom: 18px; width: min(92vw, 440px); }
-    #emotionFeed { left: 12px; bottom: 18px; width: min(92vw, 440px); }
-    #emotionCameraPanel { left: 12px; top: 12px; bottom: auto; width: min(92vw, 320px); }
   }
   @media (min-width: 1024px) {
     #aiOverlayStack {
       right: calc(var(--cart-w) + 92px);
       max-width: calc(100vw - var(--cart-w) - 132px);
     }
-    #emotionFeed {
-      left: 24px;
-      max-width: calc(100vw - var(--cart-w) - 72px);
-    }
-    #emotionCameraPanel { left: 18px; top: 18px; bottom: auto; }
   }
   @media (min-width: 1280px) {
     #aiOverlayStack {
       right: calc(var(--cart-w) + 92px);
       max-width: calc(100vw - var(--cart-w) - 132px);
     }
-    #emotionFeed {
-      max-width: calc(100vw - var(--cart-w) - 72px);
-    }
-    #emotionCameraPanel { left: 18px; top: 18px; bottom: auto; }
   }
 
   /* 語音回答彈窗：位置與「如何點餐」一致 */
@@ -923,9 +745,6 @@
   .hide-scroll::-webkit-scrollbar { display: none; }
   .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* 情緒標籤 */
-  #emotionBadge { backdrop-filter: blur(6px); }
-
   /* Toggle switch */
   .toggle-track { width: 44px; height: 24px; background: var(--surface3); border-radius: 99px; position: relative; cursor: pointer; transition: background 0.2s; }
   .toggle-track.on { background: var(--accent2); }
@@ -943,66 +762,6 @@
     border-radius: 8px;
     padding: 18px;
   }
-  .emotion-clip-list {
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-    gap:12px;
-  }
-  .emotion-clip-item {
-    display:flex;
-    gap:10px;
-    padding:10px;
-    border:1.5px solid var(--border);
-    border-radius:8px;
-    background:var(--surface2);
-  }
-  .emotion-clip-item video {
-    width:120px;
-    aspect-ratio:4 / 3;
-    object-fit:cover;
-    border-radius:8px;
-    background:#16201c;
-    flex:0 0 auto;
-  }
-  .clip-media-placeholder {
-    width:120px;
-    aspect-ratio:4 / 3;
-    border-radius:8px;
-    background:var(--surface);
-    border:1px dashed var(--border);
-    color:var(--text2);
-    flex:0 0 auto;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    text-align:center;
-    font-size:11px;
-    padding:8px;
-  }
-  .clip-meta {
-    min-width:0;
-    font-size:12px;
-    line-height:1.45;
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-  }
-  .clip-badges {
-    display:flex;
-    gap:5px;
-    flex-wrap:wrap;
-  }
-  .clip-badges span {
-    padding:2px 6px;
-    border-radius:999px;
-    background:#e7ece3;
-    color:var(--text2);
-    font-size:11px;
-    font-weight:700;
-  }
-
   /* 結帳完成畫面 */
   .checkout-overlay {
     position: absolute;

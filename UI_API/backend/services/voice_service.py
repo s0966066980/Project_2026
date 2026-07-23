@@ -17,6 +17,7 @@ from models.commercial_scope import CommercialScope
 from models.llm import LLMModelPolicy, LLMRequest
 from repositories import menu_repository, session_repository
 from services import (
+    emotion_service,
     llm_gateway_service,
     rag_guard_service,
     rag_offer_service,
@@ -29,6 +30,7 @@ from services.tts_service import get_tts
 
 _menu_cache: dict = {"items": None, "context": None, "ts": 0.0}
 _menu_cache_lock = asyncio.Lock()
+_EMOTION_REFERENCE_UNSET = object()
 
 
 async def _load_menu_cached() -> tuple:
@@ -72,15 +74,100 @@ def _format_history(history: list) -> str:
 
 
 
-def _build_emotion_context(session_id: str) -> str:
-    """從語音情緒快取組出 prompt context 段落。
+async def _analyze_current_voice_emotion_pair(
+    *,
+    session_id: str,
+    media_path: str,
+    speech_text: str,
+    emotion_round_id: str,
+    voice_turn_id: str,
+    voice_turn_index: int,
+) -> dict | None:
+    """Analyze the selected A/B strategy and return this request's LLM reference."""
+    emotion_service.clear_voice_emotion_cache(session_id, emotion_round_id)
+    if (
+        not emotion_service.is_enabled()
+        or config.get("EMOTION_LLAMA_EVENT_VOICE", True) is False
+    ):
+        return None
+
+    pair_id = f"{emotion_round_id}:{voice_turn_id or voice_turn_index}"[:160]
+    common = {
+        "session_id": session_id,
+        "media_path": media_path,
+        "event_type": "voice_mode_ended",
+        "update_voice_session": True,
+        "emotion_round_id": emotion_round_id,
+        "voice_turn_id": voice_turn_id,
+        "voice_turn_index": voice_turn_index,
+        "observed_at_ms": int(time.time() * 1000),
+        "comparison_pair_id": pair_id,
+        "cache_voice_observation": False,
+    }
+    try:
+        mode = str(config.get("EMOTION_LLAMA_ANALYSIS_MODE", "media_plus_stt") or "")
+        if mode not in {"media_only", "media_plus_stt", "paired"}:
+            mode = "media_plus_stt"
+        if not speech_text or config.get("EMOTION_LLAMA_INCLUDE_STT", True) is False:
+            mode = "media_only"
+
+        if mode == "media_only":
+            result = await emotion_service.analyze_event(
+                speech_text="",
+                analysis_variant="media_only",
+                **common,
+            )
+        elif mode == "media_plus_stt":
+            result = await emotion_service.analyze_event(
+                speech_text=speech_text,
+                analysis_variant="media_plus_stt",
+                **common,
+            )
+        else:
+            result, _baseline = await asyncio.gather(
+                emotion_service.analyze_event(
+                    speech_text=speech_text,
+                    analysis_variant="media_plus_stt",
+                    **common,
+                ),
+                emotion_service.analyze_event(
+                    speech_text="",
+                    analysis_variant="media_only",
+                    **common,
+                ),
+            )
+    except Exception as exc:
+        print(f"⚠️ 本次語音情緒分析失敗，將不影響語音回覆: {exc}")
+        return None
+    if not config.get("EMOTION_LLAMA_AFFECT_VOICE", False):
+        return None
+    return result if result.get("status") == "ok" and result.get("emotion") else None
+
+
+async def _record_voice_emotion_influence(**payload) -> None:
+    """Observability must never turn a successful voice reply into an error."""
+    try:
+        await asyncio.to_thread(emotion_service.record_voice_llm_influence, **payload)
+    except Exception as exc:
+        print(f"⚠️ 語音 LLM 情緒參考紀錄失敗: {exc}")
+
+
+def _build_emotion_context(
+    session_id: str,
+    emotion_round_id: str = "",
+    emotion_reference: dict | None | object = _EMOTION_REFERENCE_UNSET,
+) -> str:
+    """從本輪點餐已完成的語音情緒分析組出 prompt context 段落。
     只注入結構化欄位（emotion/intensity/facial/vocal）；
     原始英文 description 不注入，避免中英混雜干擾 Ollama 的對話記憶與購物車推斷。
     """
     if not config.get("EMOTION_LLAMA_AFFECT_VOICE", False):
         return ""
-    from services.emotion_service import get_voice_emotion_cache
-    cached = get_voice_emotion_cache(session_id)
+    cached = (
+        emotion_service.get_voice_emotion_cache(session_id, emotion_round_id)
+        if emotion_reference is _EMOTION_REFERENCE_UNSET
+        else emotion_reference
+    )
     if not cached or not cached.get("emotion"):
         return ""
     parts = [f"情緒：{cached['emotion']}"]
@@ -90,7 +177,11 @@ def _build_emotion_context(session_id: str) -> str:
         parts.append(f"表情：{cached['facial']}")
     if cached.get("vocal"):
         parts.append(f"語調：{cached['vocal']}")
-    return "【顧客情緒參考（Emotion-LLaMA）】\n" + "　".join(parts)
+    phase = "語音開始" if cached.get("event_type") == "voice_mode_started" else "語音結束"
+    turn_index = int(cached.get("voice_turn_index") or 0)
+    if turn_index:
+        parts.append(f"來源：第 {turn_index} 次{phase}的已完成背景分析")
+    return "【本輪點餐的顧客情緒參考】\n" + "　".join(parts)
 
 
 async def _build_voice_context(
@@ -98,6 +189,8 @@ async def _build_voice_context(
     user_text: str,
     detected_lang: str,
     scope: CommercialScope | None = None,
+    emotion_round_id: str = "",
+    emotion_reference: dict | None | object = _EMOTION_REFERENCE_UNSET,
 ) -> tuple[str, str, list]:
     """組合語音 LLM 的 system_prompt 與 user_prompt。
 
@@ -115,13 +208,13 @@ async def _build_voice_context(
         "VOICE_ASSIST_SYSTEM_PROMPT_EN" if detected_lang == "en" else "VOICE_ASSIST_SYSTEM_PROMPT"
     )
 
-    # Emotion-LLaMA 快取注入（若啟用且有快取）
-    emotion_context = _build_emotion_context(session_id)
+    # 注入這次語音 request 的 STT 版本快照；不依賴跨 request 快取。
+    emotion_context = _build_emotion_context(session_id, emotion_round_id, emotion_reference)
     if emotion_context:
         system_prompt += (
-            "\n若有顧客情緒參考，請據此調整語氣與推薦措辭。"
-            "若顧客主動詢問情緒或心情相關問題，可自然地根據參考資料回應"
-            "（例如「您看起來心情有些低落」），但不要說「我在分析情緒」或「系統偵測到」等字眼。"
+            "\n顧客情緒參考是非同步模型的輔助線索，不一定代表顧客真實感受。"
+            "只能用來調整回覆語氣與措辭，不得改變價格、資格、品項或購物車規則，"
+            "也不得向顧客宣稱、暗示或透露系統辨識了其情緒。"
         )
 
     recommendation_context = await recommendation_context_service.build_context(
@@ -172,6 +265,9 @@ async def handle_voice(
     ollama_semaphore,
     multi_lang: bool = True,
     scope: CommercialScope | None = None,
+    emotion_round_id: str = "",
+    voice_turn_id: str = "",
+    voice_turn_index: int = 0,
 ) -> dict:
     # ── 1. STT ────────────────────────────────────────────────────
     stt = get_stt()
@@ -197,8 +293,16 @@ async def handle_voice(
         }
 
     # ── 2. Ollama LLM ─────────────────────────────────────────────
+    emotion_reference = await _analyze_current_voice_emotion_pair(
+        session_id=session_id,
+        media_path=audio_path,
+        speech_text=user_text,
+        emotion_round_id=emotion_round_id,
+        voice_turn_id=voice_turn_id,
+        voice_turn_index=voice_turn_index,
+    )
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang, scope
+        session_id, user_text, detected_lang, scope, emotion_round_id, emotion_reference
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -258,6 +362,18 @@ async def handle_voice(
         print(f"⚠️ TTS 失敗: {e}")
         audio_base64 = ""
 
+    await _record_voice_emotion_influence(
+        session_id=session_id,
+        emotion_round_id=emotion_round_id,
+        voice_turn_id=voice_turn_id,
+        voice_turn_index=voice_turn_index,
+        user_speech=user_text,
+        ai_response=ai_response,
+        emotion_reference=emotion_reference,
+        affect_voice_enabled=bool(config.get("EMOTION_LLAMA_AFFECT_VOICE", False)),
+    )
+    emotion_service.clear_voice_emotion_cache(session_id, emotion_round_id)
+
     return {
         "status": "success",
         "user_text": user_text,
@@ -282,10 +398,14 @@ async def handle_voice_stream(
     ollama_semaphore,
     multi_lang: bool = True,
     scope: CommercialScope | None = None,
+    emotion_round_id: str = "",
+    voice_turn_id: str = "",
+    voice_turn_index: int = 0,
 ) -> AsyncGenerator[bytes, None]:
     """
     串流版：STT → LLM 串流 → 逐句 TTS。
     每個 chunk 為 NDJSON 行（後接 \\n）：
+      {"type":"transcript","user_text":...,"detected_lang":...}
       {"type":"audio","data":"<base64>","format":"<wav|mp3>"}
       {"type":"done","status":"success","user_text":...,"ai_response":...,"cart_actions":...,"detected_lang":...}
     """
@@ -308,9 +428,24 @@ async def handle_voice_stream(
         yield (err + "\n").encode()
         return
 
+    transcript = _json.dumps({
+        "type": "transcript",
+        "user_text": user_text,
+        "detected_lang": detected_lang,
+    }, ensure_ascii=False)
+    yield (transcript + "\n").encode()
+
     # ── Context + System prompt（與 handle_voice 共用組裝邏輯） ──────────
+    emotion_reference = await _analyze_current_voice_emotion_pair(
+        session_id=session_id,
+        media_path=audio_path,
+        speech_text=user_text,
+        emotion_round_id=emotion_round_id,
+        voice_turn_id=voice_turn_id,
+        voice_turn_index=voice_turn_index,
+    )
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang, scope
+        session_id, user_text, detected_lang, scope, emotion_round_id, emotion_reference
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -422,6 +557,17 @@ async def handle_voice_stream(
         mentioned_ids=mentioned_ids,
         cart_actions=cart_actions,
     )
+    await _record_voice_emotion_influence(
+        session_id=session_id,
+        emotion_round_id=emotion_round_id,
+        voice_turn_id=voice_turn_id,
+        voice_turn_index=voice_turn_index,
+        user_speech=user_text,
+        ai_response=ai_response_final,
+        emotion_reference=emotion_reference,
+        affect_voice_enabled=bool(config.get("EMOTION_LLAMA_AFFECT_VOICE", False)),
+    )
+    emotion_service.clear_voice_emotion_cache(session_id, emotion_round_id)
 
     done = _json.dumps({
         "type": "done",

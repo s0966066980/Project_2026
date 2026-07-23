@@ -1,5 +1,5 @@
 const PAGE_PERMISSIONS = Object.freeze({
-  stats: ['operations.read'],
+  stats: ['operations.read', 'recommendations.effectiveness.read'],
   promotions: ['campaigns.read'],
   recommendations: ['recommendations.effectiveness.read'],
   availability: ['catalog.availability.read'],

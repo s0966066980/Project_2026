@@ -9,6 +9,7 @@ EVENT_TYPES = {
     "staff_notify",
     "rag_alert",
     "settings_changed",
+    "campaigns_changed",
     "demo_event",
 }
 

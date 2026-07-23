@@ -1,12 +1,21 @@
 """RAG 知識庫管理路由。"""
 
-from fastapi import APIRouter, Body, Request
+from typing import Literal
+
+from fastapi import APIRouter, Body, HTTPException, Request
+from pydantic import BaseModel, Field
 from realtime import event_bus
 
 from services import admin_audit_service, promotion_service, rag_alert_service, rag_document_service, rag_review_service
 from services.commercial_context_service import scope_from_admin_principal
 from services.rag_provider import get_rag
 from utils.auth_utils import authorize_admin_request, check_rate_limit
+
+
+class RagStrategyTestRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    strategy: Literal["dense", "bm25", "hybrid"] = "hybrid"
+    top_k: int = Field(default=3, ge=1, le=10)
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -24,7 +33,8 @@ def create_router(deps: dict) -> APIRouter:
             await event_bus.publish_to_admin("rag_alert", {"alert": alert})
 
     @router.get("/status")
-    async def rag_status():
+    async def rag_status(request: Request):
+        authorize_admin_request(request, "rag.read")
         result = await rag_document_service.health_status()
         await _publish_alert_if_new(result)
         return result
@@ -34,6 +44,16 @@ def create_router(deps: dict) -> APIRouter:
         authorize_admin_request(request, "rag.read")
         docs = await get_rag().list_documents()
         return {"status": "ok", "docs": docs, "total": len(docs)}
+
+    @router.post("/test")
+    async def test_strategy(request: Request, payload: RagStrategyTestRequest):
+        authorize_admin_request(request, "rag.read")
+        check_rate_limit(request, "rag_strategy_test", limit=30)
+        query = payload.query.strip()
+        if not query:
+            raise HTTPException(status_code=422, detail="query 不可為空")
+        result = await get_rag().search(query, strategy=payload.strategy, top_k=payload.top_k)
+        return {"status": "ok", **result}
 
     @router.post("/docs")
     async def add_doc(request: Request, payload: dict = Body(...)):
@@ -54,6 +74,7 @@ def create_router(deps: dict) -> APIRouter:
         source_type = str(payload.get("source_type") or "manual")
         metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
         doc_id = await get_rag().add_document(content, source_id, source_type, metadata)
+        rag_document_service.include_source_in_index(doc_id)
         return {"status": "ok", "id": doc_id}
 
     @router.get("/reviews")

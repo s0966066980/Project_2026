@@ -51,6 +51,13 @@ function parseVoiceStreamChunk(value) {
       ? { ...audioChunk, format: value.format }
       : audioChunk;
   }
+  if (value.type === 'transcript' && typeof value.user_text === 'string') {
+    return {
+      type: 'transcript',
+      user_text: value.user_text,
+      ...(typeof value.detected_lang === 'string' ? { detected_lang: value.detected_lang } : {}),
+    };
+  }
   if (value.type === 'done') {
     return { ...value, type: 'done' };
   }
@@ -193,7 +200,7 @@ export async function requestAiPushRecommendation(formData) {
  * @param {VoiceStreamHandlers} handlers
  * @returns {Promise<void>}
  */
-export async function streamVoiceAssistantResponse(formData, { onAudio, onDone, onError }) {
+export async function streamVoiceAssistantResponse(formData, { onAudio, onTranscript, onDone, onError }) {
   let resp;
   try {
     resp = await fetch(`${API_BASE}/api/ask/stream`, { method: 'POST', body: formData, headers: kioskHeaders() });
@@ -227,6 +234,8 @@ export async function streamVoiceAssistantResponse(formData, { onAudio, onDone, 
             parsedChunk.type === 'audio'
           ) {
             onAudio(parsedChunk.data, parsedChunk.format || 'wav');
+          } else if (parsedChunk.type === 'transcript') {
+            onTranscript?.(parsedChunk);
           } else if (parsedChunk.type === 'done') {
             onDone(parsedChunk);
           }
@@ -276,15 +285,21 @@ export async function reportCommercialTouch(payload) {
 
 /**
  * @param {string} sessionId
- * @param {string} eventType
+ * @param {'voice_mode_started' | 'voice_mode_ended'} phase
  * @param {Blob} mediaBlob
+ * @param {{emotionRoundId: string, voiceTurnId: string, voiceTurnIndex: number, observedAtMs: number, speechText?: string}} context
  * @returns {Promise<Record<string, unknown>>}
  */
-export async function analyzeEmotionEvent(sessionId, eventType, mediaBlob) {
+export async function analyzeVoiceEmotionEvent(sessionId, phase, mediaBlob, context) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
-  formData.append('event_type', eventType);
-  formData.append('media', mediaBlob, 'emotion_clip.webm');
+  formData.append('event_type', phase);
+  formData.append('emotion_round_id', context.emotionRoundId);
+  formData.append('voice_turn_id', context.voiceTurnId);
+  formData.append('voice_turn_index', String(context.voiceTurnIndex));
+  formData.append('observed_at_ms', String(context.observedAtMs));
+  if (context.speechText) formData.append('speech_text', context.speechText.slice(0, 500));
+  formData.append('media', mediaBlob, `voice_emotion_${phase}.webm`);
   return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData, { headers: kioskHeaders() });
 }
 

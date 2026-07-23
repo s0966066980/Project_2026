@@ -3,6 +3,7 @@ import { createAvailabilityAdmin } from './modules/availabilityAdmin.js';
 import { createHealthAdmin } from './modules/healthAdmin.js';
 import { createRecommendationEventsAdmin } from './modules/recommendationEventsAdmin.js';
 import { createCampaignAdmin } from './modules/campaignAdmin.js';
+import { createEmotionInfluenceAdmin } from './modules/emotionInfluenceAdmin.js';
 import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 
@@ -23,6 +24,8 @@ const DEFAULT_PUSH_PROMPT =
 let menuCache = {};
 let menuLoadPromise = null;
 let statsLoadPromise = null;
+let overviewStatsSnapshot = null;
+let overviewRecommendationSnapshot = null;
 
 async function loadMenu() {
   if (Object.keys(menuCache).length) return menuCache;
@@ -70,8 +73,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '狀態統計', settings: '功能設定', recommendations: '推薦成效', promotions: '活動管理', availability: '供應狀態', health: '維運健康', rag: 'RAG 知識庫', emotion: 'Emotion-LLaMA', members: '會員管理', test: 'AI 問答測試' };
-    const icons   = { stats: 'fa-chart-pie', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', promotions: 'fa-ticket-alt', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
+    const titles  = { stats: '營運總覽', settings: '功能設定', recommendations: '推薦成效', promotions: '活動管理', availability: '供應狀態', health: '維運健康', rag: 'RAG 知識庫', emotion: '情緒分析', members: '會員管理', test: 'AI 問答測試' };
+    const icons   = { stats: 'fa-chart-line', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', promotions: 'fa-ticket-alt', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', test: 'fa-flask' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -81,7 +84,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
       iconEl.textContent = '';
       iconEl.appendChild(ico);
     }
-    if (page === 'stats') loadStats();
+    if (page === 'stats') loadOperationsOverview();
     if (page === 'settings') loadSettings();
     if (page === 'recommendations') loadRecommendationEvents();
     if (page === 'promotions') loadCampaigns();
@@ -91,6 +94,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
     if (page === 'members') loadMembers();
     if (page === 'test') { loadOllamaModels(); loadVoicePromptDefault(); }
+    if (page !== 'test') stopEmotionVideoDetection();
   });
 });
 
@@ -139,7 +143,8 @@ async function loadStats() {
     const fail    = data.failure_sessions ?? 0;
     const rate    = data.success_rate ?? 0;
     const score   = data.cumulative_score ?? 0;
-    const failRate = total > 0 ? Math.round((fail / total) * 100) : 0;
+    overviewStatsSnapshot = { total, clicks, success, fail, successRate: Number(rate || 0) };
+    renderOperationsInsight();
 
     // Donut
     const pct = Math.round(rate * 100);
@@ -153,14 +158,15 @@ async function loadStats() {
     // Stat cards
     setText('s-total',     String(total));
     setText('s-clicks',    String(clicks));
-    setText('s-fail',      String(fail));
-    setText('s-fail-rate', failRate + '%');
+    setText('s-success',   String(success));
 
     const sessions = data.sessions || [];
     renderTop3(sessions);
     renderTable(sessions);
 
   } catch {
+    overviewStatsSnapshot = { error: true };
+    renderOperationsInsight();
     const tbody = document.getElementById('s-tbody');
     if (tbody) emptyRow(tbody, '載入失敗，請重新整理。', '#e84040');
   }
@@ -168,6 +174,60 @@ async function loadStats() {
     statsLoadPromise = null;
   });
   return statsLoadPromise;
+}
+
+function renderOperationsInsight() {
+  const status = g('operationsInsightStatus');
+  const headline = g('operationsInsightHeadline');
+  const detail = g('operationsInsightDetail');
+  const action = g('operationsInsightAction');
+  if (!status || !headline || !detail || !action) return;
+
+  const canReadStats = hasAdminPermission('operations.read');
+  const canReadRecommendations = hasAdminPermission('recommendations.effectiveness.read');
+  const stats = overviewStatsSnapshot;
+  const recommendation = overviewRecommendationSnapshot;
+  const waiting = (canReadStats && !stats) || (canReadRecommendations && !recommendation);
+  const failed = stats?.error || recommendation?.error;
+  const limited = recommendation?.provisional;
+
+  status.className = `operations-insight-status ${failed || limited ? 'attention' : waiting ? 'loading' : 'ready'}`;
+  status.textContent = failed ? '部分資料未取得' : limited ? '暫用趨勢資料' : waiting ? '正在整理資料' : '資料已更新';
+
+  const sentences = [];
+  if (canReadStats && stats && !stats.error) {
+    sentences.push(`本期共有 ${Number(stats.total).toLocaleString('zh-TW')} 次推播，${Number(stats.success).toLocaleString('zh-TW')} 次帶動加購。`);
+  }
+  if (canReadRecommendations && recommendation && !recommendation.error) {
+    sentences.push(`推薦被看見 ${Number(recommendation.impressions).toLocaleString('zh-TW')} 次，帶來 ${Number(recommendation.purchases).toLocaleString('zh-TW')} 筆完成購買。`);
+  }
+  headline.textContent = sentences.join(' ') || '目前沒有可顯示的營運資料。';
+
+  if (canReadRecommendations && recommendation && !recommendation.error) {
+    const purchaseRate = Number(recommendation.purchaseRate || 0);
+    detail.textContent = `每 100 次有效曝光，約有 ${Math.round(purchaseRate * 1000) / 10} 次完成購買。`;
+    if (recommendation.provisional) {
+      action.textContent = '精準成效暫時無法載入，目前數字只用來看趨勢。';
+    } else if (recommendation.sampleWarning) {
+      action.textContent = '系統提醒目前樣本不足，先繼續收集，不用急著調整推薦策略。';
+    } else if (recommendation.purchases === 0) {
+      action.textContent = '已有曝光但尚未帶動購買，可先查看「推薦入口成效」找出需要調整的畫面。';
+    } else {
+      action.textContent = '推薦已有帶動購買，可從下方比較哪個入口的表現最穩定。';
+    }
+  } else {
+    detail.textContent = canReadStats && stats && !stats.error
+      ? `推播成功率為 ${Math.round(stats.successRate * 100)}%。`
+      : '請稍後重新整理，或請管理員確認查看權限。';
+    action.textContent = failed ? '請按「重新整理」再試一次。' : '可從下方推播概況開始查看。';
+  }
+}
+
+async function loadOperationsOverview() {
+  const tasks = [];
+  if (hasAdminPermission('operations.read')) tasks.push(loadStats());
+  if (hasAdminPermission('recommendations.effectiveness.read')) tasks.push(loadRecommendationEvents());
+  await Promise.allSettled(tasks);
 }
 
 
@@ -390,6 +450,10 @@ const recommendationEventsAdmin = createRecommendationEventsAdmin({
   formatDate: fmtDate,
   loadMenu,
   menuName,
+  onSummary: summary => {
+    overviewRecommendationSnapshot = summary;
+    renderOperationsInsight();
+  },
 });
 
 const campaignAdmin = createCampaignAdmin({
@@ -418,9 +482,17 @@ const healthAdmin = createHealthAdmin({
   escapeHtml: escHtml,
 });
 
+const emotionInfluenceAdmin = createEmotionInfluenceAdmin({
+  getElement: g,
+  escapeHtml: escHtml,
+  emotionLabel: zhEmotion,
+  intensityLabel: zhIntensity,
+  providerLabel: value => EMOTION_PROVIDER_LABELS[value] || String(value || '情緒分析模型'),
+});
+let latestEmotionRoundId = '';
+
 function loadRecommendationEvents() { return recommendationEventsAdmin.loadRecommendationEvents(); }
 function loadCampaigns() { return campaignAdmin.loadCampaigns(); }
-function clearRecommendationEvents() { return recommendationEventsAdmin.clearRecommendationEvents(); }
 function renderRecommendationDashboard() { return recommendationEventsAdmin.renderRecommendationDashboard(); }
 function loadAvailability() { return availabilityAdmin.loadAvailability(); }
 function saveAvailability() { return availabilityAdmin.saveAvailability(); }
@@ -487,8 +559,6 @@ async function loadSettings() {
     setVal('inp-tts-api-url',   s.TTS_API_URL         || '');
     setVal('inp-tts-api-key',   s.TTS_API_KEY         || '');
     setVal('inp-tts-voice',     s.TTS_VOICE           || 'alloy');
-    // 付款逾時協助 Prompt
-    setVal('inp-payment-assist-prompt', s.PAYMENT_ASSIST_PROMPT || '');
     const kws = Array.isArray(s.PASSIVE_VOICE_KEYWORDS) ? s.PASSIVE_VOICE_KEYWORDS : [];
     setVal('inp-passive-keywords', kws.join('\n'));
     // 別名：{"MCDxxx": ["別名1","別名2"]} → "MCDxxx = 別名1, 別名2\n..."
@@ -533,7 +603,6 @@ async function saveSettings() {
       VOICE_ASSIST_SYSTEM_PROMPT:    val('inp-voice-prompt-zh'),
       VOICE_ASSIST_SYSTEM_PROMPT_EN: val('inp-voice-prompt-en'),
       AI_PUSH_SYSTEM_PROMPT:         val('inp-push-prompt') === DEFAULT_PUSH_PROMPT ? '' : val('inp-push-prompt'),
-      PAYMENT_ASSIST_PROMPT:         val('inp-payment-assist-prompt'),
       AI_PUSH_TEXT_MIN:              parseInt(val('inp-push-text-min') || '18', 10),
       AI_PUSH_TEXT_MAX:              parseInt(val('inp-push-text-max') || '34', 10),
       // STT
@@ -592,16 +661,13 @@ async function loadEmotionSettings() {
     setVal('inp-emotion-provider',            s.EMOTION_PROVIDER || 'emotion_llama');
     g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_LLAMA_ENABLED);
     setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC       ?? 2.0);
-    setVal('inp-payment-emotion-clip-sec',    s.PAYMENT_EMOTION_CLIP_SEC     ?? 5.0);
     g('inp-emotion-quality-check').checked  = s.EMOTION_LLAMA_QUALITY_CHECK !== false;
     g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_LLAMA_AFFECT_VOICE);
-    g('inp-emotion-affect-barrier').checked = Boolean(s.EMOTION_LLAMA_AFFECT_BARRIER);
-    g('inp-emotion-event-voice').checked        = Boolean(s.EMOTION_LLAMA_EVENT_VOICE);
-    g('inp-emotion-event-payment-timeout').checked = s.EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT !== false;
-    const waitMode = s.EMOTION_LLAMA_VOICE_WAIT_MODE || 'speed';
-    const modeEl = g(waitMode === 'analysis' ? 'inp-emotion-voice-analysis' : 'inp-emotion-voice-speed');
-    if (modeEl) modeEl.checked = true;
-    toggleVoiceWaitMode();
+    g('inp-emotion-event-voice').checked    = s.EMOTION_LLAMA_EVENT_VOICE !== false;
+    const analysisMode = s.EMOTION_LLAMA_ANALYSIS_MODE
+      || (s.EMOTION_LLAMA_INCLUDE_STT === false ? 'media_only' : 'media_plus_stt');
+    setVal('inp-emotion-analysis-mode', analysisMode);
+    g('inp-emotion-include-stt').checked = analysisMode !== 'media_only';
     setVal('inp-emotion-prompt',              s.EMOTION_LLAMA_PROMPT || '');
     updateEmotionPromptCounter();
   } catch (e) {
@@ -625,17 +691,16 @@ async function saveEmotionSettings() {
   const notice = g('emotion-settings-notice');
   if (notice) notice.style.display = 'none';
   try {
+    const analysisMode = val('inp-emotion-analysis-mode') || 'media_plus_stt';
     const body = {
       EMOTION_PROVIDER:             val('inp-emotion-provider') || 'emotion_llama',
       EMOTION_LLAMA_ENABLED:        g('inp-emotion-enabled').checked,
       EMOTION_LLAMA_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
-      PAYMENT_EMOTION_CLIP_SEC:     parseFloat(val('inp-payment-emotion-clip-sec') || '5.0'),
       EMOTION_LLAMA_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
       EMOTION_LLAMA_AFFECT_VOICE:   g('inp-emotion-affect-voice').checked,
-      EMOTION_LLAMA_AFFECT_BARRIER: g('inp-emotion-affect-barrier').checked,
-      EMOTION_LLAMA_EVENT_VOICE:        g('inp-emotion-event-voice').checked,
-      EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT: g('inp-emotion-event-payment-timeout').checked,
-      EMOTION_LLAMA_VOICE_WAIT_MODE:    g('inp-emotion-voice-analysis')?.checked ? 'analysis' : 'speed',
+      EMOTION_LLAMA_EVENT_VOICE:    g('inp-emotion-event-voice').checked,
+      EMOTION_LLAMA_ANALYSIS_MODE:  analysisMode,
+      EMOTION_LLAMA_INCLUDE_STT:    analysisMode !== 'media_only',
       EMOTION_LLAMA_PROMPT:         val('inp-emotion-prompt'),
     };
     const res = await fetch(`${API}/api/settings`, {
@@ -671,12 +736,12 @@ function escHtml(str) {
 // Emotion-LLaMA 結構化欄位英→繁對照（emotion / intensity 為有限列舉）
 const EMOTION_ZH = {
   neutral: '中性', happy: '開心', sad: '難過', angry: '生氣',
-  frustrated: '沮喪', anxious: '焦慮', confused: '困惑', surprised: '驚訝',
+  frustrated: '沮喪', anxious: '焦慮', confused: '困惑', surprise: '驚訝', surprised: '驚訝',
   disgust: '厭惡', fear: '害怕', fearful: '害怕', excited: '興奮', bored: '無聊',
 };
 const INTENSITY_ZH = { low: '低', medium: '中', high: '高' };
 // 情緒分析模型代碼 → 顯示名稱
-const EMOTION_PROVIDER_LABELS = { emotion_llama: 'Emotion-LLaMA', r1_omni: 'R1-Omni' };
+const EMOTION_PROVIDER_LABELS = { emotion_llama: 'Emotion-LLaMA', r1_omni: 'R1-Omni', text_llm: '文字情緒分析模型' };
 
 function zhEmotion(v) {
   if (!v) return '';
@@ -687,21 +752,236 @@ function zhIntensity(v) {
   return INTENSITY_ZH[String(v).trim().toLowerCase()] || v;
 }
 
+function fillEmotionTextSample(text) {
+  setVal('emotion-text-input', text);
+  g('emotion-text-input')?.focus();
+}
+
+let emotionVideoStream = null;
+let emotionVideoRecorder = null;
+let emotionVideoRunning = false;
+let emotionVideoGeneration = 0;
+let emotionVideoAbortController = null;
+
+function emotionVideoRecorderOptions() {
+  if (typeof MediaRecorder === 'undefined') return {};
+  if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+    return { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 240000 };
+  }
+  return MediaRecorder.isTypeSupported('video/webm')
+    ? { mimeType: 'video/webm', videoBitsPerSecond: 240000 }
+    : {};
+}
+
+function captureEmotionVideoClip(stream, durationMs = 2500) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let recorder;
+    try {
+      recorder = new MediaRecorder(stream, emotionVideoRecorderOptions());
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    emotionVideoRecorder = recorder;
+    const timer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop();
+    }, durationMs);
+    recorder.ondataavailable = event => {
+      if (event.data?.size > 0) chunks.push(event.data);
+    };
+    recorder.onerror = event => {
+      clearTimeout(timer);
+      if (emotionVideoRecorder === recorder) emotionVideoRecorder = null;
+      reject(event.error || new Error('瀏覽器無法錄製影像片段'));
+    };
+    recorder.onstop = () => {
+      clearTimeout(timer);
+      if (emotionVideoRecorder === recorder) emotionVideoRecorder = null;
+      const type = recorder.mimeType || 'video/webm';
+      resolve(new Blob(chunks, { type }));
+    };
+    recorder.start();
+  });
+}
+
+function renderEmotionVideoResult(data) {
+  const result = g('emotion-video-result');
+  const provider = EMOTION_PROVIDER_LABELS[data.provider] || data.provider || '情緒分析模型';
+  const model = data.model_version && data.model_version !== 'unknown'
+    ? `${provider} · ${data.model_version}`
+    : provider;
+  const emotion = zhEmotion(data.emotion) || '—';
+  const intensity = zhIntensity(data.intensity);
+  const confidence = data.confidence == null ? Number.NaN : Number(data.confidence);
+  setText('emotion-video-result-model', model);
+  setText('emotion-video-result-emotion', `${emotion}${intensity ? `／${intensity}` : ''}`);
+  setText('emotion-video-result-confidence', Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : '—');
+  setText('emotion-video-result-quality', data.quality_skipped ? '品質快篩跳過' : (data.evidence_quality || data.status || '—'));
+  setText('emotion-video-result-facial', data.facial || '—');
+  setText('emotion-video-result-vocal', data.vocal || '未擷取音訊');
+  setText('emotion-video-result-description', data.description || '—');
+  if (result) result.hidden = false;
+}
+
+async function runEmotionVideoDetection(generation) {
+  const status = g('emotion-video-status');
+  while (emotionVideoRunning && generation === emotionVideoGeneration && emotionVideoStream) {
+    try {
+      if (status) status.textContent = '正在擷取 2.5 秒影像片段…';
+      const blob = await captureEmotionVideoClip(emotionVideoStream);
+      if (!emotionVideoRunning || generation !== emotionVideoGeneration) break;
+      if (!blob.size) throw new Error('沒有取得可分析的影像片段');
+
+      if (status) status.textContent = '情緒模型正在分析最新片段…';
+      const formData = new FormData();
+      formData.append('media', blob, 'admin_emotion_test.webm');
+      formData.append('speech_text', val('emotion-text-input'));
+      emotionVideoAbortController = new AbortController();
+      const response = await fetch(`${API}/api/emotion/analyze_media_test`, {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: formData,
+        signal: emotionVideoAbortController.signal,
+      });
+      const data = await response.json();
+      emotionVideoAbortController = null;
+      if (!response.ok) throw new Error(data.message || data.detail || `HTTP ${response.status}`);
+      if (data.status === 'disabled') {
+        if (status) status.textContent = '情緒分析尚未啟用，請先到情緒分析頁開啟。';
+        stopEmotionVideoDetection({ preserveStatus: true });
+        return;
+      }
+      renderEmotionVideoResult(data);
+      if (status) {
+        status.textContent = data.quality_skipped
+          ? '此片段未通過品質快篩，將繼續偵測。'
+          : '最新影像分析完成，正在準備下一個片段。';
+      }
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      emotionVideoAbortController = null;
+      if (error?.name === 'AbortError' || generation !== emotionVideoGeneration) return;
+      if (status) status.textContent = `即時偵測停止：${error.message}`;
+      stopEmotionVideoDetection({ preserveStatus: true });
+      return;
+    }
+  }
+}
+
+async function startEmotionVideoDetection() {
+  const status = g('emotion-video-status');
+  if (emotionVideoRunning) return;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    if (status) status.textContent = '此瀏覽器不支援攝影機或 MediaRecorder。';
+    return;
+  }
+  try {
+    if (status) status.textContent = '正在請求攝影機權限…';
+    emotionVideoStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 480, max: 640 },
+        height: { ideal: 360, max: 480 },
+        frameRate: { ideal: 10, max: 15 },
+      },
+      audio: false,
+    });
+    const video = g('emotion-video');
+    if (video) video.srcObject = emotionVideoStream;
+    g('emotion-video-preview')?.classList.add('is-active');
+    emotionVideoRunning = true;
+    emotionVideoGeneration += 1;
+    g('emotion-video-start-btn')?.setAttribute('disabled', '');
+    g('emotion-video-stop-btn')?.removeAttribute('disabled');
+    void runEmotionVideoDetection(emotionVideoGeneration);
+  } catch (error) {
+    stopEmotionVideoDetection({ preserveStatus: true });
+    if (status) status.textContent = `無法啟用攝影機：${error.message}`;
+  }
+}
+
+function stopEmotionVideoDetection({ preserveStatus = false } = {}) {
+  const wasActive = emotionVideoRunning || Boolean(emotionVideoStream);
+  emotionVideoRunning = false;
+  emotionVideoGeneration += 1;
+  emotionVideoAbortController?.abort();
+  emotionVideoAbortController = null;
+  if (emotionVideoRecorder?.state && emotionVideoRecorder.state !== 'inactive') {
+    emotionVideoRecorder.stop();
+  }
+  emotionVideoRecorder = null;
+  emotionVideoStream?.getTracks().forEach(track => track.stop());
+  emotionVideoStream = null;
+  const video = g('emotion-video');
+  if (video) video.srcObject = null;
+  g('emotion-video-preview')?.classList.remove('is-active');
+  g('emotion-video-start-btn')?.removeAttribute('disabled');
+  g('emotion-video-stop-btn')?.setAttribute('disabled', '');
+  if (wasActive && !preserveStatus) setText('emotion-video-status', '即時偵測已停止，攝影機已關閉。');
+}
+
+async function analyzeEmotionText() {
+  const text = val('emotion-text-input');
+  const button = g('emotion-text-analyze-btn');
+  const status = g('emotion-text-status');
+  const result = g('emotion-text-result');
+  if (!text) {
+    if (status) status.textContent = '請先輸入模擬說話內容。';
+    g('emotion-text-input')?.focus();
+    return;
+  }
+  if (button) button.disabled = true;
+  if (status) status.textContent = '文字情緒分析模型正在分析…';
+  if (result) result.hidden = true;
+  try {
+    const response = await fetch(`${API}/api/emotion/analyze_text`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (data.status !== 'ok') throw new Error(data.description || '文字情緒分析模型沒有回傳可用情緒。');
+    setText('emotion-text-result-emotion', zhEmotion(data.emotion) || '—');
+    setText('emotion-text-result-intensity', zhIntensity(data.intensity) || '—');
+    const confidence = data.confidence == null ? Number.NaN : Number(data.confidence);
+    setText('emotion-text-result-confidence', Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : '—');
+    const sourceLabel = data.analysis_source_label || EMOTION_PROVIDER_LABELS[data.provider] || '文字情緒分析模型';
+    const modelLabel = data.model_version && data.model_version !== 'unknown'
+      ? `${sourceLabel} · ${data.model_version}`
+      : sourceLabel;
+    setText('emotion-text-result-model', modelLabel);
+    setText('emotion-text-result-answer', data.text_analysis_answer || '—');
+    setText('emotion-text-result-description', data.description || '—');
+    if (result) result.hidden = false;
+    if (status) status.textContent = '分析完成，結果已加入情緒分析紀錄。';
+    await loadEmotionLogs();
+  } catch (error) {
+    if (status) status.textContent = `分析失敗：${error.message} 可稍後重試。`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadEmotionLogs() {
   const tbody = g('emotion-logs-tbody');
   if (!tbody) return;
   const EMPTY_CELL = '<span style="color:var(--text2)">—</span>';
   tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>`;
+  emotionInfluenceAdmin.renderLoading();
   try {
     const res = await fetch(`${API}/api/emotion/intervention_logs?limit=200`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const logs = (data.logs || []).slice().reverse();
-    if (!logs.length) {
+    const emotionView = emotionInfluenceAdmin.render(logs);
+    latestEmotionRoundId = String(emotionView.latestRound?.id || '');
+    const analysisLogs = logs.filter(r => r.event_type !== 'voice_llm_influence');
+    if (!analysisLogs.length) {
       tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>`;
       return;
     }
-    tbody.innerHTML = logs.map(r => {
+    tbody.innerHTML = analysisLogs.map(r => {
       const time  = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
       // 優先使用後端已計算的 event_type_label，避免前後端 label 不同步
       const evt   = escHtml(r.event_type_label || r.event_type || '—');
@@ -739,12 +1019,45 @@ async function loadEmotionLogs() {
       </tr>`;
     }).join('');
   } catch (e) {
+    emotionInfluenceAdmin.renderError(e);
     tbody.innerHTML = `<tr><td colspan="7" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
   }
 }
 
+async function analyzeEmotionCustomer() {
+  const button = g('emotion-customer-analyze-btn');
+  const status = g('emotion-customer-analysis-status');
+  const result = g('emotion-customer-analysis-result');
+  if (!latestEmotionRoundId) {
+    if (status) status.textContent = '目前沒有可分析的本輪情緒紀錄。';
+    return;
+  }
+  if (button) button.disabled = true;
+  if (result) result.hidden = true;
+  if (status) status.textContent = 'LLM 正在分析本輪客戶情況…';
+  try {
+    const response = await fetch(`${API}/api/emotion/analyze_ordering_round`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotion_round_id: latestEmotionRoundId }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${response.status}`);
+    setText('emotion-customer-current-situation', data.current_situation || '—');
+    setText('emotion-customer-ordering-need', data.ordering_need || '—');
+    setText('emotion-customer-response-focus', data.response_focus || '—');
+    setText('emotion-customer-caution', data.caution || '—');
+    if (result) result.hidden = false;
+    if (status) status.textContent = `分析完成；採用 ${Number(data.evidence_count || 0)} 筆五欄完整情緒證據。`;
+  } catch (error) {
+    if (status) status.textContent = `客人分析失敗：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function clearEmotionLogs() {
-  if (!confirm('確定清除所有 Emotion-LLaMA 介入紀錄？')) return;
+  if (!confirm('確定清除所有 Emotion-LLaMA 分析紀錄？')) return;
   try {
     const res = await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -756,6 +1069,17 @@ async function clearEmotionLogs() {
 
 // ── RAG settings ──
 
+const RAG_STRATEGY_DETAILS = {
+  hybrid: '同時比較語意與關鍵字，再用 RRF 合併排序，適合一般門市問答。',
+  dense: '依問題與文件的語意相似度排序，適合同義詞、口語問法與描述型問題。',
+  bm25: '依精確關鍵字命中排序，適合品名、活動代碼、時間與專有名詞。',
+};
+
+function updateRagStrategyHelp() {
+  const strategy = val('inp-rag-strategy') || 'hybrid';
+  setText('rag-strategy-help', RAG_STRATEGY_DETAILS[strategy] || RAG_STRATEGY_DETAILS.hybrid);
+}
+
 async function loadRagSettings() {
   try {
     const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
@@ -764,6 +1088,8 @@ async function loadRagSettings() {
     setVal('inp-rag-enabled',   String(s.RAG_ENABLED  ?? false));
     setVal('inp-rag-threshold', s.RAG_SCORE_THRESHOLD ?? 0.5);
     setVal('inp-rag-top-k',     s.RAG_TOP_K           ?? 3);
+    setVal('inp-rag-strategy',  s.RAG_STRATEGY        || 'hybrid');
+    updateRagStrategyHelp();
   } catch (e) {
     console.error('loadRagSettings failed', e);
   }
@@ -779,6 +1105,7 @@ async function saveRagSettings() {
         RAG_ENABLED:         val('inp-rag-enabled') === 'true',
         RAG_SCORE_THRESHOLD: parseFloat(val('inp-rag-threshold') || '0.5'),
         RAG_TOP_K:           parseInt(val('inp-rag-top-k') || '3', 10),
+        RAG_STRATEGY:        val('inp-rag-strategy') || 'hybrid',
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -794,6 +1121,61 @@ async function saveRagSettings() {
       notice.style.color = '#e84040';
       notice.style.display = '';
     }
+  }
+}
+
+async function testRagStrategy() {
+  const query = val('rag-test-query');
+  const button = g('rag-test-btn');
+  const status = g('rag-test-status');
+  const resultsBox = g('rag-test-results');
+  if (!query) {
+    if (status) status.textContent = '請先輸入模擬顧客問題。';
+    g('rag-test-query')?.focus();
+    return;
+  }
+  if (button) button.disabled = true;
+  if (status) status.textContent = '正在檢索正式索引…';
+  resultsBox?.replaceChildren();
+  try {
+    const response = await fetch(`${API}/api/rag/test`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        strategy: val('inp-rag-strategy') || 'hybrid',
+        top_k: parseInt(val('inp-rag-top-k') || '3', 10),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    const rows = Array.isArray(data.results) ? data.results : [];
+    if (status) {
+      status.textContent = rows.length
+        ? `完成：${data.strategy} 命中 ${rows.length} 份文件。`
+        : `完成：${data.strategy} 沒有命中文件，請檢查索引或換一種問法。`;
+    }
+    if (!resultsBox) return;
+    rows.forEach(row => {
+      const card = document.createElement('article');
+      card.className = 'rag-test-result';
+      const head = document.createElement('div');
+      head.className = 'rag-test-result-head';
+      const source = document.createElement('code');
+      source.textContent = `#${row.rank || '—'} ${row.id || '未知文件'}`;
+      const match = document.createElement('span');
+      const matchTypes = Array.isArray(row.match_types) ? row.match_types.join(' + ') : data.strategy;
+      match.textContent = `${matchTypes || data.strategy}${row.score == null ? '' : ` · ${row.score}`}`;
+      const content = document.createElement('p');
+      content.textContent = row.content || '（文件沒有可顯示內容）';
+      head.append(source, match);
+      card.append(head, content);
+      resultsBox.appendChild(card);
+    });
+  } catch (error) {
+    if (status) status.textContent = `檢索失敗：${error.message}`;
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -1812,6 +2194,8 @@ window.onSttProviderChange = onSttProviderChange;
 window.onTtsProviderChange = onTtsProviderChange;
 window.saveSettings    = saveSettings;
 window.saveRagSettings = saveRagSettings;
+window.updateRagStrategyHelp = updateRagStrategyHelp;
+window.testRagStrategy = testRagStrategy;
 window.loadRagHealth   = loadRagHealth;
 window.loadRagAlerts   = loadRagAlerts;
 window.ackRagAlert     = ackRagAlert;
@@ -1832,6 +2216,10 @@ window.rebuildRagDocs  = rebuildRagDocs;
 window.loadAvailability = loadAvailability;
 window.saveAvailability = saveAvailability;
 window.saveEmotionSettings        = saveEmotionSettings;
+window.analyzeEmotionText         = analyzeEmotionText;
+window.analyzeEmotionCustomer     = analyzeEmotionCustomer;
+window.startEmotionVideoDetection = startEmotionVideoDetection;
+window.stopEmotionVideoDetection  = stopEmotionVideoDetection;
 window.clearEmotionLogs           = clearEmotionLogs;
 window.updateEmotionPromptCounter = updateEmotionPromptCounter;
 window.onAiProviderChange  = onAiProviderChange;
@@ -1853,12 +2241,26 @@ g('test-input')?.addEventListener('input', (e) => {
   e.target.style.height = 'auto';
   e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
 });
+g('rag-test-query')?.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    testRagStrategy();
+  }
+});
+g('emotion-text-input')?.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    analyzeEmotionText();
+  }
+});
+document.querySelectorAll('[data-emotion-sample]').forEach(button => {
+  button.addEventListener('click', () => fillEmotionTextSample(button.dataset.emotionSample || ''));
+});
+window.addEventListener('beforeunload', () => stopEmotionVideoDetection({ preserveStatus: true }));
 
 // ── Init ──
-document.getElementById('refreshBtn')?.addEventListener('click', loadStats);
+document.getElementById('refreshBtn')?.addEventListener('click', loadOperationsOverview);
 document.getElementById('clearBtn')?.addEventListener('click', clearStats);
-document.getElementById('recommendationRefreshBtn')?.addEventListener('click', loadRecommendationEvents);
-document.getElementById('recommendationClearBtn')?.addEventListener('click', clearRecommendationEvents);
 document.getElementById('availabilityRefreshBtn')?.addEventListener('click', loadAvailability);
 document.getElementById('availabilitySaveBtn')?.addEventListener('click', saveAvailability);
 document.getElementById('availabilitySearch')?.addEventListener('input', renderAvailabilityRows);
@@ -1885,63 +2287,33 @@ createAdminAuthController({
   onPrincipal: principal => {
     adminPermissionSet = new Set(principal?.permissions || []);
     applyAdminNavigation(principal);
+    g('statsOverviewSection')?.toggleAttribute('hidden', !hasAdminPermission('operations.read'));
+    g('recommendationOverviewSection')?.toggleAttribute('hidden', !hasAdminPermission('recommendations.effectiveness.read'));
+    g('clearBtn')?.toggleAttribute('hidden', !hasAdminPermission('operations.read'));
+    renderOperationsInsight();
   },
   onAuthenticated: async () => {
     await loadMenu();
-    await loadStats();
+    await loadOperationsOverview();
   },
 }).bind();
 // 只在統計頁可見時才自動重整
 setInterval(() => {
   const statsPage = document.getElementById('page-stats');
-  if (statsPage && statsPage.style.display !== 'none') loadStats();
-  const recommendationsPage = document.getElementById('page-recommendations');
-  if (recommendationsPage && recommendationsPage.style.display !== 'none') loadRecommendationEvents();
+  if (statsPage && statsPage.style.display !== 'none') loadOperationsOverview();
 }, 15000);
-
-function toggleVoiceWaitMode() {
-  const row = document.getElementById('voice-wait-mode-row');
-  if (!row) return;
-  const checked = g('inp-emotion-event-voice')?.checked;
-  row.style.display = checked ? 'flex' : 'none';
-}
-window.toggleVoiceWaitMode = toggleVoiceWaitMode;
 
 // ── Admin WebSocket（接收 Kiosk 通知）────────────────────────────
 function handleStaffNotify(event) {
   const p = event.payload || {};
-  const kiosk          = p.kiosk_name     || '';
-  const assist_response = p.assist_response || '';
-  const emotion        = p.emotion && typeof p.emotion === 'object' ? p.emotion : null;
+  const kiosk = p.kiosk_name || '';
 
   const kioskEl   = document.getElementById('staffNotifyKiosk');
   const reasonEl  = document.getElementById('staffNotifyReason');
-  const emotionEl = document.getElementById('staffNotifyEmotion');
-  const labelEl   = document.getElementById('staffNotifyEmotionLabel');
-  const descEl    = document.getElementById('staffNotifyEmotionDesc');
   const backdrop  = document.getElementById('staffNotifyBackdrop');
 
   if (kioskEl)  kioskEl.textContent  = kiosk;
   if (reasonEl) reasonEl.textContent = '人員協助付款';
-
-  if (emotionEl && labelEl && descEl) {
-    if (assist_response) {
-      // Ollama 生成的中文情緒摘要：給員工直接閱讀
-      labelEl.textContent = assist_response;
-      descEl.textContent  = emotion?.emotion
-        ? `情緒：${emotion.emotion}${emotion.intensity ? '（' + emotion.intensity + '）' : ''}`
-        : '';
-    } else if (emotion && emotion.emotion) {
-      // fallback：沒有 assist_response 時顯示原始情緒欄位
-      const intensity = emotion.intensity ? `（${emotion.intensity}）` : '';
-      labelEl.textContent = `${emotion.emotion}${intensity}`;
-      descEl.textContent  = emotion.description || '';
-    } else {
-      labelEl.textContent = '情緒分析尚未完成';
-      descEl.textContent  = '';
-    }
-    emotionEl.style.display = 'block';
-  }
 
   if (backdrop) backdrop.style.display = 'flex';
 }

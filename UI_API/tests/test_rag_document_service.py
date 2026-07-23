@@ -152,6 +152,15 @@ def test_clear_index_saves_empty_selection_so_rebuild_does_not_restore_old_sourc
     assert fake_rag.documents == []
 
 
+def test_direct_write_is_added_to_authoritative_selection(tmp_path, monkeypatch):
+    service = _service(tmp_path, monkeypatch)
+    service.rag_index_selection.write(["source-a"])
+
+    selected = service.include_source_in_index("direct-b")
+
+    assert selected == ["source-a", "direct-b"]
+
+
 def test_successful_rebuild_resolves_previous_rebuild_alert(tmp_path, monkeypatch):
     service = _service(tmp_path, monkeypatch)
     from services import rag_alert_service

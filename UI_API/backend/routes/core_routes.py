@@ -67,7 +67,8 @@ def create_router(deps: dict) -> APIRouter:
     async def get_settings(request: Request):
         principal = authorize_admin_request(request, "settings.read")
         scope = scope_from_admin_principal(principal)
-        return commercial_settings_repository.get_settings_scoped(scope)
+        settings = commercial_settings_repository.get_settings_scoped(scope)
+        return config.with_effective_emotion_prompt(settings)
 
     @router.get("/api/admin/health")
     async def get_admin_health(request: Request):

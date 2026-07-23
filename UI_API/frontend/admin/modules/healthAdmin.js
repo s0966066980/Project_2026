@@ -37,7 +37,7 @@ export const HEALTH_SERVICE_GUIDE = Object.freeze({
     requirement: '分析用，非即時必要',
     purpose: '保存曝光、點擊、加入購物車與成交事件，用來評估推薦是否有效。',
     impact: '不可用時推薦仍可運作，但無法可靠判斷成效或歸因。',
-    action: '確認事件持久化來源與近期是否持續收到事件。',
+    action: '確認最後事件時間、事件持久化來源與顧客流程是否真的有送出事件。',
   },
   runtime_logs: {
     label: 'Runtime 維運記錄',
@@ -56,7 +56,7 @@ export function healthServiceView(checks = {}) {
     if (key === 'postgres' && !check.message && !check.reason) evidence = `backend=${check.backend || '—'}；migration=${check.schema_migration_count ?? '—'}`;
     if (key === 'rag') evidence = `Chroma 文件 ${check.doc_count ?? 0} 筆；正式選取 ${check.selected_source_count ?? 0} 筆；collection=${check.collection_name || '—'}`;
     if (key === 'rag_alerts') evidence = `未處理 ${check.open_count ?? 0} 筆；已知悉 ${check.acknowledged_count ?? 0} 筆`;
-    if (key === 'recommendation_events') evidence = `可讀取 ${check.sampled_records ?? 0} 筆；近期抽樣 ${check.recent_records ?? 0} 筆`;
+    if (key === 'recommendation_events') evidence = `可讀取 ${check.sampled_records ?? 0} 筆；最新抽樣 ${check.latest_sampled_records ?? 0} 筆；最後事件 ${check.latest_event_at || '尚無有效時間'}`;
     if (key === 'runtime_logs') evidence = `${Array.isArray(check.logs) ? check.logs.length : 0} 個檔案；保留 ${check.retention_days ?? 0} 天`;
     return { key, status: check.status || 'skipped', evidence, ...guide };
   });

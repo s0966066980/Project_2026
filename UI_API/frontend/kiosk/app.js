@@ -8,8 +8,6 @@ import {
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   startRollingBuffer,
-  stopRollingBuffer,
-  capturePreEventClip,
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { createRealtimeClient } from '../shared/realtimeClient.js';
@@ -445,8 +443,6 @@ configureKioskRuntime({
   trackInteractionEvent,
   pausePassiveListener,
   resumePassiveListener,
-  triggerEmotionCapture,
-  triggerEmotionCaptureAndWait,
 });
 
 function trackedAddToCart(item, metadata = {}) {
@@ -1110,6 +1106,14 @@ function handleRealtimeSettingsChanged(event = {}) {
   runtimeSettings = { ...runtimeSettings, ...settings };
 }
 
+async function handleRealtimeCampaignsChanged() {
+  if (!isSystemRunning) return;
+  await Promise.allSettled([
+    promoBannerController.load(),
+    cartPromoBannerController.load(),
+  ]);
+}
+
 function handleRealtimeHumanReply(event = {}) {
   const payload = event.payload || {};
   if (!payload.reply) return;
@@ -1130,6 +1134,8 @@ function startKioskRealtime() {
       human_reply: handleRealtimeHumanReply,
       interaction_intervention: handleRealtimeInteractionIntervention,
       settings_changed: handleRealtimeSettingsChanged,
+      campaigns_changed: handleRealtimeCampaignsChanged,
+      open: handleRealtimeCampaignsChanged,
     });
   }
 }
@@ -1371,9 +1377,14 @@ ui.startBtn.onclick = async () => {
 
 async function runPosStartup() {
   try {
+    resetVoiceEmotionRound();
     const f = getFeatures();
     const needAudio = Boolean(f.voiceAssist);
-    const needVideo = Boolean(getRuntimeSettings().EMOTION_LLAMA_ENABLED);
+    const needVideo = Boolean(
+      f.voiceAssist
+      && getRuntimeSettings().EMOTION_LLAMA_ENABLED
+      && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE,
+    );
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady && needAudio) console.warn('Media permission unavailable; Kiosk flow continues without rolling buffer.');
     await loadMenu();
@@ -1389,11 +1400,13 @@ async function runPosStartup() {
     renderMemberMenuHeader();
     setTimeout(() => aiRecommendationController.start(), 600);
     if (f.voiceAssist) setupAskRecorder();
-    if (getRuntimeSettings().EMOTION_LLAMA_ENABLED && state.stream) {
-      const bufferSec = Math.max(
-        Number(getRuntimeSettings().EMOTION_LLAMA_CLIP_SEC) || 2.0,
-        Number(getRuntimeSettings().PAYMENT_EMOTION_CLIP_SEC) || 5.0,
-      );
+    if (
+      f.voiceAssist
+      && getRuntimeSettings().EMOTION_LLAMA_ENABLED
+      && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE
+      && state.stream
+    ) {
+      const bufferSec = Number(getRuntimeSettings().EMOTION_LLAMA_CLIP_SEC) || 2.0;
       startRollingBuffer(state.stream, bufferSec);
     }
   } catch { alert("無法存取攝影機與麥克風。"); }
@@ -1419,7 +1432,12 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
 
 
 import {
-  isVoiceAssistantActive, closeVoiceBubble, hideVoiceAssistOverlay, setupAskRecorder, startAskRecording,
+  isVoiceAssistantActive,
+  closeVoiceBubble,
+  hideVoiceAssistOverlay,
+  resetVoiceEmotionRound,
+  setupAskRecorder,
+  startAskRecording,
 } from './voice.js';
 
 window.addEventListener('beforeunload', () => {
@@ -1655,6 +1673,7 @@ async function finishOrder(cartIds, button, loadingText) {
     price: resolveItemPrice(item),
   }));
 
+  resetVoiceEmotionRound();
   showCompletionOverlay(orderData);
 }
 
@@ -1766,23 +1785,19 @@ ui.paymentCountdownBackButton?.addEventListener('click', () => {
   closePaymentCountdown();
 });
 
-ui.paymentCountdownAssistButton?.addEventListener('click', async () => {
-  // 防止重複點擊：立即禁用按鈕，避免 async await 期間多次觸發
+ui.paymentCountdownAssistButton?.addEventListener('click', () => {
+  // 防止重複點擊：立即禁用按鈕，避免多次發出人員通知
   if (ui.paymentCountdownAssistButton.disabled) return;
   ui.paymentCountdownAssistButton.disabled = true;
 
   // 立刻切換到 notified 畫面，讓使用者知道已收到點擊
   showPaymentCountdownSection('notified');
 
-  // 背景等待情緒分析（最長 12 秒），完成後更新 admin 通知
-  if (!state.pendingPaymentEmotion && state.paymentEmotionPromise) {
-    await Promise.race([state.paymentEmotionPromise, new Promise(r => setTimeout(r, 12000))]);
-  }
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'payment_staff_requested',
     button_id: 'paymentCountdownAssistButton',
-    metadata: { emotion: state.pendingPaymentEmotion }
+    metadata: {}
   });
   setTimeout(() => { closePaymentCountdown(); }, 3000);
 });
@@ -1863,30 +1878,6 @@ document.addEventListener('pointerdown', (e) => {
   buttonElement.appendChild(ripple);
   ripple.addEventListener('animationend', () => ripple.remove());
 }, true);
-
-// =========================================================
-// 2-2: Emotion capture helpers
-// =========================================================
-
-export function triggerEmotionCapture(eventType) {
-  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isKioskMode()) return;
-  const blob = capturePreEventClip(); // 同步，不再 await
-  if (!blob) return;
-  api.analyzeEmotionEvent(sessionId, eventType, blob).catch(e => {
-    console.warn('[emotion] analyze_event failed:', e);
-  });
-}
-
-export async function triggerEmotionCaptureAndWait(eventType) {
-  if (!runtimeSettings.EMOTION_LLAMA_ENABLED || !isKioskMode()) return;
-  const blob = capturePreEventClip(); // 同步
-  if (!blob) return;
-  try {
-    await api.analyzeEmotionEvent(sessionId, eventType, blob);
-  } catch (e) {
-    console.warn('[emotion] analyze_event (analysis mode) failed:', e);
-  }
-}
 
 document.getElementById('choiceHesitationClose')?.addEventListener('click', () => closeChoiceHesitationModal(true, 'closed_by_customer'));
 document.querySelector('[data-choice-hesitation-close]')?.addEventListener('click', () => closeChoiceHesitationModal(true, 'backdrop_closed'));

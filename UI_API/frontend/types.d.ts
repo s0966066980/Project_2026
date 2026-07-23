@@ -93,16 +93,23 @@ export interface VoiceStreamAudioChunk {
   format?: string;
 }
 
+export interface VoiceStreamTranscriptChunk {
+  type: "transcript";
+  user_text: string;
+  detected_lang?: string;
+}
+
 export interface VoiceStreamDoneChunk {
   type: "done";
   status?: string;
   [key: string]: unknown;
 }
 
-export type VoiceStreamChunk = VoiceStreamAudioChunk | VoiceStreamDoneChunk;
+export type VoiceStreamChunk = VoiceStreamAudioChunk | VoiceStreamTranscriptChunk | VoiceStreamDoneChunk;
 
 export interface VoiceStreamHandlers {
   onAudio: (base64Audio: string, format: string) => void;
+  onTranscript?: (chunk: VoiceStreamTranscriptChunk) => void;
   onDone: (chunk: VoiceStreamChunk) => void;
   onError: (message: string) => void;
 }
@@ -144,8 +151,6 @@ export interface KioskRuntime {
   trackInteractionEvent?: (event: InteractionEventPayload) => void | Promise<unknown>;
   pausePassiveListener?: () => void;
   resumePassiveListener?: () => void;
-  triggerEmotionCapture?: (eventType: string) => void;
-  triggerEmotionCaptureAndWait?: (eventType: string) => Promise<void>;
 }
 
 export interface PointOfSaleRuntime extends KioskRuntime {}

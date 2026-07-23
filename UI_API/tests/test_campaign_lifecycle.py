@@ -77,6 +77,26 @@ def test_campaign_optimistic_concurrency_fails_closed():
         revise_campaign_draft(draft.campaign_id, campaign_payload("新名稱"), LEGACY_DEFAULT_SCOPE, expected_version=0, actor_id="staff", repository=repository)
 
 
+def test_published_campaign_must_be_paused_before_revision():
+    repository = MemoryCampaignRepository()
+    draft = create_campaign_draft(campaign_payload(), LEGACY_DEFAULT_SCOPE, actor_id="staff", repository=repository)
+    review = transition_campaign(draft.campaign_id, "review", LEGACY_DEFAULT_SCOPE, expected_version=1, actor_id="staff", repository=repository)
+    active = transition_campaign(review.campaign_id, "active", LEGACY_DEFAULT_SCOPE, expected_version=2, actor_id="manager", repository=repository)
+
+    with pytest.raises(CampaignStateError, match="campaign_must_be_paused_or_ended_before_edit"):
+        revise_campaign_draft(
+            active.campaign_id,
+            campaign_payload("新版草稿"),
+            LEGACY_DEFAULT_SCOPE,
+            expected_version=3,
+            actor_id="staff",
+            repository=repository,
+        )
+
+    assert repository.rows[active.campaign_id].status == "active"
+    assert repository.projections[-1].status == "active"
+
+
 def test_archived_campaign_cannot_be_reopened_or_deleted_in_place():
     repository = MemoryCampaignRepository()
     draft = create_campaign_draft(campaign_payload(), LEGACY_DEFAULT_SCOPE, actor_id="staff", repository=repository)

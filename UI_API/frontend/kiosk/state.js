@@ -16,8 +16,6 @@ export const state = {
   passiveLastTriggerAt: 0,
   // 付款倒數
   paymentCountdownTimer: null,
-  pendingPaymentEmotion: null,
-  paymentEmotionPromise: null,
   paymentCountdownCartIds: [],
   // 媒體串流 / 語音錄音器（跨模組共享）
   stream: null,

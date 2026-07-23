@@ -212,8 +212,6 @@ def build_checkout_log_entry(
     cart_id_set = set(cart_ids)
     is_success = bool(set(unique_pushed) & cart_id_set)
 
-    emotions = list(set(h["emotion"] for h in session_history if h.get("emotion")))
-    emotions_summary = ", ".join(emotions) if emotions else "未知"
     speeches = [h["user_speech"] for h in session_history if h.get("user_speech")][-3:]
     languages = list(set(h["language"] for h in session_history if h.get("language")))
     voice_turns = [
@@ -225,7 +223,6 @@ def build_checkout_log_entry(
     return {
         "timestamp": datetime.now().isoformat(),
         "session_id": session_id,
-        "emotions_summary": emotions_summary,
         "speech_summary": " / ".join(speeches) if speeches else "",
         "languages": languages,
         "pushed_ids": unique_pushed,

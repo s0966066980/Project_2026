@@ -16,11 +16,38 @@ function getKioskLang() { return getRequiredRuntimeDependency('getKioskLang')();
 function trackInteractionEvent(event) { return getRequiredRuntimeDependency('trackInteractionEvent')(event); }
 function showPushNotice(text) { return getRequiredRuntimeDependency('showPushNotice')(text); }
 function clearAllPushCards() { return getRequiredRuntimeDependency('clearAllPushCards')(); }
-function triggerEmotionCapture(eventType) { return getRequiredRuntimeDependency('triggerEmotionCapture')(eventType); }
-function triggerEmotionCaptureAndWait(eventType) { return getRequiredRuntimeDependency('triggerEmotionCaptureAndWait')(eventType); }
 function pausePassiveListener() { return getRequiredRuntimeDependency('pausePassiveListener')(); }
 function resumePassiveListener() { return getRequiredRuntimeDependency('resumePassiveListener')(); }
 function sessionId() { return getRequiredRuntimeDependency('sessionId'); }
+
+let voiceEmotionRoundId = '';
+let voiceTurnSequence = 0;
+let activeVoiceTurn = null;
+
+function createVoiceFlowId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function resetVoiceEmotionRound() {
+  voiceEmotionRoundId = createVoiceFlowId('order');
+  voiceTurnSequence = 0;
+  activeVoiceTurn = null;
+}
+
+function currentVoiceEmotionRoundId() {
+  if (!voiceEmotionRoundId) resetVoiceEmotionRound();
+  return voiceEmotionRoundId;
+}
+
+function beginVoiceTurn() {
+  voiceTurnSequence += 1;
+  activeVoiceTurn = {
+    roundId: currentVoiceEmotionRoundId(),
+    turnId: `voice_${voiceTurnSequence}_${Date.now()}`,
+    turnIndex: voiceTurnSequence,
+  };
+  return activeVoiceTurn;
+}
 
 const cartManager = new Proxy({}, {
   get(_target, prop) {
@@ -190,15 +217,9 @@ export function setupAskRecorder() {
     try {
     const blob = new Blob(chunks, { type: 'video/webm' });
     const durationMs = state.askRecordingStartedAt ? Date.now() - state.askRecordingStartedAt : 0;
+    const voiceTurn = activeVoiceTurn;
     state.askRecordingStartedAt = 0;
     chunks = [];
-    if (getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE) {
-      if (getRuntimeSettings().EMOTION_LLAMA_VOICE_WAIT_MODE === 'analysis') {
-        await triggerEmotionCaptureAndWait('voice_mode'); // 等分析完才繼續
-      } else {
-        triggerEmotionCapture('voice_mode');              // 背景執行
-      }
-    }
     if (blob.size < 1500 || durationMs < 650) {
       hideVoiceAssistOverlay();
       trackInteractionEvent({
@@ -213,6 +234,9 @@ export function setupAskRecorder() {
     formData.append('session_id', getRequiredRuntimeDependency('sessionId'));
     formData.append('media', blob, 'voice_ask.webm');
     formData.append('multi_lang', String(getFeatures().multiLang));
+    formData.append('emotion_round_id', voiceTurn?.roundId || currentVoiceEmotionRoundId());
+    formData.append('voice_turn_id', voiceTurn?.turnId || '');
+    formData.append('voice_turn_index', String(voiceTurn?.turnIndex || 0));
 
     // ── 串流版：邊生成邊播音 ─────────────────────────────────────────
     const audioStreamQueue = [];
@@ -284,6 +308,7 @@ export function setupAskRecorder() {
     if (doneButtonText) doneButtonText.textContent = kt('holdVoiceOrder');
     hideVoiceAssistOverlay();
     } finally {
+      activeVoiceTurn = null;
       state.isVoiceProcessing = false;
       resumePassiveListener();
     }
@@ -306,6 +331,7 @@ export function startAskRecording(sourceBtn) {
       metadata: {}
     });
     pausePassiveListener();
+    const voiceTurn = beginVoiceTurn();
     state.askRecordingStartedAt = Date.now();
     state.askRecorder.start();
     document.getElementById('voiceAssistBtn')?.classList.add('recording');

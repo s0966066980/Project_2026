@@ -22,7 +22,6 @@ export async function ensureMediaTracks(currentStream, elements, { video = false
 function attachStream(stream, elements = {}) {
   if (!stream) return;
   if (stream.getVideoTracks().length && elements.webcam) elements.webcam.srcObject = stream;
-  if (stream.getVideoTracks().length && elements.emotionCameraVideo) elements.emotionCameraVideo.srcObject = stream;
 }
 
 function videoRecorderOptions() {

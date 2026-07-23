@@ -280,6 +280,7 @@ DEFAULT_SETTINGS = {
     "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
     "RAG_COLLECTION": RAG_COLLECTION,
+    "RAG_STRATEGY": "hybrid",             # "dense" | "bm25" | "hybrid"
     "RAG_TOP_K": 3,
     "RAG_ALERT_MAX_RECORDS": int(os.getenv("RAG_ALERT_MAX_RECORDS", "1000")),
     "RAG_ALERT_WEBHOOK_ENABLED": os.getenv("RAG_ALERT_WEBHOOK_ENABLED", "false").lower() in ("1", "true", "yes", "on"),
@@ -325,14 +326,12 @@ DEFAULT_SETTINGS = {
     "EMOTION_PROVIDER": "emotion_llama",    # "emotion_llama"（:7889）| "r1_omni"（:7890）
     "EMOTION_LLAMA_ENABLED": False,
     "EMOTION_LLAMA_CLIP_SEC": 2.0,
-    "PAYMENT_EMOTION_CLIP_SEC": 5.0,   # 付款倒數逾時擷取秒數（觸發點 = 15 - 此值）
     "EMOTION_LLAMA_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
     "EMOTION_LLAMA_QUALITY_CHECK": True,
     "EMOTION_LLAMA_AFFECT_VOICE": False,
-    "EMOTION_LLAMA_AFFECT_BARRIER": False,
-    "EMOTION_LLAMA_EVENT_VOICE":        False,   # 語音模式結束後觸發分析
-    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT": True,  # 付款倒數逾時觸發分析（預設開啟）
-    "EMOTION_LLAMA_VOICE_WAIT_MODE":    "speed", # "speed"=速度優先 / "analysis"=分析模式
+    "EMOTION_LLAMA_EVENT_VOICE": True,       # 語音模式開始／結束皆在背景觸發分析
+    "EMOTION_LLAMA_INCLUDE_STT": True,        # 語音結束分析同時提供 STT 逐字稿與影音
+    "EMOTION_LLAMA_ANALYSIS_MODE": "media_plus_stt",  # media_only | media_plus_stt | paired
     "EMOTION_LLAMA_PROMPT": _prompts.EMOTION_LLAMA_PROMPT,
     "EMOTION_LLAMA_PROMPT_MAX_CHARS": 800,
     # ── 互動障礙偵測閾值 ──────────────────────
@@ -342,8 +341,6 @@ DEFAULT_SETTINGS = {
     "BARRIER_PAYMENT_FAIL_MAX": 1,          # 付款失敗次數達此值視為 payment_confusion
     # ── 機台識別 ─────────────────────────────────────────────────
     "KIOSK_NAME": "機台01",
-    # ── 付款逾時協助 Prompt ───────────────────────────────────────
-    "PAYMENT_ASSIST_PROMPT": _prompts.PAYMENT_ASSIST_PROMPT,
     # ── Object storage (binary outside PostgreSQL; metadata may be durable) ──
     "OBJECT_STORAGE_BACKEND": os.getenv("OBJECT_STORAGE_BACKEND", "memory"),  # memory|local|s3
     "OBJECT_STORAGE_LOCAL_ROOT": os.getenv("OBJECT_STORAGE_LOCAL_ROOT", ""),
@@ -363,11 +360,10 @@ PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EMOTION_LLAMA_ENABLED",
     "EMOTION_LLAMA_CLIP_SEC",
-    "EMOTION_LLAMA_EVENT_VOICE",        # Kiosk 需要：控制語音模式結束後是否觸發分析
-    "EMOTION_LLAMA_VOICE_WAIT_MODE",    # Kiosk 需要：speed / analysis 兩種等待模式
-    "EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT",  # Kiosk 需要：控制付款倒數逾時是否觸發分析
+    "EMOTION_LLAMA_EVENT_VOICE",        # Kiosk 需要：控制語音模式開始／結束的背景分析
+    "EMOTION_LLAMA_INCLUDE_STT",         # Kiosk 需要：STT 完成後啟動影音＋逐字稿分析
+    "EMOTION_LLAMA_ANALYSIS_MODE",
     "AI_PUSH_REFRESH_SEC",
-    "PAYMENT_EMOTION_CLIP_SEC",
     "PASSIVE_VOICE_KEYWORDS",
     "MEMBER_ENABLED",
     "MEMBER_USUALS_COUNT",
@@ -528,6 +524,14 @@ def load_settings():
 def load_public_settings():
     settings = load_settings()
     return {key: settings.get(key, DEFAULT_SETTINGS.get(key)) for key in PUBLIC_SETTINGS_KEYS}
+
+
+def with_effective_emotion_prompt(settings: dict | None) -> dict:
+    """Expose the prompt actually used at runtime in the Admin editor."""
+    effective = dict(settings or {})
+    if not str(effective.get("EMOTION_LLAMA_PROMPT") or "").strip():
+        effective["EMOTION_LLAMA_PROMPT"] = DEFAULT_SETTINGS["EMOTION_LLAMA_PROMPT"]
+    return effective
 
 def save_settings(new_settings):
     global _settings_cache, _settings_mtime, _settings_last_check

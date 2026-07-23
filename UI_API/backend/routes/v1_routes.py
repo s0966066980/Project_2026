@@ -69,6 +69,7 @@ from modules.analytics import TouchValidationError, build_effectiveness_report, 
 from modules.recommendation import list_events as list_recommendation_events
 from repositories import checkout_order_repository, commercial_settings_repository
 from repositories import availability_repository
+from realtime import event_bus
 from services import (
     admin_audit_service,
     checkout_pricing_service,
@@ -149,6 +150,20 @@ def _campaign_dto(snapshot) -> CampaignSnapshotDTO:
 
 def _campaign_actor(request: Request) -> str:
     return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
+
+
+async def _publish_campaign_change(snapshot) -> None:
+    await event_bus.publish_event(
+        {
+            "type": "campaigns_changed",
+            "session_id": "",
+            "payload": {
+                "campaign_id": snapshot.campaign_id,
+                "version": snapshot.version,
+                "status": snapshot.status,
+            },
+        }
+    )
 
 
 def create_router(_deps: dict | None = None) -> APIRouter:
@@ -508,6 +523,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+        await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
     @router.put(
@@ -541,6 +557,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+        await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
     @router.post(
@@ -570,6 +587,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise HTTPException(status_code=409, detail={"code": "campaign_transition_not_allowed", "message": "目前狀態不能執行此操作。"}) from exc
         except LookupError as exc:
             raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+        await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
     @router.get(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import config
 from repositories import postgres_utils, recommendation_event_repository
@@ -164,17 +164,36 @@ def _runtime_health() -> dict:
 def _recommendation_health() -> dict:
     try:
         events = recommendation_event_repository.get_recommendation_events(limit=5000)
-        recent = events[-200:]
+        latest_sample = events[-200:]
         event_types: dict[str, int] = {}
-        for event in recent:
+        for event in latest_sample:
             event_type = str(event.get("event_type") or "unknown")
             event_types[event_type] = event_types.get(event_type, 0) + 1
-        return _ok(
-            "recommendation_events",
-            sampled_records=len(events),
-            recent_records=len(recent),
-            recent_event_types=event_types,
-        )
+        freshness_hours = max(1, int(config.get("RECOMMENDATION_EVENT_FRESHNESS_HOURS", 24) or 24))
+        timestamps = []
+        for event in events:
+            raw_timestamp = event.get("timestamp") or event.get("occurred_at") or event.get("created_at")
+            if not raw_timestamp:
+                continue
+            try:
+                parsed = datetime.fromisoformat(str(raw_timestamp).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            timestamps.append(parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc))
+        latest = max(timestamps) if timestamps else None
+        fresh = latest is not None and latest >= datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
+        status = "ok" if fresh else "degraded"
+        message = "" if fresh else ("no recommendation events recorded" if not events else "latest recommendation event is stale or missing a timestamp")
+        return {
+            "name": "recommendation_events",
+            "status": status,
+            "message": message,
+            "sampled_records": len(events),
+            "latest_sampled_records": len(latest_sample),
+            "latest_event_at": latest.isoformat() if latest else "",
+            "freshness_hours": freshness_hours,
+            "recent_event_types": event_types,
+        }
     except Exception as exc:
         return _degraded("recommendation_events", str(exc)[:500])
 
@@ -196,7 +215,8 @@ def _rag_alert_health() -> dict:
 
 
 def _overall_status(checks: dict) -> str:
-    return "degraded" if any(check.get("status") == "degraded" for check in checks.values()) else "ok"
+    unhealthy = {"degraded", "failed", "not_ready"}
+    return "degraded" if any(check.get("status") in unhealthy for check in checks.values()) else "ok"
 
 
 async def build_admin_health() -> dict:
@@ -212,8 +232,9 @@ async def build_admin_health() -> dict:
     except Exception as exc:
         checks["rag"] = _degraded("rag", str(exc)[:500])
 
+    readiness = build_readiness()
     return {
-        "status": _overall_status(checks),
+        "status": _overall_status(checks) if readiness.get("ready") else "not_ready",
         "generated_at": datetime.now().isoformat(),
         "app": {
             "environment": config.APP_ENV,
@@ -222,6 +243,6 @@ async def build_admin_health() -> dict:
             "structured_logging_enabled": bool(config.get("STRUCTURED_LOGGING_ENABLED", True)),
         },
         "checks": checks,
-        "readiness": build_readiness(),
+        "readiness": readiness,
         "metrics": observability_service.metrics_snapshot(),
     }

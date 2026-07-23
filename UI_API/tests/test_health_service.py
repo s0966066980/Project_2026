@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 
@@ -69,3 +70,48 @@ def test_admin_health_route_requires_admin_token(monkeypatch):
     ok = client.get("/api/admin/health", headers={"X-Admin-Token": "admin-token"})
     assert ok.status_code == 200
     assert ok.json()["status"] == "ok"
+
+
+def test_admin_health_is_not_ready_when_required_check_fails(monkeypatch):
+    from services import health_service
+
+    monkeypatch.setattr(health_service, "_postgres_health", lambda: {"name": "postgres", "status": "ok"})
+    monkeypatch.setattr(health_service, "_runtime_health", lambda: {"name": "runtime_logs", "status": "ok", "logs": []})
+    monkeypatch.setattr(health_service, "_recommendation_health", lambda: {"name": "recommendation_events", "status": "ok"})
+    monkeypatch.setattr(health_service, "_rag_alert_health", lambda: {"name": "rag_alerts", "status": "ok"})
+    monkeypatch.setattr(health_service, "build_readiness", lambda: {
+        "ready": False,
+        "status": "not_ready",
+        "required_checks": {"commercial_scope": {"status": "failed"}},
+    })
+
+    async def healthy_rag():
+        return {"status": "ok"}
+
+    monkeypatch.setattr(health_service.rag_document_service, "health_status", healthy_rag)
+
+    result = asyncio.run(health_service.build_admin_health())
+
+    assert result["status"] == "not_ready"
+    assert result["readiness"]["ready"] is False
+
+
+def test_recommendation_health_requires_fresh_events(monkeypatch):
+    from services import health_service
+
+    monkeypatch.setattr(
+        health_service.recommendation_event_repository,
+        "get_recommendation_events",
+        lambda limit=5000: [{"event_type": "recommendation_shown", "timestamp": "2020-01-01T00:00:00+00:00"}],
+    )
+    monkeypatch.setattr(
+        health_service.config,
+        "get",
+        lambda key, default=None: 24 if key == "RECOMMENDATION_EVENT_FRESHNESS_HOURS" else default,
+    )
+
+    result = health_service._recommendation_health()
+
+    assert result["status"] == "degraded"
+    assert result["latest_event_at"] == "2020-01-01T00:00:00+00:00"
+    assert result["freshness_hours"] == 24

@@ -1,22 +1,38 @@
-"""RAG Provider — Hybrid Search（Dense + BM25 + RRF）
+"""RAG Provider — switchable Dense, BM25, and Hybrid retrieval.
 
-Pipeline:
-  1. Dense Vector Search  — fastembed + ChromaDB（語意相近）
-  2. BM25 Sparse Search   — rank-bm25 + jieba 斷詞（精確關鍵字）
-  3. RRF Fusion           — Reciprocal Rank Fusion 合併排序（k=60）
-  4. 注入 LLM prompt
+Strategies:
+  - dense: fastembed + ChromaDB semantic similarity
+  - bm25: rank-bm25 + jieba exact keyword retrieval
+  - hybrid: both rankings combined with Reciprocal Rank Fusion (k=60)
 
 安裝依賴：pip install fastembed chromadb rank-bm25 jieba
-切換/停用：config RAG_ENABLED = false
+切換：config RAG_STRATEGY；停用：config RAG_ENABLED = false
 
 fastembed 優點：不依賴 transformers/PyTorch，安裝乾淨，用 ONNX 執行。
 """
 import asyncio
+import logging
 import os
+import threading
 import uuid
 from pathlib import Path
 
 import config
+from services import rag_index_selection
+
+logger = logging.getLogger(__name__)
+
+RAG_STRATEGIES = ("dense", "bm25", "hybrid")
+
+
+def normalize_rag_strategy(value: object) -> str:
+    """Return a supported retrieval strategy or reject an invalid explicit value."""
+    normalized = str(value or "").strip().lower()
+    aliases = {"vector": "dense", "keyword": "bm25", "rrf": "hybrid"}
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in RAG_STRATEGIES:
+        raise ValueError(f"unsupported RAG strategy: {normalized or '(empty)'}")
+    return normalized
 
 
 class RAGProvider:
@@ -24,16 +40,26 @@ class RAGProvider:
     _client = None      # ChromaDB PersistentClient
     _collection = None  # ChromaDB Collection
     _source_reconciled = False
+    _source_selection_state: tuple[bool, tuple[str, ...]] | None = None
 
     # BM25 in-memory index（從 ChromaDB 同步重建）
     _bm25 = None
     _bm25_ids: list = []
     _bm25_docs: list = []
+    _init_lock = threading.Lock()
 
     # ── 初始化 ────────────────────────────────────────────────────
 
+    @staticmethod
+    def _collection_name() -> str:
+        return str(config.get("RAG_COLLECTION", config.RAG_COLLECTION) or config.RAG_COLLECTION)
+
     def _init(self):
         """懶初始化：載入 Embedding 模型與 ChromaDB，並重建 BM25 index。"""
+        with RAGProvider._init_lock:
+            self._init_locked()
+
+    def _init_locked(self):
         if RAGProvider._model is None:
             from fastembed import TextEmbedding
             model_name = config.get("RAG_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
@@ -46,29 +72,43 @@ class RAGProvider:
             db_path = config.RAG_CHROMA_DIR
             os.makedirs(db_path, exist_ok=True)
             RAGProvider._client = chromadb.PersistentClient(path=db_path)
-            collection_name = config.RAG_COLLECTION
+            collection_name = self._collection_name()
             RAGProvider._collection = RAGProvider._client.get_or_create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"},
             )
 
-        if not RAGProvider._source_reconciled:
-            self._prune_missing_source_documents()
+        selection_configured, selected_source_ids = rag_index_selection.read()
+        selection_state = (selection_configured, tuple(selected_source_ids))
+        if not RAGProvider._source_reconciled or RAGProvider._source_selection_state != selection_state:
+            self._prune_missing_source_documents(selection_configured, selected_source_ids)
             RAGProvider._source_reconciled = True
+            RAGProvider._source_selection_state = selection_state
             # ChromaDB reconciliation 後立即同步 BM25。
             self._rebuild_bm25()
 
-    def _prune_missing_source_documents(self) -> int:
-        """Remove indexed source files that no longer exist; preserve direct-write documents."""
+    def _prune_missing_source_documents(
+        self,
+        selection_configured: bool | None = None,
+        selected_source_ids: list[str] | None = None,
+    ) -> int:
+        """Remove documents outside the authoritative selection or with missing source files."""
         root = Path(config.RAG_DOCUMENTS_DIR)
         if not root.is_absolute():
             root = Path(config.PROJECT_DIR) / root
         root = root.resolve()
+        source_root_available = root.is_dir() and os.access(root, os.R_OK)
         result = RAGProvider._collection.get(include=["metadatas"])
+        if selection_configured is None or selected_source_ids is None:
+            selection_configured, selected_source_ids = rag_index_selection.read()
+        selected = set(selected_source_ids)
         orphaned_ids = []
         for doc_id, metadata in zip(result.get("ids", []), result.get("metadatas", [])):
+            if selection_configured and doc_id not in selected:
+                orphaned_ids.append(doc_id)
+                continue
             relative_path = str((metadata or {}).get("path") or "").strip()
-            if not relative_path:
+            if not relative_path or not source_root_available:
                 continue
             source_path = (root / relative_path).resolve()
             try:
@@ -129,84 +169,148 @@ class RAGProvider:
             scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
         return sorted(scores, key=lambda x: scores[x], reverse=True)
 
-    # ── 查詢（Hybrid） ────────────────────────────────────────────
+    @staticmethod
+    def _configured_strategy() -> str:
+        try:
+            return normalize_rag_strategy(config.get("RAG_STRATEGY", "hybrid"))
+        except ValueError:
+            logger.warning("Invalid RAG_STRATEGY setting; falling back to hybrid")
+            return "hybrid"
+
+    def _search_sync(self, text: str, top_k: int, strategy: str) -> list[dict]:
+        self._init()
+        count = RAGProvider._collection.count()
+        if count == 0:
+            return []
+
+        fetch_k = top_k * 2 if strategy == "hybrid" else top_k
+        n = min(fetch_k, count)
+        all_rows = RAGProvider._collection.get(include=["documents", "metadatas"])
+        all_ids = list(all_rows.get("ids", []))
+        doc_map = dict(zip(all_ids, all_rows.get("documents", [])))
+        metadata_map = {
+            doc_id: dict(metadata or {})
+            for doc_id, metadata in zip(all_ids, all_rows.get("metadatas", []))
+        }
+
+        dense_ids: list[str] = []
+        dense_scores: dict[str, float] = {}
+        if strategy in {"dense", "hybrid"}:
+            embedding = next(RAGProvider._model.embed([text])).tolist()
+            dense_results = RAGProvider._collection.query(
+                query_embeddings=[embedding],
+                n_results=n,
+                include=["documents", "metadatas", "distances"],
+            )
+            dense_ids = list(dense_results.get("ids", [[]])[0])
+            for doc_id, document in zip(dense_ids, dense_results.get("documents", [[]])[0]):
+                doc_map[doc_id] = document
+            for doc_id, metadata in zip(dense_ids, dense_results.get("metadatas", [[]])[0]):
+                metadata_map[doc_id] = dict(metadata or {})
+            for doc_id, distance in zip(dense_ids, dense_results.get("distances", [[]])[0]):
+                try:
+                    dense_scores[doc_id] = max(0.0, 1.0 - float(distance))
+                except (TypeError, ValueError):
+                    continue
+
+        bm25_ids: list[str] = []
+        bm25_scores: dict[str, float] = {}
+        if strategy in {"bm25", "hybrid"} and RAGProvider._bm25 is not None and RAGProvider._bm25_ids:
+            scores = RAGProvider._bm25.get_scores(self._tokenize(text))
+            ranked = sorted(
+                range(len(RAGProvider._bm25_ids)),
+                key=lambda index: scores[index],
+                reverse=True,
+            )[:n]
+            for index in ranked:
+                score = float(scores[index])
+                if score <= 0:
+                    continue
+                doc_id = RAGProvider._bm25_ids[index]
+                bm25_ids.append(doc_id)
+                bm25_scores[doc_id] = score
+
+        ranked_ids = {
+            "dense": dense_ids,
+            "bm25": bm25_ids,
+            "hybrid": self._rrf(dense_ids, bm25_ids),
+        }[strategy][:top_k]
+
+        results = []
+        for rank, doc_id in enumerate(ranked_ids, start=1):
+            if doc_id not in doc_map:
+                continue
+            metadata = metadata_map.get(doc_id, {})
+            match_types = []
+            if doc_id in dense_ids:
+                match_types.append("dense")
+            if doc_id in bm25_ids:
+                match_types.append("bm25")
+            if strategy == "dense":
+                score = dense_scores.get(doc_id)
+            elif strategy == "bm25":
+                score = bm25_scores.get(doc_id)
+            else:
+                score = sum(
+                    1.0 / (60 + ids.index(doc_id) + 1)
+                    for ids in (dense_ids, bm25_ids)
+                    if doc_id in ids
+                )
+            results.append({
+                "rank": rank,
+                "id": doc_id,
+                "content": str(doc_map[doc_id] or ""),
+                "source_type": str(metadata.get("source_type") or ""),
+                "metadata": metadata,
+                "match_types": match_types,
+                "score": round(float(score), 6) if score is not None else None,
+            })
+        return results
+
+    async def search(
+        self,
+        text: str,
+        top_k: int | None = None,
+        strategy: str | None = None,
+    ) -> dict:
+        """Search indexed documents for Admin previews and internal query composition.
+
+        This does not inspect RAG_ENABLED: an Admin may preview retrieval before enabling
+        RAG. Authoritative source selection is still enforced.
+        """
+        query_text = str(text or "").strip()
+        resolved_strategy = normalize_rag_strategy(strategy) if strategy is not None else self._configured_strategy()
+        requested_k = int(top_k or config.get("RAG_TOP_K", 3) or 3)
+        resolved_k = max(1, min(requested_k, 10))
+        if not query_text:
+            return {"strategy": resolved_strategy, "results": [], "total": 0}
+
+        selection_configured, selected_source_ids = await asyncio.to_thread(rag_index_selection.read)
+        if selection_configured and not selected_source_ids:
+            return {"strategy": resolved_strategy, "results": [], "total": 0}
+
+        results = await asyncio.to_thread(self._search_sync, query_text, resolved_k, resolved_strategy)
+        return {"strategy": resolved_strategy, "results": results, "total": len(results)}
+
+    # ── 正式查詢 ─────────────────────────────────────────────────
 
     async def query(self, text: str, top_k: int | None = None) -> str:
-        """Hybrid Search：Dense + BM25 + RRF → 回傳可注入 LLM 的 context 字串。"""
+        """Use the configured strategy and return the existing LLM context contract."""
         if not config.get("RAG_ENABLED", False):
             return ""
         if not text:
             return ""
 
-        self._init()
-        k = top_k or int(config.get("RAG_TOP_K", 3))
-        fetch_k = k * 2  # 每路多取一些再融合
-
-        def _run() -> str:
-            count = RAGProvider._collection.count()
-            if count == 0:
-                return ""
-
-            n = min(fetch_k, count)
-
-            # ── Dense Search ──
-            embedding = next(RAGProvider._model.embed([text])).tolist()
-            dense_results = RAGProvider._collection.query(
-                query_embeddings=[embedding],
-                n_results=n,
-                include=["documents", "distances"],
-            )
-            dense_ids: list[str] = dense_results.get("ids", [[]])[0]
-            dense_doc_map: dict[str, str] = {
-                doc_id: doc
-                for doc_id, doc in zip(
-                    dense_ids,
-                    dense_results.get("documents", [[]])[0],
-                )
-            }
-
-            # ── BM25 Search ──
-            bm25_ids: list[str] = []
-            if RAGProvider._bm25 is not None and RAGProvider._bm25_ids:
-                tokens = self._tokenize(text)
-                scores = RAGProvider._bm25.get_scores(tokens)
-                ranked = sorted(
-                    range(len(RAGProvider._bm25_ids)),
-                    key=lambda i: scores[i],
-                    reverse=True,
-                )[:n]
-                # 過濾掉 BM25 分數為 0 的結果（完全無關鍵字命中）
-                bm25_ids = [
-                    RAGProvider._bm25_ids[i]
-                    for i in ranked
-                    if scores[i] > 0
-                ]
-
-            # ── RRF Fusion ──
-            fused_ids = self._rrf(dense_ids, bm25_ids)[:k]
-
-            # ── 收集文件 ──
-            # 合併 dense 和 BM25 的文件 map（BM25 可能返回 dense 沒有的結果）
-            all_doc_map: dict[str, str] = {
-                doc_id: doc
-                for doc_id, doc in zip(
-                    RAGProvider._bm25_ids,
-                    RAGProvider._bm25_docs,
-                )
-            }
-            all_doc_map.update(dense_doc_map)
-
-            relevant = [
-                all_doc_map[doc_id]
-                for doc_id in fused_ids
-                if doc_id in all_doc_map
-            ]
-
+        try:
+            payload = await self.search(text, top_k=top_k)
+            relevant = [str(row.get("content") or "") for row in payload["results"] if row.get("content")]
             if not relevant:
                 return ""
             return "【RAG 補充資訊】\n" + "\n---\n".join(relevant)
-
-        return await asyncio.to_thread(_run)
+        except Exception:
+            # RAG is optional; never log the customer query or let provider failures block checkout.
+            logger.exception("RAG query failed; continuing without supplemental context")
+            return ""
 
     # ── 新增文件 ─────────────────────────────────────────────────
 
@@ -218,7 +322,7 @@ class RAGProvider:
         metadata: dict | None = None,
     ) -> str:
         """新增或更新文件（同 source_id 覆蓋）。同步更新 BM25 index。"""
-        self._init()
+        await asyncio.to_thread(self._init)
         doc_id = str(source_id or uuid.uuid4())
         meta = {"source_type": source_type, **(metadata or {})}
 
@@ -243,7 +347,7 @@ class RAGProvider:
     # ── 刪除文件 ─────────────────────────────────────────────────
 
     async def delete_document(self, doc_id: str) -> bool:
-        self._init()
+        await asyncio.to_thread(self._init)
 
         def _run() -> bool:
             try:
@@ -258,7 +362,7 @@ class RAGProvider:
     # ── 查詢清單 ─────────────────────────────────────────────────
 
     async def list_documents(self) -> list[dict]:
-        self._init()
+        await asyncio.to_thread(self._init)
 
         def _run() -> list[dict]:
             count = RAGProvider._collection.count()
@@ -282,27 +386,28 @@ class RAGProvider:
         return await asyncio.to_thread(_run)
 
     async def count(self) -> int:
-        self._init()
+        await asyncio.to_thread(self._init)
         return await asyncio.to_thread(lambda: RAGProvider._collection.count())
 
     # ── 清空 ────────────────────────────────────────────────────
 
     async def clear_all(self) -> int:
-        self._init()
+        await asyncio.to_thread(self._init)
 
         def _run() -> int:
             n = RAGProvider._collection.count()
-            collection_name = config.RAG_COLLECTION
+            collection_name = self._collection_name()
             RAGProvider._client.delete_collection(collection_name)
             RAGProvider._collection = None
             RAGProvider._source_reconciled = False
+            RAGProvider._source_selection_state = None
             RAGProvider._bm25 = None
             RAGProvider._bm25_ids = []
             RAGProvider._bm25_docs = []
             return n
 
         deleted = await asyncio.to_thread(_run)
-        self._init()  # 重建空 collection
+        await asyncio.to_thread(self._init)  # 重建空 collection
         return deleted
 
 

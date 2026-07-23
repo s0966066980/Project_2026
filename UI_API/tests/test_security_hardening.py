@@ -54,6 +54,31 @@ def test_session_stats_requires_admin_token(monkeypatch):
     assert authorized.json()["sessions"][0]["session_id"] == "private-session"
 
 
+def test_rag_status_requires_admin_read_permission(monkeypatch):
+    import config
+    from routes import rag_routes
+
+    _security_config(monkeypatch, config)
+
+    async def fake_health():
+        return {
+            "status": "ok",
+            "chroma_path": "/private/chroma",
+            "source_dir": "/private/sources",
+            "selected_source_ids": ["private-source"],
+        }
+
+    monkeypatch.setattr(rag_routes.rag_document_service, "health_status", fake_health)
+    app = FastAPI()
+    app.include_router(rag_routes.create_router({}))
+    client = TestClient(app)
+
+    assert client.get("/api/rag/status").status_code == 401
+    authorized = client.get("/api/rag/status", headers={"X-Admin-Token": "admin-secret"})
+    assert authorized.status_code == 200
+    assert authorized.json()["chroma_path"] == "/private/chroma"
+
+
 def test_rate_limit_cannot_be_bypassed_by_rotating_subject_keys(monkeypatch):
     from utils import auth_utils
 

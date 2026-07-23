@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 
 
-def test_payment_staff_request_reaches_admin_with_emotion_summary(monkeypatch) -> None:
+def test_payment_staff_request_reaches_admin_without_emotion_payload(monkeypatch) -> None:
     from backend import app_factory
     from repositories import interaction_event_repository
 
@@ -19,14 +19,7 @@ def test_payment_staff_request_reaches_admin_with_emotion_summary(monkeypatch) -
         "page_id": "payment_page",
         "event_type": "payment_staff_requested",
         "button_id": "paymentCountdownAssistButton",
-        "metadata": {
-            "emotion": {
-                "emotion": "anxious",
-                "intensity": "high",
-                "description": "顧客對付款流程感到焦慮",
-                "assist_response": "顧客對付款流程感到焦慮，請主動到機台旁協助。",
-            }
-        },
+        "metadata": {},
     }
 
     with client.websocket_connect("/ws/admin/admin") as websocket:
@@ -37,5 +30,5 @@ def test_payment_staff_request_reaches_admin_with_emotion_summary(monkeypatch) -
     assert notification["type"] == "staff_notify"
     assert notification["payload"]["reason"] == "payment_staff_requested"
     assert notification["payload"]["kiosk_name"]
-    assert notification["payload"]["emotion"]["emotion"] == "anxious"
-    assert notification["payload"]["assist_response"] == payload["metadata"]["emotion"]["assist_response"]
+    assert "emotion" not in notification["payload"]
+    assert "assist_response" not in notification["payload"]

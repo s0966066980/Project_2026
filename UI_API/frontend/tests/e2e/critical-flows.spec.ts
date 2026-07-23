@@ -9,53 +9,12 @@ function observeCriticalBrowserFailures(page: import('@playwright/test').Page) {
   return errors;
 }
 
-async function openKioskPaymentScreen(page: import('@playwright/test').Page, emotionEnabled = false) {
-  if (emotionEnabled) {
-    await page.addInitScript(() => {
-      class FakeMediaRecorder {
-        static isTypeSupported() { return true; }
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        onerror: ((event: { error: Error }) => void) | null = null;
-        intervalId = 0;
-
-        start() {
-          this.state = 'recording';
-          this.intervalId = window.setInterval(() => {
-            this.ondataavailable?.({ data: new Blob(['fake-video'], { type: 'video/webm' }) });
-          }, 100);
-        }
-
-        stop() {
-          window.clearInterval(this.intervalId);
-          this.state = 'inactive';
-          this.onstop?.();
-        }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = 320;
-      canvas.height = 240;
-      const context = canvas.getContext('2d');
-      context?.fillRect(0, 0, 320, 240);
-      const stream = canvas.captureStream(8);
-      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
-        configurable: true,
-        value: async () => stream,
-      });
-      Object.defineProperty(window, 'MediaRecorder', {
-        configurable: true,
-        value: FakeMediaRecorder,
-      });
-    });
-  }
+async function openKioskPaymentScreen(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('kiosk_feat_version', 'event-triggered-20260519');
+    localStorage.setItem('kiosk_feat_version', 'voice-emotion-20260721');
     localStorage.setItem('kiosk_feat', JSON.stringify({
-      emotion: false,
       voiceAssist: false,
       recommend: false,
-      eventTriggeredMultimodal: false,
       multiLang: true,
     }));
   });
@@ -63,9 +22,7 @@ async function openKioskPaymentScreen(page: import('@playwright/test').Page, emo
     status: 200,
     json: {
       MEMBER_ENABLED: false,
-      EMOTION_LLAMA_ENABLED: emotionEnabled,
-      EMOTION_LLAMA_EVENT_PAYMENT_TIMEOUT: true,
-      PAYMENT_EMOTION_CLIP_SEC: 1,
+      EMOTION_LLAMA_ENABLED: false,
       DEMO_PUBLIC_MODE: false,
     },
   }));
@@ -85,12 +42,10 @@ async function openKioskPaymentScreen(page: import('@playwright/test').Page, emo
 test('Kiosk preserves start, menu, cart and checkout navigation contracts', async ({ page }) => {
   const errors = observeCriticalBrowserFailures(page);
   await page.addInitScript(() => {
-    localStorage.setItem('kiosk_feat_version', 'event-triggered-20260519');
+    localStorage.setItem('kiosk_feat_version', 'voice-emotion-20260721');
     localStorage.setItem('kiosk_feat', JSON.stringify({
-      emotion: false,
       voiceAssist: false,
       recommend: false,
-      eventTriggeredMultimodal: false,
       multiLang: true,
     }));
   });
@@ -125,7 +80,7 @@ test('Kiosk preserves start, menu, cart and checkout navigation contracts', asyn
   expect(errors).toEqual([]);
 });
 
-test('Kiosk 快速結帳保留 15 秒失敗情境、情緒分析與人員通知', async ({ page }) => {
+test('Kiosk 快速結帳保留 15 秒失敗情境與人員通知，但不啟動情緒分析', async ({ page }) => {
   let paymentRequests = 0;
   let emotionRequests = 0;
   let checkoutRequests = 0;
@@ -138,11 +93,7 @@ test('Kiosk 快速結帳保留 15 秒失敗情境、情緒分析與人員通知'
   });
   await page.route('**/api/emotion/analyze_event', async route => {
     emotionRequests += 1;
-    expect(route.request().postData()).toContain('payment_timeout');
-    await route.fulfill({ status: 200, json: {
-      emotion: 'anxious', intensity: 'high', description: '顧客對付款流程感到焦慮',
-      assist_response: '顧客對付款流程感到焦慮，請主動到機台旁協助。',
-    } });
+    await route.fulfill({ status: 500, json: { status: 'unexpected' } });
   });
   await page.route('**/api/interaction_event', async route => {
     const payload = route.request().postDataJSON();
@@ -153,7 +104,7 @@ test('Kiosk 快速結帳保留 15 秒失敗情境、情緒分析與人員通知'
     checkoutRequests += 1;
     await route.fulfill({ status: 200, json: { status: 'success', order_number: 999 } });
   });
-  await openKioskPaymentScreen(page, true);
+  await openKioskPaymentScreen(page);
 
   await page.locator('#kioskFastPayBtn').click();
   await page.waitForTimeout(16_000);
@@ -162,10 +113,9 @@ test('Kiosk 快速結帳保留 15 秒失敗情境、情緒分析與人員通知'
   await page.locator('#paymentCdAssistBtn').click();
   await expect(page.locator('#paymentCdNotified')).not.toHaveClass(/hidden/);
   await expect(page.locator('#paymentCdNotified')).toContainText('已通知店員');
-  await expect.poll(() => emotionRequests).toBe(1);
   await expect.poll(() => staffRequest).not.toBeNull();
-  const staffEmotion = (staffRequest as unknown as Record<string, any>).metadata?.emotion;
-  expect(staffEmotion?.assist_response).toContain('主動到機台旁協助');
+  expect(emotionRequests).toBe(0);
+  expect((staffRequest as unknown as Record<string, any>).metadata).toEqual({});
   expect(paymentRequests).toBe(0);
   expect(checkoutRequests).toBe(0);
 });
@@ -197,7 +147,7 @@ test('Admin preserves login, dashboard and logout request contracts', async ({ p
   expect(errors).toEqual([]);
 });
 
-test('Admin 收到付款協助通知時顯示機台與中文情緒摘要', async ({ page }) => {
+test('Admin 收到付款協助通知時只顯示機台與處理指示', async ({ page }) => {
   await page.addInitScript(() => {
     class FakeWebSocket {
       static OPEN = 1;
@@ -231,8 +181,6 @@ test('Admin 收到付款協助通知時顯示機台與中文情緒摘要', async
       payload: {
         kiosk_name: '機台03',
         reason: 'payment_staff_requested',
-        assist_response: '顧客對付款流程感到焦慮，請主動到機台旁協助。',
-        emotion: { emotion: 'anxious', intensity: 'high' },
       },
     }) });
   });
@@ -240,8 +188,8 @@ test('Admin 收到付款協助通知時顯示機台與中文情緒摘要', async
   await expect(page.locator('#staffNotifyBackdrop')).toHaveCSS('display', 'flex');
   await expect(page.locator('#staffNotifyKiosk')).toHaveText('機台03');
   await expect(page.locator('#staffNotifyReason')).toHaveText('人員協助付款');
-  await expect(page.locator('#staffNotifyEmotionLabel')).toContainText('主動到機台旁協助');
-  await expect(page.locator('#staffNotifyEmotionDesc')).toHaveText('情緒：anxious（high）');
+  await expect(page.locator('#staffNotifyModal')).toContainText('請前往機台查看');
+  await expect(page.locator('#staffNotifyModal')).not.toContainText('情緒分析');
 });
 
 test('一般員工可用中文精靈建立並發布活動', async ({ page }) => {

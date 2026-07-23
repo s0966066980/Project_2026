@@ -23,17 +23,12 @@ def create_router(deps: dict | None = None) -> APIRouter:
             interaction_event_repository.append_interaction_event_scoped, event, scope
         )
         if event.get("event_type") == "payment_staff_requested":
-            metadata = event.get("metadata") or {}
-            emotion = metadata.get("emotion") if isinstance(metadata.get("emotion"), dict) else None
-            assist_response = (emotion or {}).get("assist_response", "") if emotion else ""
             await event_bus.publish_to_admin(
                 "staff_notify",
                 {
                     "session_id": event.get("session_id", ""),
                     "kiosk_name": config.get("KIOSK_NAME", "機台01"),
                     "reason": "payment_staff_requested",
-                    "emotion": emotion,
-                    "assist_response": assist_response,
                 },
             )
         return {"status": "success", "event": saved_event}

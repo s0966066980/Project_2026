@@ -1,13 +1,12 @@
 // @ts-check
 
-const FEATURE_SCHEMA_VERSION = 'event-triggered-20260519';
+const FEATURE_SCHEMA_VERSION = 'voice-emotion-20260721';
 const FEATURE_DEFAULTS = Object.freeze({
-  emotion: true,
   voiceAssist: true,
   recommend: true,
-  eventTriggeredMultimodal: true,
   multiLang: true,
 });
+const FEATURE_KEYS = Object.freeze(Object.keys(FEATURE_DEFAULTS));
 
 /** @param {Location} location */
 export function resolveKioskAppMode(location) {
@@ -32,13 +31,15 @@ export function loadKioskFeatures(storage, demoPublic) {
     const versionMatches = storage.getItem('kiosk_feat_version') === FEATURE_SCHEMA_VERSION;
     const hasSavedFeatures = Boolean(storage.getItem('kiosk_feat'));
     const saved = JSON.parse(storage.getItem('kiosk_feat') || '{}');
-    const features = { ...FEATURE_DEFAULTS, ...(saved && typeof saved === 'object' ? saved : {}) };
+    const savedFeatures = saved && typeof saved === 'object'
+      ? Object.fromEntries(FEATURE_KEYS.filter(key => typeof saved[key] === 'boolean').map(key => [key, saved[key]]))
+      : {};
+    const features = { ...FEATURE_DEFAULTS, ...savedFeatures };
     const shouldApplyDemoDefaults = demoPublic && (!hasSavedFeatures || !versionMatches);
     if (!versionMatches || shouldApplyDemoDefaults) {
       if (shouldApplyDemoDefaults) {
         features.voiceAssist = true;
         features.recommend = true;
-        features.eventTriggeredMultimodal = true;
       }
       saveKioskFeatures(storage, features);
     }

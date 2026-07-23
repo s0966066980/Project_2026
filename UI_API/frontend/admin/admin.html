@@ -9,6 +9,7 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display:none !important; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline:3px solid rgba(59,122,238,.45); outline-offset:2px;
 }
@@ -160,6 +161,12 @@ body {
 }
 .clear-btn:hover { background: #ffe0e0; border-color: #e84040; }
 .clear-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn {
+  min-height:44px; border:1.5px solid #d5deec; border-radius:8px; background:#fff;
+  padding:7px 14px; color:#34425d; font-size:12px; font-weight:800; cursor:pointer;
+}
+.btn-primary { background:#276fe8; border-color:#276fe8; color:#fff; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
 
 .content {
   flex: 1;
@@ -169,6 +176,44 @@ body {
   flex-direction: column;
   gap: 22px;
 }
+
+/* ── 營運總覽：先結論、後明細 ── */
+.overview-header {
+  display:flex; justify-content:space-between; align-items:flex-start; gap:24px;
+}
+.overview-header h1 { font-size:clamp(22px,2.4vw,30px); line-height:1.25; color:#182238; }
+.overview-header > div > p:last-child { margin-top:8px; color:#66758d; font-size:14px; line-height:1.6; }
+.overview-eyebrow, .overview-step {
+  color:#2f67c7; font-size:12px; font-weight:900; letter-spacing:.06em; margin-bottom:6px;
+}
+.overview-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.operations-insight {
+  display:grid; grid-template-columns:48px minmax(0,1fr); gap:16px; align-items:start;
+  padding:22px; border:1px solid #bfd4f8; border-radius:16px;
+  background:linear-gradient(135deg,#f7faff 0%,#edf4ff 100%);
+}
+.operations-insight-icon {
+  width:48px; height:48px; display:flex; align-items:center; justify-content:center;
+  border-radius:14px; background:#fff; color:#2f67c7; box-shadow:0 2px 8px rgba(47,103,199,.12);
+}
+.operations-insight-status {
+  display:inline-flex; align-items:center; min-height:28px; padding:4px 10px; border-radius:999px;
+  font-size:11px; font-weight:900; color:#176b4d; background:#e1f5ec;
+}
+.operations-insight-status.loading { color:#52637d; background:#e9eef6; }
+.operations-insight-status.attention { color:#8a5508; background:#fff0cf; }
+.operations-insight-copy h2 { margin-top:10px; font-size:18px; line-height:1.5; color:#182238; }
+.operations-insight-copy > p { margin-top:7px; color:#53647f; font-size:13px; line-height:1.65; }
+.operations-next-step {
+  display:flex; gap:6px; flex-wrap:wrap; margin-top:13px !important; padding-top:13px;
+  border-top:1px solid #cfddf2;
+}
+.operations-next-step b { color:#263a5b; }
+.overview-section { display:flex; flex-direction:column; gap:16px; padding-top:4px; }
+.overview-section + .overview-section { border-top:1px solid #dfe5ee; padding-top:28px; }
+.overview-section-heading h2 { color:#182238; font-size:20px; line-height:1.35; }
+.overview-section-heading h2 + p { margin-top:7px; color:#66758d; font-size:13px; line-height:1.6; }
+.overview-details .bottom-row { padding:16px; }
 
 /* ── Summary row ── */
 .summary-row {
@@ -205,7 +250,7 @@ body {
 
 .stat-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3,minmax(0,1fr));
   gap: 14px;
 }
 .stat-card {
@@ -352,6 +397,18 @@ tbody tr:hover td { background: #f8fafd; }
 .rag-storage-row { display:grid; grid-template-columns:112px minmax(0,1fr); gap:8px; font-size:11px; line-height:1.5; }
 .rag-storage-row b { color:#66758d; }
 .rag-storage-row code { color:#26344e; overflow-wrap:anywhere; white-space:normal; }
+.rag-strategy-help { margin:-3px 0 10px 134px; color:#66758d; font-size:11px; line-height:1.55; }
+.rag-strategy-lab { margin-top:16px; padding-top:16px; border-top:1px solid #e5eaf2; }
+.rag-strategy-lab > b { display:block; color:#1f2d46; font-size:13px; margin-bottom:5px; }
+.rag-strategy-lab > p { color:#66758d; font-size:11px; line-height:1.55; margin-bottom:10px; }
+.rag-strategy-lab textarea { width:100%; min-height:76px; resize:vertical; line-height:1.55; }
+.rag-test-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px; }
+.rag-test-status { color:#66758d; font-size:11px; line-height:1.5; }
+.rag-test-results { display:grid; gap:8px; margin-top:10px; }
+.rag-test-result { border:1px solid #dfe6f2; border-radius:10px; background:#f8fafd; padding:10px; }
+.rag-test-result-head { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#33425d; font-size:11px; }
+.rag-test-result-head code { overflow-wrap:anywhere; }
+.rag-test-result p { margin-top:6px; color:#53627a; font-size:11px; line-height:1.55; white-space:pre-wrap; }
 .rag-source-picker { margin-top:12px; border:1px solid #dfe6f2; border-radius:12px; overflow:hidden; background:#fff; }
 .rag-source-picker-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px; background:#f8fafd; border-bottom:1px solid #e7ebf0; }
 .rag-source-picker-head b { display:block; color:#1a2233; font-size:13px; }
@@ -372,6 +429,7 @@ tbody tr:hover td { background: #f8fafd; }
 @media (max-width:520px) {
   .setting-row { align-items:flex-start; flex-direction:column; gap:6px; }
   .setting-label { width:auto; }
+  .rag-strategy-help { margin-left:0; }
   .rag-flow-note { grid-template-columns:1fr; }
   .rag-source-picker-head { flex-direction:column; }
 }
@@ -568,7 +626,7 @@ tbody tr:hover td { background: #f8fafd; }
 .voice-bubble-ai::before {
   content: "AI　"; font-weight: 700; font-size: 11px; opacity: 0.75;
 }
-/* Emotion 介入紀錄：描述折疊 */
+/* Emotion 分析紀錄：描述折疊 */
 .emo-desc > summary {
   cursor: pointer; color: #4b5daa; font-size: 12px;
   list-style: none; user-select: none; white-space: nowrap;
@@ -579,6 +637,151 @@ tbody tr:hover td { background: #f8fafd; }
 .emo-desc > .emo-desc-body {
   margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--text2, #5a6b8c);
 }
+.emotion-influence-dashboard { display:flex; flex-direction:column; gap:18px; }
+.emotion-observability-note {
+  display:grid; grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr); gap:20px;
+  padding:18px; border:1px solid #bfd4f8; border-radius:14px; background:linear-gradient(135deg,#f7faff,#edf4ff);
+}
+.emotion-observability-note h2 { color:#182238; font-size:18px; line-height:1.4; }
+.emotion-observability-note h2 + p { margin-top:7px; color:#53647f; font-size:12px; line-height:1.65; }
+.emotion-observability-note strong { display:inline-flex; margin-bottom:7px; color:#245fb8; font-size:12px; }
+.emotion-observability-note ul { display:grid; gap:6px; padding-left:18px; color:#3e506d; font-size:12px; line-height:1.6; }
+.emotion-influence-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.emotion-influence-kpi { min-height:108px; padding:16px; border:1px solid #dde5f1; border-radius:12px; background:#fff; }
+.emotion-influence-kpi b { display:block; color:#182238; font-size:24px; line-height:1.15; }
+.emotion-influence-kpi span { display:block; margin-top:7px; color:#40516d; font-size:12px; font-weight:900; }
+.emotion-influence-kpi small { display:block; margin-top:5px; color:#78859a; font-size:11px; line-height:1.45; }
+.emotion-stt-comparison-panel { padding:16px; border:1px solid #d8e3f2; border-radius:14px; background:#f8fbff; }
+.emotion-stt-comparison-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.emotion-stt-comparison-head h3 { color:#22334f; font-size:14px; }
+.emotion-stt-comparison-head p { max-width:720px; margin-top:5px; color:#66758d; font-size:11px; line-height:1.55; }
+.emotion-stt-comparison-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.emotion-stt-cohort { padding:14px; border:1px solid #dce5f1; border-radius:11px; background:#fff; }
+.emotion-stt-cohort header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.emotion-stt-cohort h4 { color:#243552; font-size:12px; }
+.emotion-stt-cohort header span { padding:3px 7px; border-radius:999px; background:#edf4ff; color:#2f67c7; font-size:9px; font-weight:900; }
+.emotion-stt-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:11px; }
+.emotion-stt-metrics div { padding:8px; border-radius:8px; background:#f4f7fb; }
+.emotion-stt-metrics dt { color:#7d8ba0; font-size:9px; font-weight:800; }
+.emotion-stt-metrics dd { margin-top:3px; color:#2e405e; font-size:12px; font-weight:900; }
+.emotion-stt-comparison-result { margin-top:12px; padding:10px 12px; border-left:3px solid #3b7aee; background:#edf4ff; color:#405573; font-size:11px; line-height:1.6; }
+.emotion-stt-comparison-result strong { color:#244f94; }
+.emotion-customer-analysis-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.emotion-customer-round { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border-radius:10px; background:#fff; color:#34445f; font-size:12px; }
+.emotion-customer-result { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.emotion-customer-result div { padding:12px; border:1px solid #dce5f1; border-radius:10px; background:#fff; }
+.emotion-customer-result dt { color:#71809a; font-size:10px; font-weight:900; }
+.emotion-customer-result dd { margin-top:5px; color:#273a58; font-size:12px; line-height:1.6; }
+.emotion-influence-rounds { display:flex; flex-direction:column; gap:14px; }
+.emotion-round-card { overflow:hidden; border:1px solid #dce4ef; border-radius:14px; background:#f8fafd; }
+.emotion-round-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; border-bottom:1px solid #e3e9f2; background:#fff; }
+.emotion-round-head > div { min-width:0; }
+.emotion-round-head > div:last-child { text-align:right; }
+.emotion-round-head span { display:block; color:#2f67c7; font-size:10px; font-weight:900; letter-spacing:.06em; }
+.emotion-round-head h3 { margin-top:3px; overflow:hidden; color:#182238; font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+.emotion-round-head small { display:block; margin-top:4px; color:#78859a; font-size:10px; }
+.emotion-round-turns { display:flex; flex-direction:column; gap:12px; padding:14px; }
+.emotion-pair-variants { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:stretch; }
+.emotion-pair-variants > .emotion-analysis-step { min-width:0; }
+.emotion-turn-card { display:grid; grid-template-columns:118px minmax(0,1fr); gap:14px; align-items:start; }
+.emotion-turn-label { min-width:0; padding:11px 10px; border-left:3px solid #3b7aee; }
+.emotion-turn-label span { display:block; color:#71809a; font-size:9px; font-weight:900; letter-spacing:.12em; }
+.emotion-turn-label b { display:block; margin-top:4px; color:#243552; font-size:12px; }
+.emotion-turn-label small { display:block; margin-top:6px; overflow:hidden; color:#8a96a9; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.emotion-turn-timeline { position:relative; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.emotion-turn-timeline::before { content:""; position:absolute; top:7px; right:16.6%; left:16.6%; height:2px; background:#d8e1ee; }
+.emotion-analysis-step { position:relative; display:grid; grid-template-rows:16px auto; gap:7px; min-width:0; }
+.emotion-step-marker { position:relative; z-index:1; width:14px; height:14px; justify-self:center; border:3px solid #aab6c8; border-radius:50%; background:#fff; }
+.emotion-step-marker.ok, .emotion-step-marker.applied { border-color:#18865f; background:#dff5eb; }
+.emotion-step-marker.not_ready, .emotion-step-marker.skipped { border-color:#c17b13; background:#fff0cf; }
+.emotion-step-marker.disabled { border-color:#71809a; background:#edf1f6; }
+.emotion-step-marker.error { border-color:#c43d4b; background:#ffe4e7; }
+.emotion-step-card { min-height:100%; padding:12px; border:1px solid #dfe6f0; border-radius:11px; background:#fff; }
+.emotion-influence-step .emotion-step-card { border-color:#c6d8f5; background:#f9fbff; }
+.emotion-step-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.emotion-step-head > div { min-width:0; }
+.emotion-step-head b { display:block; color:#22334f; font-size:12px; line-height:1.4; }
+.emotion-step-head small { display:block; margin-top:4px; overflow:hidden; color:#7c899c; font-size:9px; line-height:1.4; text-overflow:ellipsis; white-space:nowrap; }
+.emotion-state-pill { display:inline-flex; flex-shrink:0; align-items:center; min-height:24px; padding:3px 7px; border-radius:999px; background:#edf1f6; color:#586a85; font-size:9px; font-weight:900; }
+.emotion-state-pill.ok, .emotion-state-pill.applied { background:#dff5eb; color:#126847; }
+.emotion-state-pill.not_ready, .emotion-state-pill.skipped { background:#fff0cf; color:#8a5508; }
+.emotion-state-pill.error { background:#ffe4e7; color:#9f2936; }
+.emotion-state-pill.disabled, .emotion-state-pill.missing { background:#edf1f6; color:#596a83; }
+.emotion-step-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+.emotion-step-meta span { padding:3px 6px; border-radius:6px; background:#f1f4f8; color:#66758d; font-size:9px; font-weight:800; }
+.emotion-evidence-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+.emotion-evidence-grid div { min-width:0; }
+.emotion-evidence-grid dt, .emotion-influence-summary span { color:#8390a4; font-size:9px; font-weight:800; }
+.emotion-evidence-grid dd { margin-top:2px; overflow-wrap:anywhere; color:#34445f; font-size:10px; line-height:1.45; }
+.emotion-analysis-description { margin-top:10px; border-top:1px solid #e5eaf2; padding-top:8px; }
+.emotion-analysis-description summary { color:#2f67c7; font-size:10px; font-weight:900; cursor:pointer; }
+.emotion-analysis-description summary:focus-visible { outline:3px solid rgba(59,122,238,.35); outline-offset:2px; }
+.emotion-analysis-description p { margin-top:7px; color:#53647f; font-size:10px; line-height:1.6; white-space:pre-wrap; }
+.emotion-step-empty { margin-top:10px; color:#78859a; font-size:10px; line-height:1.55; }
+.emotion-influence-summary { display:grid; grid-template-columns:1.3fr .7fr; gap:8px; margin-top:10px; }
+.emotion-influence-summary div { min-width:0; padding:8px; border-radius:8px; background:#edf4ff; }
+.emotion-influence-summary b { display:block; margin-top:3px; overflow-wrap:anywhere; color:#23436f; font-size:10px; line-height:1.45; }
+.emotion-dialogue { display:grid; gap:6px; margin-top:9px; }
+.emotion-dialogue p { display:grid; grid-template-columns:34px minmax(0,1fr); gap:6px; color:#3e506c; font-size:10px; line-height:1.55; }
+.emotion-dialogue b { color:#2f67c7; }
+.emotion-causality-note { margin-top:9px; padding-top:8px; border-top:1px dashed #ccd9eb; color:#6e7d93; font-size:9px; line-height:1.5; }
+.emotion-influence-empty, .emotion-influence-loading { padding:24px; border:1px dashed #ccd6e5; border-radius:12px; color:#697991; text-align:center; font-size:12px; line-height:1.6; }
+.emotion-influence-empty b { display:block; color:#34445f; font-size:13px; }
+.emotion-influence-empty.error { border-color:#f0b8bf; color:#9f2936; }
+@media (max-width:1150px) {
+  .emotion-influence-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .emotion-turn-card { grid-template-columns:1fr; }
+  .emotion-turn-label { padding:4px 9px; }
+  .emotion-turn-timeline { grid-template-columns:1fr; }
+  .emotion-turn-timeline::before { display:none; }
+  .emotion-analysis-step { grid-template-columns:16px minmax(0,1fr); grid-template-rows:auto; align-items:start; }
+  .emotion-step-marker { margin-top:13px; }
+}
+@media (max-width:760px) {
+  .emotion-observability-note { grid-template-columns:1fr; }
+  .emotion-influence-kpis { grid-template-columns:1fr; }
+  .emotion-stt-comparison-grid { grid-template-columns:1fr; }
+  .emotion-customer-result { grid-template-columns:1fr; }
+  .emotion-pair-variants { grid-template-columns:1fr; }
+  .emotion-evidence-grid, .emotion-influence-summary { grid-template-columns:1fr; }
+}
+.emotion-text-card { margin-bottom:16px; border:1px solid #cfe0fa; background:linear-gradient(135deg,#fff 0%,#f5f9ff 100%); }
+.emotion-text-intro { margin:-5px 0 14px; color:#66758d; font-size:12px; line-height:1.6; }
+.emotion-text-input { width:100%; min-height:96px; resize:vertical; line-height:1.6; }
+.emotion-text-samples { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:9px; }
+.emotion-text-samples > span { color:#66758d; font-size:11px; font-weight:800; }
+.emotion-text-sample { min-height:44px; border:1px solid #cfd8e8; border-radius:9px; background:#fff; color:#34425d; padding:8px 12px; cursor:pointer; }
+.emotion-text-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
+.emotion-text-status { color:#66758d; font-size:12px; line-height:1.5; }
+.emotion-text-result { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
+.emotion-text-result div { border:1px solid #dfe6f2; border-radius:10px; background:#fff; padding:10px; }
+.emotion-text-result dt { color:#78859a; font-size:10px; font-weight:800; margin-bottom:4px; }
+.emotion-text-result dd { color:#1f2d46; font-size:13px; font-weight:800; overflow-wrap:anywhere; }
+.emotion-text-result .emotion-text-description { grid-column:1 / -1; }
+.emotion-text-result .emotion-text-description dd { font-weight:500; line-height:1.55; }
+.emotion-text-card--test { margin-bottom:24px; flex-shrink:0; }
+.emotion-text-result .emotion-text-answer,
+.emotion-text-result .emotion-text-description { grid-column:1 / -1; }
+.emotion-text-result .emotion-text-answer dd,
+.emotion-text-result .emotion-text-description dd { font-weight:500; line-height:1.65; white-space:pre-wrap; }
+.emotion-live-panel { margin-top:20px; padding-top:18px; border-top:1px solid #dfe6f2; }
+.emotion-live-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.emotion-live-heading h3 { color:#1f2d46; font-size:14px; line-height:1.4; }
+.emotion-live-heading p { margin-top:4px; color:#66758d; font-size:11px; line-height:1.55; }
+.emotion-live-grid { display:grid; grid-template-columns:minmax(280px,380px) minmax(0,1fr); gap:16px; align-items:stretch; }
+.emotion-video-preview { min-height:260px; overflow:hidden; border-radius:12px; background:#111827; position:relative; }
+.emotion-video-preview video { display:block; width:100%; height:100%; min-height:260px; aspect-ratio:4/3; object-fit:cover; transform:scaleX(-1); }
+.emotion-video-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; color:#cbd5e1; text-align:center; font-size:12px; line-height:1.6; pointer-events:none; }
+.emotion-video-preview.is-active .emotion-video-placeholder { display:none; }
+.emotion-video-controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.emotion-video-status { color:#66758d; font-size:12px; line-height:1.5; }
+.emotion-video-result { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.emotion-video-result > div { border:1px solid #dfe6f2; border-radius:10px; background:#fff; padding:12px; }
+.emotion-video-result dt { color:#78859a; font-size:10px; font-weight:800; margin-bottom:5px; }
+.emotion-video-result dd { color:#1f2d46; font-size:13px; font-weight:700; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
+.emotion-video-result .emotion-video-detail { grid-column:1 / -1; }
+@media (max-width:900px) { .emotion-live-grid { grid-template-columns:1fr; } }
+@media (max-width:760px) { .emotion-text-result { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .member-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
 .member-stat-cards { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:12px; }
 .member-stat { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:14px 15px; min-height:86px; }
@@ -640,13 +843,24 @@ tbody tr:hover td { background: #f8fafd; }
 .muted { color:#9aa4b1; font-size:12.5px; }
 /* ── 測試頁 ── */
 #page-test {
-  display: grid;
-  grid-template-columns: 272px 1fr;
-  gap: 20px;
-  overflow: hidden;
+  display:flex;
+  flex-direction:column;
+  gap:24px;
+  overflow-y:auto;
 }
-.test-left  { display:flex; flex-direction:column; gap:16px; overflow-y:auto; min-height:0; }
+.llm-test-section {
+  display:grid;
+  grid-template-columns:320px minmax(0,1fr);
+  gap:20px;
+  min-height:560px;
+  flex-shrink:0;
+}
+.test-left  { display:flex; flex-direction:column; gap:16px; min-height:0; }
 .test-right { display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+.llm-test-settings-card { display:flex; flex-direction:column; height:100%; }
+.llm-test-settings-actions { display:flex; gap:8px; margin-top:auto; padding-top:16px; }
+.llm-test-settings-card > .provider-tabs { flex:none; }
+.test-provider-fields { height:190px; flex-shrink:0; overflow-y:auto; padding-right:2px; }
 .provider-tabs {
   display:flex; border:1.5px solid #dde3f0; border-radius:9px; overflow:hidden; flex:1;
 }
@@ -710,7 +924,10 @@ tbody tr:hover td { background: #f8fafd; }
   padding:3px 10px; font-size:11.5px; color:#3b4a6b; font-weight:600;
 }
 .stat-chip span { color:#1a2233; font-weight:800; }
-@media (max-width:1000px) { #page-test { grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
+@media (max-width:1000px) {
+  .llm-test-section { grid-template-columns:1fr; min-height:auto; }
+  .test-right { min-height:520px; }
+}
 /* ── 設定頁：AI API section ── */
 .api-provider-section { display:flex; flex-direction:column; gap:0; }
 .member-clear-btn, .member-delete-btn { border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700;
@@ -720,7 +937,7 @@ tbody tr:hover td { background: #f8fafd; }
 .member-delete-btn { background:#fdecea; color:#c0392b; border:1px solid #f5c6c0; }
 .member-delete-btn:hover { background:#f9d6d1; }
 /* ── 推薦成效 dashboard ── */
-.recommendation-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
+.recommendation-page { display:flex; flex-direction:column; gap:16px; padding:4px 0 0; overflow:visible; }
 .recommendation-toolbar {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   background:#fff; border:1px solid #e7ebf0; border-radius:13px; padding:12px;
@@ -732,7 +949,7 @@ tbody tr:hover td { background: #f8fafd; }
 }
 .recommendation-input { width:220px; }
 .recommendation-select { min-width:136px; }
-.recommendation-kpis { display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); gap:12px; }
+.recommendation-kpis { display:grid; grid-template-columns:repeat(4,minmax(140px,1fr)); gap:12px; }
 .recommendation-kpi {
   background:#fff; border:1px solid #e7ebf0; border-radius:12px;
   padding:14px 15px; min-height:82px;
@@ -777,6 +994,33 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-metric-guide b { display:block; color:#34425d; font-size:12px; margin-bottom:2px; }
 .recommendation-notice { background:#fff8e8; border:1px solid #f0d89b; color:#76530b; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.5; }
 .recommendation-notice.error { background:#fff0ef; border-color:#f2c1bd; color:#9e2f28; }
+.recommendation-filter-details { flex:1; min-width:min(100%,280px); }
+.recommendation-filter-details > summary,
+.recommendation-advanced > summary {
+  min-height:44px; display:flex; align-items:center; gap:9px; cursor:pointer; list-style:none;
+  color:#34425d; font-size:13px; font-weight:800;
+}
+.recommendation-filter-details > summary::-webkit-details-marker,
+.recommendation-advanced > summary::-webkit-details-marker { display:none; }
+.recommendation-filter-details[open] > summary { margin-bottom:10px; }
+.recommendation-journey {
+  display:grid; grid-template-columns:repeat(7,auto); align-items:center; justify-content:center; gap:12px;
+  padding:14px 18px; border-radius:12px; background:#f6f8fc; border:1px solid #e1e6ed;
+}
+.recommendation-journey span { display:flex; align-items:center; gap:8px; color:#34425d; font-size:12px; font-weight:800; }
+.recommendation-journey span b {
+  width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:50%; background:#e4edfc; color:#2f67c7;
+}
+.recommendation-journey > i { color:#9ba8bb; font-size:10px; }
+.recommendation-advanced { border:1px solid #dfe5ee; border-radius:14px; background:#f8fafd; overflow:hidden; }
+.recommendation-advanced > summary { justify-content:space-between; padding:13px 16px; background:#fff; }
+.recommendation-advanced > summary span { display:flex; flex-direction:column; gap:3px; }
+.recommendation-advanced > summary small { color:#77849a; font-size:11px; font-weight:500; }
+.recommendation-advanced > summary > i { transition:transform .2s ease; }
+.recommendation-advanced[open] > summary > i { transform:rotate(180deg); }
+.recommendation-advanced .recommendation-grid { padding:16px; }
+.recommendation-advanced .recommendation-events-card { margin:0 16px 16px; }
 .availability-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
 .availability-layout { display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start; }
 .availability-form { display:flex; flex-direction:column; gap:12px; }
@@ -856,10 +1100,15 @@ tbody tr:hover td { background: #f8fafd; }
   .health-kpis { grid-template-columns:repeat(3,1fr); }
 }
 @media (max-width:760px) {
-  .recommendation-page { padding:16px; }
+  .overview-header { flex-direction:column; }
+  .overview-actions { width:100%; justify-content:flex-start; }
+  .operations-insight { grid-template-columns:1fr; }
+  .recommendation-page { padding:4px 0 0; }
   .recommendation-toolbar { align-items:stretch; flex-direction:column; }
   .recommendation-kpis { grid-template-columns:repeat(2,1fr); }
   .recommendation-metric-guide { grid-template-columns:1fr; }
+  .recommendation-journey { grid-template-columns:1fr; justify-content:stretch; }
+  .recommendation-journey > i { transform:rotate(90deg); justify-self:center; }
   .recommendation-input { width:100%; }
   .availability-page { padding:16px; }
   .availability-periods { grid-template-columns:1fr; }
@@ -869,6 +1118,9 @@ tbody tr:hover td { background: #f8fafd; }
   .health-log-item { grid-template-columns:minmax(120px,1fr) 60px 76px; }
   .health-readiness-row { grid-template-columns:1fr; gap:8px; }
   .health-readiness-row > div:last-child { justify-content:flex-start; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .donut-fill, .recommendation-advanced > summary > i { transition:none; }
 }
 </style>
 </head>
@@ -895,13 +1147,10 @@ tbody tr:hover td { background: #f8fafd; }
   </div>
   <nav class="sidebar-nav">
     <button class="nav-item active" data-page="stats" type="button" aria-current="page">
-      <i class="fas fa-chart-pie"></i> 狀態統計
+      <i class="fas fa-chart-line"></i> 營運總覽
     </button>
     <button class="nav-item" data-page="settings" type="button">
       <i class="fas fa-sliders-h"></i> 功能設定
-    </button>
-    <button class="nav-item" data-page="recommendations" type="button">
-      <i class="fas fa-bullseye"></i> 推薦成效
     </button>
     <button class="nav-item" data-page="promotions" type="button">
       <i class="fas fa-ticket-alt"></i> 活動管理
@@ -931,8 +1180,8 @@ tbody tr:hover td { background: #f8fafd; }
 <div class="main">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-icon" id="topbar-icon"><i class="fas fa-chart-pie"></i></div>
-      <div class="topbar-title" id="page-title">狀態統計</div>
+      <div class="topbar-icon" id="topbar-icon"><i class="fas fa-chart-line"></i></div>
+      <div class="topbar-title" id="page-title">營運總覽</div>
     </div>
     <div class="topbar-right">
       <span class="topbar-date" id="topbar-date"><i class="fas fa-calendar-alt"></i><span id="topbar-date-text"></span></span>
@@ -942,15 +1191,40 @@ tbody tr:hover td { background: #f8fafd; }
   <!-- Stats page -->
   <div class="content" id="page-stats">
 
-    <!-- 統計操作列：固定在統計頁右上 -->
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px;flex-shrink:0">
-      <button class="refresh-btn" id="refreshBtn" type="button">
-        <i class="fas fa-sync-alt"></i> 重新整理
-      </button>
-      <button class="clear-btn" id="clearBtn" type="button">
-        <i class="fas fa-trash-alt"></i> 清除統計
-      </button>
-    </div>
+    <header class="overview-header">
+      <div>
+        <p class="overview-eyebrow">營運重點</p>
+        <h1>一眼看懂推播與推薦表現</h1>
+        <p>先看結果，再往下查找需要處理的畫面或推薦入口。</p>
+      </div>
+      <div class="overview-actions">
+        <button class="refresh-btn" id="refreshBtn" type="button">
+          <i class="fas fa-sync-alt"></i> 重新整理
+        </button>
+        <button class="clear-btn" id="clearBtn" type="button">
+          <i class="fas fa-trash-alt"></i> 清除統計
+        </button>
+      </div>
+    </header>
+
+    <section class="operations-insight" aria-labelledby="operationsInsightHeadline">
+      <div class="operations-insight-icon" aria-hidden="true"><i class="fas fa-lightbulb"></i></div>
+      <div class="operations-insight-copy">
+        <span id="operationsInsightStatus" class="operations-insight-status loading">正在整理資料</span>
+        <h2 id="operationsInsightHeadline">正在整理目前的營運重點…</h2>
+        <p id="operationsInsightDetail">稍後會在這裡顯示推播與推薦的重點數字。</p>
+        <p class="operations-next-step"><b>接下來可以做：</b><span id="operationsInsightAction">請稍候資料載入。</span></p>
+      </div>
+    </section>
+
+    <section id="statsOverviewSection" class="overview-section" aria-labelledby="pushOverviewTitle">
+      <div class="overview-section-heading">
+        <div>
+          <p class="overview-step">1 · 推播概況</p>
+          <h2 id="pushOverviewTitle">顧客有沒有採用推播？</h2>
+          <p>這裡統計推播後是否帶動加購，幫助現場人員快速掌握整體狀況。</p>
+        </div>
+      </div>
 
     <div class="summary-row">
       <!-- Donut chart -->
@@ -986,35 +1260,32 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
       </div>
 
-      <!-- 4 stat cards -->
+      <!-- Decision-focused stat cards -->
       <div class="stat-cards">
         <div class="stat-card">
           <div class="stat-card-icon blue"><i class="fas fa-paper-plane"></i></div>
-          <div class="stat-label">推播次數</div>
+          <div class="stat-label">推播工作階段</div>
           <div class="stat-value" id="s-total">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-icon green"><i class="fas fa-hand-pointer"></i></div>
-          <div class="stat-label">點擊次數</div>
+          <div class="stat-label">AI 加購總次數</div>
           <div class="stat-value" id="s-clicks">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon orange"><i class="fas fa-times-circle"></i></div>
-          <div class="stat-label">未點擊推播次數</div>
-          <div class="stat-value" id="s-fail">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-icon red"><i class="fas fa-percentage"></i></div>
-          <div class="stat-label">未點擊率</div>
-          <div class="stat-value" id="s-fail-rate">—</div>
+          <div class="stat-card-icon orange"><i class="fas fa-cart-plus"></i></div>
+          <div class="stat-label">成功帶動加購</div>
+          <div class="stat-value" id="s-success">—</div>
         </div>
       </div>
     </div>
 
-    <div class="bottom-row">
+    <details class="recommendation-advanced overview-details">
+      <summary><span><b>查看推播與點餐明細</b><small>需要追查品項、工作階段或語音對話時再展開</small></span><i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
+      <div class="bottom-row">
       <!-- Top 3 -->
       <div class="card">
-        <div class="card-title"><i class="fas fa-trophy"></i> 點選次數 TOP 3</div>
+        <div class="card-title"><i class="fas fa-trophy"></i> 最常加入購物車的餐點</div>
         <div class="top3-list" id="top3-list">
           <div style="color:#adb5c9;font-size:12px">載入中…</div>
         </div>
@@ -1042,14 +1313,25 @@ tbody tr:hover td { background: #f8fafd; }
           </table>
         </div>
       </div>
+      </div>
+    </details>
+
+    </section>
+
+  <!-- Recommendation effectiveness, merged into the operations overview -->
+  <section id="recommendationOverviewSection" class="recommendation-page overview-section" aria-labelledby="recommendationOverviewTitle">
+    <div class="overview-section-heading">
+      <div>
+        <p class="overview-step">2 · 推薦成效</p>
+        <h2 id="recommendationOverviewTitle">推薦有沒有帶來購買？</h2>
+        <p>依照「看到 → 點擊 → 加購 → 完成購買」的順序閱讀，不需要先了解分析名詞。</p>
+      </div>
     </div>
 
-  </div>
-
-  <!-- Recommendation events page -->
-  <section id="page-recommendations" class="recommendation-page" style="display:none">
     <div class="recommendation-toolbar">
-      <div class="recommendation-filters">
+      <details class="recommendation-filter-details">
+        <summary><i class="fas fa-filter"></i> 篩選與查找</summary>
+        <div class="recommendation-filters">
         <select id="recommendationEventTypeFilter" class="recommendation-select">
           <option value="">全部事件</option>
           <option value="recommendation_shown">曝光</option>
@@ -1070,18 +1352,13 @@ tbody tr:hover td { background: #f8fafd; }
         <input id="recommendationSince" class="recommendation-input" type="date" aria-label="開始日期">
         <input id="recommendationUntil" class="recommendation-input" type="date" aria-label="結束日期">
         <input id="recommendationSessionFilter" class="recommendation-input" type="text" placeholder="搜尋工作階段編號">
-      </div>
+        </div>
+      </details>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-        <select id="recommendationLimit" class="recommendation-select" style="min-width:96px">
+        <select id="recommendationLimit" class="recommendation-select" style="min-width:96px" aria-label="顯示最近推薦事件筆數">
           <option value="50">最近 50 筆</option>
           <option value="100" selected>最近 100 筆</option>
         </select>
-        <button class="refresh-btn" id="recommendationRefreshBtn" type="button">
-          <i class="fas fa-sync-alt"></i> 重新整理
-        </button>
-        <button class="clear-btn" id="recommendationClearBtn" type="button" hidden>
-          <i class="fas fa-trash-alt"></i> 清除事件
-        </button>
       </div>
     </div>
 
@@ -1091,14 +1368,15 @@ tbody tr:hover td { background: #f8fafd; }
       <div class="recommendation-kpi"><b>—</b><span>載入中</span><small>最近事件</small></div>
     </div>
 
-    <div class="recommendation-metric-guide" aria-label="推薦成效指標說明">
-      <span><b>有效曝光</b>推薦在畫面上達到可見門檻。</span>
-      <span><b>點擊推薦</b>顧客點選推薦內容。</span>
-      <span><b>加入購物車</b>顧客將推薦餐點加入購物車。</span>
-      <span><b>完成購買</b>推薦餐點最終完成結帳。</span>
-      <span><b>忽略推薦</b>顧客看過後未採用該推薦。</span>
+    <div class="recommendation-journey" aria-label="推薦成效閱讀順序">
+      <span><b>1</b>看過推薦</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+      <span><b>2</b>點進推薦</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+      <span><b>3</b>加入購物車</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+      <span><b>4</b>完成購買</span>
     </div>
 
+    <details class="recommendation-advanced">
+      <summary><span><b>查看進階分析與事件明細</b><small>適合需要比較推薦入口、活動與策略的人員</small></span><i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
     <div class="recommendation-grid">
       <div class="card">
         <div class="card-title"><i class="fas fa-window-restore"></i> 推薦入口成效</div>
@@ -1147,7 +1425,10 @@ tbody tr:hover td { background: #f8fafd; }
         </table>
       </div>
     </div>
+    </details>
   </section>
+
+  </div>
 
   <section id="page-health" class="health-page" style="display:none">
     <div class="health-toolbar">
@@ -1469,19 +1750,6 @@ tbody tr:hover td { background: #f8fafd; }
 
           <hr style="border:none;border-top:1px solid #edf0f7">
 
-          <!-- 付款逾時協助 Prompt -->
-          <section>
-            <div class="section-title">付款逾時情緒摘要指令（員工用）</div>
-            <p style="font-size:11px;color:#8494b0;margin-bottom:14px;line-height:1.6">
-              付款倒數逾時後，Ollama 根據情緒分析結果產生一段<b>給員工閱讀</b>的中文情緒摘要，說明顧客目前狀態與建議應對方式，顯示於後台「人員協助付款」彈窗。輸出請使用 JSON 格式：<code style="background:#f0f2f8;padding:1px 5px;border-radius:4px">{"assist_message":"..."}</code>
-            </p>
-            <div>
-              <textarea id="inp-payment-assist-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
-            </div>
-          </section>
-
-          <hr style="border:none;border-top:1px solid #edf0f7">
-
           <!-- 被動語音監聽關鍵詞 -->
           <section>
             <div class="section-title">被動語音監聽關鍵詞</div>
@@ -1595,11 +1863,33 @@ tbody tr:hover td { background: #f8fafd; }
           <label class="setting-label">查詢筆數</label>
           <input id="inp-rag-top-k" class="setting-input" type="number" min="1" max="10" placeholder="3">
         </div>
+        <div class="setting-row">
+          <label class="setting-label" for="inp-rag-strategy">檢索策略</label>
+          <select id="inp-rag-strategy" class="setting-input" onchange="updateRagStrategyHelp()">
+            <option value="hybrid">混合檢索（建議）</option>
+            <option value="dense">語意向量 Dense</option>
+            <option value="bm25">關鍵字 BM25</option>
+          </select>
+        </div>
+        <p id="rag-strategy-help" class="rag-strategy-help">同時比較語意與關鍵字，再用 RRF 合併排序，適合一般門市問答。</p>
         <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
           <button class="refresh-btn" type="button" onclick="saveRagSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
             <i class="fas fa-save"></i> 儲存 RAG 設定
           </button>
           <span id="rag-settings-notice" style="font-size:12px;display:none"></span>
+        </div>
+        <div class="rag-strategy-lab">
+          <b>測試目前策略</b>
+          <p>使用正式索引預覽檢索結果，不會送進顧客對話或改變文件。</p>
+          <label class="setting-label" for="rag-test-query" style="display:block;width:auto;margin-bottom:6px">模擬顧客問題</label>
+          <textarea id="rag-test-query" class="setting-input" maxlength="500" placeholder="例如：早餐供應到幾點？"></textarea>
+          <div class="rag-test-actions">
+            <button id="rag-test-btn" class="refresh-btn" type="button" onclick="testRagStrategy()">
+              <i class="fas fa-flask"></i> 測試檢索
+            </button>
+            <span id="rag-test-status" class="rag-test-status" aria-live="polite"></span>
+          </div>
+          <div id="rag-test-results" class="rag-test-results"></div>
         </div>
         <div class="rag-health-grid" id="rag-health-grid">
           <div class="rag-health-chip"><b>—</b><span>Chroma 狀態</span></div>
@@ -1707,12 +1997,6 @@ tbody tr:hover td { background: #f8fafd; }
         </div>
 
         <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">付款倒數擷取秒數</label>
-          <input type="number" id="inp-payment-emotion-clip-sec" class="setting-input" style="width:100px" min="1" max="14" step="0.5">
-          <span style="font-size:12px;color:#8494b0">觸發點 = 15 − 此值（秒）</span>
-        </div>
-
-        <div style="display:flex;align-items:center;gap:12px">
           <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用品質快篩</label>
           <input type="checkbox" id="inp-emotion-quality-check">
         </div>
@@ -1722,37 +2006,30 @@ tbody tr:hover td { background: #f8fafd; }
           <input type="checkbox" id="inp-emotion-affect-voice">
         </div>
 
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">結果影響介入系統</label>
-          <input type="checkbox" id="inp-emotion-affect-barrier">
-        </div>
-
         <div style="border-top:1px solid #edf0f7;padding-top:12px;margin-top:2px">
-          <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">觸發事件</div>
+          <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">語音助理分析</div>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="display:flex;align-items:center;gap:12px">
-              <label style="min-width:200px;font-size:13px;color:var(--text2)">語音模式結束後</label>
-              <input type="checkbox" id="inp-emotion-event-voice" onchange="toggleVoiceWaitMode()">
-            </div>
-            <div id="voice-wait-mode-row" style="display:none;margin-left:212px;gap:16px;align-items:center;flex-wrap:wrap">
-              <label style="font-size:12px;font-weight:600;color:#8494b0">語音分析時機</label>
-              <label style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
-                <input type="radio" name="emotion-voice-wait" value="speed" id="inp-emotion-voice-speed"> 速度優先模式（背景分析，影響下一輪）
-              </label>
-              <label style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
-                <input type="radio" name="emotion-voice-wait" value="analysis" id="inp-emotion-voice-analysis"> 分析模式（等待分析完成，影響當下回覆）
-              </label>
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">語音結束時分析</label>
+              <input type="checkbox" id="inp-emotion-event-voice">
+              <span style="font-size:12px;color:#8494b0">分析完成後可供本次點餐 LLM 參考</span>
             </div>
             <div style="display:flex;align-items:center;gap:12px">
-              <label style="min-width:200px;font-size:13px;color:var(--text2)">付款倒數逾時分析（預設開啟）</label>
-              <input type="checkbox" id="inp-emotion-event-payment-timeout">
+              <label for="inp-emotion-analysis-mode" style="min-width:200px;font-size:13px;color:var(--text2)">執行方案</label>
+              <select id="inp-emotion-analysis-mode" class="setting-input" style="max-width:260px">
+                <option value="media_only">方案 A｜僅影音（較快）</option>
+                <option value="media_plus_stt" selected>方案 B｜影音＋STT（建議）</option>
+                <option value="paired">方案 A+B｜同片段配對（較慢）</option>
+              </select>
+              <input type="checkbox" id="inp-emotion-include-stt" checked hidden aria-hidden="true" tabindex="-1">
+              <span style="font-size:12px;color:#8494b0">預設只跑 B；需要測試 STT 差異時再選 A+B</span>
             </div>
           </div>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="display:flex;align-items:baseline;justify-content:space-between">
-            <label style="font-size:13px;color:var(--text2)">分析指令範本（{speech_text} 代表語音文字，無語音時自動省略）</label>
+            <label style="font-size:13px;color:var(--text2)">分析指令範本（語音結束分析會將 {speech_text} 替換為 STT 逐字稿；關閉 STT 時自動省略）</label>
             <span id="emotion-prompt-counter" style="font-size:11px;color:var(--text2);white-space:nowrap;margin-left:12px">0 字</span>
           </div>
           <textarea id="inp-emotion-prompt" class="setting-input" rows="6"
@@ -1768,10 +2045,51 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
     </div>
 
-    <!-- 介入紀錄卡片 -->
+    <section class="card emotion-influence-dashboard" aria-labelledby="emotion-influence-title">
+      <div class="emotion-observability-note">
+        <div>
+          <strong>本輪點餐情緒測試</strong>
+          <h2 id="emotion-influence-title">用 LLM 分析客人目前情況</h2>
+          <p>彙整最新一輪點餐的完整情緒證據，按下「客人分析」後產生只供 Admin 測試的情況摘要。</p>
+        </div>
+        <ul>
+          <li>有效情緒分析必須同時包含情緒／強度、表情、語調與點餐重點。</li>
+          <li>缺少任一欄位會標示為不完整，不會送入客人分析 LLM。</li>
+          <li>客人分析只使用結構化情緒證據，不包含完整逐字稿或顧客個資。</li>
+          <li>此功能只供分析測試，不會修改價格、購物車、訂單或顧客回覆。</li>
+        </ul>
+      </div>
+      <div id="emotion-influence-kpis" class="emotion-influence-kpis" aria-live="polite">
+        <div class="emotion-influence-loading">正在彙整語音輪次…</div>
+      </div>
+      <section class="emotion-stt-comparison-panel" aria-labelledby="emotion-customer-analysis-title">
+        <div class="emotion-stt-comparison-head">
+          <div>
+            <h3 id="emotion-customer-analysis-title">本輪客人分析</h3>
+            <p>先確認本輪完整情緒證據，再由 LLM 分析客戶目前情況、點餐需求與建議回應方式。</p>
+          </div>
+          <button id="emotion-customer-analyze-btn" class="btn btn-primary" type="button" onclick="analyzeEmotionCustomer()" disabled>客人分析</button>
+        </div>
+        <div id="emotion-customer-analysis-context" aria-live="polite">
+          <div class="emotion-influence-loading">正在整理本輪情緒證據…</div>
+        </div>
+        <p id="emotion-customer-analysis-status" class="emotion-stt-comparison-result" aria-live="polite">載入完成後可按「客人分析」。</p>
+        <dl id="emotion-customer-analysis-result" class="emotion-customer-result" hidden>
+          <div><dt>客戶目前情況</dt><dd id="emotion-customer-current-situation">—</dd></div>
+          <div><dt>點餐需求或困難</dt><dd id="emotion-customer-ordering-need">—</dd></div>
+          <div><dt>建議回應重點</dt><dd id="emotion-customer-response-focus">—</dd></div>
+          <div><dt>判讀限制</dt><dd id="emotion-customer-caution">—</dd></div>
+        </dl>
+      </section>
+      <div id="emotion-influence-rounds" class="emotion-influence-rounds">
+        <div class="emotion-influence-loading">載入中…</div>
+      </div>
+    </section>
+
+    <!-- 分析紀錄卡片 -->
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-        <span><i class="fas fa-list-alt"></i> 情緒分析介入紀錄</span>
+        <span><i class="fas fa-list-alt"></i> 原始情緒分析紀錄</span>
         <button class="btn" style="font-size:12px;padding:4px 10px" onclick="clearEmotionLogs()" type="button">
           <i class="fas fa-trash-alt"></i> 清除
         </button>
@@ -1834,12 +2152,14 @@ tbody tr:hover td { background: #f8fafd; }
   </section>
 
   <!-- ── 測試頁 ── -->
-  <div class="content" id="page-test" style="display:none;overflow:hidden;padding-bottom:0">
+  <div class="content" id="page-test" style="display:none;padding-bottom:0">
+
+    <section class="llm-test-section" aria-labelledby="llm-test-title">
 
     <!-- 左欄：設定 -->
     <div class="test-left">
-      <div class="card" style="flex-shrink:0">
-        <div class="card-title"><i class="fas fa-cog"></i> 測試設定</div>
+      <div class="card llm-test-settings-card">
+        <div class="card-title" id="llm-test-title"><i class="fas fa-cog"></i> LLM 測試設定</div>
 
         <div class="section-title" style="margin-bottom:8px">提供者</div>
         <div class="provider-tabs" style="margin-bottom:14px">
@@ -1854,6 +2174,7 @@ tbody tr:hover td { background: #f8fafd; }
           </button>
         </div>
 
+        <div class="test-provider-fields">
         <!-- Ollama 欄位 -->
         <div id="test-fields-ollama">
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
@@ -1887,6 +2208,7 @@ tbody tr:hover td { background: #f8fafd; }
             <input id="test-inp-openai-model" class="setting-input" type="text" placeholder="gpt-4o-mini" style="width:100%">
           </div>
         </div>
+        </div>
 
         <hr style="border:none;border-top:1px solid #edf0f7;margin:12px 0">
 
@@ -1894,9 +2216,8 @@ tbody tr:hover td { background: #f8fafd; }
         <textarea id="test-inp-system-prompt" class="setting-input" rows="4"
           style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"
           placeholder="載入中… 會自動帶入目前的語音系統指令，可直接修改測試。"></textarea>
-      </div>
 
-      <div style="display:flex;gap:8px">
+      <div class="llm-test-settings-actions">
         <button class="refresh-btn" type="button" onclick="clearTestChat()" style="flex:1;justify-content:center">
           <i class="fas fa-trash-alt"></i> 清除對話
         </button>
@@ -1904,10 +2225,11 @@ tbody tr:hover td { background: #f8fafd; }
           <i class="fas fa-sync-alt"></i>
         </button>
       </div>
+      </div>
     </div>
 
     <!-- 右欄：對話 -->
-    <div class="test-right" style="padding-bottom:24px">
+    <div class="test-right">
 
       <!-- 頂部工具列 -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
@@ -1944,6 +2266,70 @@ tbody tr:hover td { background: #f8fafd; }
         </button>
       </div>
     </div>
+
+    </section>
+
+    <section class="card emotion-text-card emotion-text-card--test" aria-labelledby="emotion-text-title">
+      <div class="card-title" id="emotion-text-title"><i class="fas fa-comment-dots"></i> 文字模擬說話</div>
+      <p class="emotion-text-intro">輸入顧客可能說出的原句，由文字情緒分析模型根據用詞與標點分析。下方會分開顯示模型回答與支持判讀的分析內容。此測試不使用攝影機或麥克風，不會捏造表情或聲音線索，也不會觸發點餐或付款操作。</p>
+      <label class="setting-label" for="emotion-text-input" style="display:block;width:auto;margin-bottom:7px">模擬顧客說話內容</label>
+      <textarea id="emotion-text-input" class="setting-input emotion-text-input" maxlength="500" placeholder="例如：我已經試了好幾次，為什麼還是不能付款？"></textarea>
+      <div class="emotion-text-samples" aria-label="文字情緒測試範例">
+        <span>快速帶入：</span>
+        <button class="emotion-text-sample" type="button" data-emotion-sample="我已經試了好幾次，為什麼還是不能付款？">焦慮／挫折</button>
+        <button class="emotion-text-sample" type="button" data-emotion-sample="太好了，這個推薦正是我想要的，謝謝！">開心</button>
+        <button class="emotion-text-sample" type="button" data-emotion-sample="我看不懂這個畫面，下一步要按哪裡？">困惑</button>
+      </div>
+      <div class="emotion-text-actions">
+        <button id="emotion-text-analyze-btn" class="btn btn-primary" type="button" onclick="analyzeEmotionText()">
+          <i class="fas fa-search"></i> 分析文字情緒
+        </button>
+        <span id="emotion-text-status" class="emotion-text-status" aria-live="polite">可按 Ctrl/Cmd + Enter 送出。</span>
+      </div>
+      <dl id="emotion-text-result" class="emotion-text-result" hidden>
+        <div><dt>主要情緒</dt><dd id="emotion-text-result-emotion">—</dd></div>
+        <div><dt>強度</dt><dd id="emotion-text-result-intensity">—</dd></div>
+        <div><dt>信心</dt><dd id="emotion-text-result-confidence">—</dd></div>
+        <div><dt>文字情緒分析模型</dt><dd id="emotion-text-result-model">—</dd></div>
+        <div class="emotion-text-answer"><dt>文字情緒分析回答</dt><dd id="emotion-text-result-answer">—</dd></div>
+        <div class="emotion-text-description"><dt>情緒模型分析內容</dt><dd id="emotion-text-result-description">—</dd></div>
+      </dl>
+
+      <div class="emotion-live-panel">
+        <div class="emotion-live-heading">
+          <div>
+            <h3><i class="fas fa-video" aria-hidden="true"></i> 即時影像情緒偵測</h3>
+            <p>啟用後會在本機預覽攝影機，並每次擷取約 2.5 秒片段送往目前設定的 Emotion-LLaMA／R1-Omni。離開測試頁或按停止後會立即關閉攝影機。</p>
+          </div>
+        </div>
+        <div class="emotion-live-grid">
+          <div>
+            <div id="emotion-video-preview" class="emotion-video-preview">
+              <video id="emotion-video" autoplay muted playsinline aria-label="即時影像情緒偵測預覽"></video>
+              <div class="emotion-video-placeholder">攝影機尚未啟用。影像只在分析片段期間送往本機情緒模型。</div>
+            </div>
+            <div class="emotion-video-controls">
+              <button id="emotion-video-start-btn" class="btn btn-primary" type="button" onclick="startEmotionVideoDetection()">
+                <i class="fas fa-video"></i> 開始即時偵測
+              </button>
+              <button id="emotion-video-stop-btn" class="btn" type="button" onclick="stopEmotionVideoDetection()" disabled>
+                <i class="fas fa-stop"></i> 停止
+              </button>
+              <span id="emotion-video-status" class="emotion-video-status" aria-live="polite">等待啟用攝影機。</span>
+            </div>
+          </div>
+          <dl id="emotion-video-result" class="emotion-video-result" hidden>
+            <div><dt>情緒模型</dt><dd id="emotion-video-result-model">—</dd></div>
+            <div><dt>主要情緒／強度</dt><dd id="emotion-video-result-emotion">—</dd></div>
+            <div><dt>信心</dt><dd id="emotion-video-result-confidence">—</dd></div>
+            <div><dt>分析狀態</dt><dd id="emotion-video-result-quality">—</dd></div>
+            <div class="emotion-video-detail"><dt>表情線索</dt><dd id="emotion-video-result-facial">—</dd></div>
+            <div class="emotion-video-detail"><dt>聲音線索</dt><dd id="emotion-video-result-vocal">未擷取音訊</dd></div>
+            <div class="emotion-video-detail"><dt>情緒模型分析內容</dt><dd id="emotion-video-result-description">—</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
   </div>
 
 </div><!-- /.main -->
@@ -1954,11 +2340,7 @@ tbody tr:hover td { background: #f8fafd; }
     <div style="font-size:48px;margin-bottom:12px">🔔</div>
     <div id="staffNotifyKiosk" style="font-size:15px;font-weight:700;color:#3b7aee;margin-bottom:6px;letter-spacing:0.04em"></div>
     <div id="staffNotifyReason" style="font-size:22px;font-weight:800;color:#1a2233;margin-bottom:16px"></div>
-    <div id="staffNotifyEmotion" style="display:none;background:#f4f6fa;border-radius:10px;padding:12px 16px;margin-bottom:20px;text-align:left">
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:0.06em;margin-bottom:6px">情緒分析</div>
-      <div id="staffNotifyEmotionLabel" style="font-size:15px;font-weight:700;color:#1a2233;margin-bottom:4px"></div>
-      <div id="staffNotifyEmotionDesc" style="font-size:12px;color:#555;line-height:1.5"></div>
-    </div>
+    <p style="color:#66758d;font-size:13px;line-height:1.6;margin:0 0 20px">顧客已在付款畫面要求協助，請前往機台查看。</p>
     <button onclick="dismissStaffNotify()" style="background:#3b7aee;color:#fff;border:none;border-radius:10px;padding:12px 36px;font-size:16px;font-weight:700;cursor:pointer;width:100%">確認</button>
   </div>
 </div>

@@ -21,6 +21,9 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
+        emotion_round_id: str = Form(default=""),
+        voice_turn_id: str = Form(default=""),
+        voice_turn_index: int = Form(default=0),
     ):
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
@@ -38,6 +41,9 @@ def create_router(deps: dict) -> APIRouter:
                 ollama_semaphore=deps["ollama_semaphore"],
                 multi_lang=multi_lang.lower() == "true",
                 scope=scope,
+                emotion_round_id=emotion_round_id,
+                voice_turn_id=voice_turn_id,
+                voice_turn_index=voice_turn_index,
             )
         except HTTPException:
             raise
@@ -53,6 +59,9 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         media: UploadFile = File(...),
         multi_lang: str = Form(default="true"),
+        emotion_round_id: str = Form(default=""),
+        voice_turn_id: str = Form(default=""),
+        voice_turn_index: int = Form(default=0),
     ):
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
@@ -71,6 +80,9 @@ def create_router(deps: dict) -> APIRouter:
                     ollama_semaphore=deps["ollama_semaphore"],
                     multi_lang=multi_lang.lower() == "true",
                     scope=scope,
+                    emotion_round_id=emotion_round_id,
+                    voice_turn_id=voice_turn_id,
+                    voice_turn_index=voice_turn_index,
                 ):
                     yield chunk
             finally:

@@ -387,7 +387,9 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
       const version = document.createElement('p'); version.textContent = `版本 ${snapshot.version}・影響 ${snapshot.payload?.placements?.length || 0} 個顧客畫面・操作人員編號 ${actor ? `…${actor.slice(-8)}` : '未記錄'}`;
       const schedule = document.createElement('p'); schedule.textContent = `${snapshot.payload?.schedule?.starts_at || '未設定開始'} 至 ${snapshot.payload?.schedule?.ends_at || '未設定結束'}`;
       const actions = document.createElement('div'); actions.className = 'campaign-card-actions';
-      if (snapshot.status !== 'archived' && hasPermission('campaigns.write')) addAction(actions, '查看與編輯', () => openWizard(snapshot));
+      if (['draft', 'review', 'paused', 'ended'].includes(snapshot.status) && hasPermission('campaigns.write')) {
+        addAction(actions, '查看與編輯', () => openWizard(snapshot));
+      }
       if (hasPermission('campaigns.publish')) {
         if (['active', 'scheduled'].includes(snapshot.status)) addAction(actions, '暫停', () => lifecycleAction(snapshot, 'paused'));
         if (snapshot.status === 'paused') addAction(actions, '重新啟用', () => lifecycleAction(snapshot, 'active'));

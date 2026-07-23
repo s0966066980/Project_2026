@@ -83,8 +83,7 @@ export function createRecommendationEventsAdmin({
   formatDate,
   loadMenu,
   menuName,
-  alertUser = message => window.alert(message),
-  confirmAction = message => window.confirm(message),
+  onSummary = () => {},
 }) {
   let recommendationEventsLoadPromise = null;
   let recommendationDashboardEvents = [];
@@ -153,31 +152,34 @@ export function createRecommendationEventsAdmin({
     if (!box) return;
     const counts = stats.typeCounts;
     const shown = recommendationCount(counts, 'recommendation_shown');
-    const clicked = recommendationCount(counts, 'recommendation_clicked');
     const added = recommendationCount(counts, 'recommendation_added_to_cart');
     const checked = recommendationCount(counts, 'recommendation_checked_out');
-    const ignored = recommendationCount(counts, 'recommendation_ignored');
     const report = effectivenessReport;
     const cards = report ? [
-      ['有效曝光', report.impressions, '畫面可見至少 1 秒'],
-      ['點擊', report.clicks, `${Math.round(Number(report.click_through_rate || 0) * 1000) / 10}% 曝光後點擊`],
-      ['加入購物車', report.add_to_carts, `${Math.round(Number(report.add_to_cart_rate || 0) * 1000) / 10}% 曝光後加購`],
-      ['完成購買', report.purchases, `${Math.round(Number(report.purchase_rate || 0) * 1000) / 10}% 曝光後購買`],
-      ['歸因營收', formatMoney(report.attributed_revenue), '只計已完成訂單'],
-      ['優惠金額', formatMoney(report.attributed_discount), '已完成訂單折扣'],
-      ['資料待補', report.incomplete_events, '舊事件或欄位缺漏'],
+      ['有效曝光', report.impressions, '在畫面上看到至少 1 秒'],
+      ['完成購買', report.purchases, '由推薦歸因的已完成訂單'],
+      ['購買率', `${Math.round(Number(report.purchase_rate || 0) * 1000) / 10}%`, '有效曝光後完成購買'],
+      ['推薦營收', formatMoney(report.attributed_revenue), '只計已完成訂單'],
     ] : [
-      ['目前事件', events.length, '暫用舊事件統計'],
       ['曝光', shown, '有效曝光服務尚未載入'],
-      ['點擊', clicked, recommendationRate(clicked, shown)],
       ['加入購物車', added, recommendationRate(added, shown)],
       ['完成購買', checked, recommendationRate(checked, shown)],
-      ['忽略推薦', ignored, recommendationRate(ignored, shown)],
-      ['追蹤活動', Object.keys(stats.offerCounts).length, '活動數量'],
+      ['觀察購買率', recommendationRate(checked, shown), `${events.length} 筆舊事件資料`],
     ];
     box.innerHTML = cards
       .map(([label, value, sub]) => `<div class="recommendation-kpi"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span><small>${escapeHtml(sub)}</small></div>`)
       .join('');
+
+    if (report) {
+      onSummary({
+        impressions: Number(report.impressions || 0),
+        purchases: Number(report.purchases || 0),
+        purchaseRate: Number(report.purchase_rate || 0),
+        sampleWarning: String(report.sample_warning || ''),
+      });
+    } else {
+      onSummary({ impressions: shown, purchases: checked, purchaseRate: shown ? checked / shown : 0, provisional: true });
+    }
   }
 
   function renderRecommendationCountRows(containerId, groupedCounts, labelMap, emptyText) {
@@ -324,6 +326,7 @@ export function createRecommendationEventsAdmin({
       } catch (e) {
         recommendationDashboardEvents = [];
         effectivenessReport = null;
+        onSummary({ error: true });
         if (body) body.innerHTML = `<tr><td colspan="9" class="adm-empty" style="color:#e84040">載入失敗：${escapeHtml(e.message)}</td></tr>`;
       }
     })().finally(() => {
@@ -332,26 +335,8 @@ export function createRecommendationEventsAdmin({
     return recommendationEventsLoadPromise;
   }
 
-  async function clearRecommendationEvents() {
-    if (!confirmAction('確定清除所有推薦事件？此操作無法還原。')) return;
-    const btn = getElement('recommendationClearBtn');
-    if (btn) btn.disabled = true;
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/recommendation_events`, { method: 'DELETE', headers: adminHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      recommendationDashboardEvents = [];
-      renderRecommendationSurfaceOptions([]);
-      renderRecommendationDashboard();
-    } catch (e) {
-      alertUser(`清除失敗：${e.message}`);
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
-
   return {
     loadRecommendationEvents,
-    clearRecommendationEvents,
     renderRecommendationDashboard,
   };
 }

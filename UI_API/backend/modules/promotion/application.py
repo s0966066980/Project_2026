@@ -389,6 +389,8 @@ def revise_campaign_draft(
         raise LookupError("campaign_not_found")
     if current.status == "archived":
         raise CampaignStateError("archived_campaign_is_immutable")
+    if current.status != "draft" and "draft" not in CAMPAIGN_TRANSITIONS.get(current.status, set()):
+        raise CampaignStateError("campaign_must_be_paused_or_ended_before_edit")
     preview = preview_campaign(payload, scope, repository=repo, exclude_campaign_id=campaign_id, catalog_items=catalog_items)
     if not preview.valid:
         raise ValueError(preview.field_errors)
