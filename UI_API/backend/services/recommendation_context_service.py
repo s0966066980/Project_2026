@@ -29,12 +29,16 @@ def _normalize_ids(values: list[str] | None) -> list[str]:
     return rows
 
 
-async def _rag_context(query: str, top_k: int | None = None) -> str:
+async def _rag_context(
+    query: str,
+    top_k: int | None = None,
+    scope: CommercialScope | None = None,
+) -> str:
     if not config.get("RAG_ENABLED", False):
         return ""
     try:
         from services.rag_provider import get_rag
-        return await get_rag().query(query, top_k=top_k)
+        return await get_rag().query(query, top_k=top_k, scope=scope)
     except Exception:
         return ""
 
@@ -66,7 +70,9 @@ async def build_context(
     menu_items: list[dict] | None = None,
     scope: CommercialScope | None = None,
 ) -> dict:
-    menu_rows = menu_items if menu_items is not None else await asyncio.to_thread(menu_repository.get_menu)
+    menu_rows = menu_items if menu_items is not None else await asyncio.to_thread(
+        menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+    ) if scope is not None else await asyncio.to_thread(menu_repository.get_menu)
     member = await asyncio.to_thread(
         member_service.get_session_member,
         session_id,
@@ -90,7 +96,7 @@ async def build_context(
         else await asyncio.to_thread(availability_service.build_availability_context, menu_rows)
     )
     rag, offers = await asyncio.gather(
-        _rag_context(rag_query, top_k=rag_top_k) if rag_query else asyncio.sleep(0, result=""),
+        _rag_context(rag_query, top_k=rag_top_k, scope=scope) if rag_query else asyncio.sleep(0, result=""),
         _rag_offers(menu_rows, scope),
     )
     excluded_ids = [

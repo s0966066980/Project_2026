@@ -8,7 +8,7 @@ from typing import Any
 from models.commercial_scope import CommercialScope
 from modules.promotion import PromotionContext, quote_promotion, select_promotion_quote
 from repositories import menu_repository
-from services import commercial_shadow_service, promotion_service
+from services import availability_service, commercial_shadow_service, promotion_service
 
 CHECKOUT_CALCULATION_VERSION = "checkout-v1"
 CHECKOUT_CURRENCY = "TWD"
@@ -83,10 +83,39 @@ def price_checkout_cart(
     now: datetime | None = None,
     scope: CommercialScope | None = None,
 ) -> dict:
+    if scope is not None:
+        menu_rows = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+    else:
+        menu_rows = menu_repository.get_menu()
     menu_by_id = {
         str(item.get("id") or "").strip(): item
-        for item in menu_repository.get_menu()
+        for item in menu_rows
         if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    availability = availability_service.build_availability_context(
+        list(menu_by_id.values()),
+        now=now,
+        scope=scope,
+    )
+    exclude_ids = {
+        str(item_id).strip()
+        for item_id in (availability.get("exclude_item_ids") or [])
+        if str(item_id).strip()
+    }
+    sold_out_ids = {
+        str(item_id).strip()
+        for item_id in (availability.get("sold_out_item_ids") or [])
+        if str(item_id).strip()
+    }
+    disabled_ids = {
+        str(item_id).strip()
+        for item_id in (availability.get("store_disabled_item_ids") or [])
+        if str(item_id).strip()
+    }
+    time_unavailable_ids = {
+        str(item_id).strip()
+        for item_id in (availability.get("time_unavailable_item_ids") or [])
+        if str(item_id).strip()
     }
     source_rows = _source_rows(cart_items, cart_ids)
     if not source_rows:
@@ -103,6 +132,17 @@ def price_checkout_cart(
         menu_item = menu_by_id.get(item_id)
         if not menu_item:
             raise CartValidationError("unknown_item", f"unknown menu item: {item_id}")
+        if item_id in sold_out_ids:
+            raise CartValidationError("item_sold_out", f"menu item is sold out: {item_id}")
+        if item_id in disabled_ids:
+            raise CartValidationError("item_disabled", f"menu item is disabled: {item_id}")
+        if item_id in time_unavailable_ids:
+            raise CartValidationError(
+                "item_time_unavailable",
+                f"menu item is not available in the current service period: {item_id}",
+            )
+        if item_id in exclude_ids:
+            raise CartValidationError("item_unavailable", f"menu item is unavailable: {item_id}")
         quantity = _positive_quantity(raw.get("quantity", raw.get("qty", 1)))
         option_snapshots, option_unit_total = _price_options(raw.get("options"), menu_item)
         offer_id = str(raw.get("applied_offer_id") or "").strip()

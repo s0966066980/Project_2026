@@ -7,7 +7,41 @@
 <title>AI 推播系統 · 管理後台</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="/static/admin/ragStudio.css" rel="stylesheet">
 <style>
+/* ── 設計 token ──────────────────────────────────────────────────────────
+   在此之前整份後台完全沒有 :root 區塊，因此散落各處的 var(--text2) /
+   var(--surface2) / var(--border) / var(--danger) 全部解析失敗、宣告被丟棄
+   （例如情緒分析頁的標籤其實從未變灰）。Data-Dense Console 風格：以框線
+   分層、緊湊列高、無陰影。 */
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --text: #111826;
+  --text2: #5d6b82;
+  --text3: #93a1b5;
+  --border: #dfe5ee;
+  --border-strong: #cbd5e3;
+  --primary: #1e5fd0;
+  --primary-soft: #eaf1fd;
+  --accent: #b45309;
+  --ok: #0f8a5f;
+  --ok-soft: #e3f6ed;
+  --danger: #c0392b;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --row-h: 36px;
+  --fs-sm: 11.5px;
+  --fs: 12.5px;
+  --fs-lg: 14px;
+  /* 介面縮放倍率，由「版面設定」分頁寫入並存在瀏覽器（個人偏好，不進後端設定）。 */
+  --ui-zoom: 1;
+}
+/* 側邊欄與主區域一起縮放，導覽與內容才不會一大一小。
+   兩者的外部尺寸仍由 flex 決定，內容區自己有 overflow 捲動，所以放大不會撐破版面。
+   固定定位的登入遮罩、付款通知與 RAG 提示都掛在 body 之下、這兩個容器之外，不受影響。 */
+.sidebar, .main { zoom: var(--ui-zoom); }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display:none !important; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -23,7 +57,7 @@ body {
   overflow: hidden;
 }
 .admin-auth-backdrop {
-  position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center;
   background: rgba(20, 28, 43, 0.72); padding: 20px;
 }
 .admin-auth-card {
@@ -37,9 +71,11 @@ body {
   width: 100%; border: 1.5px solid #dce3ef; border-radius: 8px; padding: 10px 12px; font: inherit;
 }
 .admin-auth-card button {
-  width: 100%; margin-top: 18px; border: 0; border-radius: 8px; padding: 11px 14px;
+  width: 100%; border: 0; border-radius: 8px; padding: 11px 14px;
   color: #fff; background: #3b7aee; font-weight: 800; cursor: pointer;
 }
+.admin-auth-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:18px; }
+.admin-auth-card .admin-auth-cancel { color:#52617a; background:#eef2f7; }
 .admin-auth-error { min-height: 18px; margin-top: 10px; color: #b42318; font-size: 12px; }
 
 /* ── Sidebar ── */
@@ -136,6 +172,10 @@ body {
 }
 .topbar-title { font-size: 17px; font-weight: 800; color: #1a2233; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
+.manager-access-status {
+  display:inline-flex; align-items:center; min-height:32px; padding:5px 10px;
+  border-radius:999px; background:#eef3fb; color:#52617a; font-size:11px; font-weight:900;
+}
 .topbar-date {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 600; color: #5a6a8a;
@@ -209,6 +249,13 @@ body {
   border-top:1px solid #cfddf2;
 }
 .operations-next-step b { color:#263a5b; }
+.operations-today-metrics {
+  display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:10px; margin-top:16px;
+}
+.operations-today-metric { border:1px solid #dfe6f2; background:#fff; border-radius:12px; padding:12px 14px; }
+.operations-today-metric b { display:block; color:#1a2233; font-size:22px; line-height:1.2; }
+.operations-today-metric span { display:block; color:#34425d; font-size:12px; font-weight:800; margin-top:5px; }
+.operations-today-metric small { display:block; color:#7c879a; font-size:10.5px; margin-top:4px; line-height:1.4; }
 .overview-section { display:flex; flex-direction:column; gap:16px; padding-top:4px; }
 .overview-section + .overview-section { border-top:1px solid #dfe5ee; padding-top:28px; }
 .overview-section-heading h2 { color:#182238; font-size:20px; line-height:1.35; }
@@ -339,6 +386,7 @@ tbody tr:hover td { background: #f8fafd; }
 }
 @media (max-width: 700px) {
   .stat-cards { grid-template-columns: 1fr; }
+  .operations-today-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 .setting-row { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
 .setting-label { width:120px; flex-shrink:0; font-size:12px; font-weight:600; color:#3b4a6b; }
@@ -359,11 +407,9 @@ tbody tr:hover td { background: #f8fafd; }
 @media (max-width:900px) { .settings-grid { grid-template-columns:1fr; } }
 /* ── RAG page ── */
 #page-rag {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 24px;
-  overflow: hidden;
+  display:block;
+  width:100%;
+  overflow:auto;
 }
 .rag-left {
   display: flex;
@@ -372,6 +418,9 @@ tbody tr:hover td { background: #f8fafd; }
   overflow-y: auto;
   min-height: 0;
 }
+.rag-faq-form { display:grid; gap:10px; }
+.rag-faq-form > label, .rag-faq-grid label { display:grid; gap:5px; color:#52617a; font-size:11px; font-weight:800; }
+.rag-faq-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .rag-right {
   display: flex;
   flex-direction: column;
@@ -531,7 +580,8 @@ tbody tr:hover td { background: #f8fafd; }
 .promotion-status.active { background:#e6f7ef; color:#128257; }
 .promotion-status.draft { background:#fff4e5; color:#b9700f; }
 .promotion-status.inactive { background:#f2f4f8; color:#6b778c; }
-.campaign-page { display:flex; flex-direction:column; gap:16px; width:100%; max-width:1440px; margin:0 auto; padding:24px 28px 40px; overflow:auto; }
+/* 與會員、供應狀態、維運健康等頁一致採滿版，不再限寬置中。 */
+.campaign-page { display:flex; flex-direction:column; gap:16px; width:100%; padding:24px 28px 40px; overflow:auto; }
 .campaign-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; background:#fff; border:1px solid #e7ebf0; border-radius:14px; padding:18px 20px; }
 .campaign-filterbar { display:grid; grid-template-columns:minmax(220px,1fr) minmax(180px,240px) auto; }
 .campaign-filterbar .recommendation-input { width:100%; min-height:44px; }
@@ -550,6 +600,119 @@ tbody tr:hover td { background: #f8fafd; }
 .campaign-card-actions button, .campaign-primary, .campaign-secondary { min-height:44px; border-radius:9px; border:1px solid #cfd7e4; background:#fff; padding:8px 14px; font-weight:800; cursor:pointer; }
 .campaign-primary { background:#276fe8; color:#fff; border-color:#276fe8; }
 .campaign-danger { color:#a52d25; }
+
+/* ── 功能設定：分頁籤 ── */
+.settings-tabs { display:flex; gap:0; padding:0 6px; background:var(--surface); border-bottom:1px solid var(--border); overflow-x:auto; }
+.settings-tab { position:relative; display:flex; align-items:center; gap:5px; flex-shrink:0; min-height:44px; padding:0 15px; border:none; background:none; cursor:pointer; font-size:var(--fs); font-weight:600; color:var(--text2); border-bottom:2px solid transparent; transition:color .18s ease, border-color .18s ease, background .18s ease; }
+.settings-tab:hover { color:var(--text); }
+.settings-tab.active { color:var(--primary); border-bottom-color:var(--primary); background:var(--primary-soft); }
+.settings-tab:focus-visible { outline:2px solid var(--primary); outline-offset:-2px; border-radius:var(--radius-sm); }
+.settings-unsaved { font-size:var(--fs-sm); font-weight:700; color:var(--accent); }
+.settings-unsaved::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-right:4px; vertical-align:middle; }
+.settings-panel { padding:16px; background:var(--bg); }
+.settings-panel > section { margin-bottom:24px; }
+.settings-rule { border:none; border-top:1px solid #edf0f7; margin:0 0 24px; }
+
+/* ── Data-Dense Console：分組區塊 ── */
+.setting-group { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:12px; }
+.setting-group > h3 {
+  padding:9px 13px; margin:0; border-bottom:1px solid var(--border); background:var(--surface2);
+  font-size:11px; font-weight:750; letter-spacing:.07em; color:var(--text2);
+  text-transform:uppercase; border-radius:var(--radius) var(--radius) 0 0;
+}
+.setting-group-body { padding:13px; }
+.setting-radios { display:flex; flex-direction:column; gap:6px; }
+.setting-radio { display:flex; align-items:center; gap:7px; font-size:var(--fs); cursor:pointer; }
+.setting-warn { margin-top:5px; font-size:var(--fs-sm); color:var(--accent); line-height:1.5; }
+.setting-chips { display:inline-flex; gap:5px; flex-wrap:wrap; align-items:center; }
+.setting-chip {
+  display:inline-flex; align-items:center; gap:5px; background:var(--primary-soft); color:var(--primary);
+  border:1px solid #c3d9f8; border-radius:var(--radius-sm); padding:2px 4px 2px 8px; font-size:var(--fs-sm); font-weight:600;
+}
+.setting-chip button { border:none; background:none; color:inherit; cursor:pointer; font-size:13px; line-height:1; padding:0 2px; }
+.setting-input-narrow { width:78px; }
+
+/* ── 推薦詞管理 ── */
+.copy-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:11px 13px; background:var(--surface); border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; }
+.copy-toolbar .setting-input { width:auto; }
+.copy-toolbar-spacer { flex:1; }
+.copy-table-wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:0 0 var(--radius) var(--radius); }
+.copy-table { width:100%; border-collapse:collapse; font-size:var(--fs); }
+.copy-table thead th {
+  position:sticky; top:0; z-index:1; background:var(--surface2); text-align:left; padding:8px 11px;
+  font-size:11px; font-weight:750; letter-spacing:.05em; color:var(--text2);
+  text-transform:uppercase; border-bottom:1px solid var(--border); white-space:nowrap;
+}
+.copy-table tbody td { padding:0 11px; height:var(--row-h); border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.copy-table tbody tr:hover { background:var(--primary-soft); }
+.copy-table .copy-text { max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.copy-table .copy-mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:var(--fs-sm); color:var(--text2); }
+.copy-pill { display:inline-block; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:20px; white-space:nowrap; }
+.copy-pill.live { background:var(--ok-soft); color:var(--ok); }
+.copy-pill.non { background:#f0f3f7; color:var(--text3); }
+.copy-pill.warn { background:#fdf5e3; color:var(--accent); }
+.copy-editor { background:var(--surface); border:1px solid var(--primary); border-radius:var(--radius); padding:13px; margin:8px 0; }
+.copy-editor label { display:block; font-size:var(--fs); font-weight:650; margin-bottom:5px; }
+.copy-editor textarea { width:100%; resize:vertical; min-height:52px; }
+.copy-editor-row { display:flex; gap:8px; align-items:flex-start; margin-bottom:11px; }
+.copy-editor-row > div { flex:1; min-width:0; }
+.copy-editor-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.copy-count { font-size:var(--fs-sm); color:var(--text2); margin-top:4px; }
+.copy-count.over { color:var(--danger); font-weight:650; }
+.copy-batch { display:flex; flex-direction:column; gap:6px; padding:11px 13px; background:var(--surface); border:1px solid var(--border); border-top:none; font-size:var(--fs); }
+.copy-batch-bar { height:6px; border-radius:3px; background:var(--surface2); overflow:hidden; }
+.copy-batch-bar > i { display:block; height:100%; background:var(--primary); transition:width .3s ease; }
+.copy-batch-note { font-size:var(--fs-sm); color:var(--text2); }
+.copy-batch-note.error { color:var(--danger); }
+.setting-field { flex:1; min-width:0; }
+.setting-inline { display:flex; gap:8px; align-items:center; }
+.setting-inline .setting-input { flex:1; }
+.setting-help { margin-top:5px; font-size:11.5px; color:#8494b0; line-height:1.5; }
+.setting-error { margin-top:5px; font-size:11.5px; font-weight:600; color:#a52d25; }
+.setting-error:empty { display:none; }
+.setting-readonly { padding:9px 12px; border:1px dashed #cfd7e4; border-radius:8px; background:#fafbfe; font-size:12px; color:#6b7a99; }
+.setting-readonly code { background:#eef1f7; padding:1px 5px; border-radius:4px; }
+.setting-ready { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:7px; font-size:11.5px; color:#8494b0; }
+.setting-ready code { background:#eef1f7; padding:1px 5px; border-radius:4px; }
+.ready-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+.ready-pill.ok { background:#eaf7f0; color:#1f8a4c; }
+.ready-pill.warn { background:#fdf5e3; color:#96650a; }
+.ready-pill.err { background:#fdf0ef; color:#a52d25; }
+
+/* ── 功能設定：實際生效狀態列 ── */
+.settings-live { display:flex; flex-wrap:wrap; align-items:center; gap:16px; background:#f8fafd; border:1px solid #e3e9f3; border-left:3px solid #3b7aee; border-radius:10px; padding:12px 16px; margin-bottom:24px; }
+.settings-live-stats { display:flex; flex-wrap:wrap; gap:16px; }
+.settings-live-stat { display:flex; flex-direction:column; gap:2px; min-width:92px; }
+.settings-live-stat b { font-size:19px; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+.settings-live-stat span { font-size:11px; color:#8494b0; }
+.settings-live-note { width:100%; background:#fdf5e3; border:1px solid #f0dcae; border-radius:8px; padding:8px 12px; font-size:12.5px; color:#96650a; line-height:1.5; }
+.settings-testbox { border:1px dashed #cfd7e4; border-radius:10px; padding:12px 16px; background:#fcfdff; }
+.settings-testrow { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.settings-testout { margin-top:12px; padding-top:12px; border-top:1px solid #e3e9f3; font-size:12.5px; display:flex; flex-direction:column; gap:6px; }
+.settings-testout .line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.settings-testout b { font-variant-numeric:tabular-nums; }
+
+/* ── 功能設定：每頁儲存列 ── */
+.settings-save { position:sticky; bottom:0; display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 24px; border-top:1px solid #e3e9f3; background:rgba(255,255,255,.94); backdrop-filter:blur(6px); margin:0 -24px -24px; }
+.settings-save-msg { font-size:12.5px; font-weight:600; }
+.settings-save-msg.error { color:#a52d25; }
+.settings-save-msg.ok { color:#1f8a4c; }
+.settings-save-spacer { margin-left:auto; }
+.refresh-btn.settings-primary { background:#3b7aee; color:#fff; border-color:#3b7aee; }
+.refresh-btn.settings-primary:hover { background:#2f68d4; border-color:#2f68d4; }
+.settings-history table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.settings-history th { text-align:left; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:#8494b0; padding:8px 12px; border-bottom:1px solid #e3e9f3; }
+.settings-history td { padding:12px; border-bottom:1px solid #e3e9f3; vertical-align:top; }
+.settings-history td b { font-variant-numeric:tabular-nums; }
+.settings-history .diff { font-size:11.5px; color:#3b4a6b; line-height:1.6; }
+.settings-history .diff s { color:#8494b0; }
+.settings-history .diff em { font-style:normal; font-weight:700; color:#1f8a4c; }
+@media (max-width:720px){
+  .settings-panel { padding:16px; }
+  .settings-save { margin:0 -16px -16px; padding:12px 16px; }
+}
+.campaign-inline-action { min-height:32px; margin-left:8px; padding:4px 10px; font-size:12px; }
+.campaign-announcement { margin-bottom:10px; }
 .campaign-wizard { background:#fff; border:1px solid #dfe5ed; border-radius:16px; overflow:hidden; }
 .campaign-wizard[hidden] { display:none; }
 .campaign-page.campaign-editing > #campaignKpis,
@@ -747,41 +910,67 @@ tbody tr:hover td { background: #f8fafd; }
 }
 .emotion-text-card { margin-bottom:16px; border:1px solid #cfe0fa; background:linear-gradient(135deg,#fff 0%,#f5f9ff 100%); }
 .emotion-text-intro { margin:-5px 0 14px; color:#66758d; font-size:12px; line-height:1.6; }
-.emotion-text-input { width:100%; min-height:96px; resize:vertical; line-height:1.6; }
-.emotion-text-samples { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:9px; }
-.emotion-text-samples > span { color:#66758d; font-size:11px; font-weight:800; }
-.emotion-text-sample { min-height:44px; border:1px solid #cfd8e8; border-radius:9px; background:#fff; color:#34425d; padding:8px 12px; cursor:pointer; }
-.emotion-text-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
-.emotion-text-status { color:#66758d; font-size:12px; line-height:1.5; }
-.emotion-text-result { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
-.emotion-text-result div { border:1px solid #dfe6f2; border-radius:10px; background:#fff; padding:10px; }
-.emotion-text-result dt { color:#78859a; font-size:10px; font-weight:800; margin-bottom:4px; }
-.emotion-text-result dd { color:#1f2d46; font-size:13px; font-weight:800; overflow-wrap:anywhere; }
-.emotion-text-result .emotion-text-description { grid-column:1 / -1; }
-.emotion-text-result .emotion-text-description dd { font-weight:500; line-height:1.55; }
 .emotion-text-card--test { margin-bottom:24px; flex-shrink:0; }
-.emotion-text-result .emotion-text-answer,
-.emotion-text-result .emotion-text-description { grid-column:1 / -1; }
-.emotion-text-result .emotion-text-answer dd,
-.emotion-text-result .emotion-text-description dd { font-weight:500; line-height:1.65; white-space:pre-wrap; }
-.emotion-live-panel { margin-top:20px; padding-top:18px; border-top:1px solid #dfe6f2; }
+.emotion-live-panel { margin-top:0; }
 .emotion-live-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px; }
 .emotion-live-heading h3 { color:#1f2d46; font-size:14px; line-height:1.4; }
 .emotion-live-heading p { margin-top:4px; color:#66758d; font-size:11px; line-height:1.55; }
+.emotion-live-kicker { margin:0 0 4px !important; color:#2f67c7 !important; font-size:10px !important; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.emotion-provider-readiness { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.emotion-test-pill { display:inline-flex; align-items:center; gap:7px; min-height:36px; border:1px solid #cbd5e1; border-radius:999px; padding:7px 12px; background:#f8fafc; color:#475569; font-size:11px; font-weight:900; }
+.emotion-test-pill.is-ready { border-color:#86d6a6; background:#edfdf3; color:#146c3b; }
+.emotion-test-pill.is-error { border-color:#f1aeb5; background:#fff1f2; color:#a61b2b; }
+.emotion-icon-btn { width:44px; height:44px; padding:0 !important; display:grid !important; place-items:center; }
+.emotion-scheme-picker { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 16px; border:1px solid #dfe6f2; border-radius:12px; padding:12px; background:#f8fafd; }
+.emotion-scheme-picker legend { padding:0 5px; color:#53647f; font-size:11px; font-weight:900; }
+.emotion-scheme-picker label { position:relative; cursor:pointer; }
+.emotion-scheme-picker input { position:absolute; opacity:0; }
+.emotion-scheme-picker label > span { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:52px; border:2px solid #dfe6f2; border-radius:10px; padding:9px 12px; background:#fff; transition:border-color .2s ease,background .2s ease,box-shadow .2s ease; }
+.emotion-scheme-picker label:hover > span { border-color:#9eb9e4; }
+.emotion-scheme-picker input:checked + span { border-color:#3b7aee; background:#eef5ff; box-shadow:0 0 0 2px rgba(59,122,238,.1); }
+.emotion-scheme-picker input:focus-visible + span { outline:3px solid rgba(59,122,238,.3); outline-offset:2px; }
+.emotion-scheme-picker b,.emotion-scheme-picker small { display:block; }
+.emotion-scheme-picker b { color:#1f2d46; font-size:12px; }
+.emotion-scheme-picker small { color:#66758d; font-size:10px; text-align:right; }
+.emotion-scheme-picker > p { grid-column:1 / -1; margin:2px 2px 0; color:#66758d; font-size:11px; line-height:1.5; }
 .emotion-live-grid { display:grid; grid-template-columns:minmax(280px,380px) minmax(0,1fr); gap:16px; align-items:stretch; }
+.emotion-live-capture,.emotion-video-results { min-width:0; }
 .emotion-video-preview { min-height:260px; overflow:hidden; border-radius:12px; background:#111827; position:relative; }
 .emotion-video-preview video { display:block; width:100%; height:100%; min-height:260px; aspect-ratio:4/3; object-fit:cover; transform:scaleX(-1); }
 .emotion-video-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; color:#cbd5e1; text-align:center; font-size:12px; line-height:1.6; pointer-events:none; }
 .emotion-video-preview.is-active .emotion-video-placeholder { display:none; }
+.emotion-video-capture-badge { position:absolute; top:12px; left:12px; display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:7px 10px; background:rgba(15,23,42,.82); color:#fff; font-size:10px; font-weight:900; }
+.emotion-video-capture-badge i { color:#ef4444; font-size:8px; }
 .emotion-video-controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
-.emotion-video-status { color:#66758d; font-size:12px; line-height:1.5; }
+.emotion-video-controls .btn { min-height:44px; }
+.emotion-video-status { display:flex; align-items:flex-start; gap:8px; min-height:46px; margin-top:10px; border-radius:9px; padding:10px 12px; background:#eef4ff; color:#405776; font-size:12px; line-height:1.5; }
+.emotion-video-status.is-error { background:#fff1f2; color:#9f2936; }
+.emotion-live-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+.emotion-live-metrics div { border:1px solid #dfe6f2; border-radius:9px; padding:8px 10px; background:#fff; }
+.emotion-live-metrics dt { color:#78859a; font-size:9px; font-weight:900; }
+.emotion-live-metrics dd { margin-top:3px; color:#1f2d46; font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
+.emotion-video-results { border:1px solid #dfe6f2; border-radius:12px; padding:14px; background:#f8fafd; }
+.emotion-video-results-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.emotion-video-results-head h4 { color:#1f2d46; font-size:13px; }
+.emotion-video-results-head p,.emotion-video-results-head span { margin-top:3px; color:#78859a; font-size:10px; line-height:1.45; }
 .emotion-video-result { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.emotion-video-result > div { border:1px solid #dfe6f2; border-radius:10px; background:#fff; padding:12px; }
-.emotion-video-result dt { color:#78859a; font-size:10px; font-weight:800; margin-bottom:5px; }
-.emotion-video-result dd { color:#1f2d46; font-size:13px; font-weight:700; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
-.emotion-video-result .emotion-video-detail { grid-column:1 / -1; }
-@media (max-width:900px) { .emotion-live-grid { grid-template-columns:1fr; } }
-@media (max-width:760px) { .emotion-text-result { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.emotion-video-result.is-single { grid-template-columns:1fr; }
+.emotion-result-card { min-width:0; border:1px solid #dfe6f2; border-radius:10px; background:#fff; padding:12px; }
+.emotion-result-card.is-error { border-color:#f0b8bf; background:#fff8f8; }
+.emotion-result-card header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:10px; }
+.emotion-result-card header b { color:#1f2d46; font-size:12px; }
+.emotion-result-card header span { border-radius:999px; padding:4px 7px; background:#edf4ff; color:#2f67c7; font-size:9px; font-weight:900; }
+.emotion-result-card dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.emotion-result-card dl > div { min-width:0; border-top:1px solid #edf0f5; padding-top:7px; }
+.emotion-result-card dl > .emotion-result-wide { grid-column:1 / -1; }
+.emotion-result-card dt { color:#78859a; font-size:9px; font-weight:900; margin-bottom:3px; }
+.emotion-result-card dd { color:#1f2d46; font-size:11px; font-weight:700; line-height:1.5; overflow-wrap:anywhere; white-space:pre-wrap; }
+.emotion-video-empty { grid-column:1 / -1; display:flex; min-height:250px; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:#78859a; text-align:center; }
+.emotion-video-empty i { font-size:28px; color:#9eb3d4; }
+.emotion-video-empty b { color:#40516c; font-size:13px; }
+.emotion-video-empty span { max-width:280px; font-size:11px; line-height:1.5; }
+@media (max-width:1050px) { .emotion-live-grid { grid-template-columns:1fr; } }
+@media (max-width:760px) { .emotion-scheme-picker,.emotion-video-result { grid-template-columns:1fr; } }
 .member-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
 .member-stat-cards { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:12px; }
 .member-stat { background:#fff; border:1px solid #e7ebf0; border-radius:12px; padding:14px 15px; min-height:86px; }
@@ -828,6 +1017,18 @@ tbody tr:hover td { background: #f8fafd; }
 .hit { display:inline-flex; margin-top:7px; font-size:11px; color:#2e9e5b; background:#e6f7ef; border-radius:999px; padding:2px 8px; font-weight:800; }
 .miss { display:inline-flex; margin-top:7px; font-size:11px; color:#8a94a3; background:#f2f4f8; border-radius:999px; padding:2px 8px; font-weight:800; }
 .member-danger { display:flex; gap:10px; margin-top:18px; padding-top:16px; border-top:1px solid #f0f2f5; }
+.member-service-now { border:1px solid #cfe3f7; border-radius:11px; background:#f4f9ff; padding:12px; }
+.member-service-now p { color:#465773; font-size:12px; line-height:1.55; margin-top:6px; }
+.member-service-now small { display:block; color:#71809a; font-size:10.5px; margin-top:9px; }
+.member-verified-editor { display:grid; gap:9px; border:1px solid #e3e8ef; border-radius:11px; padding:12px; margin-top:14px; }
+.member-verified-editor label { display:grid; gap:5px; color:#5a6880; font-size:11px; font-weight:800; }
+.member-verified-editor input, .member-verified-editor textarea { border:1px solid #dce3ec; border-radius:8px; padding:8px 9px; color:#25334c; font:inherit; font-weight:500; }
+.member-inferred-grid { display:grid; gap:8px; }
+.member-inferred-grid div { display:grid; gap:4px; border-radius:9px; background:#f7f9fc; padding:9px 10px; }
+.member-inferred-grid b { color:#34425d; font-size:11px; }
+.member-inferred-grid span { color:#66758d; font-size:11px; line-height:1.5; }
+.member-pagination { display:flex; justify-content:center; align-items:center; gap:12px; color:#66758d; font-size:12px; }
+.member-pagination .view-btn:disabled { background:#b7c0cf; cursor:not-allowed; }
 @media (max-width:1320px) {
   .member-stat-cards { grid-template-columns:repeat(3,1fr); }
   .member-layout { grid-template-columns:1fr; }
@@ -1066,6 +1267,30 @@ tbody tr:hover td { background: #f8fafd; }
 .health-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); padding:16px; }
 .health-card-wide { grid-column:1 / -1; }
 .health-context { margin:0; max-width:880px; color:#66758d; font-size:12px; line-height:1.65; }
+.health-operational-summary { border:1px solid #b9dfcf; border-radius:15px; padding:18px; background:#eefaf5; }
+.health-operational-summary.degraded { border-color:#efd89f; background:#fff9ea; }
+.health-operational-summary.not_ready { border-color:#efc1bd; background:#fff2f1; }
+.health-operational-summary span { color:#52637d; font-size:11px; font-weight:900; }
+.health-operational-summary h2 { color:#182238; font-size:20px; margin-top:5px; }
+.health-operational-summary p { color:#53647f; font-size:12px; line-height:1.6; margin-top:6px; }
+.health-capabilities { display:grid; grid-template-columns:repeat(4,minmax(130px,1fr)); gap:10px; }
+.health-capability { display:flex; justify-content:space-between; gap:8px; border:1px solid #dfe6ef; border-radius:11px; padding:11px 12px; background:#fff; }
+.health-capability b { color:#34425d; font-size:12px; }
+.health-capability span { color:#128257; font-size:11px; font-weight:900; }
+.health-capability.degraded span { color:#a66b0a; }
+.health-capability.unavailable span { color:#b2332b; }
+.health-incidents { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; }
+.health-incident { border:1px solid #efd89f; border-left:4px solid #d99a18; border-radius:12px; padding:14px; background:#fffdf6; }
+.health-incident.critical { border-color:#efc1bd; border-left-color:#c83b31; background:#fff8f7; }
+.health-incident-head { display:flex; justify-content:space-between; gap:12px; }
+.health-incident-head div { display:flex; flex-direction:column; gap:3px; }
+.health-incident-head span { color:#7a8598; font-size:10px; font-weight:900; }
+.health-incident-head b { color:#1a2233; font-size:13px; }
+.health-incident-head em { color:#7a5a13; font-size:11px; font-style:normal; font-weight:900; }
+.health-incident p { display:grid; grid-template-columns:64px 1fr; gap:7px; color:#5c687d; font-size:11px; line-height:1.5; margin-top:9px; }
+.health-incident p strong { color:#34425d; }
+.health-incident-actions { display:flex; gap:8px; margin-top:12px; }
+.health-incident-actions button { border:1px solid #d8e0eb; border-radius:8px; padding:7px 10px; background:#fff; color:#34425d; font-size:11px; font-weight:800; cursor:pointer; }
 .health-service-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; }
 .health-service-card { border:1px solid #e3e8f0; border-radius:12px; padding:14px; background:#fbfcfe; min-width:0; }
 .health-service-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
@@ -1128,13 +1353,13 @@ tbody tr:hover td { background: #f8fafd; }
 
 <div id="adminAuthBackdrop" class="admin-auth-backdrop" role="dialog" aria-modal="true" aria-labelledby="adminAuthTitle">
   <form id="adminAuthForm" class="admin-auth-card">
-    <h1 id="adminAuthTitle">管理後台登入</h1>
-    <p>使用個人員工帳號登入。登入憑證只保存在安全的瀏覽器 Cookie。</p>
-    <label for="adminLoginIdentity">登入帳號</label>
-    <input id="adminLoginIdentity" name="login_identity" autocomplete="username" maxlength="254" required>
-    <label for="adminLoginPassword">密碼</label>
+    <h1 id="adminAuthTitle">開啟主管功能</h1>
+    <p>一般員工不需要登入。輸入主管密碼後，才能使用會員、活動、健康、知識庫、情感分析與系統設定。</p>
+    <label for="adminLoginPassword">主管密碼</label>
     <input id="adminLoginPassword" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
-    <button type="submit">登入</button>
+    <div class="admin-auth-actions">
+      <button type="submit">開啟主管功能</button>
+    </div>
     <div id="adminAuthError" class="admin-auth-error" role="alert"></div>
   </form>
 </div>
@@ -1146,32 +1371,33 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="sidebar-brand-sub">管理後台</div>
   </div>
   <nav class="sidebar-nav">
+    <div class="nav-section-label" data-nav-pages="stats,availability,members">每日工作</div>
     <button class="nav-item active" data-page="stats" type="button" aria-current="page">
       <i class="fas fa-chart-line"></i> 營運總覽
-    </button>
-    <button class="nav-item" data-page="settings" type="button">
-      <i class="fas fa-sliders-h"></i> 功能設定
-    </button>
-    <button class="nav-item" data-page="promotions" type="button">
-      <i class="fas fa-ticket-alt"></i> 活動管理
     </button>
     <button class="nav-item" data-page="availability" type="button">
       <i class="fas fa-store"></i> 供應狀態
     </button>
+    <button class="nav-item" data-page="members" type="button">
+      <i class="fas fa-user"></i> 會員服務台
+    </button>
+    <div class="nav-section-label" data-nav-pages="promotions,health">營運管理</div>
+    <button class="nav-item" data-page="promotions" type="button">
+      <i class="fas fa-ticket-alt"></i> 活動管理
+    </button>
     <button class="nav-item" data-page="health" type="button">
       <i class="fas fa-heartbeat"></i> 維運健康
     </button>
+    <div class="nav-section-label" data-nav-pages="rag,emotion">知識與 AI</div>
     <button class="nav-item" data-page="rag" type="button">
-      <i class="fas fa-database"></i> RAG 知識庫
+      <i class="fas fa-database"></i> RAG 智慧工作室
     </button>
     <button class="nav-item" data-page="emotion" type="button">
       <i class="fas fa-eye"></i> 情緒分析
     </button>
-    <button class="nav-item" data-page="members" type="button">
-      <i class="fas fa-user"></i> 會員
-    </button>
-    <button class="nav-item" data-page="test" type="button">
-      <i class="fas fa-flask"></i> 測試
+    <div class="nav-section-label" data-nav-pages="settings,test">系統工具</div>
+    <button class="nav-item" data-page="settings" type="button">
+      <i class="fas fa-sliders-h"></i> 功能設定
     </button>
   </nav>
 </aside>
@@ -1184,6 +1410,9 @@ tbody tr:hover td { background: #f8fafd; }
       <div class="topbar-title" id="page-title">營運總覽</div>
     </div>
     <div class="topbar-right">
+      <span id="managerAccessStatus" class="manager-access-status">未登入</span>
+      <button id="managerUnlockBtn" class="refresh-btn" type="button"><i class="fas fa-lock-open"></i> 管理員登入</button>
+      <button id="managerLockBtn" class="refresh-btn" type="button" hidden><i class="fas fa-lock"></i> 登出</button>
       <span class="topbar-date" id="topbar-date"><i class="fas fa-calendar-alt"></i><span id="topbar-date-text"></span></span>
     </div>
   </div>
@@ -1214,6 +1443,7 @@ tbody tr:hover td { background: #f8fafd; }
         <h2 id="operationsInsightHeadline">正在整理目前的營運重點…</h2>
         <p id="operationsInsightDetail">稍後會在這裡顯示推播與推薦的重點數字。</p>
         <p class="operations-next-step"><b>接下來可以做：</b><span id="operationsInsightAction">請稍候資料載入。</span></p>
+        <div id="operationsTodayMetrics" class="operations-today-metrics" hidden aria-label="今日推薦重點"></div>
       </div>
     </section>
 
@@ -1446,6 +1676,16 @@ tbody tr:hover td { background: #f8fafd; }
 
     <p class="health-context">此頁區分「正式營運必要條件」與「可選的 AI／分析／維運能力」。正常只代表本次檢查取得預期結果；是否真的有效仍需看文件數、近期事件、migration 與實際設定等證據。</p>
 
+    <section id="healthOperationalSummary" class="health-operational-summary">
+      <div><span>營運判斷</span><h2>正在判斷是否可安全營運…</h2><p>稍後會顯示功能影響與建議處置。</p></div>
+    </section>
+    <div id="healthCapabilities" class="health-capabilities" aria-label="營運能力狀態"></div>
+    <section class="health-card">
+      <div class="card-title"><i class="fas fa-exclamation-triangle"></i> 需要處理的事件</div>
+      <p class="recommendation-card-description">確認表示值班人員已看到事件；升級表示需要交由負責角色處理。此頁不提供重啟或清除資料操作。</p>
+      <div id="healthIncidents" class="health-incidents"></div>
+    </section>
+
     <div id="healthKpis" class="health-kpis">
       <div class="health-kpi"><b>—</b><span>載入中</span></div>
     </div>
@@ -1512,11 +1752,14 @@ tbody tr:hover td { background: #f8fafd; }
 
       <div class="card availability-items-card">
         <div class="card-title">
-          <i class="fas fa-boxes-stacked"></i> 商品供應狀態
+          <i class="fas fa-boxes-stacked"></i> 商品欄
           <span id="availabilitySummary" class="recommendation-muted" style="margin-left:auto"></span>
         </div>
         <div class="availability-search-row">
           <input id="availabilitySearch" class="recommendation-input" type="text" placeholder="搜尋餐點或 ID">
+          <select id="availabilityCategoryFilter" class="recommendation-select">
+            <option value="">全部類別</option>
+          </select>
           <select id="availabilityStatusFilter" class="recommendation-select">
             <option value="">全部狀態</option>
             <option value="normal">正常</option>
@@ -1524,27 +1767,69 @@ tbody tr:hover td { background: #f8fafd; }
             <option value="sold_out">售罄</option>
             <option value="disabled">停用</option>
           </select>
+          <label class="recommendation-muted" id="availabilityShowRetiredWrap" style="display:none;align-items:center;gap:6px">
+            <input id="availabilityShowRetired" type="checkbox"> 顯示已退役
+          </label>
           <button class="refresh-btn" id="availabilityRefreshBtn" type="button">
             <i class="fas fa-sync-alt"></i> 重新整理
+          </button>
+          <button class="refresh-btn" id="catalogAddItemBtn" type="button" style="display:none">
+            <i class="fas fa-plus"></i> 新增商品
           </button>
         </div>
         <div class="adm-table-wrap">
           <table>
             <thead>
               <tr>
+                <th>圖片</th>
                 <th>餐點</th>
                 <th>分類</th>
+                <th>價格</th>
                 <th>狀態</th>
                 <th>時段限制</th>
+                <th id="catalogActionsHeader">操作</th>
               </tr>
             </thead>
             <tbody id="availabilityTableBody">
-              <tr><td colspan="4" class="adm-empty">載入中…</td></tr>
+              <tr><td colspan="7" class="adm-empty">載入中…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
+
+    <dialog id="catalogItemDialog" class="catalog-item-dialog" style="border:none;border-radius:16px;padding:0;max-width:520px;width:calc(100vw - 32px)">
+      <form id="catalogItemForm" method="dialog" style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div class="card-title" style="margin:0"><i class="fas fa-utensils"></i> <span id="catalogItemDialogTitle">編輯商品</span></div>
+        <input type="hidden" id="catalogEditItemId" value="">
+        <div class="availability-field">
+          <label for="catalogItemName">名稱</label>
+          <input id="catalogItemName" type="text" required maxlength="160">
+        </div>
+        <div class="availability-field">
+          <label for="catalogItemCategory">類別</label>
+          <input id="catalogItemCategory" type="text" list="catalogCategoryOptions" required maxlength="100" placeholder="既有類別或輸入新類別">
+          <datalist id="catalogCategoryOptions"></datalist>
+        </div>
+        <div class="availability-field">
+          <label for="catalogItemPrice">價格</label>
+          <input id="catalogItemPrice" type="number" min="1" max="100000" step="1" required>
+        </div>
+        <div class="availability-field">
+          <label for="catalogItemDescription">描述</label>
+          <textarea id="catalogItemDescription" rows="3" maxlength="2000"></textarea>
+        </div>
+        <div class="availability-field" id="catalogItemImageField">
+          <label for="catalogItemImageFile">圖片（JPEG/PNG，最大 5MB，自動縮放）</label>
+          <input id="catalogItemImageFile" type="file" accept="image/jpeg,image/png">
+          <input id="catalogItemImageUrl" type="url" placeholder="或貼上 http(s) 圖片網址（可選）">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="refresh-btn" id="catalogItemCancelBtn">取消</button>
+          <button type="submit" class="refresh-btn" id="catalogItemSaveBtn"><i class="fas fa-save"></i> 儲存商品</button>
+        </div>
+      </form>
+    </dialog>
   </section>
 
   <!-- Settings page -->
@@ -1552,608 +1837,470 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="card">
       <div class="card-title"><i class="fas fa-sliders-h"></i> 功能設定</div>
 
-      <div class="settings-grid">
+      <div class="settings-tabs" role="tablist" id="settingsTabs">
+        <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="ai">AI 模型<span class="settings-unsaved" hidden>未儲存</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="push">AI 推播規則<span class="settings-unsaved" hidden>未儲存</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="copy">推薦詞管理</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="voice">語音輸入輸出<span class="settings-unsaved" hidden>未儲存</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="prompt">系統指令與關鍵詞<span class="settings-unsaved" hidden>未儲存</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="goal">推薦表現目標<span class="settings-unsaved" hidden>未儲存</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="diagnostic">模型診斷</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="layout">版面設定</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="history">變更歷史</button>
+      </div>
 
-        <!-- ── 左欄：模型 / STT / TTS ── -->
-        <div style="display:flex;flex-direction:column;gap:20px">
+      <!-- ══════════ AI 模型 ══════════ -->
+      <div class="settings-panel active" data-settings-panel="ai">
+        <div class="settings-live" id="llmTrafficBox">
+          <div class="settings-live-stats" id="llmTrafficStats"></div>
+          <div class="settings-live-note" id="llmTrafficNote" hidden></div>
+        </div>
 
-          <!-- AI 文字生成 API -->
-          <section>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <div class="section-title" style="margin:0">AI 文字模型與進階連線</div>
-              <span style="font-size:11px;color:#8494b0">影響：AI 推播、語音問答、協助推薦</span>
+        <section>
+          <div class="section-title">選路策略</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-llm-policy">容錯策略</label>
+            <div class="setting-field">
+              <select id="inp-llm-policy" class="setting-input">
+                <option value="local_first">本機優先（雲端僅在本機失敗時接手）</option>
+                <option value="cloud_first">雲端優先（雲端失敗時退回本機）</option>
+                <option value="local_only">僅本機（不對外傳送任何內容）</option>
+                <option value="cloud_only">僅雲端（本機不參與，離線時功能停止）</option>
+              </select>
+              <div class="setting-help">影響語音問答、情緒擷取，以及在此後台產生推薦詞時。除「僅本機」外，顧客語句可能離開本機。Kiosk 推播文案已改為預先撰寫，不受此設定影響。</div>
+              <div class="setting-error" data-error-for="LLM_ROUTING_POLICY"></div>
             </div>
-            <div class="setting-row">
-              <label class="setting-label">提供者</label>
-              <div class="provider-tabs">
-                <button class="provider-tab active" data-provider="ollama" onclick="onAiProviderChange(this)" type="button">
-                  <i class="fas fa-robot" style="margin-right:3px"></i>Ollama
-                </button>
-                <button class="provider-tab" data-provider="gemini" onclick="onAiProviderChange(this)" type="button">
-                  <i class="fas fa-star" style="margin-right:3px"></i>Gemini
-                </button>
-                <button class="provider-tab" data-provider="openai" onclick="onAiProviderChange(this)" type="button">
-                  <i class="fas fa-bolt" style="margin-right:3px"></i>OpenAI
-                </button>
-              </div>
-            </div>
+          </div>
+        </section>
 
-            <!-- Ollama 欄位 -->
-            <div id="settings-fields-ollama" class="api-provider-section">
-              <div class="setting-row">
-                <label class="setting-label">主要 AI 文字模型</label>
-                <div class="model-select-wrap">
-                  <select id="inp-model-name" class="setting-input">
-                    <option value="">載入中…</option>
-                  </select>
-                </div>
-                <span style="font-size:11px;color:#8494b0;flex-shrink:0">推播</span>
-              </div>
-              <div class="setting-row">
-                <label class="setting-label">語音用 AI 文字模型</label>
-                <div class="model-select-wrap">
-                  <select id="inp-voice-model" class="setting-input">
-                    <option value="">載入中…</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+        <hr class="settings-rule">
 
-            <!-- Gemini 欄位 -->
-            <div id="settings-fields-gemini" class="api-provider-section hidden">
-              <div class="provider-note"><i class="fas fa-info-circle"></i>API Key 讀取自 <code>.env</code> 的 <b>GEMINI_API_KEY</b>，修改後需重啟服務。</div>
-              <div class="setting-row">
-                <label class="setting-label">主要模型</label>
-                <input id="inp-gemini-model" class="setting-input" type="text" placeholder="gemini-2.0-flash">
-              </div>
-              <div class="setting-row">
-                <label class="setting-label">語音模型</label>
-                <input id="inp-gemini-voice-model" class="setting-input" type="text" placeholder="gemini-2.0-flash">
-              </div>
+        <section>
+          <div class="section-title">本機模型</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-model-name">主要模型</label>
+            <div class="setting-field">
+              <select id="inp-model-name" class="setting-input"><option value="">載入中…</option></select>
+              <div class="setting-ready" id="llmLocalReady"></div>
+              <div class="setting-error" data-error-for="MODEL_NAME"></div>
             </div>
-
-            <!-- OpenAI 欄位 -->
-            <div id="settings-fields-openai" class="api-provider-section hidden">
-              <div class="provider-note"><i class="fas fa-info-circle"></i>支援 OpenAI 及相容服務（vLLM、LocalAI）。存取金鑰讀取自進階環境設定。</div>
-              <div class="setting-row">
-                <label class="setting-label">服務連線位址</label>
-                <input id="inp-openai-base-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1">
-              </div>
-              <div class="setting-row">
-                <label class="setting-label">主要模型</label>
-                <input id="inp-openai-model" class="setting-input" type="text" placeholder="gpt-4o-mini">
-              </div>
-              <div class="setting-row">
-                <label class="setting-label">語音模型</label>
-                <input id="inp-openai-voice-model" class="setting-input" type="text" placeholder="gpt-4o-mini">
-              </div>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-voice-model">語音用模型</label>
+            <div class="setting-field">
+              <select id="inp-voice-model" class="setting-input"><option value="">載入中…</option></select>
+              <div class="setting-help">語音問答對延遲敏感，建議選用較小的模型。</div>
+              <div class="setting-error" data-error-for="VOICE_ASSIST_MODEL"></div>
             </div>
+          </div>
+        </section>
 
-            <div class="setting-row">
-              <label class="setting-label">回覆變化程度</label>
+        <hr class="settings-rule">
+
+        <section>
+          <div class="section-title">雲端提供者：NVIDIA NIM</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-nim-model">主要模型</label>
+            <div class="setting-field">
+              <select id="inp-nim-model" class="setting-input"><option value="">載入中…</option></select>
+              <div class="setting-ready" id="llmCloudReady"></div>
+              <div class="setting-error" data-error-for="NIM_MODEL_NAME"></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-nim-model-custom">新增自訂模型</label>
+            <div class="setting-field">
+              <div class="setting-inline">
+                <input id="inp-nim-model-custom" class="setting-input" type="text" placeholder="輸入 NIM 模型 ID，例如 meta/llama-3.1-405b-instruct">
+                <button type="button" class="refresh-btn" id="btn-nim-model-add">加入清單</button>
+              </div>
+              <div class="setting-help">未在清單中的模型名稱不會驗證是否真的存在於 NVIDIA NIM，請確認拼字正確。</div>
+              <div class="setting-error" data-error-for="NIM_CUSTOM_TEXT_MODELS"></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-nim-voice-model">語音用模型</label>
+            <div class="setting-field">
+              <select id="inp-nim-voice-model" class="setting-input"><option value="">載入中…</option></select>
+              <div class="setting-error" data-error-for="NIM_VOICE_MODEL"></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-nim-voice-model-custom">新增自訂語音模型</label>
+            <div class="setting-field">
+              <div class="setting-inline">
+                <input id="inp-nim-voice-model-custom" class="setting-input" type="text" placeholder="輸入 NIM 模型 ID">
+                <button type="button" class="refresh-btn" id="btn-nim-voice-model-add">加入清單</button>
+              </div>
+              <div class="setting-error" data-error-for="NIM_CUSTOM_VOICE_MODELS"></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label">服務連線位址</label>
+            <div class="setting-field">
+              <div class="setting-readonly">由環境變數 <code>NVIDIA_API_BASE_URL</code> 與 <code>NVIDIA_API_KEY</code> 決定，修改後需重啟服務。</div>
+            </div>
+          </div>
+        </section>
+
+        <hr class="settings-rule">
+
+        <section>
+          <div class="section-title">連線測試</div>
+          <div class="settings-testbox">
+            <div class="settings-testrow">
+              <button class="refresh-btn" type="button" id="llmTestBtn"><i class="fas fa-bolt"></i> 測試連線</button>
+              <span class="setting-help">實際送出一次請求，驗證可達性、金鑰與模型名稱。不會改動任何設定。</span>
+            </div>
+            <div class="settings-testout" id="llmTestOut" hidden></div>
+          </div>
+        </section>
+
+        <hr class="settings-rule">
+
+        <section>
+          <div class="section-title">生成參數</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-temperature">回覆變化程度</label>
+            <div class="setting-field">
               <input id="inp-temperature" class="setting-input" type="number" step="0.1" min="0" max="2" placeholder="0.8">
+              <div class="setting-help">0 – 2。數值越高，回覆用字變化越大。</div>
+              <div class="setting-error" data-error-for="OLLAMA_TEMPERATURE"></div>
             </div>
-            <div class="setting-row">
-              <label class="setting-label">最大輸出長度</label>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-num-predict">最大輸出長度</label>
+            <div class="setting-field">
               <input id="inp-num-predict" class="setting-input" type="number" min="64" max="8192" placeholder="2048">
+              <div class="setting-help">64 – 8192 個 token。</div>
+              <div class="setting-error" data-error-for="OLLAMA_NUM_PREDICT"></div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <hr style="border:none;border-top:1px solid #edf0f7">
+        <div class="settings-save">
+          <span class="settings-save-msg" data-save-msg="ai"></span>
+          <span class="settings-save-spacer"></span>
+          <button class="refresh-btn" type="button" data-settings-reset="ai">還原</button>
+          <button class="refresh-btn settings-primary" type="button" data-settings-save="ai">儲存「AI 模型」設定</button>
+        </div>
+      </div>
 
-          <!-- STT -->
-          <section>
-            <div class="section-title">語音辨識</div>
+      <!-- ══════════ AI 推播規則 ══════════ -->
+      <div class="settings-panel" data-settings-panel="push" hidden>
+        <div class="setting-group">
+          <h3>推播範圍</h3>
+          <div class="setting-group-body">
             <div class="setting-row">
-              <label class="setting-label">提供者</label>
-              <select id="inp-stt-provider" class="setting-input" onchange="onSttProviderChange()">
+              <label class="setting-label">推播選品範圍</label>
+              <div class="setting-field">
+                <div class="setting-radios">
+                  <label class="setting-radio"><input type="radio" name="push-scope" value="all"> 全部商品</label>
+                  <label class="setting-radio">
+                    <input type="radio" name="push-scope" value="categories"> 特定類別
+                    <span class="setting-chips" id="push-scope-chips"></span>
+                    <select id="inp-push-scope-add" class="setting-input" style="width:150px"><option value="">＋ 加入類別…</option></select>
+                  </label>
+                  <label class="setting-radio"><input type="radio" name="push-scope" value="new_items"> 僅新品</label>
+                  <label class="setting-radio"><input type="radio" name="push-scope" value="popular"> 最常加入購物車</label>
+                </div>
+                <div class="setting-help">範圍決定「哪些品項有資格被推播」；排序仍由推薦引擎負責，供應狀態、忽略回饋與活動加權都照常生效。新品身分在「推薦詞管理」逐品項設定並附檔期。</div>
+                <div class="setting-error" data-error-for="AI_PUSH_SCOPE_MODE"></div>
+                <div class="setting-error" data-error-for="AI_PUSH_SCOPE_CATEGORIES"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>推播行為</h3>
+          <div class="setting-group-body">
+            <div class="setting-row">
+              <label class="setting-label" for="inp-push-refresh">刷新間隔</label>
+              <div class="setting-field">
+                <input id="inp-push-refresh" class="setting-input setting-input-narrow" type="number" min="3" max="600" step="1"> 秒
+                <div class="setting-help">推播欄自動換下一個推薦的間隔。</div>
+                <div class="setting-error" data-error-for="AI_PUSH_REFRESH_SEC"></div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">「換一個」行為</label>
+              <div class="setting-field">
+                <div class="setting-radios">
+                  <label class="setting-radio"><input type="checkbox" id="inp-push-exclude-seen"> 累積排除本次已看過的品項</label>
+                  <label class="setting-radio"><input type="checkbox" id="inp-push-prefetch"> 預先取回候選，切換不等待</label>
+                </div>
+                <div class="setting-help">關閉「累積排除」時只會排除當前這一項，顧客連按兩次可能又轉回同一個推薦。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>推薦詞生成</h3>
+          <div class="setting-group-body">
+            <div class="setting-row">
+              <label class="setting-label">字數範圍</label>
+              <div class="setting-field">
+                最少 <input id="inp-push-text-min" class="setting-input setting-input-narrow" type="number" min="1" max="200">
+                　最多 <input id="inp-push-text-max" class="setting-input setting-input-narrow" type="number" min="1" max="200"> 字
+                <div class="setting-help">在「推薦詞管理」按「產生推薦詞」時，AI 會遵守此字數範圍。Kiosk 顯示推薦詞時不會呼叫 AI。</div>
+                <div class="setting-error" data-error-for="AI_PUSH_TEXT_MIN"></div>
+                <div class="setting-error" data-error-for="AI_PUSH_TEXT_MAX"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-save">
+          <span class="settings-save-msg" data-save-msg="push"></span>
+          <span class="settings-save-spacer"></span>
+          <button class="refresh-btn" type="button" data-settings-reset="push">還原</button>
+          <button class="refresh-btn settings-primary" type="button" data-settings-save="push">儲存「AI 推播規則」</button>
+        </div>
+      </div>
+
+      <!-- ══════════ 推薦詞管理 ══════════ -->
+      <div class="settings-panel" data-settings-panel="copy" hidden>
+        <div class="setting-group" style="margin-bottom:12px">
+          <div class="setting-group-body" style="padding:11px 13px">
+            <div class="setting-help" style="margin:0">
+              每個品項有兩句推薦詞。<b>常態推薦詞</b>永遠有效，儲存時會擋下促銷用語；<b>活動推薦詞</b>綁定一個活動，
+              只在該活動仍在進行時顯示，活動一結束就自動改回常態推薦詞。尚未撰寫的品項會先用菜單描述頂替。
+            </div>
+          </div>
+        </div>
+        <div class="copy-toolbar">
+          <input id="copy-search" class="setting-input" type="search" placeholder="搜尋品項名稱或 ID…" style="width:200px">
+          <select id="copy-filter-category" class="setting-input" style="width:130px"><option value="">全部類別</option></select>
+          <select id="copy-filter-status" class="setting-input" style="width:140px">
+            <option value="">全部狀態</option>
+            <option value="authored_base">已撰寫常態</option>
+            <option value="authored_campaign">活動進行中</option>
+            <option value="description_fallback">尚未撰寫</option>
+            <option value="new">新品</option>
+          </select>
+          <span class="copy-toolbar-spacer"></span>
+          <span class="setting-help" id="copy-summary" style="margin:0"></span>
+          <button class="refresh-btn" type="button" id="copy-fill-missing"><i class="fas fa-wand-magic-sparkles"></i> 補齊缺漏</button>
+          <button class="refresh-btn" type="button" id="copy-regenerate"><i class="fas fa-rotate"></i> 重產篩選結果</button>
+          <button class="refresh-btn" type="button" id="copy-reload"><i class="fas fa-sync-alt"></i> 重新載入</button>
+        </div>
+        <div id="copy-batch-progress" class="copy-batch" hidden aria-live="polite"></div>
+        <div class="copy-table-wrap">
+          <table class="copy-table">
+            <thead>
+              <tr>
+                <th>品項</th><th>ID</th><th>類別</th><th>目前顯示的推薦詞</th><th>活動</th><th>新品</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="copy-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text2);height:60px">載入中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════ 語音輸入輸出 ══════════ -->
+      <div class="settings-panel" data-settings-panel="voice" hidden>
+        <section>
+          <div class="section-title">語音辨識</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-stt-provider">提供者</label>
+            <div class="setting-field">
+              <select id="inp-stt-provider" class="setting-input">
                 <option value="faster_whisper">faster-whisper（本地）</option>
                 <option value="openai_compatible">OpenAI 相容 API</option>
               </select>
+              <div class="setting-error" data-error-for="STT_PROVIDER"></div>
             </div>
-            <div class="setting-row" id="row-stt-model">
-              <label class="setting-label">模型大小</label>
+          </div>
+          <div class="setting-row" id="row-stt-model">
+            <label class="setting-label" for="inp-stt-model">模型大小</label>
+            <div class="setting-field">
               <select id="inp-stt-model" class="setting-input">
                 <option value="tiny">tiny（最快，準確度較低）</option>
                 <option value="small">small（推薦）</option>
                 <option value="medium">medium（最準，較慢）</option>
               </select>
+              <div class="setting-error" data-error-for="STT_MODEL"></div>
             </div>
-            <div class="setting-row hidden" id="row-stt-api">
-              <label class="setting-label">服務連線位址</label>
+          </div>
+          <div class="setting-row hidden" id="row-stt-api">
+            <label class="setting-label" for="inp-stt-api-url">服務連線位址</label>
+            <div class="setting-field">
               <input id="inp-stt-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
+              <div class="setting-ready" id="sttKeyReady"></div>
+              <div class="setting-error" data-error-for="STT_API_URL"></div>
             </div>
-            <div class="setting-row hidden" id="row-stt-key">
-              <label class="setting-label">服務存取金鑰</label>
-              <input id="inp-stt-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
-            </div>
-          </section>
+          </div>
+        </section>
 
-          <hr style="border:none;border-top:1px solid #edf0f7">
+        <hr class="settings-rule">
 
-          <!-- TTS -->
-          <section>
-            <div class="section-title">語音合成</div>
-            <div class="setting-row">
-              <label class="setting-label">提供者</label>
-              <select id="inp-tts-provider" class="setting-input" onchange="onTtsProviderChange()">
+        <section>
+          <div class="section-title">語音合成</div>
+          <div class="setting-row">
+            <label class="setting-label" for="inp-tts-provider">提供者</label>
+            <div class="setting-field">
+              <select id="inp-tts-provider" class="setting-input">
                 <option value="edge">Edge TTS（雲端，需網路）</option>
                 <option value="melo">MeloTTS（本地）</option>
                 <option value="openai_compatible">OpenAI 相容 API</option>
               </select>
+              <div class="setting-error" data-error-for="TTS_PROVIDER"></div>
             </div>
-            <div class="setting-row" id="row-tts-edge-zh">
-              <label class="setting-label">中文語音</label>
-              <input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural">
-            </div>
-            <div class="setting-row" id="row-tts-edge-en">
-              <label class="setting-label">英文語音</label>
-              <input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural">
-            </div>
-            <div class="setting-row hidden" id="row-tts-api">
-              <label class="setting-label">服務連線位址</label>
+          </div>
+          <div class="setting-row" id="row-tts-edge-zh">
+            <label class="setting-label" for="inp-tts-voice-zh">中文語音</label>
+            <div class="setting-field"><input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural"><div class="setting-error" data-error-for="EDGE_TTS_VOICE"></div></div>
+          </div>
+          <div class="setting-row" id="row-tts-edge-en">
+            <label class="setting-label" for="inp-tts-voice-en">英文語音</label>
+            <div class="setting-field"><input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural"><div class="setting-error" data-error-for="EDGE_TTS_VOICE_EN"></div></div>
+          </div>
+          <div class="setting-row hidden" id="row-tts-api">
+            <label class="setting-label" for="inp-tts-api-url">服務連線位址</label>
+            <div class="setting-field">
               <input id="inp-tts-api-url" class="setting-input" type="text" placeholder="https://api.openai.com">
-            </div>
-            <div class="setting-row hidden" id="row-tts-key">
-              <label class="setting-label">服務存取金鑰</label>
-              <input id="inp-tts-api-key" class="setting-input" type="password" placeholder="sk-xxx 或 none">
-            </div>
-            <div class="setting-row hidden" id="row-tts-voice">
-              <label class="setting-label">聲音名稱</label>
-              <input id="inp-tts-voice" class="setting-input" type="text" placeholder="alloy">
-            </div>
-          </section>
-
-          <div style="display:flex;align-items:center;gap:12px;padding-top:4px">
-            <button class="refresh-btn" id="saveSettingsBtn" type="button" onclick="saveSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-              <i class="fas fa-save"></i> 儲存設定
-            </button>
-            <span id="settings-notice" style="font-size:12px;color:#1db87a;display:none"></span>
-          </div>
-        </div>
-
-        <!-- ── 右欄：System Prompts ── -->
-        <div style="display:flex;flex-direction:column;gap:20px">
-
-          <!-- Voice Prompt -->
-          <section>
-            <div class="section-title">語音系統指令內容</div>
-            <div style="margin-bottom:12px">
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文指令內容（空白時使用系統預設）</label>
-              <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
-            </div>
-            <div>
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文指令內容（空白時使用系統預設）</label>
-              <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設英文指令"></textarea>
-            </div>
-          </section>
-
-          <hr style="border:none;border-top:1px solid #edf0f7">
-
-          <!-- AI Push Prompt -->
-          <section>
-            <div class="section-title">AI 推薦系統指令內容</div>
-            <div class="setting-row" style="margin-bottom:12px">
-              <label class="setting-label">push_text 字數範圍</label>
-              <div style="display:flex;align-items:center;gap:8px">
-                <input id="inp-push-text-min" class="setting-input" type="number" min="5" max="200" placeholder="18" style="width:72px">
-                <span style="color:#8494b0;font-size:13px">–</span>
-                <input id="inp-push-text-max" class="setting-input" type="number" min="5" max="200" placeholder="34" style="width:72px">
-                <span style="color:#8494b0;font-size:12px">字（繁體中文）</span>
-              </div>
-            </div>
-            <div>
-              <label style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推薦指令內容（空白時使用系統預設）</label>
-              <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推薦指令"></textarea>
-            </div>
-          </section>
-
-          <hr style="border:none;border-top:1px solid #edf0f7">
-
-          <!-- 被動語音監聽關鍵詞 -->
-          <section>
-            <div class="section-title">被動語音監聽關鍵詞</div>
-            <div class="setting-row" style="align-items:flex-start">
-              <label class="setting-label" style="padding-top:6px">觸發關鍵詞</label>
-              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                <textarea id="inp-passive-keywords" class="setting-input" rows="4"
-                  style="resize:vertical;font-size:13px;line-height:1.6"
-                  placeholder="每行一個關鍵詞，例如：&#10;找不到&#10;在哪裡&#10;哪邊有"></textarea>
-                <span style="font-size:11px;color:#8494b0">顧客說出關鍵詞且提到菜單品項名稱時，自動顯示猶豫彈窗</span>
-              </div>
-            </div>
-          </section>
-
-          <hr style="border:none;border-top:1px solid #edf0f7">
-
-          <!-- 品項口語別名 -->
-          <section>
-            <div class="section-title">品項口語別名</div>
-            <p style="font-size:11px;color:#8494b0;margin-bottom:12px;line-height:1.6">
-              顧客可能說「魚堡」而非完整名稱「麥香魚堡」，在此設定別名讓系統仍能比對。<br>
-              格式：每行 <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">品項ID = 別名1, 別名2</code>，例如：<br>
-              <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">MCD003 = 魚堡, 魚排堡</code>
-            </p>
-            <textarea id="inp-passive-aliases" class="setting-input" rows="6"
-              style="resize:vertical;font-size:12px;line-height:1.7;font-family:monospace;width:100%"
-              placeholder="MCD003 = 魚堡, 魚排堡&#10;MCD001 = 大麥, 大M&#10;MCD010 = 雞塊, 麥克雞"></textarea>
-          </section>
-
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Activities page for general employees -->
-  <section id="page-promotions" class="campaign-page" style="display:none">
-    <div class="campaign-toolbar">
-      <div>
-        <div class="card-title" style="margin-bottom:4px"><i class="fas fa-ticket-alt"></i> 活動優惠</div>
-        <div class="recommendation-muted">建立一次，菜單、活動區、推薦、購物車與結帳價格會同步套用。</div>
-      </div>
-      <button id="campaignCreateBtn" class="campaign-primary" type="button"><i class="fas fa-plus"></i> 建立活動</button>
-    </div>
-    <div id="campaignKpis" class="campaign-kpis"></div>
-    <div class="campaign-toolbar campaign-filterbar">
-      <input id="campaignSearch" class="recommendation-input" type="search" placeholder="搜尋活動名稱">
-      <select id="campaignStatusFilter" class="recommendation-select">
-        <option value="current" selected>目前與待處理</option><option value="history">歷史活動</option><option value="">全部狀態</option><option value="active">進行中</option><option value="scheduled">已排程</option><option value="draft">草稿</option><option value="review">待確認</option><option value="paused">已暫停</option><option value="ended">已結束</option><option value="archived">已封存</option>
-      </select>
-      <button id="campaignRefreshBtn" class="campaign-secondary" type="button"><i class="fas fa-sync-alt"></i> 重新整理</button>
-    </div>
-    <div id="campaignList" class="campaign-list"><div class="adm-empty">載入中…</div></div>
-
-    <section id="campaignWizard" class="campaign-wizard" hidden aria-labelledby="campaignWizardTitle">
-      <div class="campaign-wizard-head"><div><b id="campaignWizardTitle">建立活動</b><div id="campaignSaveState" class="recommendation-muted">尚未儲存</div></div><button id="campaignCloseBtn" class="campaign-secondary" type="button">關閉</button></div>
-      <div class="campaign-steps" role="tablist">
-        <button class="campaign-step-tab active" data-campaign-step="1" type="button">1. 基本資料</button><button class="campaign-step-tab" data-campaign-step="2" type="button">2. 優惠內容</button><button class="campaign-step-tab" data-campaign-step="3" type="button">3. 顯示位置</button><button class="campaign-step-tab" data-campaign-step="4" type="button">4. 文案預覽</button><button class="campaign-step-tab" data-campaign-step="5" type="button">5. 檢查發布</button>
-      </div>
-      <div class="campaign-step-panel active" data-campaign-panel="1"><div class="campaign-fields">
-        <div class="campaign-field full"><label for="campaignName">活動名稱</label><input id="campaignName" maxlength="120" placeholder="例如：夏日薯條加購優惠"><span class="campaign-field-error" data-error-for="name"></span></div>
-        <div class="campaign-field"><label for="campaignObjective">活動目標</label><select id="campaignObjective"><option value="promote_item">提升指定餐點銷售</option><option value="increase_add_on">增加搭配加購</option><option value="increase_order_value">提高每筆消費</option><option value="member_return">鼓勵會員回購</option><option value="clear_inventory">協助庫存銷售</option></select></div>
-        <div class="campaign-field"><label for="campaignAudience">適用顧客</label><select id="campaignAudience"><option value="all">所有顧客</option><option value="member">僅限會員</option></select></div>
-        <div class="campaign-field"><label for="campaignStart">開始時間</label><input id="campaignStart" type="datetime-local"></div><div class="campaign-field"><label for="campaignEnd">結束時間</label><input id="campaignEnd" type="datetime-local"><span class="campaign-field-error" data-error-for="schedule.ends_at"></span></div>
-      </div></div>
-      <div class="campaign-step-panel" data-campaign-panel="2"><div class="campaign-fields">
-        <div class="campaign-field"><label for="campaignRuleType">優惠方式</label><select id="campaignRuleType"><option value="fixed_item_price">指定餐點特價</option><option value="add_on_fixed_price">搭配餐點加購價</option></select></div>
-        <div class="campaign-field"><label for="campaignItem">優惠餐點</label><select id="campaignItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.item_ids"></span></div>
-        <div id="campaignRequiredField" class="campaign-field"><label for="campaignRequiredItem">顧客購物車需要先有</label><select id="campaignRequiredItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.required_cart_item_ids"></span></div>
-        <div class="campaign-field"><label for="campaignPrice">優惠價（元）</label><input id="campaignPrice" type="number" min="1" step="1"><span id="campaignPriceHelp" class="recommendation-muted"></span><span class="campaign-field-error" data-error-for="promotion_rules.0.promotion_price"></span></div>
-      </div></div>
-      <div class="campaign-step-panel" data-campaign-panel="3"><fieldset class="campaign-field"><legend>要在哪些畫面顯示？</legend><div class="campaign-checks">
-        <label><input type="checkbox" name="campaignPlacement" value="menu_card" checked> 菜單餐點卡</label><label><input type="checkbox" name="campaignPlacement" value="item_detail" checked> 餐點詳細資料</label><label><input type="checkbox" name="campaignPlacement" value="pos_home_banner"> Kiosk 首頁活動區</label><label><input type="checkbox" name="campaignPlacement" value="kiosk_cart_banner"> 購物車活動區</label><label><input type="checkbox" name="campaignPlacement" value="recommendation"> AI 推薦</label><label><input type="checkbox" name="campaignPlacement" value="voice"> 語音優惠回答</label>
-      </div><span class="campaign-field-error" data-error-for="placements"></span></fieldset></div>
-      <div class="campaign-step-panel" data-campaign-panel="4"><div class="campaign-fields">
-        <div class="campaign-field"><label for="campaignBadge">活動標籤</label><input id="campaignBadge" maxlength="80" placeholder="例如：會員限定"></div><div class="campaign-field"><label for="campaignTheme">呈現風格</label><select id="campaignTheme"><option value="gold">金色醒目</option><option value="red">紅色促銷</option><option value="dark">深色質感</option><option value="simple">簡潔</option></select></div>
-        <div class="campaign-field full"><label for="campaignDescription">短說明</label><textarea id="campaignDescription" maxlength="240" rows="3"></textarea></div><div class="campaign-field"><label for="campaignCta">按鈕文字</label><input id="campaignCta" value="立即查看" maxlength="40"></div>
-      </div><div id="campaignPricePreview" class="campaign-preview-grid"></div></div>
-      <div class="campaign-step-panel" data-campaign-panel="5"><div id="campaignReviewSummary" class="promotion-help">請先完成前面資料並執行檢查。</div><div id="campaignConflictList"></div></div>
-      <div class="campaign-wizard-actions"><div><button id="campaignPreviousBtn" class="campaign-secondary" type="button">上一步</button><button id="campaignNextBtn" class="campaign-secondary" type="button">下一步</button></div><div><button id="campaignSaveDraftBtn" class="campaign-secondary" type="button">儲存草稿</button><button id="campaignPublishBtn" class="campaign-primary" type="button">檢查並發布</button></div></div>
-    </section>
-  </section>
-
-  <!-- RAG page — inside .main, two-column full-panel layout -->
-  <div class="content" id="page-rag" style="display:none">
-
-    <div class="rag-flow-note" aria-label="RAG 資料流程說明">
-      <span><b>1. 來源文件</b>發布後保存在 RAG 文件目錄，是可再次重建的原始資料。</span>
-      <span><b>2. 正式選取</b>只有管理員勾選的 source_id 會進入下一次重建；未勾選文件仍保留但不參與回答。</span>
-      <span><b>3. Chroma 索引</b>實際查詢使用的持久化向量庫。清空索引不會刪除來源，但會保存「目前不選任何文件」。</span>
-    </div>
-
-    <!-- ── 左欄：設定 + 新增表單 ── -->
-    <div class="rag-left">
-
-      <!-- RAG 設定 -->
-      <div class="card">
-        <div class="card-title"><i class="fas fa-cog"></i> RAG 設定</div>
-        <div class="setting-row">
-          <label class="setting-label">啟用 RAG</label>
-          <select id="inp-rag-enabled" class="setting-input">
-            <option value="false">關閉</option>
-            <option value="true">開啟</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">相似度門檻</label>
-          <input id="inp-rag-threshold" class="setting-input" type="number" step="0.05" min="0" max="1" placeholder="0.5">
-          <span style="font-size:11px;color:#8494b0;flex-shrink:0">0~1 越高越嚴格</span>
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">查詢筆數</label>
-          <input id="inp-rag-top-k" class="setting-input" type="number" min="1" max="10" placeholder="3">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label" for="inp-rag-strategy">檢索策略</label>
-          <select id="inp-rag-strategy" class="setting-input" onchange="updateRagStrategyHelp()">
-            <option value="hybrid">混合檢索（建議）</option>
-            <option value="dense">語意向量 Dense</option>
-            <option value="bm25">關鍵字 BM25</option>
-          </select>
-        </div>
-        <p id="rag-strategy-help" class="rag-strategy-help">同時比較語意與關鍵字，再用 RRF 合併排序，適合一般門市問答。</p>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-          <button class="refresh-btn" type="button" onclick="saveRagSettings()" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> 儲存 RAG 設定
-          </button>
-          <span id="rag-settings-notice" style="font-size:12px;display:none"></span>
-        </div>
-        <div class="rag-strategy-lab">
-          <b>測試目前策略</b>
-          <p>使用正式索引預覽檢索結果，不會送進顧客對話或改變文件。</p>
-          <label class="setting-label" for="rag-test-query" style="display:block;width:auto;margin-bottom:6px">模擬顧客問題</label>
-          <textarea id="rag-test-query" class="setting-input" maxlength="500" placeholder="例如：早餐供應到幾點？"></textarea>
-          <div class="rag-test-actions">
-            <button id="rag-test-btn" class="refresh-btn" type="button" onclick="testRagStrategy()">
-              <i class="fas fa-flask"></i> 測試檢索
-            </button>
-            <span id="rag-test-status" class="rag-test-status" aria-live="polite"></span>
-          </div>
-          <div id="rag-test-results" class="rag-test-results"></div>
-        </div>
-        <div class="rag-health-grid" id="rag-health-grid">
-          <div class="rag-health-chip"><b>—</b><span>Chroma 狀態</span></div>
-          <div class="rag-health-chip"><b>—</b><span>文件數</span></div>
-        </div>
-        <div class="rag-storage-detail" id="rag-storage-detail"></div>
-        <div class="rag-alert-list" id="rag-alert-list"></div>
-      </div>
-
-      <!-- 新增 / 更新知識文件 -->
-      <div class="card" style="flex:1;display:flex;flex-direction:column">
-        <div class="card-title"><i class="fas fa-plus-circle"></i> 新增 / 更新 RAG 文本</div>
-        <p style="font-size:12px;color:#8494b0;margin-top:-6px;margin-bottom:16px;line-height:1.6">文本會先建立為草稿，核准並發布後才會寫入 rag_documents；執行安全重建 Chroma 後才會進入正式向量庫。</p>
-        <input id="rag-review-editing-id" type="hidden" value="">
-        <div class="setting-row">
-          <label class="setting-label">文件 ID</label>
-          <input id="rag-source-id" class="setting-input" type="text" placeholder="例如 store_policy_breakfast_time">
-        </div>
-        <div class="setting-row">
-          <label class="setting-label">文件類型</label>
-          <select id="rag-type" class="setting-input">
-            <option value="manual">手動文件</option>
-            <option value="policy">政策 / 規則</option>
-            <option value="faq">FAQ</option>
-            <option value="menu_supplement">菜單補充說明</option>
-            <option value="promotion">活動優惠</option>
-            <option value="nutrition">營養 / 過敏原</option>
-            <option value="customer_service">客服知識</option>
-          </select>
-        </div>
-        <div style="flex:1;display:flex;flex-direction:column;margin-bottom:14px">
-          <div class="section-title" style="margin-bottom:8px">內容</div>
-          <textarea id="rag-content" class="setting-input" style="flex:1;min-height:120px;resize:vertical;font-size:13px;line-height:1.6" placeholder="輸入知識內容，例如：麥當勞早餐供應時間為每日 05:00 至 10:30。"></textarea>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button class="refresh-btn" onclick="addRagDoc()" type="button" style="background:#3b7aee;color:#fff;border-color:#3b7aee">
-            <i class="fas fa-save"></i> <span id="rag-save-btn-label">建立草稿</span>
-          </button>
-          <button class="refresh-btn" onclick="cancelRagReviewEdit()" type="button">
-            <i class="fas fa-times"></i> 取消編輯
-          </button>
-          <button class="refresh-btn" onclick="validateRagDocs()" type="button">
-            <i class="fas fa-check-circle"></i> 檢查並選擇來源
-          </button>
-          <button id="rag-rebuild-btn" class="refresh-btn" onclick="rebuildRagDocs()" type="button" style="background:#1db87a;color:#fff;border-color:#1db87a">
-            <i class="fas fa-sync-alt"></i> 安全重建 Chroma
-          </button>
-          <button class="clear-btn" onclick="clearRagDocs()" type="button">
-            <i class="fas fa-trash-alt"></i> 清空全部
-          </button>
-          <span id="rag-notice" style="font-size:12px;display:none"></span>
-        </div>
-        <div id="rag-validation-box" class="rag-validation-box"></div>
-      </div>
-
-    </div>
-
-    <!-- ── 右欄：文件清單 ── -->
-    <div class="card rag-right">
-      <div class="card-title" style="flex-shrink:0">
-        <i class="fas fa-clipboard-check"></i> 待審核文本
-        <span id="rag-review-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
-        <button class="refresh-btn" onclick="loadRagReviews()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
-          <i class="fas fa-sync-alt"></i> 重新整理
-        </button>
-      </div>
-      <div id="rag-review-list" class="rag-review-list"></div>
-
-      <div class="card-title" style="flex-shrink:0">
-        <i class="fas fa-database"></i> 目前 Chroma 正式索引
-        <span id="rag-count" style="color:#3b7aee;font-size:14px;font-weight:900;margin-left:2px"></span>
-        <button class="refresh-btn" onclick="loadRagDocs()" type="button" style="margin-left:auto;padding:5px 12px;font-size:11px">
-          <i class="fas fa-sync-alt"></i> 重新整理
-        </button>
-      </div>
-      <div id="rag-list" class="rag-list-body"></div>
-    </div>
-
-  </div>
-
-  <!-- Emotion-LLaMA page -->
-  <div class="content" id="page-emotion" style="display:none">
-
-    <!-- 設定卡片 -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-title"><i class="fas fa-eye"></i> 情緒分析設定</div>
-      <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0">
-
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">情緒分析模型</label>
-          <select id="inp-emotion-provider" class="setting-input" style="width:220px">
-            <option value="emotion_llama">Emotion-LLaMA (7889)</option>
-            <option value="r1_omni">R1-Omni (7890)</option>
-          </select>
-        </div>
-
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用分析</label>
-          <input type="checkbox" id="inp-emotion-enabled">
-        </div>
-
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">片段時長（秒）</label>
-          <input type="number" id="inp-emotion-clip-sec" class="setting-input" style="width:100px" min="1" max="10" step="0.5">
-        </div>
-
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用品質快篩</label>
-          <input type="checkbox" id="inp-emotion-quality-check">
-        </div>
-
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="min-width:140px;font-size:13px;color:var(--text2)">將結果加入語音指令</label>
-          <input type="checkbox" id="inp-emotion-affect-voice">
-        </div>
-
-        <div style="border-top:1px solid #edf0f7;padding-top:12px;margin-top:2px">
-          <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">語音助理分析</div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;align-items:center;gap:12px">
-              <label style="min-width:200px;font-size:13px;color:var(--text2)">語音結束時分析</label>
-              <input type="checkbox" id="inp-emotion-event-voice">
-              <span style="font-size:12px;color:#8494b0">分析完成後可供本次點餐 LLM 參考</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <label for="inp-emotion-analysis-mode" style="min-width:200px;font-size:13px;color:var(--text2)">執行方案</label>
-              <select id="inp-emotion-analysis-mode" class="setting-input" style="max-width:260px">
-                <option value="media_only">方案 A｜僅影音（較快）</option>
-                <option value="media_plus_stt" selected>方案 B｜影音＋STT（建議）</option>
-                <option value="paired">方案 A+B｜同片段配對（較慢）</option>
-              </select>
-              <input type="checkbox" id="inp-emotion-include-stt" checked hidden aria-hidden="true" tabindex="-1">
-              <span style="font-size:12px;color:#8494b0">預設只跑 B；需要測試 STT 差異時再選 A+B</span>
+              <div class="setting-ready" id="ttsKeyReady"></div>
+              <div class="setting-error" data-error-for="TTS_API_URL"></div>
             </div>
           </div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="display:flex;align-items:baseline;justify-content:space-between">
-            <label style="font-size:13px;color:var(--text2)">分析指令範本（語音結束分析會將 {speech_text} 替換為 STT 逐字稿；關閉 STT 時自動省略）</label>
-            <span id="emotion-prompt-counter" style="font-size:11px;color:var(--text2);white-space:nowrap;margin-left:12px">0 字</span>
+          <div class="setting-row hidden" id="row-tts-voice">
+            <label class="setting-label" for="inp-tts-voice">聲音名稱</label>
+            <div class="setting-field"><input id="inp-tts-voice" class="setting-input" type="text" placeholder="alloy"><div class="setting-error" data-error-for="TTS_VOICE"></div></div>
           </div>
-          <textarea id="inp-emotion-prompt" class="setting-input" rows="6"
-            style="resize:vertical;font-size:12px;line-height:1.5"
-            oninput="updateEmotionPromptCounter()"></textarea>
-          <span id="emotion-prompt-warn" style="font-size:11px;color:var(--danger);display:none">⚠️ 指令內容過長，建議控制在 800 字以內</span>
-        </div>
+        </section>
 
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn btn-primary" onclick="saveEmotionSettings()" type="button">儲存設定</button>
-          <span id="emotion-settings-notice" style="font-size:12px;color:#1db87a;display:none">已儲存</span>
+        <div class="settings-save">
+          <span class="settings-save-msg" data-save-msg="voice"></span>
+          <span class="settings-save-spacer"></span>
+          <button class="refresh-btn" type="button" data-settings-reset="voice">還原</button>
+          <button class="refresh-btn settings-primary" type="button" data-settings-save="voice">儲存「語音輸入輸出」設定</button>
         </div>
       </div>
-    </div>
 
-    <section class="card emotion-influence-dashboard" aria-labelledby="emotion-influence-title">
-      <div class="emotion-observability-note">
-        <div>
-          <strong>本輪點餐情緒測試</strong>
-          <h2 id="emotion-influence-title">用 LLM 分析客人目前情況</h2>
-          <p>彙整最新一輪點餐的完整情緒證據，按下「客人分析」後產生只供 Admin 測試的情況摘要。</p>
-        </div>
-        <ul>
-          <li>有效情緒分析必須同時包含情緒／強度、表情、語調與點餐重點。</li>
-          <li>缺少任一欄位會標示為不完整，不會送入客人分析 LLM。</li>
-          <li>客人分析只使用結構化情緒證據，不包含完整逐字稿或顧客個資。</li>
-          <li>此功能只供分析測試，不會修改價格、購物車、訂單或顧客回覆。</li>
-        </ul>
-      </div>
-      <div id="emotion-influence-kpis" class="emotion-influence-kpis" aria-live="polite">
-        <div class="emotion-influence-loading">正在彙整語音輪次…</div>
-      </div>
-      <section class="emotion-stt-comparison-panel" aria-labelledby="emotion-customer-analysis-title">
-        <div class="emotion-stt-comparison-head">
+      <!-- ══════════ 系統指令與關鍵詞 ══════════ -->
+      <div class="settings-panel" data-settings-panel="prompt" hidden>
+        <section>
+          <div class="section-title">語音系統指令內容</div>
+          <div style="margin-bottom:12px">
+            <label for="inp-voice-prompt-zh" style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文指令內容（空白時使用系統預設）</label>
+            <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
+          </div>
           <div>
-            <h3 id="emotion-customer-analysis-title">本輪客人分析</h3>
-            <p>先確認本輪完整情緒證據，再由 LLM 分析客戶目前情況、點餐需求與建議回應方式。</p>
+            <label for="inp-voice-prompt-en" style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文指令內容（空白時使用系統預設）</label>
+            <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設英文指令"></textarea>
           </div>
-          <button id="emotion-customer-analyze-btn" class="btn btn-primary" type="button" onclick="analyzeEmotionCustomer()" disabled>客人分析</button>
-        </div>
-        <div id="emotion-customer-analysis-context" aria-live="polite">
-          <div class="emotion-influence-loading">正在整理本輪情緒證據…</div>
-        </div>
-        <p id="emotion-customer-analysis-status" class="emotion-stt-comparison-result" aria-live="polite">載入完成後可按「客人分析」。</p>
-        <dl id="emotion-customer-analysis-result" class="emotion-customer-result" hidden>
-          <div><dt>客戶目前情況</dt><dd id="emotion-customer-current-situation">—</dd></div>
-          <div><dt>點餐需求或困難</dt><dd id="emotion-customer-ordering-need">—</dd></div>
-          <div><dt>建議回應重點</dt><dd id="emotion-customer-response-focus">—</dd></div>
-          <div><dt>判讀限制</dt><dd id="emotion-customer-caution">—</dd></div>
-        </dl>
-      </section>
-      <div id="emotion-influence-rounds" class="emotion-influence-rounds">
-        <div class="emotion-influence-loading">載入中…</div>
-      </div>
-    </section>
+        </section>
 
-    <!-- 分析紀錄卡片 -->
-    <div class="card">
-      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-        <span><i class="fas fa-list-alt"></i> 原始情緒分析紀錄</span>
-        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="clearEmotionLogs()" type="button">
-          <i class="fas fa-trash-alt"></i> 清除
-        </button>
-      </div>
-      <div id="emotion-logs-table-wrap" style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="background:var(--surface2);text-align:left">
-              <th style="padding:8px 10px;white-space:nowrap">時間</th>
-              <th style="padding:8px 10px;white-space:nowrap">事件類型</th>
-              <th style="padding:8px 10px;white-space:nowrap">模型</th>
-              <th style="padding:8px 10px;white-space:nowrap">情緒 / 強度</th>
-              <th style="padding:8px 10px">表情</th>
-              <th style="padding:8px 10px">聲音</th>
-              <th style="padding:8px 10px">描述</th>
-            </tr>
-          </thead>
-          <tbody id="emotion-logs-tbody">
-            <tr><td colspan="7" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+        <hr class="settings-rule">
 
-  <!-- Members page -->
-  <section id="page-members" class="member-page" style="display:none">
-    <h1 class="page-title">會員管理</h1>
-    <div id="memberStatCards" class="member-stat-cards"></div>
-    <div class="member-toolbar">
-      <input id="memberSearch" class="member-search" type="text" placeholder="搜尋手機、暱稱或常點品項…" />
-      <div class="member-filters" id="memberFilters">
-        <button class="member-filter active" data-filter="all" type="button">全部</button>
-        <button class="member-filter" data-filter="active" type="button">近 7 天活躍</button>
-        <button class="member-filter" data-filter="incomplete" type="button">有未完成</button>
-        <button class="member-filter" data-filter="high_value" type="button">高消費</button>
-        <button class="member-filter" data-filter="new" type="button">新會員</button>
-      </div>
-      <button id="memberExportBtn" class="member-export-btn" type="button">
-        <i class="fas fa-file-export"></i> 匯出 CSV
-      </button>
-    </div>
-    <div class="member-layout">
-      <div class="member-table-card">
-        <div class="adm-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>會員</th><th>狀態</th><th>訂單</th><th>未完成</th><th>累計消費</th><th>平均客單</th><th>最近活動</th><th>常點品項</th><th></th>
-              </tr>
-            </thead>
-            <tbody id="memberTableBody"></tbody>
-          </table>
+        <section>
+          <div class="section-title">AI 推薦系統指令內容</div>
+          <div class="setting-help" style="margin-bottom:12px">推薦詞的字數範圍已移至「AI 推播規則」分頁的「推薦詞生成」。</div>
+          <div>
+            <label for="inp-push-prompt" style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">推薦指令內容（空白時使用系統預設）</label>
+            <textarea id="inp-push-prompt" rows="7" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設推薦指令"></textarea>
+          </div>
+        </section>
+
+        <hr class="settings-rule">
+
+        <section>
+          <div class="section-title">被動語音監聽關鍵詞</div>
+          <div class="setting-row" style="align-items:flex-start">
+            <label class="setting-label" for="inp-passive-keywords" style="padding-top:6px">觸發關鍵詞</label>
+            <div class="setting-field">
+              <textarea id="inp-passive-keywords" class="setting-input" rows="4" style="resize:vertical;font-size:13px;line-height:1.6" placeholder="每行一個關鍵詞，例如：&#10;找不到&#10;在哪裡&#10;哪邊有"></textarea>
+              <div class="setting-help">顧客說出關鍵詞且提到菜單品項名稱時，自動顯示猶豫彈窗。</div>
+            </div>
+          </div>
+        </section>
+
+        <hr class="settings-rule">
+
+        <section>
+          <div class="section-title">品項口語別名</div>
+          <p style="font-size:11px;color:#8494b0;margin-bottom:12px;line-height:1.6">
+            顧客可能說「魚堡」而非完整名稱「麥香魚堡」，在此設定別名讓系統仍能比對。<br>
+            格式：每行 <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">品項ID = 別名1, 別名2</code>，例如：<br>
+            <code style="background:#f0f2f8;padding:1px 4px;border-radius:3px">MCD003 = 魚堡, 魚排堡</code>
+          </p>
+          <textarea id="inp-passive-aliases" class="setting-input" rows="6" style="resize:vertical;font-size:12px;line-height:1.7;font-family:monospace;width:100%" placeholder="MCD003 = 魚堡, 魚排堡&#10;MCD001 = 大麥, 大M&#10;MCD010 = 雞塊, 麥克雞"></textarea>
+        </section>
+
+        <div class="settings-save">
+          <span class="settings-save-msg" data-save-msg="prompt"></span>
+          <span class="settings-save-spacer"></span>
+          <button class="refresh-btn" type="button" data-settings-reset="prompt">還原</button>
+          <button class="refresh-btn settings-primary" type="button" data-settings-save="prompt">儲存「系統指令與關鍵詞」設定</button>
         </div>
       </div>
-      <div id="memberDetailPanel" class="member-detail-panel">
-        <div class="member-detail-empty">選擇左側會員查看完整訂單、常點與推播成效</div>
+
+      <!-- ══════════ 推薦表現目標 ══════════ -->
+      <div class="settings-panel" data-settings-panel="goal" hidden>
+        <div class="setting-group" style="margin-bottom:12px">
+          <div class="setting-group-body" style="padding:11px 13px">
+            <div class="setting-help" style="margin:0">
+              這兩個門檻<b>只決定「營運總覽」何時把推薦成效標為需要注意</b>，並不會改變推薦演算法選什麼餐點、
+              也不會改變推播頻率。樣本未達 100 次有效曝光前一律顯示為「資料不足」，不會判定達標與否。
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>目前實際表現</h3>
+          <div class="setting-group-body">
+            <div id="goal-current" class="settings-live-stats" aria-live="polite">
+              <span class="setting-help" style="margin:0">載入中…</span>
+            </div>
+            <div class="setting-help" id="goal-current-note" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>門檻設定</h3>
+          <div class="setting-group-body">
+            <div class="setting-row">
+              <label class="setting-label" for="inp-recommendation-purchase-target">購買率目標</label>
+              <div class="setting-field">
+                <div class="setting-inline">
+                  <input id="inp-recommendation-purchase-target" class="setting-input setting-input-narrow" type="number" min="0" max="100" step="0.1" placeholder="10">
+                  <span style="font-size:var(--fs);color:var(--text2)">%　低於此值時營運總覽顯示「購買率未達目標」</span>
+                </div>
+                <div class="setting-error" data-error-for="RECOMMENDATION_PURCHASE_RATE_TARGET"></div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label class="setting-label" for="inp-recommendation-ignore-guardrail">忽略率警戒</label>
+              <div class="setting-field">
+                <div class="setting-inline">
+                  <input id="inp-recommendation-ignore-guardrail" class="setting-input setting-input-narrow" type="number" min="0" max="100" step="0.1" placeholder="35">
+                  <span style="font-size:var(--fs);color:var(--text2)">%　高於此值時營運總覽顯示「忽略率偏高」</span>
+                </div>
+                <div class="setting-error" data-error-for="RECOMMENDATION_IGNORE_RATE_GUARDRAIL"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-save">
+          <span class="settings-save-msg" data-save-msg="goal"></span>
+          <span class="settings-save-spacer"></span>
+          <button class="refresh-btn" type="button" data-settings-reset="goal">還原</button>
+          <button class="refresh-btn settings-primary" type="button" data-settings-save="goal">儲存「推薦表現目標」設定</button>
+        </div>
       </div>
-    </div>
-  </section>
 
-  <!-- ── 測試頁 ── -->
-  <div class="content" id="page-test" style="display:none;padding-bottom:0">
-
+      <!-- ══════════ 模型診斷（原「測試」頁） ══════════ -->
+      <div class="settings-panel" data-settings-panel="diagnostic" hidden>
+        <div class="setting-group" style="margin-bottom:12px">
+          <div class="setting-group-body" style="padding:11px 13px">
+            <div class="setting-help" style="margin:0">送出一則真實提示詞給選定的模型，用來驗證模型名稱、金鑰與系統指令的實際效果。此處不會改動任何設定。</div>
+          </div>
+        </div>
     <section class="llm-test-section" aria-labelledby="llm-test-title">
 
     <!-- 左欄：設定 -->
@@ -2166,11 +2313,8 @@ tbody tr:hover td { background: #f8fafd; }
           <button class="provider-tab active" data-provider="ollama" onclick="onTestProviderChange(this)" type="button">
             <i class="fas fa-robot" style="margin-right:3px"></i>Ollama
           </button>
-          <button class="provider-tab" data-provider="gemini" onclick="onTestProviderChange(this)" type="button">
-            <i class="fas fa-star" style="margin-right:3px"></i>Gemini
-          </button>
-          <button class="provider-tab" data-provider="openai" onclick="onTestProviderChange(this)" type="button">
-            <i class="fas fa-bolt" style="margin-right:3px"></i>OpenAI
+          <button class="provider-tab" data-provider="nvidia_nim" onclick="onTestProviderChange(this)" type="button">
+            <i class="fas fa-bolt" style="margin-right:3px"></i>NVIDIA NIM
           </button>
         </div>
 
@@ -2184,28 +2328,16 @@ tbody tr:hover td { background: #f8fafd; }
                 <option value="">載入中…</option>
               </select>
             </div>
+            <p id="test-model-status" class="provider-note" role="status" aria-live="polite">正在讀取 Ollama 模型清單…</p>
           </div>
         </div>
 
-        <!-- Gemini 欄位 -->
-        <div id="test-fields-gemini" class="hidden">
-          <div class="provider-note"><i class="fas fa-info-circle"></i>使用 .env 中的 GEMINI_API_KEY。</div>
+        <!-- NVIDIA NIM 欄位 -->
+        <div id="test-fields-nvidia_nim" class="hidden">
+          <div class="provider-note"><i class="fas fa-info-circle"></i>存取金鑰與服務位址由 .env 中的 NVIDIA_API_KEY / NVIDIA_API_BASE_URL 提供。</div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
             <label class="setting-label" style="width:auto">模型</label>
-            <input id="test-inp-gemini-model" class="setting-input" type="text" value="gemini-2.0-flash" style="width:100%">
-          </div>
-        </div>
-
-        <!-- OpenAI 欄位 -->
-        <div id="test-fields-openai" class="hidden">
-          <div class="provider-note"><i class="fas fa-info-circle"></i>存取金鑰由進階環境設定提供；服務位址留空時使用供應商預設位址。</div>
-          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <label class="setting-label" style="width:auto">服務連線位址（可選）</label>
-            <input id="test-inp-openai-url" class="setting-input" type="text" placeholder="https://api.openai.com/v1" style="width:100%">
-          </div>
-          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <label class="setting-label" style="width:auto">模型</label>
-            <input id="test-inp-openai-model" class="setting-input" type="text" placeholder="gpt-4o-mini" style="width:100%">
+            <input id="test-inp-nim-model" class="setting-input" type="text" placeholder="meta/llama-3.1-8b-instruct" style="width:100%">
           </div>
         </div>
         </div>
@@ -2268,69 +2400,394 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
 
     </section>
-
-    <section class="card emotion-text-card emotion-text-card--test" aria-labelledby="emotion-text-title">
-      <div class="card-title" id="emotion-text-title"><i class="fas fa-comment-dots"></i> 文字模擬說話</div>
-      <p class="emotion-text-intro">輸入顧客可能說出的原句，由文字情緒分析模型根據用詞與標點分析。下方會分開顯示模型回答與支持判讀的分析內容。此測試不使用攝影機或麥克風，不會捏造表情或聲音線索，也不會觸發點餐或付款操作。</p>
-      <label class="setting-label" for="emotion-text-input" style="display:block;width:auto;margin-bottom:7px">模擬顧客說話內容</label>
-      <textarea id="emotion-text-input" class="setting-input emotion-text-input" maxlength="500" placeholder="例如：我已經試了好幾次，為什麼還是不能付款？"></textarea>
-      <div class="emotion-text-samples" aria-label="文字情緒測試範例">
-        <span>快速帶入：</span>
-        <button class="emotion-text-sample" type="button" data-emotion-sample="我已經試了好幾次，為什麼還是不能付款？">焦慮／挫折</button>
-        <button class="emotion-text-sample" type="button" data-emotion-sample="太好了，這個推薦正是我想要的，謝謝！">開心</button>
-        <button class="emotion-text-sample" type="button" data-emotion-sample="我看不懂這個畫面，下一步要按哪裡？">困惑</button>
       </div>
-      <div class="emotion-text-actions">
-        <button id="emotion-text-analyze-btn" class="btn btn-primary" type="button" onclick="analyzeEmotionText()">
-          <i class="fas fa-search"></i> 分析文字情緒
-        </button>
-        <span id="emotion-text-status" class="emotion-text-status" aria-live="polite">可按 Ctrl/Cmd + Enter 送出。</span>
-      </div>
-      <dl id="emotion-text-result" class="emotion-text-result" hidden>
-        <div><dt>主要情緒</dt><dd id="emotion-text-result-emotion">—</dd></div>
-        <div><dt>強度</dt><dd id="emotion-text-result-intensity">—</dd></div>
-        <div><dt>信心</dt><dd id="emotion-text-result-confidence">—</dd></div>
-        <div><dt>文字情緒分析模型</dt><dd id="emotion-text-result-model">—</dd></div>
-        <div class="emotion-text-answer"><dt>文字情緒分析回答</dt><dd id="emotion-text-result-answer">—</dd></div>
-        <div class="emotion-text-description"><dt>情緒模型分析內容</dt><dd id="emotion-text-result-description">—</dd></div>
-      </dl>
 
+      <!-- ══════════ 版面設定（個人偏好，存瀏覽器） ══════════ -->
+      <div class="settings-panel" data-settings-panel="layout" hidden>
+        <div class="setting-group">
+          <h3>介面大小</h3>
+          <div class="setting-group-body">
+            <div class="setting-row">
+              <label class="setting-label" for="inp-ui-zoom">整體縮放</label>
+              <div class="setting-field">
+                <div class="setting-inline">
+                  <input id="inp-ui-zoom" type="range" min="90" max="150" step="5" style="flex:1;max-width:320px">
+                  <output id="out-ui-zoom" class="copy-mono" style="min-width:52px;text-align:right">100%</output>
+                  <button type="button" class="refresh-btn" id="btn-ui-zoom-reset">回復預設</button>
+                </div>
+                <div class="setting-help">
+                  拖動即時生效，會同時放大文字與間距。此設定只存在這台瀏覽器，屬於個人偏好，
+                  不會影響其他管理員，也不會進入設定變更歷史。
+                </div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">快速選擇</label>
+              <div class="setting-field">
+                <div class="setting-inline" style="flex-wrap:wrap">
+                  <button type="button" class="refresh-btn" data-ui-zoom="90">緊湊 90%</button>
+                  <button type="button" class="refresh-btn" data-ui-zoom="100">標準 100%</button>
+                  <button type="button" class="refresh-btn" data-ui-zoom="115">放大 115%</button>
+                  <button type="button" class="refresh-btn" data-ui-zoom="130">特大 130%</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ 變更歷史 ══════════ -->
+      <div class="settings-panel" data-settings-panel="history" hidden>
+        <section>
+          <div class="section-title">設定變更歷史</div>
+          <div id="settingsHistory" class="settings-history">載入中…</div>
+          <p style="font-size:11px;color:#8494b0;margin-top:12px;line-height:1.6">
+            金鑰類欄位不進入設定，因此也不會出現在歷史中。回滾會建立一個新版本，不會刪除任何既有版本。
+          </p>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Activities page for general employees -->
+  <section id="page-promotions" class="campaign-page" style="display:none">
+    <div class="campaign-toolbar">
+      <div>
+        <div class="card-title" style="margin-bottom:4px"><i class="fas fa-ticket-alt"></i> 活動優惠</div>
+        <div class="recommendation-muted">建立一次，菜單、活動區、推薦、購物車與結帳價格會同步套用。</div>
+      </div>
+      <button id="campaignCreateBtn" class="campaign-primary" type="button"><i class="fas fa-plus"></i> 建立活動</button>
+    </div>
+    <div id="campaignKpis" class="campaign-kpis"></div>
+    <div class="campaign-toolbar campaign-filterbar">
+      <input id="campaignSearch" class="recommendation-input" type="search" placeholder="搜尋活動名稱">
+      <select id="campaignStatusFilter" class="recommendation-select">
+        <option value="current" selected>目前與待處理</option><option value="history">歷史活動</option><option value="">全部狀態</option><option value="active">進行中</option><option value="scheduled">已排程</option><option value="draft">草稿</option><option value="review">待確認</option><option value="paused">已暫停</option><option value="ended">已結束</option><option value="archived">已封存</option>
+      </select>
+      <button id="campaignRefreshBtn" class="campaign-secondary" type="button"><i class="fas fa-sync-alt"></i> 重新整理</button>
+    </div>
+    <div id="campaignList" class="campaign-list"><div class="adm-empty">載入中…</div></div>
+
+    <section id="campaignWizard" class="campaign-wizard" hidden aria-labelledby="campaignWizardTitle">
+      <div class="campaign-wizard-head"><div><b id="campaignWizardTitle">建立活動</b><div id="campaignSaveState" class="recommendation-muted">尚未儲存</div></div><button id="campaignCloseBtn" class="campaign-secondary" type="button">關閉</button></div>
+      <div class="campaign-steps" role="tablist">
+        <button class="campaign-step-tab active" data-campaign-step="1" type="button">1. 基本資料</button><button class="campaign-step-tab" data-campaign-step="2" type="button">2. 優惠內容</button><button class="campaign-step-tab" data-campaign-step="3" type="button">3. 顯示位置</button><button class="campaign-step-tab" data-campaign-step="4" type="button">4. 文案預覽</button><button class="campaign-step-tab" data-campaign-step="5" type="button">5. 檢查發布</button>
+      </div>
+      <div class="campaign-step-panel active" data-campaign-panel="1"><div class="campaign-fields">
+        <div class="campaign-field full"><label for="campaignName">活動名稱</label><input id="campaignName" maxlength="120" placeholder="例如：夏日薯條加購優惠"><span class="campaign-field-error" data-error-for="name"></span></div>
+        <div class="campaign-field"><label for="campaignObjective">活動目標</label><select id="campaignObjective"><option value="promote_item">提升指定餐點銷售</option><option value="increase_add_on">增加搭配加購</option><option value="increase_order_value">提高每筆消費</option><option value="member_return">鼓勵會員回購</option><option value="clear_inventory">協助庫存銷售</option></select></div>
+        <div class="campaign-field"><label for="campaignAudience">適用顧客</label><select id="campaignAudience"><option value="all">所有顧客</option><option value="member">僅限會員</option></select></div>
+        <div class="campaign-field"><label for="campaignStart">開始時間</label><input id="campaignStart" type="datetime-local" required><span class="campaign-field-error" data-error-for="schedule.starts_at"></span></div><div class="campaign-field"><label for="campaignEnd">結束時間</label><input id="campaignEnd" type="datetime-local"><span class="campaign-field-error" data-error-for="schedule.ends_at"></span></div>
+      </div></div>
+      <div class="campaign-step-panel" data-campaign-panel="2"><div class="campaign-fields">
+        <div class="campaign-field"><label for="campaignRuleType">優惠方式</label><select id="campaignRuleType"><option value="fixed_item_price">指定餐點特價</option><option value="add_on_fixed_price">搭配餐點加購價</option></select></div>
+        <div class="campaign-field"><label for="campaignItem">優惠餐點</label><select id="campaignItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.item_ids"></span></div>
+        <div id="campaignRequiredField" class="campaign-field"><label for="campaignRequiredItem">顧客購物車需要先有</label><select id="campaignRequiredItem"></select><span class="campaign-field-error" data-error-for="promotion_rules.0.required_cart_item_ids"></span></div>
+        <div class="campaign-field"><label for="campaignPrice">優惠價（元）</label><input id="campaignPrice" type="number" min="1" step="1"><span id="campaignPriceHelp" class="recommendation-muted"></span><span class="campaign-field-error" data-error-for="promotion_rules.0.promotion_price"></span></div>
+      </div></div>
+      <div class="campaign-step-panel" data-campaign-panel="3"><fieldset class="campaign-field"><legend>要在哪些畫面顯示？</legend><div class="campaign-checks">
+        <label><input type="checkbox" name="campaignPlacement" value="menu_card" checked> 菜單餐點卡</label><label><input type="checkbox" name="campaignPlacement" value="item_detail" checked> 餐點詳細資料</label><label><input type="checkbox" name="campaignPlacement" value="pos_home_banner"> Kiosk 首頁活動區</label><label><input type="checkbox" name="campaignPlacement" value="kiosk_cart_banner"> 購物車活動區</label><label><input type="checkbox" name="campaignPlacement" value="recommendation"> AI 推薦</label><label><input type="checkbox" name="campaignPlacement" value="voice"> 語音優惠回答</label>
+      </div><span class="campaign-field-error" data-error-for="placements"></span></fieldset></div>
+      <div class="campaign-step-panel" data-campaign-panel="4"><div class="campaign-fields">
+        <div class="campaign-field"><label for="campaignBadge">活動標籤</label><input id="campaignBadge" maxlength="80" placeholder="例如：會員限定"></div><div class="campaign-field"><label for="campaignTheme">呈現風格</label><select id="campaignTheme"><option value="gold">金色醒目</option><option value="red">紅色促銷</option><option value="dark">深色質感</option><option value="simple">簡潔</option></select></div>
+        <div class="campaign-field full"><label for="campaignDescription">短說明</label><textarea id="campaignDescription" maxlength="240" rows="3"></textarea></div><div class="campaign-field"><label for="campaignCta">按鈕文字</label><input id="campaignCta" value="立即查看" maxlength="40"></div>
+      </div><div id="campaignPricePreview" class="campaign-preview-grid"></div></div>
+      <div class="campaign-step-panel" data-campaign-panel="5"><div id="campaignReviewSummary" class="promotion-help">請先完成前面資料並執行檢查。</div><div id="campaignConflictList"></div></div>
+      <div class="campaign-wizard-actions"><div><button id="campaignPreviousBtn" class="campaign-secondary" type="button">上一步</button><button id="campaignNextBtn" class="campaign-secondary" type="button">下一步</button></div><div><button id="campaignSaveDraftBtn" class="campaign-secondary" type="button">儲存草稿</button><button id="campaignPublishBtn" class="campaign-primary" type="button">檢查並發布</button></div></div>
+    </section>
+  </section>
+
+  <!-- RAG Intelligence Studio -->
+  <section class="content rag-studio" id="page-rag" style="display:none">
+    <div id="rag-studio-root" aria-live="polite">
+      <div class="rag-studio-loading"><span class="rag-spinner"></span>正在載入 RAG 智慧工作室…</div>
+    </div>
+  </section>
+
+  <!-- Emotion-LLaMA page -->
+  <div class="content" id="page-emotion" style="display:none;padding:0">
+    <div class="settings-shell">
+      <div class="settings-tabs" role="tablist" aria-label="情緒分析分頁" data-tabgroup="emotion">
+        <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-emotion-tab="config">分析設定</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-emotion-tab="evidence">成效證據</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-emotion-tab="live">即時客人分析</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-emotion-tab="logs">分析紀錄</button>
+      </div>
+
+      <div class="settings-panel active" data-emotion-panel="config">
+    <!-- 設定卡片 -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><i class="fas fa-eye"></i> 情緒分析設定</div>
+      <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0">
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">情緒分析模型</label>
+          <select id="inp-emotion-provider" class="setting-input" style="width:220px">
+            <option value="emotion_llama">Emotion-LLaMA (7889)</option>
+            <option value="r1_omni">R1-Omni (7890)</option>
+          </select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用分析</label>
+          <input type="checkbox" id="inp-emotion-enabled">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">片段時長（秒）</label>
+          <input type="number" id="inp-emotion-clip-sec" class="setting-input" style="width:100px" min="1" max="10" step="0.5">
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="min-width:140px;font-size:13px;color:var(--text2)">啟用品質快篩</label>
+          <input type="checkbox" id="inp-emotion-quality-check">
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">回覆輔助政策（不具交易權限）</div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+            <label for="inp-emotion-assistance-mode" style="font-size:13px;color:var(--text2)">執行模式</label>
+            <select id="inp-emotion-assistance-mode" class="setting-input" style="width:180px">
+              <option value="disabled">停用</option>
+              <option value="shadow" selected>Shadow（只觀察）</option>
+              <option value="active">Active（分流套用）</option>
+            </select>
+            <label for="inp-emotion-confidence-threshold" style="font-size:13px;color:var(--text2)">最低信心</label>
+            <input type="number" id="inp-emotion-confidence-threshold" class="setting-input" style="width:90px" min="0" max="1" step="0.05" value="0.7">
+            <label for="inp-emotion-rollout-percent" style="font-size:13px;color:var(--text2)">分流比例</label>
+            <select id="inp-emotion-rollout-percent" class="setting-input" style="width:100px">
+              <option value="0">0%</option><option value="5">5%</option><option value="25">25%</option>
+              <option value="50">50%</option><option value="100">100%</option>
+            </select>
+            <input type="checkbox" id="inp-emotion-affect-voice" hidden aria-hidden="true" tabindex="-1">
+          </div>
+          <p style="font-size:12px;color:var(--text2);margin:8px 0 0">僅可縮短句子、一次問一個確認問題、改購物車前再次確認；不得診斷情緒、改價或自行下單。新環境預設 Shadow。</p>
+        </div>
+
+        <div style="border-top:1px solid #edf0f7;padding-top:12px;margin-top:2px">
+          <div style="font-size:12px;font-weight:700;color:#8494b0;margin-bottom:10px;letter-spacing:0.5px">語音助理分析</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <label style="min-width:200px;font-size:13px;color:var(--text2)">語音結束時分析</label>
+              <input type="checkbox" id="inp-emotion-event-voice">
+              <span style="font-size:12px;color:#8494b0">分析完成後可供本次點餐 LLM 參考</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label for="inp-emotion-analysis-mode" style="min-width:200px;font-size:13px;color:var(--text2)">執行方案</label>
+              <select id="inp-emotion-analysis-mode" class="setting-input" style="max-width:260px">
+                <option value="media_only">方案 A｜僅影音（較快）</option>
+                <option value="media_plus_stt" selected>方案 B｜影音＋STT（建議）</option>
+                <option value="paired">方案 A+B｜同片段配對（較慢）</option>
+              </select>
+              <input type="checkbox" id="inp-emotion-include-stt" checked hidden aria-hidden="true" tabindex="-1">
+              <span style="font-size:12px;color:#8494b0">預設只跑 B；需要測試 STT 差異時再選 A+B</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <label style="font-size:13px;color:var(--text2)">分析指令範本（語音結束分析會將 {speech_text} 替換為 STT 逐字稿；關閉 STT 時自動省略）</label>
+            <span id="emotion-prompt-counter" style="font-size:11px;color:var(--text2);white-space:nowrap;margin-left:12px">0 字</span>
+          </div>
+          <textarea id="inp-emotion-prompt" class="setting-input" rows="6"
+            style="resize:vertical;font-size:12px;line-height:1.5"
+            oninput="updateEmotionPromptCounter()"></textarea>
+          <span id="emotion-prompt-warn" style="font-size:11px;color:var(--danger);display:none">⚠️ 指令內容過長，建議控制在 800 字以內</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-primary" onclick="saveEmotionSettings()" type="button">儲存設定</button>
+          <span id="emotion-settings-notice" style="font-size:12px;color:#1db87a;display:none">已儲存</span>
+        </div>
+      </div>
+    </div>
+
+      </div>
+
+      <div class="settings-panel" data-emotion-panel="evidence" hidden>
+    <section class="card" aria-labelledby="emotion-evidence-title" style="margin-bottom:16px">
+      <div class="card-title"><i class="fas fa-chart-line"></i> <span id="emotion-evidence-title">準確性與回覆成效證據</span></div>
+      <div id="emotion-assistance-summary" class="emotion-influence-kpis" aria-live="polite">
+        <div class="emotion-influence-loading">正在整理人工標註與分流結果…</div>
+      </div>
+      <p id="emotion-assistance-assessment" style="font-size:12px;color:var(--text2);margin:10px 0 0">需至少 30 筆可用人工標註，以及 treatment/control 各 30 個 session，才會顯示為可評估。</p>
+    </section>
+
+      </div>
+
+      <div class="settings-panel" data-emotion-panel="live" hidden>
+    <section class="card emotion-influence-dashboard" aria-labelledby="emotion-influence-title">
+      <div class="emotion-observability-note">
+        <div>
+          <strong>本輪點餐情緒測試</strong>
+          <h2 id="emotion-influence-title">用 LLM 分析客人目前情況</h2>
+          <p>彙整最新一輪點餐的完整情緒證據，按下「客人分析」後產生只供 Admin 測試的情況摘要。</p>
+        </div>
+        <ul>
+          <li>有效情緒分析必須同時包含情緒／強度、表情、語調與點餐重點。</li>
+          <li>缺少任一欄位會標示為不完整，不會送入客人分析 LLM。</li>
+          <li>客人分析只使用結構化情緒證據，不包含完整逐字稿或顧客個資。</li>
+          <li>此功能只供分析測試，不會修改價格、購物車、訂單或顧客回覆。</li>
+        </ul>
+      </div>
+      <div id="emotion-influence-kpis" class="emotion-influence-kpis" aria-live="polite">
+        <div class="emotion-influence-loading">正在彙整語音輪次…</div>
+      </div>
+      <section class="emotion-stt-comparison-panel" aria-labelledby="emotion-customer-analysis-title">
+        <div class="emotion-stt-comparison-head">
+          <div>
+            <h3 id="emotion-customer-analysis-title">本輪客人分析</h3>
+            <p>先確認本輪完整情緒證據，再由 LLM 分析客戶目前情況、點餐需求與建議回應方式。</p>
+          </div>
+          <button id="emotion-customer-analyze-btn" class="btn btn-primary" type="button" onclick="analyzeEmotionCustomer()" disabled>客人分析</button>
+        </div>
+        <div id="emotion-customer-analysis-context" aria-live="polite">
+          <div class="emotion-influence-loading">正在整理本輪情緒證據…</div>
+        </div>
+        <p id="emotion-customer-analysis-status" class="emotion-stt-comparison-result" aria-live="polite">載入完成後可按「客人分析」。</p>
+        <dl id="emotion-customer-analysis-result" class="emotion-customer-result" hidden>
+          <div><dt>客戶目前情況</dt><dd id="emotion-customer-current-situation">—</dd></div>
+          <div><dt>點餐需求或困難</dt><dd id="emotion-customer-ordering-need">—</dd></div>
+          <div><dt>建議回應重點</dt><dd id="emotion-customer-response-focus">—</dd></div>
+          <div><dt>判讀限制</dt><dd id="emotion-customer-caution">—</dd></div>
+        </dl>
+      </section>
+      <div id="emotion-influence-rounds" class="emotion-influence-rounds">
+        <div class="emotion-influence-loading">載入中…</div>
+      </div>
+    </section>
+
+
+    <section class="card emotion-text-card emotion-text-card--test" aria-labelledby="emotion-live-title">
       <div class="emotion-live-panel">
         <div class="emotion-live-heading">
           <div>
-            <h3><i class="fas fa-video" aria-hidden="true"></i> 即時影像情緒偵測</h3>
-            <p>啟用後會在本機預覽攝影機，並每次擷取約 2.5 秒片段送往目前設定的 Emotion-LLaMA／R1-Omni。離開測試頁或按停止後會立即關閉攝影機。</p>
+            <p class="emotion-live-kicker">單次多模態診斷工作台</p>
+            <h3 id="emotion-live-title"><i class="fas fa-video" aria-hidden="true"></i> 即時影音情緒測試</h3>
+            <p>每次只做一段自適應擷取：說完停頓後自動送出，最長 8 秒。情緒模型與 STT 使用同一個檔案；STT 失敗會記錄 transcript_unavailable，不接受手填文字替代。</p>
+          </div>
+          <div class="emotion-provider-readiness">
+            <span id="emotion-test-provider-pill" class="emotion-test-pill is-checking"><i class="fas fa-circle-notch fa-spin"></i> 檢查模型</span>
+            <button id="emotion-test-provider-refresh" class="btn emotion-icon-btn" type="button" aria-label="重新檢查情緒模型"><i class="fas fa-sync-alt"></i></button>
           </div>
         </div>
+
+        <ol class="emotion-text-intro" style="padding-left:20px;margin:14px 0 18px">
+          <li>先確認選定模型已載入且宣告 video_audio 能力。</li>
+          <li>允許攝影機與麥克風，按下開始後說出一句測試內容；停頓時自動結束。</li>
+          <li>同一片段分別送往權威情緒模型與 STT；兩者互不替代。</li>
+          <li>畫面分開顯示模型分類、模型分析內容、STT 狀態與不改分類的 LLM 解說。</li>
+          <li>回應完成後關閉裝置並刪除原始影音與逐字稿，只留下有界診斷紀錄。</li>
+        </ol>
+
         <div class="emotion-live-grid">
-          <div>
+          <div class="emotion-live-capture">
             <div id="emotion-video-preview" class="emotion-video-preview">
               <video id="emotion-video" autoplay muted playsinline aria-label="即時影像情緒偵測預覽"></video>
-              <div class="emotion-video-placeholder">攝影機尚未啟用。影像只在分析片段期間送往本機情緒模型。</div>
+              <div class="emotion-video-placeholder">攝影機尚未啟用。原始影音只供本次本機診斷，完成後刪除。</div>
+              <span id="emotion-video-capture-badge" class="emotion-video-capture-badge" hidden><i class="fas fa-circle"></i> 自適應擷取中</span>
             </div>
             <div class="emotion-video-controls">
               <button id="emotion-video-start-btn" class="btn btn-primary" type="button" onclick="startEmotionVideoDetection()">
-                <i class="fas fa-video"></i> 開始即時偵測
+                <i class="fas fa-video"></i> 開始單次擷取
               </button>
               <button id="emotion-video-stop-btn" class="btn" type="button" onclick="stopEmotionVideoDetection()" disabled>
-                <i class="fas fa-stop"></i> 停止
+                <i class="fas fa-stop"></i> 取消擷取
               </button>
-              <span id="emotion-video-status" class="emotion-video-status" aria-live="polite">等待啟用攝影機。</span>
             </div>
+            <div id="emotion-video-status" class="emotion-video-status" aria-live="polite"><i class="fas fa-circle-info"></i><span>等待啟用攝影機。</span></div>
+            <dl class="emotion-live-metrics">
+              <div><dt>擷取方式</dt><dd>停頓自動送出／最長 8 秒</dd></div>
+              <div><dt>在途批次</dt><dd id="emotion-video-inflight">0</dd></div>
+              <div><dt>最近完成</dt><dd id="emotion-video-last-completed">—</dd></div>
+              <div><dt>批次耗時</dt><dd id="emotion-video-batch-latency">—</dd></div>
+            </dl>
           </div>
-          <dl id="emotion-video-result" class="emotion-video-result" hidden>
-            <div><dt>情緒模型</dt><dd id="emotion-video-result-model">—</dd></div>
-            <div><dt>主要情緒／強度</dt><dd id="emotion-video-result-emotion">—</dd></div>
-            <div><dt>信心</dt><dd id="emotion-video-result-confidence">—</dd></div>
-            <div><dt>分析狀態</dt><dd id="emotion-video-result-quality">—</dd></div>
-            <div class="emotion-video-detail"><dt>表情線索</dt><dd id="emotion-video-result-facial">—</dd></div>
-            <div class="emotion-video-detail"><dt>聲音線索</dt><dd id="emotion-video-result-vocal">未擷取音訊</dd></div>
-            <div class="emotion-video-detail"><dt>情緒模型分析內容</dt><dd id="emotion-video-result-description">—</dd></div>
-          </dl>
+          <section class="emotion-video-results" aria-labelledby="emotion-video-results-title">
+            <div class="emotion-video-results-head">
+              <div><h4 id="emotion-video-results-title">分析結果</h4><p>情緒分類只由選定模型決定；STT 狀態與 LLM 解說另列，不會改變分類。</p></div>
+              <span id="emotion-video-result-pair">尚無結果</span>
+            </div>
+            <div id="emotion-video-result" class="emotion-video-result" aria-live="polite">
+              <div class="emotion-video-empty"><i class="fas fa-chart-column"></i><b>尚未執行單次測試</b><span>確認模型就緒並啟用攝影機後，結果會顯示在這裡。</span></div>
+            </div>
+          </section>
         </div>
       </div>
     </section>
+      </div>
+
+      <div class="settings-panel" data-emotion-panel="logs" hidden>
+    <!-- 分析紀錄卡片 -->
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span><i class="fas fa-list-alt"></i> 原始情緒分析紀錄</span>
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="clearEmotionLogs()" type="button">
+          <i class="fas fa-trash-alt"></i> 清除
+        </button>
+      </div>
+      <div id="emotion-logs-table-wrap" style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface2);text-align:left">
+              <th style="padding:8px 10px;white-space:nowrap">時間</th>
+              <th style="padding:8px 10px;white-space:nowrap">事件類型</th>
+              <th style="padding:8px 10px;white-space:nowrap">模型</th>
+              <th style="padding:8px 10px;white-space:nowrap">情緒 / 強度</th>
+              <th style="padding:8px 10px">表情</th>
+              <th style="padding:8px 10px">聲音</th>
+              <th style="padding:8px 10px">描述</th>
+              <th style="padding:8px 10px">人工標註</th>
+            </tr>
+          </thead>
+          <tbody id="emotion-logs-tbody">
+            <tr><td colspan="8" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      </div>
+      </div>
+    </div>
   </div>
+
+  <!-- Members page -->
+  <section id="page-members" class="member-page" style="display:none">
+    <h1 class="page-title">會員服務台</h1>
+    <p class="recommendation-card-description">先搜尋會員，再查看已確認的服務需求與訂單推論偏好。手機號碼預設遮罩，敏感操作只對授權角色顯示。</p>
+    <div id="memberStatCards" class="member-stat-cards"></div>
+    <div class="member-toolbar">
+      <input id="memberSearch" class="member-search" type="search" maxlength="120" placeholder="搜尋會員編號、遮罩手機或暱稱…" />
+      <button id="memberExportBtn" class="member-export-btn" type="button">
+        <i class="fas fa-file-export"></i> 匯出 CSV
+      </button>
+    </div>
+    <div class="member-layout">
+      <div class="member-table-card">
+        <div class="adm-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>會員</th><th>造訪</th><th>完成消費</th><th>加入日期</th><th>會員編號</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="memberTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="memberDetailPanel" class="member-detail-panel">
+        <div class="member-detail-empty">選擇左側會員，查看現在可以如何提供服務。</div>
+      </div>
+    </div>
+    <div class="member-pagination">
+      <button id="memberPreviousPage" class="view-btn" type="button">上一頁</button>
+      <span id="memberPaginationLabel">尚未載入</span>
+      <button id="memberNextPage" class="view-btn" type="button">下一頁</button>
+    </div>
+  </section>
+
+  <!-- ── 測試頁 ── -->
 
 </div><!-- /.main -->
 

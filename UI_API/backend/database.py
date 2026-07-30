@@ -43,6 +43,8 @@ def build_compact_menu_context() -> str:
 
 
 def update_menu(new_menu_data: list) -> None:
+    """Bulk replace the scoped store catalog master (not the seed JSON file)."""
+
     menu_repository.save_menu(new_menu_data)
     # RAG rebuild is intentionally explicit from the admin endpoint.
 

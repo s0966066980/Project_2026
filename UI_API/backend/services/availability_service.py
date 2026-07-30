@@ -120,12 +120,20 @@ def build_availability_context(
             "unavailable_item_ids": [],
             "low_stock_penalty": 0,
         }
-    rows = menu_items if menu_items is not None else menu_repository.get_menu()
+    if menu_items is not None:
+        rows = menu_items
+    elif scope is not None:
+        rows = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+    else:
+        rows = menu_repository.get_menu()
     return {"enabled": True, **_availability_base(rows, now=now, scope=scope)}
 
 
 def get_admin_state(now: datetime | None = None, scope: CommercialScope | None = None) -> dict:
-    menu_items = menu_repository.get_menu()
+    if scope is not None:
+        menu_items = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+    else:
+        menu_items = menu_repository.get_menu()
     context = build_availability_context(menu_items, now=now, scope=scope)
     sold_out_ids = set(context.get("sold_out_item_ids", []))
     low_stock_ids = set(context.get("low_stock_item_ids", []))
@@ -148,16 +156,24 @@ def get_admin_state(now: datetime | None = None, scope: CommercialScope | None =
                 "id": item_id,
                 "name": str(item.get("name") or item_id),
                 "category": str(item.get("category") or ""),
+                "price": item.get("price"),
+                "description": str(item.get("description") or ""),
+                "image": str(item.get("image") or ""),
                 "status": status,
                 "time_unavailable": item_id in time_unavailable_ids,
                 "available_categories": item.get("available_categories") or [],
+                "retired": bool(item.get("retired") or item.get("retired_at")),
             }
         )
-    return {**context, "items": rows}
+    categories = sorted({str(row.get("category") or "") for row in rows if row.get("category")})
+    return {**context, "items": rows, "categories": categories}
 
 
 def save_admin_state(payload: dict, scope: CommercialScope | None = None) -> dict:
-    menu_items = menu_repository.get_menu()
+    if scope is not None:
+        menu_items = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+    else:
+        menu_items = menu_repository.get_menu()
     valid_ids = _valid_menu_ids(menu_items)
     source = payload if isinstance(payload, dict) else {}
     row = {

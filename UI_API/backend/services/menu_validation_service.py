@@ -36,9 +36,11 @@ def _validate_image_url(value: Any, *, index: int) -> str:
         raise MenuValidationError("image contains unsafe characters", index=index, field="image")
     if image.startswith("/static/"):
         return image
+    if image.startswith("object:") and len(image) <= 512:
+        return image
     parsed = urlparse(image)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise MenuValidationError("image must use http(s) or /static/", index=index, field="image")
+        raise MenuValidationError("image must use http(s), /static/, or object:", index=index, field="image")
     if parsed.username or parsed.password:
         raise MenuValidationError("image credentials are not allowed", index=index, field="image")
     return image
