@@ -44,17 +44,14 @@ def test_environment_example_contains_no_filled_credentials() -> None:
         values[key] = value
 
     sensitive_keys = {
-        "ADMIN_API_TOKEN",
         "KIOSK_DEVICE_TOKEN",
         "ADMIN_MEMBER_REF_SECRET",
         "POS_DEMO_TOKEN",
-        "ADMIN_DEMO_TOKEN",
         "WS_DEMO_TOKEN",
         "JWT_SECRET",
         "OBJECT_STORAGE_ACCESS_KEY",
         "OBJECT_STORAGE_SECRET_KEY",
-        "GEMINI_API_KEY",
-        "GOOGLE_API_KEY",
+        "NVIDIA_API_KEY",
         "STT_API_KEY",
         "TTS_API_KEY",
         "NGROK_AUTHTOKEN",

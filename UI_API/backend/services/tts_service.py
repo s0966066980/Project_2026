@@ -107,7 +107,7 @@ class OpenAICompatibleTTS(TTSProvider):
         import httpx
 
         url = config.get("TTS_API_URL", "https://api.openai.com").rstrip("/")
-        api_key = config.get("TTS_API_KEY", "none") or "none"
+        api_key = config.TTS_API_KEY or "none"
         model = config.get("TTS_MODEL", "tts-1")
         voice = config.get("TTS_VOICE", "alloy")
 

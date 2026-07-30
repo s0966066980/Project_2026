@@ -76,7 +76,7 @@ def test_gateway_falls_back_when_primary_unavailable() -> None:
         [_FakeResult(content="", error="connection refused", retryable=True)],
     )
     fallback = FakeAdapter(
-        "gemini",
+        "nvidia_nim",
         [_FakeResult(content='{"ok": true}', parsed={"ok": True})],
     )
     response = llm_gateway_service.generate(
@@ -89,16 +89,16 @@ def test_gateway_falls_back_when_primary_unavailable() -> None:
             expect_json=True,
             max_retries=0,
         ),
-        adapters={"ollama": primary, "gemini": fallback},
+        adapters={"ollama": primary, "nvidia_nim": fallback},
     )
-    assert response.provider == "gemini"
+    assert response.provider == "nvidia_nim"
     assert response.parsed == {"ok": True}
     assert response.finish_reason == "fallback"
     assert primary.calls == 1
     assert fallback.calls == 1
     snapshot = observability_service.metrics_snapshot()
     assert snapshot["llm_provider_requests_total"]["ollama_error"] >= 1
-    assert snapshot["llm_provider_requests_total"]["gemini_fallback"] >= 1
+    assert snapshot["llm_provider_requests_total"]["nvidia_nim_fallback"] >= 1
 
 
 def test_gateway_retries_retryable_errors_only() -> None:
@@ -209,7 +209,7 @@ def test_gateway_redacts_secrets_from_safe_errors_and_logs() -> None:
     from services import llm_gateway_service, observability_service
 
     adapter = FakeAdapter(
-        "gemini",
+        "nvidia_nim",
         [_FakeResult(content="", error="password=supersecret token=abc DATABASE_URL=postgresql://x", retryable=False)],
     )
     response = llm_gateway_service.generate(
@@ -219,7 +219,7 @@ def test_gateway_redacts_secrets_from_safe_errors_and_logs() -> None:
             user_prompt="user phone 0912345678",
             model_policy=LLMModelPolicy.CLOUD_ONLY,
         ),
-        adapters={"gemini": adapter},
+        adapters={"nvidia_nim": adapter},
     )
     assert "supersecret" not in response.safe_error
     assert "postgresql://" not in response.safe_error

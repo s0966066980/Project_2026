@@ -10,7 +10,11 @@ from uuid import UUID
 
 class RagAssetStatus(str, Enum):
     DRAFT = "draft"
+    INDEXING = "indexing"
+    INDEX_FAILED = "index_failed"
     REVIEW = "review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
     PUBLISHED = "published"
     RETIRED = "retired"
     FAILED = "failed"
@@ -20,9 +24,7 @@ RAG_PERMISSIONS = frozenset(
     {
         "rag.read",
         "rag.write",
-        "rag.review",
         "rag.publish",
-        "rag.rollback",
     }
 )
 

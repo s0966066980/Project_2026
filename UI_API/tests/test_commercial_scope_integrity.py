@@ -20,31 +20,10 @@ def test_scoped_repositories_share_one_conflict_error_type() -> None:
     assert recommendation_event_repository.CommercialScopeConflictError is CommercialScopeConflictError
 
 
-@pytest.mark.parametrize(
-    ("app_env", "fallback", "expected"),
-    [
-        ("development", True, True),
-        ("development", False, False),
-        ("staging", True, False),
-        ("production", False, False),
-    ],
-)
-def test_postgres_json_fallback_requires_explicit_development_opt_in(
-    monkeypatch: pytest.MonkeyPatch,
-    app_env: str,
-    fallback: bool,
-    expected: bool,
-) -> None:
+def test_postgres_json_fallback_is_never_available() -> None:
     from repositories import postgres_utils
 
-    monkeypatch.setattr(postgres_utils.config, "APP_ENV", app_env)
-    monkeypatch.setattr(
-        postgres_utils.config,
-        "get",
-        lambda key, default=None: fallback if key == "ALLOW_POSTGRES_JSON_FALLBACK" else default,
-    )
-
-    assert postgres_utils.allow_postgres_json_fallback() is expected
+    assert postgres_utils.allow_postgres_json_fallback() is False
 
 
 def test_production_rejects_postgres_json_fallback_at_startup(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -76,22 +55,25 @@ def test_postgres_read_and_write_fail_closed_without_json_fallback(monkeypatch: 
         member_repository.upsert_member_scoped({"phone": "0912345678"}, LEGACY_DEFAULT_SCOPE)
 
 
-def test_development_fallback_is_explicit_and_scope_conflicts_are_never_swallowed(
+def test_development_database_failure_never_falls_back_to_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from models.commercial_scope import LEGACY_DEFAULT_SCOPE, CommercialScopeConflictError
     from repositories import postgres_utils, recommendation_event_repository
 
     monkeypatch.setattr(recommendation_event_repository.postgres_utils, "use_postgres", lambda: True)
-    monkeypatch.setattr(postgres_utils, "allow_postgres_json_fallback", lambda: True)
+    monkeypatch.setattr(postgres_utils, "allow_postgres_json_fallback", lambda: False)
     monkeypatch.setattr(
         recommendation_event_repository, "_postgres_get_events", lambda *_args: (_ for _ in ()).throw(RuntimeError())
     )
-    monkeypatch.setattr(recommendation_event_repository, "_read_list", lambda _path: [{"event_id": "json"}])
+    monkeypatch.setattr(
+        recommendation_event_repository,
+        "_read_list",
+        lambda _path: (_ for _ in ()).throw(AssertionError("JSON fallback must not run")),
+    )
 
-    assert recommendation_event_repository.get_recommendation_events_scoped(LEGACY_DEFAULT_SCOPE) == [
-        {"event_id": "json"}
-    ]
+    with pytest.raises(postgres_utils.PostgresOperationError):
+        recommendation_event_repository.get_recommendation_events_scoped(LEGACY_DEFAULT_SCOPE)
 
     monkeypatch.setattr(
         recommendation_event_repository,

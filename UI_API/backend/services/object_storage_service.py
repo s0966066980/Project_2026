@@ -21,6 +21,8 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from uuid import UUID, uuid4
 
+from modules.runtime_persistence import configured_runtime_paths
+
 import config
 from models.object_storage import (
     ENCRYPTION_LOCAL_AES_GCM,
@@ -248,7 +250,7 @@ def _persist_metadata(meta: ObjectMetadata) -> None:
         return
     try:
         if hasattr(object_storage_repository, "upsert_metadata"):
-            # Only when postgres backend is active; repository itself no-ops on JSON.
+            # Relational metadata is authoritative only when PostgreSQL is active.
             object_storage_repository.upsert_metadata(meta)
     except Exception:
         # Metadata persistence must not invent success; surface only when postgres is configured.
@@ -666,7 +668,7 @@ def _local_root() -> Path:
     raw = str(os.getenv("OBJECT_STORAGE_LOCAL_ROOT", "") or config.get("OBJECT_STORAGE_LOCAL_ROOT", "") or "").strip()
     if raw:
         return Path(raw)
-    return Path(config.LEARNING_DATA_DIR) / "object_storage"
+    return configured_runtime_paths(os.environ).objects
 
 
 def storage() -> InMemoryObjectStorage | LocalObjectStorage | S3ObjectStorage:

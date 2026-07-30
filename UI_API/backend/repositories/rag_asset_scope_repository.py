@@ -13,7 +13,6 @@ from repositories import postgres_utils
 def list_asset_scopes(scope: CommercialScope) -> list[dict]:
     if not postgres_utils.use_postgres():
         return []
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -35,7 +34,6 @@ def save_asset_scope(asset_id: str, metadata: dict, scope: CommercialScope) -> d
     if not normalized_id:
         raise ValueError("RAG asset ID is required")
     payload = dict(metadata or {})
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """

@@ -52,7 +52,7 @@ def test_only_gateway_adapters_import_ai_services_for_generation() -> None:
     gateway = (SERVICES / "llm_gateway_service.py").read_text(encoding="utf-8")
     assert "import ai_services" in gateway
     assert "class OllamaAdapter" in gateway
-    assert "class GeminiAdapter" in gateway
+    assert "class NvidiaNimAdapter" in gateway
 
 
 def test_timeout_returns_within_budget_without_waiting_for_thread() -> None:
@@ -95,18 +95,20 @@ def test_timeout_returns_within_budget_without_waiting_for_thread() -> None:
     assert elapsed < 0.25
 
 
-def test_ai_push_task_schema_requires_recommendation_and_text() -> None:
+def test_ai_push_task_schema_requires_push_text() -> None:
+    """Authoring only needs the sentence; the item is already known from the request path."""
+
     from models.llm import LLMModelPolicy, LLMRequest
     from services import llm_gateway_service
 
-    class IncompleteAdapter:
+    class NoTextAdapter:
         name = "ollama"
 
         def generate(self, request):
             from models.llm import LLMAdapterResult
 
             return LLMAdapterResult(
-                content='{"push_text":"only text"}',
+                content='{"recommendation_id":"MCD001"}',
                 provider="ollama",
                 model="m",
                 latency_ms=1,
@@ -114,7 +116,7 @@ def test_ai_push_task_schema_requires_recommendation_and_text() -> None:
                 finish_reason="stop",
                 safe_error="",
                 retryable=False,
-                parsed={"push_text": "only text"},
+                parsed={"recommendation_id": "MCD001"},
             )
 
     response = llm_gateway_service.generate(
@@ -126,65 +128,111 @@ def test_ai_push_task_schema_requires_recommendation_and_text() -> None:
             expect_json=True,
             max_retries=0,
         ),
-        adapters={"ollama": IncompleteAdapter()},
+        adapters={"ollama": NoTextAdapter()},
     )
     assert response.finish_reason == "schema_failure"
 
 
-def test_ai_push_uses_gateway(monkeypatch: pytest.MonkeyPatch) -> None:
-    import asyncio
+def test_schema_failure_from_a_truncated_response_reports_truncation() -> None:
+    """JSON repair can turn a value cut off mid-string into a syntactically valid but empty
+    field (e.g. {"push_text": ""}). The schema check correctly calls that missing, but the
+    real cause is the provider running out of budget — the error code must say so, or an
+    operator ends up debugging a "field omitted" bug that doesn't exist."""
 
-    from models.llm import LLMResponse
-    from services import ai_push_service
+    from models.llm import LLMAdapterResult, LLMModelPolicy, LLMRequest
+    from services import llm_gateway_service
 
-    calls: list[str] = []
+    class TruncatedAdapter:
+        name = "ollama"
 
-    def fake_generate(request, **kwargs):
-        calls.append(request.task)
-        return LLMResponse(
-            content='{"recommendation_id":"MCD001","push_text":"大麥克套餐現在很適合來一份搭配點餐剛剛好"}',
-            provider="ollama",
-            model="m",
-            latency_ms=1,
-            usage=None,
-            finish_reason="stop",
-            safe_error="",
-            parsed={
-                "recommendation_id": "MCD001",
-                "push_text": "大麥克套餐現在很適合來一份搭配點餐剛剛好",
-            },
-            prompt_version=request.prompt_version,
-        )
+        def generate(self, request):
+            return LLMAdapterResult(
+                content='{"push_text": ""}',
+                provider="ollama",
+                model="m",
+                latency_ms=1,
+                usage=None,
+                finish_reason="stop",
+                safe_error="",
+                retryable=False,
+                parsed={"push_text": ""},
+                provider_truncated=True,
+            )
 
-    monkeypatch.setattr(ai_push_service.llm_gateway_service, "generate", fake_generate)
-    monkeypatch.setattr(
-        ai_push_service.config,
-        "get",
-        lambda key, default=None: {
-            "AI_PUSH_SYSTEM_PROMPT": "system",
-            "AI_PUSH_TEXT_MIN": 18,
-            "AI_PUSH_TEXT_MAX": 34,
-            "OLLAMA_NUM_PREDICT": 220,
-            "MODEL_NAME": "model",
-            "OLLAMA_TIMEOUT": 5,
-        }.get(key, default),
+    response = llm_gateway_service.generate(
+        LLMRequest(
+            task="ai_push_copy",
+            system_prompt="s",
+            user_prompt="u",
+            model_policy=LLMModelPolicy.LOCAL_ONLY,
+            expect_json=True,
+            max_retries=0,
+        ),
+        adapters={"ollama": TruncatedAdapter()},
     )
+    assert response.finish_reason == "schema_failure"
+    assert response.safe_error == "response_truncated"
 
-    class _Sem:
-        async def __aenter__(self):
-            return self
 
-        async def __aexit__(self, *args):
-            return False
+def test_schema_failure_without_truncation_keeps_the_original_code() -> None:
+    """A model that simply never produced the field is a different problem from a truncated
+    one, so the two must stay distinguishable."""
 
-    text, status = asyncio.run(
-        ai_push_service._generate_push_text(
-            {"audience": "guest", "rag": {"context": "", "offers": []}, "menu_items": []},
-            "MCD001",
-            "大麥克套餐",
-            _Sem(),
-        )
+    from models.llm import LLMAdapterResult, LLMModelPolicy, LLMRequest
+    from services import llm_gateway_service
+
+    class MissingFieldAdapter:
+        name = "ollama"
+
+        def generate(self, request):
+            return LLMAdapterResult(
+                content='{"push_text": ""}',
+                provider="ollama",
+                model="m",
+                latency_ms=1,
+                usage=None,
+                finish_reason="stop",
+                safe_error="",
+                retryable=False,
+                parsed={"push_text": ""},
+                provider_truncated=False,
+            )
+
+    response = llm_gateway_service.generate(
+        LLMRequest(
+            task="ai_push_copy",
+            system_prompt="s",
+            user_prompt="u",
+            model_policy=LLMModelPolicy.LOCAL_ONLY,
+            expect_json=True,
+            max_retries=0,
+        ),
+        adapters={"ollama": MissingFieldAdapter()},
     )
-    assert calls == ["ai_push_copy"]
-    assert status == "success"
-    assert "大麥克" in text
+    assert response.finish_reason == "schema_failure"
+    assert response.safe_error == "schema_missing_fields"
+
+
+def test_ai_push_service_never_reaches_an_llm() -> None:
+    """Kiosk push copy is authored ahead of time, so serving it must not import a model path.
+
+    This is the guard on ADR-0016: if someone reintroduces runtime generation, a push can once
+    again be slow, fail, or assert a promotion the store is not running.
+    """
+
+    source = (SERVICES / "ai_push_service.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imported.update(alias.name for alias in node.names)
+            if node.module:
+                imported.add(node.module.split(".")[0])
+
+    assert "llm_gateway_service" not in imported
+    assert "ai_services" not in imported
+    assert "LLMRequest" not in imported
+

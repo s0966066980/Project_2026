@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 import config
 from models.commercial_scope import CommercialScope
 from services import device_identity_service
-from utils.auth_utils import authorize_admin_request, check_rate_limit
+from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope
 
 
@@ -20,6 +20,19 @@ class DeviceSessionRequest(BaseModel):
 
 def create_router(_deps: dict | None = None) -> APIRouter:
     router = APIRouter(tags=["device-auth"])
+
+    @router.get("/api/device/auth/session")
+    async def get_session(request: Request):
+        """Return the database-owned device scope for the active browser session."""
+        principal = require_kiosk_token(request)
+        return {
+            "authenticated": True,
+            "device_id": str(principal.device_id),
+            "store_id": str(principal.store_id),
+            "tenant_id": str(principal.tenant_id),
+            "expires_at": principal.expires_at.isoformat() if principal.expires_at else None,
+            "auth_method": principal.auth_method,
+        }
 
     @router.post("/api/device/auth/session")
     async def create_session(payload: DeviceSessionRequest, request: Request, response: Response):

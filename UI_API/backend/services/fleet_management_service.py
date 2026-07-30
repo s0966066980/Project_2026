@@ -80,7 +80,6 @@ def heartbeat(
         from repositories import postgres_utils
 
         if postgres_utils.use_postgres():
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """

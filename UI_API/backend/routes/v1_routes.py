@@ -10,7 +10,29 @@ from uuid import UUID, uuid5
 
 from fastapi import APIRouter, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
+from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
+from modules.knowledge_publication import PublicationError
+from modules.knowledge_publication import runtime as knowledge_publication_runtime
+from modules.knowledge_publication.content import chunk_content as publication_chunk_content
+from modules.promotion import (
+    CampaignConflictError,
+    CampaignStateError,
+    PromotionContext,
+    create_campaign_draft,
+    get_campaign,
+    list_campaigns,
+    preview_campaign,
+    project_item_price,
+    publish_campaign,
+    revise_campaign_draft,
+    transition_campaign,
+)
+from modules.recommendation import list_events as list_recommendation_events
+from modules.retrieval_check import RetrievalCheckError
+from modules.retrieval_check import runtime as retrieval_check_runtime
+from realtime import event_bus
 
+import config
 from api.v1.contracts import (
     AdminPrincipalDTO,
     ApiErrorResponse,
@@ -19,15 +41,16 @@ from api.v1.contracts import (
     AuditRecordDTO,
     AvailabilityDTO,
     AvailabilityPutRequest,
-    CartQuoteDTO,
-    CartQuoteLineDTO,
-    CartQuoteRequest,
     CampaignDraftRequest,
     CampaignDraftUpdateRequest,
     CampaignPreviewDTO,
     CampaignPreviewRequest,
+    CampaignPublishRequest,
     CampaignSnapshotDTO,
     CampaignTransitionRequest,
+    CartQuoteDTO,
+    CartQuoteLineDTO,
+    CartQuoteRequest,
     CommercialContextDTO,
     CommercialTouchReceiptDTO,
     CommercialTouchRequest,
@@ -42,45 +65,34 @@ from api.v1.contracts import (
     PaginationMeta,
     PromotionCreateRequest,
     PromotionSummaryDTO,
-    RecommendationEffectivenessDTO,
-    RagDocumentActionRequest,
-    RagDocumentCreateRequest,
+    RagCsvImportRequest,
     RagDocumentDTO,
-    RagReviewDTO,
+    RagKnowledgeActionRequest,
+    RagKnowledgePublishRequest,
+    RagKnowledgeTestRequest,
+    RagKnowledgeUpsertRequest,
+    RagRetrievalConfigurationRequest,
+    RagTestCaseRequest,
+    RecommendationEffectivenessDTO,
     RecommendationEventDTO,
     SettingsDTO,
     SettingsPatchRequest,
 )
 from models.commercial_scope import CommercialScope
 from models.order import OrderStatus
-from modules.promotion import (
-    CampaignConflictError,
-    CampaignStateError,
-    PromotionContext,
-    create_campaign_draft,
-    get_campaign,
-    list_campaigns,
-    preview_campaign,
-    project_item_price,
-    revise_campaign_draft,
-    transition_campaign,
-)
-from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
-from modules.recommendation import list_events as list_recommendation_events
-from repositories import checkout_order_repository, commercial_settings_repository
-from repositories import availability_repository
-from realtime import event_bus
+from repositories import availability_repository, checkout_order_repository, commercial_settings_repository
 from services import (
     admin_audit_service,
+    analytics_pipeline_service,
     checkout_pricing_service,
     fleet_management_service,
     member_service,
     promotion_service,
-    rag_governance_service,
-    rag_review_service,
+    rag_knowledge_service,
+    rag_studio_workflow,
+    worker_service,
 )
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
-from services import analytics_pipeline_service
 from utils.auth_utils import authorize_admin_request, require_kiosk_token
 
 _admin_cookie = APIKeyCookie(name="admin_session", scheme_name="AdminSessionCookie", auto_error=False)
@@ -106,7 +118,34 @@ def _scope(request: Request, permission: str) -> CommercialScope:
     principal = authorize_admin_request(request, permission)
     scope = scope_from_admin_principal(principal)
     request.state.commercial_scope = scope
+    request.state.admin_principal = principal
     return scope
+
+
+async def _autopublish(request: Request, scope: CommercialScope, item_id: str) -> dict:
+    """儲存後立刻排入發布。
+
+    知識寫完就是要給顧客用的，不該再回列表勾選一次；草稿只是索引完成前的過渡狀態，
+    不再是操作者要管理的東西（見 ADR-0017）。發布權限不足時仍保留內容，只是留在未發布狀態，
+    並明確說出原因，而不是假裝成功。
+    """
+
+    principal = getattr(request.state, "admin_principal", None)
+    has_permission = getattr(principal, "has_permission", None)
+    if callable(has_permission) and not has_permission("rag.publish"):
+        return {"published": False, "reason": "missing_publish_permission"}
+    try:
+        await asyncio.to_thread(
+            knowledge_publication_runtime.default_module().request_publication,
+            scope=scope,
+            item_ids=[item_id],
+            actor=_admin_actor(request),
+            retry_failures_only=False,
+        )
+    except PublicationError as exc:
+        # 內容已經存下來了；發布失敗不該讓整個儲存動作看起來失敗。
+        return {"published": False, "reason": str(getattr(exc, "code", "") or exc)}
+    return {"published": True, "reason": ""}
 
 
 def _page(rows: list[T], page: int, page_size: int) -> tuple[list[T], PaginationMeta]:
@@ -148,8 +187,52 @@ def _campaign_dto(snapshot) -> CampaignSnapshotDTO:
     )
 
 
-def _campaign_actor(request: Request) -> str:
+def _admin_actor(request: Request) -> str:
     return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
+
+
+def _rag_document_dto(asset) -> RagDocumentDTO:
+    return RagDocumentDTO(
+        document_id=asset.document_id,
+        version=asset.version,
+        status=asset.status.value,
+        checksum=asset.checksum,
+        content_ref=asset.content_ref,
+    )
+
+
+def _rag_http_error(exc: rag_knowledge_service.RagKnowledgeError) -> HTTPException:
+    status = (
+        409
+        if isinstance(exc, rag_knowledge_service.RagKnowledgeConflictError)
+        or exc.code in {"exact_duplicate", "near_duplicate"}
+        else 422
+    )
+    return HTTPException(
+        status_code=status,
+        detail={"code": exc.code, "details": exc.details},
+    )
+
+
+def _retrieval_check_http_error(exc: RetrievalCheckError) -> HTTPException:
+    status = 404 if exc.code == "retrieval_check_not_found" else 409
+    return HTTPException(
+        status_code=status,
+        detail={"code": exc.code, "details": exc.details},
+    )
+
+
+def _publication_http_error(exc: PublicationError) -> HTTPException:
+    status = 409 if exc.code in {
+        "exact_duplicate",
+        "near_duplicate",
+        "stale_knowledge_item",
+        "publication_in_progress",
+    } else 422
+    return HTTPException(
+        status_code=status,
+        detail={"code": exc.code, "details": exc.details},
+    )
 
 
 async def _publish_campaign_change(snapshot) -> None:
@@ -286,7 +369,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         member = None
         if body.session_id:
             member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
-        menu = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        menu = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
         promotions = await asyncio.to_thread(promotion_service.list_promotions, scope)
         now = datetime.now(timezone.utc)
         data = []
@@ -361,7 +444,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         audience: Annotated[str, Query(max_length=40)] = "",
     ) -> ApiResponse[RecommendationEffectivenessDTO]:
         scope = _scope(request, "recommendations.effectiveness.read")
-        events, attributions = await asyncio.gather(
+        events, attributions, settings_values = await asyncio.gather(
             asyncio.to_thread(
                 analytics_pipeline_service.list_events,
                 tenant_id=scope.tenant_id,
@@ -375,6 +458,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 since=since,
                 until=until,
             ),
+            asyncio.to_thread(commercial_settings_repository.get_settings_scoped, scope),
         )
         report = build_effectiveness_report(
             events,
@@ -386,6 +470,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 "variant_id": variant_id,
                 "audience": audience,
             },
+            targets=settings_values,
         )
         return ApiResponse(data=RecommendationEffectivenessDTO(**report.__dict__), meta=_meta(request))
 
@@ -404,21 +489,19 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         sort_order: SortOrder = "desc",
     ) -> PaginatedResponse[MemberSummaryDTO]:
         scope = _scope(request, "members.read")
-        records = await asyncio.to_thread(member_service.admin_list, scope)
-        needle = q.strip().casefold()
-        if needle:
-            records = [
-                row
-                for row in records
-                if needle
-                in " ".join(str(row.get(key) or "").casefold() for key in ("member_id", "nickname", "phone_masked"))
-            ]
-        records.sort(
-            key=lambda row: (row.get(sort_by) is not None, row.get(sort_by) or ""), reverse=sort_order == "desc"
+        records, total = await asyncio.to_thread(
+            member_service.admin_search,
+            q,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            scope=scope,
         )
         mapped = [
             MemberSummaryDTO(
                 member_id=_member_uuid(row.get("member_id") or row.get("id"), scope),
+                member_ref=str(row.get("member_ref") or ""),
                 phone_masked=str(row.get("phone_masked") or ""),
                 nickname=str(row.get("nickname") or ""),
                 visit_count=int(row.get("visit_count") or 0),
@@ -427,7 +510,13 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             )
             for row in records
         ]
-        data, pagination = _page(mapped, page, page_size)
+        data = mapped
+        pagination = PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=(total + page_size - 1) // page_size if total else 0,
+        )
         return PaginatedResponse(data=data, pagination=pagination, meta=_meta(request))
 
     @router.get(
@@ -494,7 +583,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def campaign_preview(request: Request, body: CampaignPreviewRequest) -> ApiResponse[CampaignPreviewDTO]:
         scope = _scope(request, "campaigns.read")
         payload = body.model_dump(exclude={"campaign_id"})
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
         result = await asyncio.to_thread(
             preview_campaign,
             payload,
@@ -512,17 +601,17 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     )
     async def create_campaign(request: Request, body: CampaignDraftRequest) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
         try:
             row = await asyncio.to_thread(
                 create_campaign_draft,
                 body.model_dump(),
                 scope,
-                actor_id=_campaign_actor(request),
+                actor_id=_admin_actor(request),
                 catalog_items=catalog_items,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])}) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -538,7 +627,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         body: CampaignDraftUpdateRequest,
     ) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu)
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
         try:
             row = await asyncio.to_thread(
                 revise_campaign_draft,
@@ -546,7 +635,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 body.model_dump(exclude={"expected_version"}),
                 scope,
                 expected_version=body.expected_version,
-                actor_id=_campaign_actor(request),
+                actor_id=_admin_actor(request),
                 catalog_items=catalog_items,
             )
         except CampaignConflictError as exc:
@@ -556,7 +645,38 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         except LookupError as exc:
             raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "field_errors": exc.args[0]}) from exc
+            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])}) from exc
+        await _publish_campaign_change(row)
+        return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
+
+    @router.post(
+        "/campaigns/publish",
+        tags=["v1-campaigns"],
+        operation_id="v1_publish_campaign",
+        response_model=ApiResponse[CampaignSnapshotDTO],
+    )
+    async def campaign_publish(request: Request, body: CampaignPublishRequest) -> ApiResponse[CampaignSnapshotDTO]:
+        _scope(request, "campaigns.write")
+        scope = _scope(request, "campaigns.publish")
+        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        try:
+            row = await asyncio.to_thread(
+                publish_campaign,
+                body.model_dump(exclude={"campaign_id", "expected_version"}),
+                scope,
+                campaign_id=body.campaign_id,
+                expected_version=body.expected_version,
+                actor_id=_admin_actor(request),
+                catalog_items=catalog_items,
+            )
+        except CampaignConflictError as exc:
+            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+        except CampaignStateError as exc:
+            raise HTTPException(status_code=409, detail={"code": str(exc), "message": "此活動已經發布，請從活動列表操作暫停或結束。"}) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正，修正後才能發布。", "field_errors": list(exc.args[0])}) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -579,7 +699,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 body.target_status,
                 scope,
                 expected_version=body.expected_version,
-                actor_id=_campaign_actor(request),
+                actor_id=_admin_actor(request),
             )
         except CampaignConflictError as exc:
             raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
@@ -680,29 +800,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         values = await asyncio.to_thread(commercial_settings_repository.get_settings_scoped, scope)
         return ApiResponse(data=SettingsDTO(values=values), meta=_meta(request))
 
-    @router.get(
-        "/rag/reviews",
-        tags=["v1-rag-governance"],
-        operation_id="v1_list_rag_reviews",
-        response_model=PaginatedResponse[RagReviewDTO],
-    )
-    async def rag_reviews(
-        request: Request, page: Page = 1, page_size: PageSize = 25
-    ) -> PaginatedResponse[RagReviewDTO]:
-        _scope(request, "rag.read")
-        records = await asyncio.to_thread(rag_review_service.list_reviews)
-        mapped = [
-            RagReviewDTO(
-                review_id=str(row.get("review_id") or ""),
-                status=str(row.get("status") or ""),
-                title=str(row.get("title") or ""),
-                updated_at=_optional_datetime(row.get("updated_at")),
-            )
-            for row in records
-        ]
-        data, pagination = _page(mapped, page, page_size)
-        return PaginatedResponse(data=data, pagination=pagination, meta=_meta(request))
-
     # ── Milestone 7A typed write contracts ─────────────────────────────
 
     @router.patch(
@@ -790,117 +887,437 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             meta=_meta(request),
         )
 
-    @router.post(
-        "/rag/documents",
-        tags=["v1-rag-governance"],
-        operation_id="v1_create_rag_document",
-        response_model=ApiResponse[RagDocumentDTO],
+    @router.get(
+        "/rag/knowledge",
+        tags=["v1-rag"],
+        operation_id="v1_list_rag_knowledge",
+        response_model=ApiResponse[dict],
     )
-    async def create_rag_document(
-        request: Request, body: RagDocumentCreateRequest
-    ) -> ApiResponse[RagDocumentDTO]:
+    async def list_rag_knowledge(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        data = await asyncio.to_thread(
+            knowledge_publication_runtime.default_module().list_items,
+            scope=scope,
+        )
+        return ApiResponse(data=data, meta=_meta(request))
+
+    @router.get("/rag/knowledge/export", tags=["v1-rag"], operation_id="v1_export_rag_knowledge", response_model=ApiResponse[dict])
+    async def export_rag_knowledge(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        csv_text = await asyncio.to_thread(
+            knowledge_publication_runtime.default_module().export_csv,
+            scope=scope,
+        )
+        return ApiResponse(
+            data={"filename": "rag-knowledge-ids.csv", "csv_text": csv_text},
+            meta=_meta(request),
+        )
+
+    @router.get(
+        "/rag/studio",
+        tags=["v1-rag"],
+        operation_id="v1_get_rag_studio",
+        response_model=ApiResponse[dict],
+    )
+    async def get_rag_studio(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        dashboard, publication_dashboard, readiness_confirmation, configurations = await asyncio.gather(
+            asyncio.to_thread(rag_knowledge_service.dashboard, scope),
+            asyncio.to_thread(
+                knowledge_publication_runtime.default_module().dashboard,
+                scope=scope,
+            ),
+            asyncio.to_thread(
+                retrieval_check_runtime.default_module().readiness,
+                scope=scope,
+            ),
+            asyncio.to_thread(rag_knowledge_service.list_configurations, scope),
+        )
+        dashboard.update(publication_dashboard)
+        job_store = worker_service.default_store()
+        for attempt in publication_dashboard.get("recent_publication_attempts", []):
+            job_id = str(attempt.get("job_id") or "").strip()
+            if not job_id:
+                attempt["job_status"] = "missing"
+                continue
+            try:
+                job = await asyncio.to_thread(job_store.get_job, UUID(job_id))
+                attempt["job_status"] = job.status.value if job is not None else "missing"
+                attempt["job_safe_error"] = job.safe_error if job is not None else ""
+            except Exception:
+                attempt["job_status"] = "unavailable"
+                attempt["job_safe_error"] = "job_status_unavailable"
+        for check in dashboard.get("readiness", {}).get("checks", []):
+            if check.get("id") == "knowledge":
+                check["complete"] = publication_dashboard["published_items"] > 0
+            elif check.get("id") == "index":
+                check["complete"] = publication_dashboard["index_health"] == "healthy"
+            elif check.get("id") == "test":
+                check["complete"] = readiness_confirmation["complete"]
+        checks = dashboard.get("readiness", {}).get("checks", [])
+        if checks:
+            dashboard["readiness"]["completed"] = sum(
+                bool(check.get("complete")) for check in checks
+            )
+            dashboard["readiness"]["ready"] = all(
+                bool(check.get("complete")) for check in checks
+            )
+        dashboard["readiness_confirmation"] = readiness_confirmation["confirmation"]
+        dashboard["workflow"] = rag_studio_workflow.build_workflow(
+            publication=publication_dashboard,
+            published_configuration=configurations.get("published"),
+            readiness_confirmation=readiness_confirmation["confirmation"],
+        )
+        return ApiResponse(
+            data={
+                "metadata": rag_knowledge_service.metadata(),
+                "dashboard": dashboard,
+            },
+            meta=_meta(request),
+        )
+
+    @router.post(
+        "/rag/knowledge",
+        tags=["v1-rag"],
+        operation_id="v1_create_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
+    async def create_rag_knowledge(
+        request: Request, body: RagKnowledgeUpsertRequest
+    ) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
-        asset = await asyncio.to_thread(
-            rag_governance_service.create_draft,
-            document_id=body.document_id,
-            content=body.content,
-            source=body.source,
-            owner=str(scope.tenant_id),
-            tenant_id=scope.tenant_id,
-            store_id=scope.store_id,
-            actor="admin",
-        )
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().create_draft,
+                scope=scope,
+                category=body.category,
+                content_type=body.content_type,
+                title=body.title,
+                content=body.content,
+                actor=_admin_actor(request),
+                override_near_duplicate=body.override_near_duplicate,
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        row = {**row, "autopublish": await _autopublish(request, scope, str(row.get("item_id") or ""))}
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/knowledge/chunk-preview", tags=["v1-rag"], operation_id="v1_preview_rag_chunks", response_model=ApiResponse[dict])
+    async def preview_rag_chunks(request: Request, body: RagKnowledgeUpsertRequest) -> ApiResponse[dict]:
+        _scope(request, "rag.write")
+        try:
+            chunks = publication_chunk_content(body.content, body.content_type)
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
         return ApiResponse(
-            data=RagDocumentDTO(
-                document_id=asset.document_id,
-                version=asset.version,
-                status=asset.status.value,
-                checksum=asset.checksum,
-                content_ref=asset.content_ref,
-            ),
+            data={
+                "chunks": chunks,
+                "chunking_version": knowledge_publication_runtime.CHUNKING_VERSION,
+            },
             meta=_meta(request),
         )
 
-    @router.post(
-        "/rag/documents/{document_id}/review",
-        tags=["v1-rag-governance"],
-        operation_id="v1_review_rag_document",
-        response_model=ApiResponse[RagDocumentDTO],
+    @router.put(
+        "/rag/knowledge/{item_id}",
+        tags=["v1-rag"],
+        operation_id="v1_revise_rag_knowledge",
+        response_model=ApiResponse[dict],
     )
-    async def review_rag_document(
-        request: Request, document_id: str, body: RagDocumentActionRequest
-    ) -> ApiResponse[RagDocumentDTO]:
-        _scope(request, "rag.review")
-        asset = await asyncio.to_thread(
-            rag_governance_service.submit_for_review,
-            document_id,
-            body.version,
-            actor=body.actor,
+    async def revise_rag_knowledge(
+        request: Request, item_id: str, body: RagKnowledgeUpsertRequest
+    ) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
+        if body.expected_row_revision is None:
+            raise HTTPException(status_code=422, detail={"code": "expected_row_revision_required"})
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().revise_draft,
+                scope=scope,
+                item_id=item_id,
+                expected_row_revision=body.expected_row_revision,
+                category=body.category,
+                content_type=body.content_type,
+                title=body.title,
+                content=body.content,
+                actor=_admin_actor(request),
+                override_near_duplicate=body.override_near_duplicate,
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        row = {**row, "autopublish": await _autopublish(request, scope, item_id)}
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/knowledge/import", tags=["v1-rag"], operation_id="v1_import_rag_knowledge", response_model=ApiResponse[dict])
+    async def import_rag_knowledge(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().import_csv,
+                scope=scope,
+                csv_text=body.csv_text,
+                actor=_admin_actor(request),
+                override_near_duplicates=body.override_near_duplicates,
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        # 匯入的每一列都當作已經確認過的內容，直接排入發布，與單筆新增一致。
+        item_ids = [str(created.get("item_id") or "") for created in row.get("created") or []]
+        results = [await _autopublish(request, scope, item_id) for item_id in item_ids if item_id]
+        row = {**row, "autopublish": {
+            "published": sum(1 for outcome in results if outcome["published"]),
+            "skipped": [outcome["reason"] for outcome in results if not outcome["published"]],
+        }}
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/knowledge/publish", tags=["v1-rag"], operation_id="v1_publish_rag_knowledge", response_model=ApiResponse[dict])
+    async def publish_rag_knowledge(request: Request, body: RagKnowledgePublishRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().request_publication,
+                scope=scope,
+                item_ids=body.item_ids,
+                actor=_admin_actor(request),
+                retry_failures_only=body.retry_failures_only,
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post(
+        "/rag/knowledge/publication-attempts/{attempt_id}/resume",
+        tags=["v1-rag"],
+        operation_id="v1_resume_rag_publication_attempt",
+        response_model=ApiResponse[dict],
+    )
+    async def resume_rag_publication_attempt(
+        request: Request,
+        attempt_id: str,
+    ) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().ensure_attempt_enqueued,
+                scope=scope,
+                attempt_id=attempt_id,
+                actor=_admin_actor(request),
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/knowledge/{item_id}/retire", tags=["v1-rag"], operation_id="v1_retire_rag_knowledge", response_model=ApiResponse[dict])
+    async def retire_rag_knowledge(request: Request, item_id: str, body: RagKnowledgeActionRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().retire,
+                scope=scope,
+                item_id=item_id,
+                expected_row_revision=body.expected_row_revision,
+                actor=_admin_actor(request),
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.get(
+        "/rag/knowledge/{item_id}/deletion-impact",
+        tags=["v1-rag"],
+        operation_id="v1_rag_knowledge_deletion_impact",
+        response_model=ApiResponse[dict],
+    )
+    async def rag_knowledge_deletion_impact(request: Request, item_id: str) -> ApiResponse[dict]:
+        """刪除前先講清楚會連帶影響哪些檢索測試案例，不要讓案例在操作者不知情下失效。"""
+
+        scope = _scope(request, "rag.read")
+        cases = await asyncio.to_thread(rag_knowledge_service.list_test_cases, scope)
+        affected = [
+            {"test_case_id": row.get("test_case_id"), "question": row.get("question")}
+            for row in cases.get("test_cases") or []
+            if item_id in (row.get("expected_knowledge_ids") or [])
+        ]
+        return ApiResponse(data={"item_id": item_id, "affected_test_cases": affected}, meta=_meta(request))
+
+    @router.delete(
+        "/rag/knowledge/{item_id}",
+        tags=["v1-rag"],
+        operation_id="v1_delete_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
+    async def delete_rag_knowledge(
+        request: Request,
+        item_id: str,
+        expected_row_revision: Annotated[int, Query(ge=1)],
+    ) -> ApiResponse[dict]:
+        """徹底刪除一筆知識（先下架清索引，再移除紀錄）。稽核事件保留可追溯。"""
+
+        scope = _scope(request, "rag.publish")
+        try:
+            row = await asyncio.to_thread(
+                knowledge_publication_runtime.default_module().delete,
+                scope=scope,
+                item_id=item_id,
+                expected_row_revision=expected_row_revision,
+                actor=_admin_actor(request),
+            )
+        except PublicationError as exc:
+            raise _publication_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/retrieval/test", tags=["v1-rag"], operation_id="v1_test_rag_retrieval", response_model=ApiResponse[dict])
+    async def test_rag_knowledge(request: Request, body: RagKnowledgeTestRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        try:
+            result = await retrieval_check_runtime.default_module().execute(
+                query=body.query,
+                scope=scope,
+                method=body.method,
+                top_k=body.top_k,
+                relevance_policy=body.relevance_policy,
+            )
+        except RetrievalCheckError as exc:
+            raise _retrieval_check_http_error(exc) from exc
+        return ApiResponse(data=result, meta=_meta(request))
+
+    @router.post(
+        "/rag/retrieval/checks/{check_id}/confirm",
+        tags=["v1-rag"],
+        operation_id="v1_confirm_rag_retrieval_check",
+        response_model=ApiResponse[dict],
+    )
+    async def confirm_rag_retrieval_check(
+        request: Request,
+        check_id: str,
+    ) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        try:
+            result = await asyncio.to_thread(
+                retrieval_check_runtime.default_module().confirm,
+                scope=scope,
+                check_id=check_id,
+                actor=_admin_actor(request),
+            )
+        except RetrievalCheckError as exc:
+            raise _retrieval_check_http_error(exc) from exc
+        return ApiResponse(data=result, meta=_meta(request))
+
+    @router.get("/rag/retrieval/configurations", tags=["v1-rag"], operation_id="v1_list_rag_configurations", response_model=ApiResponse[dict])
+    async def list_rag_configurations(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        return ApiResponse(data=rag_knowledge_service.list_configurations(scope), meta=_meta(request))
+
+    @router.post("/rag/retrieval/configurations", tags=["v1-rag"], operation_id="v1_publish_rag_configuration", response_model=ApiResponse[dict])
+    async def publish_rag_configuration(request: Request, body: RagRetrievalConfigurationRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        try:
+            row = rag_knowledge_service.publish_configuration(
+                scope=scope,
+                method=body.method,
+                top_k=body.top_k,
+                relevance_policy=body.relevance_policy,
+                source_version=body.source_version,
+                actor=_admin_actor(request),
+            )
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.delete(
+        "/rag/retrieval/configurations/{version}",
+        tags=["v1-rag"],
+        operation_id="v1_delete_rag_configuration",
+        response_model=ApiResponse[dict],
+    )
+    async def delete_rag_configuration(request: Request, version: int) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.publish")
+        actor = _admin_actor(request)
+        try:
+            row = rag_knowledge_service.delete_configuration(
+                scope=scope,
+                version=version,
+                actor=actor,
+            )
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
+        await asyncio.to_thread(
+            admin_audit_service.record_admin_action,
+            "rag.retrieval_configuration.delete",
+            target_type="rag_retrieval_configuration",
+            target_id=str(version),
+            request=request,
+            metadata={"actor_id": actor},
+            scope=scope,
         )
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.get("/rag/test-cases", tags=["v1-rag"], operation_id="v1_list_rag_test_cases", response_model=ApiResponse[dict])
+    async def list_rag_test_cases(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        return ApiResponse(data=rag_knowledge_service.list_test_cases(scope), meta=_meta(request))
+
+    @router.post("/rag/test-cases", tags=["v1-rag"], operation_id="v1_save_rag_test_case", response_model=ApiResponse[dict])
+    async def save_rag_test_case(request: Request, body: RagTestCaseRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
+        try:
+            row = rag_knowledge_service.save_test_case(
+                scope=scope,
+                test_case_id=body.test_case_id,
+                question=body.question,
+                expected_knowledge_ids=body.expected_knowledge_ids,
+                enabled=body.enabled,
+                actor=_admin_actor(request),
+            )
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.post("/rag/test-cases/import", tags=["v1-rag"], operation_id="v1_import_rag_test_cases", response_model=ApiResponse[dict])
+    async def import_rag_test_cases(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
+        try:
+            row = rag_knowledge_service.import_test_cases_csv(
+                scope=scope, csv_text=body.csv_text, actor=_admin_actor(request)
+            )
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
+
+    @router.get("/rag/evaluation-runs", tags=["v1-rag"], operation_id="v1_list_rag_evaluation_runs", response_model=ApiResponse[dict])
+    async def list_rag_evaluation_runs(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        return ApiResponse(data=rag_knowledge_service.list_evaluation_runs(scope), meta=_meta(request))
+
+    @router.get("/rag/evaluation-runs/{run_id}/export", tags=["v1-rag"], operation_id="v1_export_rag_evaluation", response_model=ApiResponse[dict])
+    async def export_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.read")
+        try:
+            csv_text = rag_knowledge_service.export_evaluation_csv(scope, run_id=run_id)
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
         return ApiResponse(
-            data=RagDocumentDTO(
-                document_id=asset.document_id,
-                version=asset.version,
-                status=asset.status.value,
-                checksum=asset.checksum,
-                content_ref=asset.content_ref,
-            ),
+            data={"filename": f"{run_id}.csv", "csv_text": csv_text},
             meta=_meta(request),
         )
 
-    @router.post(
-        "/rag/documents/{document_id}/publish",
-        tags=["v1-rag-governance"],
-        operation_id="v1_publish_rag_document",
-        response_model=ApiResponse[RagDocumentDTO],
-    )
-    async def publish_rag_document(
-        request: Request, document_id: str, body: RagDocumentActionRequest
-    ) -> ApiResponse[RagDocumentDTO]:
-        _scope(request, "rag.publish")
-        asset = await asyncio.to_thread(
-            rag_governance_service.publish,
-            document_id,
-            body.version,
-            actor=body.actor,
-        )
+    @router.post("/rag/evaluation-runs", tags=["v1-rag"], operation_id="v1_start_rag_evaluation", response_model=ApiResponse[dict])
+    async def start_rag_evaluation(request: Request) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
         return ApiResponse(
-            data=RagDocumentDTO(
-                document_id=asset.document_id,
-                version=asset.version,
-                status=asset.status.value,
-                checksum=asset.checksum,
-                content_ref=asset.content_ref,
-            ),
+            data=rag_knowledge_service.start_evaluation(scope, actor=_admin_actor(request)),
             meta=_meta(request),
         )
 
-    @router.post(
-        "/rag/documents/{document_id}/rollback",
-        tags=["v1-rag-governance"],
-        operation_id="v1_rollback_rag_document",
-        response_model=ApiResponse[RagDocumentDTO],
-    )
-    async def rollback_rag_document(
-        request: Request, document_id: str, body: RagDocumentActionRequest
-    ) -> ApiResponse[RagDocumentDTO]:
-        _scope(request, "rag.rollback")
-        asset = await asyncio.to_thread(
-            rag_governance_service.rollback,
-            document_id,
-            body.version,
-            actor=body.actor,
-        )
-        return ApiResponse(
-            data=RagDocumentDTO(
-                document_id=asset.document_id,
-                version=asset.version,
-                status=asset.status.value,
-                checksum=asset.checksum,
-                content_ref=asset.content_ref,
-            ),
-            meta=_meta(request),
-        )
+    @router.post("/rag/evaluation-runs/{run_id}/cancel", tags=["v1-rag"], operation_id="v1_cancel_rag_evaluation", response_model=ApiResponse[dict])
+    async def cancel_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
+        scope = _scope(request, "rag.write")
+        try:
+            row = rag_knowledge_service.cancel_evaluation(
+                scope, run_id=run_id, actor=_admin_actor(request)
+            )
+        except rag_knowledge_service.RagKnowledgeError as exc:
+            raise _rag_http_error(exc) from exc
+        return ApiResponse(data=row, meta=_meta(request))
 
     @router.post(
         "/fleet/devices/{device_id}/commands",

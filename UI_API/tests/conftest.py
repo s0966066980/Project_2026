@@ -11,12 +11,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(autouse=True)
-def _json_storage_when_no_database_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Keep unit tests offline unless DATABASE_URL is explicitly provided."""
+def _sqlite_storage_when_no_database_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep unit tests offline unless a PostgreSQL URL is explicitly provided."""
 
     if os.environ.get("DATABASE_URL", "").strip():
         return
-    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "json")
+    monkeypatch.delenv("MEMBER_STORAGE_BACKEND", raising=False)
+    monkeypatch.delenv("DATABASE_PORT", raising=False)
+    monkeypatch.setenv("DATABASE_BACKEND", "sqlite")
+    monkeypatch.setenv("DATABASE_TOPOLOGY", "single")
     monkeypatch.setenv("DATABASE_URL", "")
     if os.environ.get("APP_ENV", "").strip() in {"", "test"}:
         monkeypatch.setenv("APP_ENV", "test")
@@ -27,6 +30,7 @@ def _json_storage_when_no_database_url(monkeypatch: pytest.MonkeyPatch, tmp_path
     settings_path.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("TEST_DATA_DIR", str(data_dir))
     monkeypatch.setenv("TEST_SETTINGS_PATH", str(settings_path))
+    monkeypatch.setenv("RUNTIME_DATA_ROOT", str(tmp_path / "runtime"))
     try:
         import config
 
@@ -39,6 +43,6 @@ def _json_storage_when_no_database_url(monkeypatch: pytest.MonkeyPatch, tmp_path
         from repositories import postgres_utils
 
         monkeypatch.setattr(postgres_utils, "use_postgres", lambda: False)
-        monkeypatch.setattr(postgres_utils, "storage_backend", lambda: "json")
+        monkeypatch.setattr(postgres_utils, "storage_backend", lambda: "sqlite")
     except Exception:
         pass

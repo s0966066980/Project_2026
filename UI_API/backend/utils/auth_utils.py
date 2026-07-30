@@ -1,10 +1,13 @@
 import secrets
 import threading
 import time
+from uuid import UUID
 
 from fastapi import HTTPException, Request, UploadFile
 
 import config
+from models.admin_identity import AdminPrincipal
+from models.admin_permissions import STAFF_PERMISSION_NAMES
 from services import (
     admin_identity_service,
     device_identity_service,
@@ -36,35 +39,24 @@ def _constant_time_match(candidate: str, allowed: list[str]) -> bool:
 
 
 def require_admin_token(request: Request):
-    expected = str(config.get("ADMIN_API_TOKEN", "") or config.ADMIN_DEMO_TOKEN or "")
-    if not _security_enforced() and not config.is_demo_public_mode():
-        development_principal = admin_identity_service.legacy_admin_principal(resolve_commercial_scope(request.headers))
-        request.state.admin_principal = development_principal
-        return development_principal
+    """Require a durable password-authenticated Admin session.
+
+    The session token may be carried by the HttpOnly browser cookie or as a
+    bearer credential for non-browser clients.  Anonymous development and
+    shared legacy-token principals are intentionally not Admin identities.
+    """
+
     cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
     session_token = request.cookies.get(cookie_name, "") or _bearer_token(request)
+    if not session_token:
+        observability_service.increment_metric("auth_failures_total", status="missing")
+        raise HTTPException(status_code=401, detail="admin authentication required")
     session_principal = admin_identity_service.authenticate_admin_session(session_token)
     if session_principal is not None:
         request.state.admin_principal = session_principal
         return session_principal
-    token = _bearer_token(request) or request.headers.get("X-Admin-Token")
-    if not token:
-        observability_service.increment_metric("auth_failures_total", status="missing")
-        raise HTTPException(status_code=401, detail="admin authentication required")
-    if not bool(config.get("ENABLE_LEGACY_ADMIN_TOKEN", not config.is_production())):
-        observability_service.increment_metric("auth_failures_total", status="legacy_disabled")
-        raise HTTPException(status_code=403, detail="legacy admin token is disabled")
-    if not expected:
-        observability_service.increment_metric("auth_failures_total", status="not_configured")
-        raise HTTPException(status_code=503, detail="legacy admin auth is not configured")
-    if not _constant_time_match(token, [expected, config.ADMIN_DEMO_TOKEN]):
-        observability_service.increment_metric("auth_failures_total", status="invalid")
-        raise HTTPException(status_code=403, detail="invalid admin token")
-    scope = resolve_commercial_scope(request.headers)
-    principal = admin_identity_service.legacy_admin_principal(scope)
-    admin_identity_service.record_legacy_admin_use(scope)
-    request.state.admin_principal = principal
-    return principal
+    observability_service.increment_metric("auth_failures_total", status="invalid_session")
+    raise HTTPException(status_code=401, detail="admin session is invalid or expired")
 
 
 def require_permission(permission: str):
@@ -79,10 +71,39 @@ def require_permission(permission: str):
     return dependency
 
 
+def staff_principal_from_device(request: Request):
+    """Issue the password-less staff identity backed by the Kiosk device credential.
+
+    現場員工不需要主管密碼，但仍必須來自一台通過裝置認證的門市機器。
+    這個 principal 只帶 STAFF_PERMISSION_NAMES，永遠不包含主管能力。
+    """
+
+    device_principal = require_kiosk_token(request)
+    scope = resolve_commercial_scope(request.headers)
+    principal = AdminPrincipal(
+        user_id=UUID(int=0),
+        tenant_id=UUID(str(scope.tenant_id)),
+        allowed_store_ids=(UUID(str(scope.store_id)),),
+        roles=("local-staff",),
+        permissions=tuple(sorted(STAFF_PERMISSION_NAMES)),
+        session_id=None,
+        auth_method="device_staff",
+    )
+    request.state.admin_principal = principal
+    request.state.device_principal = device_principal
+    return principal
+
+
 def authorize_admin_request(request: Request, permission: str):
     """Authenticate and authorize an existing route without changing its public contract."""
 
-    return require_permission(permission)(request)
+    try:
+        return require_permission(permission)(request)
+    except HTTPException as exc:
+        # 只有「沒有主管 session」才退回員工身分；權限不足（403）仍是明確拒絕。
+        if exc.status_code != 401 or permission not in STAFF_PERMISSION_NAMES:
+            raise
+    return staff_principal_from_device(request)
 
 
 def require_kiosk_token(request: Request):
@@ -123,9 +144,7 @@ def websocket_token_allowed(client_type: str, token: str) -> bool:
     if not _security_enforced() and not config.is_demo_public_mode():
         return True
     if client_type == "admin":
-        if not bool(config.get("ENABLE_LEGACY_ADMIN_TOKEN", not config.is_production())):
-            return False
-        allowed = [str(config.get("ADMIN_API_TOKEN", "") or ""), config.ADMIN_DEMO_TOKEN, config.WS_DEMO_TOKEN]
+        return False
     else:
         if not bool(config.get("ENABLE_LEGACY_KIOSK_TOKEN", not config.is_production())):
             return False

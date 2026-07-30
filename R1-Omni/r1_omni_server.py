@@ -2,7 +2,7 @@
 R1-Omni /predict 伺服器 —— 與 Emotion-LLaMA 相同的 HTTP 合約。
 
 合約（與 UI_API/backend/services/emotion_service.py 的 _call_http 對齊）：
-  POST /predict  {video_path, question, skip_quality_check}
+  POST /predict  {video_path, question, skip_quality_check, media_mode}
        → {"result": <字串>}
   result 內容：
     成功  → JSON 字串 {"facial","body","vocal","emotion","intensity","description"}
@@ -136,7 +136,12 @@ def _parse_output(out: str) -> dict:
     }
 
 
-def process_video_question(video_path: str, question: str, skip_quality_check: bool = False) -> str:
+def process_video_question(
+    video_path: str,
+    question: str,
+    skip_quality_check: bool = False,
+    media_mode: str = "video_audio",
+) -> str:
     """核心推論：回傳給下游的 result 字串。"""
     if not video_path or not os.path.exists(video_path):
         return f"[EMOTION_LLAMA_ERROR] video_not_found: {video_path}"
@@ -146,19 +151,26 @@ def process_video_question(video_path: str, question: str, skip_quality_check: b
     load_model()
     instruct = question.strip() if (question and question.strip()) else DEFAULT_INSTRUCT
     start_ts = time.time()
-    # POS 的 .webm 截片元資料常損壞，先用 ffmpeg 正規化再交給 decord
-    safe_path, cleanup_path = _sanitize_video(video_path)
+    normalized_mode = str(media_mode or "video_audio").strip().lower()
+    if normalized_mode not in {"video_audio", "audio_only"}:
+        return f"[EMOTION_LLAMA_ERROR] unsupported_media_mode: {normalized_mode}"
+    # 影音輸入先正規化再交給 decord；audio-only 不建立空白影像包裝。
+    safe_path, cleanup_path = (
+        (video_path, None)
+        if normalized_mode == "audio_only"
+        else _sanitize_video(video_path)
+    )
     try:
         from humanomni import mm_infer
         with _infer_lock:
-            video_tensor = _processor["video"](safe_path)
             audio = _processor["audio"](safe_path)[0]
+            video_tensor = None if normalized_mode == "audio_only" else _processor["video"](safe_path)
             output = mm_infer(
                 video_tensor,
                 instruct,
                 model=_model,
                 tokenizer=_tokenizer,
-                modal="video_audio",
+                modal="audio" if normalized_mode == "audio_only" else "video_audio",
                 question=instruct,
                 bert_tokeni=_bert_tokenizer,
                 do_sample=False,
@@ -197,16 +209,26 @@ if __name__ == "__main__":
         video_path: str
         question: str = ""
         skip_quality_check: bool = False
+        media_mode: str = "video_audio"
 
     api = FastAPI()
 
     @api.get("/health")
     def _health():
-        return {"status": "ok", "model_loaded": _model is not None}
+        return {
+            "status": "ok",
+            "model_loaded": _model is not None,
+            "capabilities": ["audio_only", "video_audio"],
+        }
 
     @api.post("/predict")
     def _predict(req: _InferRequest):
-        result = process_video_question(req.video_path, req.question, req.skip_quality_check)
+        result = process_video_question(
+            req.video_path,
+            req.question,
+            req.skip_quality_check,
+            req.media_mode,
+        )
         return {"result": result}
 
     args = parse_args()

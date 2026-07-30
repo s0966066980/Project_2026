@@ -12,16 +12,20 @@ from pydantic import BaseModel, Field
 
 from repositories import emotion_log_repository
 from services import emotion_service
+from services.multimodal_evidence_gateway import configured_provider_status
 from utils.auth_utils import authorize_admin_request, check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
 
-class EmotionTextAnalysisRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=500)
-
-
 class EmotionRoundAnalysisRequest(BaseModel):
     emotion_round_id: str = Field(min_length=1, max_length=80)
+
+
+class EmotionHumanEvaluationRequest(BaseModel):
+    evidence_event_id: str = Field(min_length=1, max_length=64)
+    observed_emotion: str = Field(min_length=1, max_length=32)
+    usable: bool = True
+    notes: str = Field(default="", max_length=160)
 
 
 async def _save_upload_temp(media: UploadFile) -> str:
@@ -86,15 +90,30 @@ def create_router(deps: dict) -> APIRouter:
         logs = await asyncio.to_thread(emotion_log_repository.get_logs, limit)
         return {"status": "success", "logs": logs, "total": len(logs)}
 
-    @router.post("/analyze_text")
-    async def analyze_emotion_text(payload: EmotionTextAnalysisRequest, request: Request):
-        """Admin-only text simulation; returns evidence and never performs a transaction."""
-        authorize_admin_request(request, "system.debug")
-        check_rate_limit(request, "emotion_text_analyze", limit=30)
-        text = payload.text.strip()
-        if not text:
-            raise HTTPException(status_code=422, detail="text 不可為空")
-        return await emotion_service.analyze_text(text)
+    @router.get("/assistance_summary")
+    async def get_assistance_summary(request: Request):
+        """Admin evidence for model agreement and assistance outcomes."""
+        authorize_admin_request(request, "operations.read")
+        return await asyncio.to_thread(emotion_service.build_assistance_summary)
+
+    @router.post("/human_evaluations")
+    async def create_human_evaluation(
+        payload: EmotionHumanEvaluationRequest,
+        request: Request,
+    ):
+        authorize_admin_request(request, "operations.write")
+        check_rate_limit(request, "emotion_human_evaluation", limit=120)
+        try:
+            entry = await asyncio.to_thread(
+                emotion_service.record_human_evaluation,
+                payload.evidence_event_id,
+                observed_emotion=payload.observed_emotion,
+                usable=payload.usable,
+                notes=payload.notes,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"status": "success", "evaluation": entry}
 
     @router.post("/analyze_ordering_round")
     async def analyze_ordering_round(payload: EmotionRoundAnalysisRequest, request: Request):
@@ -112,23 +131,18 @@ def create_router(deps: dict) -> APIRouter:
     async def analyze_emotion_media_test(
         request: Request,
         media: UploadFile = File(...),
-        speech_text: str = Form(""),
     ):
-        """Admin-only camera test; records evidence but never updates intervention state."""
+        """Admin-only single-capture diagnostic; STT may only inspect the same uploaded media."""
         authorize_admin_request(request, "system.debug")
-        check_rate_limit(request, "emotion_media_test", limit=20)
+        check_rate_limit(request, "emotion_media_test", limit=60)
         temp_path = None
         try:
             temp_path = await _save_upload_temp(media)
-            return await emotion_service.analyze_event(
-                session_id="admin_media_test",
-                media_path=temp_path,
-                event_type="admin_media_test",
-                speech_text=speech_text.strip()[:500],
-                update_voice_session=False,
-            )
+            return await emotion_service.analyze_live_diagnostic(temp_path)
         except HTTPException:
             raise
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         except Exception as exc:
             print(f"⚠️ Admin emotion media test failed: {exc}")
             return JSONResponse(
@@ -138,6 +152,19 @@ def create_router(deps: dict) -> APIRouter:
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)
+
+    @router.get("/test_capabilities")
+    async def get_emotion_test_capabilities(request: Request):
+        authorize_admin_request(request, "system.debug")
+        return {
+            "status": "success",
+            "enabled": emotion_service.is_enabled(),
+            "capture": {"mode": "single_adaptive", "max_seconds": 8, "same_capture_stt": True},
+            "diagnostics": {
+                "live_media": "video_audio_same_capture_stt",
+            },
+            "provider": configured_provider_status(),
+        }
 
     @router.delete("/intervention_logs")
     async def clear_intervention_logs(request: Request):

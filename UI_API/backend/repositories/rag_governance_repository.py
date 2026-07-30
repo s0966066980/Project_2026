@@ -1,4 +1,4 @@
-"""RAG governance persistence: PostgreSQL source of truth when configured, JSON compatibility otherwise."""
+"""RAG governance persistence with PostgreSQL as the runtime source of truth."""
 
 from __future__ import annotations
 
@@ -48,7 +48,6 @@ def use_durable() -> bool:
 def load_assets() -> list[dict[str, Any]]:
     if not use_durable():
         return _load_json_rows()
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -79,6 +78,26 @@ def save_assets(rows: list[dict[str, Any]]) -> None:
     # PostgreSQL path uses granular upserts; bulk save rewrites via upsert each row.
     for row in rows:
         upsert_asset_row(row)
+
+
+def delete_documents(document_ids: list[str]) -> None:
+    """Permanently remove documents and all versions.
+
+    This is intentionally reserved for the one-way legacy FAQ purge. Normal
+    knowledge deletion uses the retired lifecycle state.
+    """
+
+    normalized = sorted({str(item).strip() for item in document_ids if str(item).strip()})
+    if not normalized:
+        return
+    if not use_durable():
+        _save_json_rows(
+            [row for row in _load_json_rows() if str(row.get("document_id") or "") not in normalized]
+        )
+        return
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM rag_documents WHERE document_id = ANY(%s)", (normalized,))
+        conn.commit()
 
 
 def _pg_row_to_asset_dict(row: dict[str, Any]) -> dict[str, Any]:
@@ -145,7 +164,6 @@ def upsert_asset_row(row: dict[str, Any]) -> None:
         _save_json_rows(rows)
         return
 
-    postgres_utils.init_schema()
     tenant_id = row.get("tenant_id")
     if not tenant_id:
         raise ValueError("tenant_id is required for durable RAG assets")
@@ -259,7 +277,6 @@ def set_publication_pointer(
 ) -> None:
     if not use_durable():
         return
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -273,6 +290,20 @@ def set_publication_pointer(
             """,
             (document_id, version, actor, index_namespace or f"{document_id}@v{version}"),
         )
+        conn.commit()
+
+
+def clear_publication_pointer(*, document_id: str, version: int | None = None) -> None:
+    if not use_durable():
+        return
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        if version is None:
+            cur.execute("DELETE FROM rag_publications WHERE document_id = %s", (document_id,))
+        else:
+            cur.execute(
+                "DELETE FROM rag_publications WHERE document_id = %s AND published_version = %s",
+                (document_id, int(version)),
+            )
         conn.commit()
 
 
@@ -290,7 +321,6 @@ def record_retrieval_trace(
 ) -> UUID:
     if not use_durable():
         return uuid4()
-    postgres_utils.init_schema()
     trace_id = uuid4()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
@@ -329,7 +359,6 @@ def record_rebuild_run(
 ) -> UUID:
     if not use_durable():
         return uuid4()
-    postgres_utils.init_schema()
     run_id = uuid4()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(

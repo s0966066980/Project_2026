@@ -58,9 +58,9 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = /** @type {Error & {code?: string, fieldErrors?: any[]}} */ (new Error(body?.detail?.message || body?.error?.message || `系統回應 ${response.status}`));
-      error.code = body?.detail?.code || body?.error?.code || 'request_failed';
-      error.fieldErrors = body?.detail?.field_errors || [];
+      const error = /** @type {Error & {code?: string, fieldErrors?: any[]}} */ (new Error(body?.error?.message || body?.detail?.message || `系統回應 ${response.status}`));
+      error.code = body?.error?.code || body?.detail?.code || 'request_failed';
+      error.fieldErrors = body?.error?.details || body?.detail?.field_errors || [];
       throw error;
     }
     return body?.data;
@@ -119,8 +119,52 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
   function saveLocalDraft() {
     if (!dirty || current) return;
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payloadFromForm()));
+    setSaveState('已自動暫存在此裝置');
+  }
+
+  /** @param {string} message @param {(() => void)} [recovery] @param {string} [recoveryLabel] */
+  function setSaveState(message, recovery, recoveryLabel = '重新載入最新版本') {
     const state = getElement('campaignSaveState');
-    if (state) state.textContent = '已自動暫存在此裝置';
+    if (!state) return;
+    state.textContent = message;
+    if (!recovery) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'campaign-secondary campaign-inline-action';
+    button.textContent = recoveryLabel;
+    button.addEventListener('click', recovery);
+    state.appendChild(button);
+  }
+
+  /**
+   * Recover from a concurrent edit: the form is kept on this device first, so pulling the
+   * server's version never costs the operator the wording they were in the middle of.
+   */
+  async function reloadCurrentCampaign() {
+    if (!current) return;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payloadFromForm()));
+    try {
+      const fresh = await request(`/api/v1/campaigns/${encodeURIComponent(current.campaign_id)}`);
+      current = fresh;
+      restoreForm(fresh.payload || {});
+      dirty = false;
+      clearErrors();
+      setSaveState(`已載入最新版本 ${fresh.version}・${statusLabel(fresh.status)}；你剛才的輸入已暫存在此裝置。`);
+      await loadCampaigns();
+    } catch (error) {
+      setSaveState(`重新載入失敗：${/** @type {any} */ (error).message}`);
+    }
+  }
+
+  /** @param {string} message */
+  function announce(message) {
+    const list = getElement('campaignList');
+    if (!list?.parentElement) return;
+    const existing = list.parentElement.querySelector('.campaign-announcement');
+    const notice = existing || document.createElement('div');
+    notice.className = 'recommendation-notice campaign-announcement';
+    notice.textContent = message;
+    if (!existing) list.parentElement.insertBefore(notice, list);
   }
 
   /** @param {any} [payload] */
@@ -244,12 +288,13 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   /** @param {any} [snapshot] */
   function openWizard(snapshot = null) {
+    getElement('campaignList')?.parentElement?.querySelector('.campaign-announcement')?.remove();
     current = snapshot;
     const saved = !snapshot ? JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null') : null;
     restoreForm(snapshot?.payload || saved || {});
     dirty = false;
     if (getElement('campaignWizardTitle')) getElement('campaignWizardTitle').textContent = snapshot ? `編輯「${snapshot.payload?.name || '活動'}」` : '建立活動';
-    if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = snapshot ? `目前版本 ${snapshot.version}・${statusLabel(snapshot.status)}` : (saved ? '已恢復此裝置的未完成草稿' : '尚未儲存');
+    setSaveState(snapshot ? `目前版本 ${snapshot.version}・${statusLabel(snapshot.status)}` : (saved ? '已恢復此裝置的未完成草稿' : '尚未儲存'));
     getElement('campaignWizard').hidden = false;
     getElement('page-promotions')?.classList.add('campaign-editing');
     getElement('page-promotions')?.scrollTo({ top: 0 });
@@ -278,13 +323,13 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
       current = saved;
       dirty = false;
       localStorage.removeItem(DRAFT_KEY);
-      if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = `草稿已儲存・版本 ${saved.version}`;
+      setSaveState(`草稿已儲存・版本 ${saved.version}`);
       await loadCampaigns();
       return saved;
     } catch (error) {
       const caught = /** @type {any} */ (error);
       renderErrors(caught.fieldErrors || []);
-      if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = `儲存失敗：${caught.message}`;
+      reportWizardFailure('儲存失敗', caught);
       return null;
     } finally {
       busy = false;
@@ -299,6 +344,12 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     });
   }
 
+  /** @param {string} prefix @param {any} caught */
+  function reportWizardFailure(prefix, caught) {
+    const conflicted = caught.code === 'campaign_version_conflict' && current;
+    setSaveState(`${prefix}：${caught.message}`, conflicted ? reloadCurrentCampaign : undefined);
+  }
+
   async function publish() {
     if (busy) return;
     busy = true;
@@ -309,21 +360,26 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
       setStep(5);
       if (!result.valid) return;
       if (result.conflicts?.length && !confirmAction('系統發現重疊活動。價格會自動採顧客最優惠方案，仍要繼續發布嗎？')) return;
-      busy = false;
-      let saved = await saveDraft();
-      busy = true;
-      if (!saved) return;
       if (button) button.textContent = '發布中…';
-      saved = await transition(saved, 'review');
-      const start = new Date(saved.payload?.schedule?.starts_at || 0);
-      saved = await transition(saved, start.getTime() > Date.now() ? 'scheduled' : 'active');
-      current = saved;
-      if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = `發布完成・${statusLabel(saved.status)}・版本 ${saved.version}`;
+      // One server call performs validation, the content version and the status change together,
+      // so a failure here can never leave the campaign stranded between draft and on air.
+      const saved = await request('/api/v1/campaigns/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...payloadFromForm(),
+          campaign_id: current?.campaign_id || '',
+          expected_version: current?.version || 0,
+        }),
+      });
+      dirty = false;
+      localStorage.removeItem(DRAFT_KEY);
+      closeWizard();
       await loadCampaigns();
+      announce(`「${text(saved.payload?.name) || '活動'}」已發布・${statusLabel(saved.status)}・版本 ${saved.version}`);
     } catch (error) {
       const caught = /** @type {any} */ (error);
       renderErrors(caught.fieldErrors || []);
-      if (getElement('campaignSaveState')) getElement('campaignSaveState').textContent = `發布失敗：${caught.message}`;
+      reportWizardFailure('發布失敗', caught);
     } finally {
       busy = false;
       if (button) { button.disabled = false; button.textContent = '檢查並發布'; }

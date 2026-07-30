@@ -71,6 +71,62 @@ def test_password_hash_is_argon2id_and_supports_verify_and_rehash() -> None:
     assert admin_password_needs_rehash(older_parameters) is True
 
 
+def test_password_hash_accepts_short_numeric_manager_password() -> None:
+    from services.admin_identity_service import hash_admin_password, verify_admin_password
+
+    encoded = hash_admin_password("2468")
+
+    assert verify_admin_password(encoded, "2468") is True
+
+
+def test_config_loads_repository_env_as_project_wide_fallback() -> None:
+    source = (ROOT / "UI_API/config.py").read_text(encoding="utf-8")
+
+    ui_env_load = 'load_dotenv(os.path.join(PROJECT_DIR, ".env"))'
+    repository_env_load = 'load_dotenv(os.path.join(REPOSITORY_DIR, ".env"))'
+    assert ui_env_load in source
+    assert repository_env_load in source
+    assert source.index(ui_env_load) < source.index(repository_env_load)
+
+
+def test_password_hash_accepts_unicode_characters() -> None:
+    from services.admin_identity_service import hash_admin_password, verify_admin_password
+
+    encoded = hash_admin_password("主管🔐")
+
+    assert verify_admin_password(encoded, "主管🔐") is True
+
+
+def test_development_local_manager_session_uses_fixed_identity_and_idle_expiry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from models.commercial_scope import CommercialScope
+    from services import admin_identity_service
+
+    scope = CommercialScope(TENANT_ID, STORE_ID)
+    monkeypatch.setattr(admin_identity_service.config, "ADMIN_LOCAL_MANAGER_AUTH_ENABLED", True)
+    monkeypatch.setattr(admin_identity_service.config, "ADMIN_MANAGER_LOGIN_IDENTITY", "admin")
+    monkeypatch.setattr(admin_identity_service.config, "ADMIN_MANAGER_PASSWORD", "2468")
+    monkeypatch.setattr(admin_identity_service.config, "ADMIN_MANAGER_IDLE_TIMEOUT_SEC", 1)
+    monkeypatch.setattr(admin_identity_service.config, "ADMIN_SESSION_TTL_SEC", 60)
+    monkeypatch.setattr(admin_identity_service.config, "is_commercial_runtime", lambda: False)
+    monkeypatch.setattr(admin_identity_service, "_record_auth_event", lambda *_args, **_kwargs: None)
+
+    result = admin_identity_service.login_admin("admin", "2468", scope)
+
+    assert result.principal.permissions == ("*",)
+    assert admin_identity_service.authenticate_admin_session(result.token) is not None
+    assert (
+        admin_identity_service.authenticate_admin_session(
+            result.token,
+            now=datetime.now(timezone.utc) + timedelta(seconds=2),
+        )
+        is None
+    )
+    with pytest.raises(admin_identity_service.AdminAuthenticationError, match="Invalid credentials"):
+        admin_identity_service.login_admin("admin", "wrong", scope)
+
+
 def test_session_token_hash_is_deterministic_and_never_plaintext() -> None:
     from services.admin_identity_service import hash_admin_session_token
 
@@ -221,29 +277,39 @@ def test_admin_login_cookie_is_http_only_secure_and_not_returned_in_body(monkeyp
     assert "raw-cookie-token" not in response.text
 
 
-def test_legacy_admin_token_requires_explicit_compatibility_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_admin_logout_is_idempotent_and_clears_a_stale_cookie(monkeypatch: pytest.MonkeyPatch) -> None:
+    from routes import admin_identity_routes
+
+    monkeypatch.setattr(
+        admin_identity_routes.admin_identity_service,
+        "authenticate_admin_session",
+        lambda _token: None,
+    )
+    app = FastAPI()
+    app.include_router(admin_identity_routes.create_router({}))
+    client = TestClient(app)
+    client.cookies.set("admin_session", "expired-session")
+
+    response = client.post("/api/admin/auth/logout")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
+    assert "admin_session=" in response.headers["set-cookie"]
+    assert "Max-Age=0" in response.headers["set-cookie"]
+
+
+def test_shared_admin_token_is_not_an_authentication_model(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi import HTTPException
     from starlette.requests import Request
 
     from utils import auth_utils
 
-    monkeypatch.setattr(auth_utils.config, "is_security_enforced", lambda: True)
-    monkeypatch.setattr(auth_utils.config, "is_demo_public_mode", lambda: False)
-    monkeypatch.setattr(
-        auth_utils.config,
-        "get",
-        lambda key, default=None: {
-            "SECURITY_ENFORCED": True,
-            "ENABLE_LEGACY_ADMIN_TOKEN": False,
-            "ADMIN_API_TOKEN": "legacy-token",
-        }.get(key, default),
-    )
     monkeypatch.setattr(auth_utils.admin_identity_service, "authenticate_admin_session", lambda _token: None)
     request = Request({"type": "http", "method": "GET", "path": "/", "headers": [(b"x-admin-token", b"legacy-token")]})
 
     with pytest.raises(HTTPException) as exc_info:
         auth_utils.require_admin_token(request)
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.status_code == 401
 
 
 def test_admin_audit_actor_comes_from_verified_principal_not_client_header() -> None:
@@ -273,18 +339,21 @@ def test_permission_catalog_uses_stable_machine_names() -> None:
         "members.read",
         "members.delete",
         "settings.write",
-        "rag.review",
+        "rag.write",
+        "rag.publish",
         "admin_identity.manage",
     } <= ADMIN_PERMISSION_NAMES
+    assert "rag.review" not in ADMIN_PERMISSION_NAMES
 
 
-def test_production_can_disable_legacy_admin_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_production_uses_durable_admin_sessions_without_legacy_config(monkeypatch: pytest.MonkeyPatch) -> None:
     import config
 
+    assert not hasattr(config, "ADMIN_API_TOKEN")
+    assert not hasattr(config, "ENABLE_LEGACY_ADMIN_TOKEN")
     monkeypatch.setattr(config, "APP_ENV", "production")
     monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
-    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
-    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "")
+    monkeypatch.setattr(config, "ADMIN_LOCAL_MANAGER_AUTH_ENABLED", False)
     monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "kiosk-secret")
     monkeypatch.setattr(config, "CORS_ORIGINS", ["https://admin.example.com"])
     monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
@@ -293,8 +362,13 @@ def test_production_can_disable_legacy_admin_token(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
     monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
     monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
-    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://configured-by-secret-manager")
+    monkeypatch.setenv("DATABASE_BACKEND", "postgresql")
+    monkeypatch.setenv("DATABASE_TOPOLOGY", "ha")
+    monkeypatch.setenv("DATABASE_URL_FILE", "")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://configured-by-secret-manager/project?sslmode=verify-full",
+    )
     monkeypatch.setenv("OBJECT_STORAGE_SIGNING_SECRET", "object-storage-signing-secret")
     monkeypatch.setenv("OBJECT_STORAGE_BACKEND", "local")
 

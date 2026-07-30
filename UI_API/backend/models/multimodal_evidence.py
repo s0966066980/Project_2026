@@ -10,6 +10,7 @@ from typing import Any, Protocol
 class MultimodalEvidenceRequest:
     media_path: str
     question: str
+    media_mode: str = "video_audio"  # video_audio | audio_only
     session_ref: str = ""
     event_type: str = ""
     speech_text: str = ""

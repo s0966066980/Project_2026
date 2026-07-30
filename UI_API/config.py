@@ -1,14 +1,27 @@
+import json
 import os
 import sys
-import json
 import threading
 import time
+from pathlib import Path
 from uuid import UUID
+
 from dotenv import load_dotenv
 
-load_dotenv()
-
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPOSITORY_DIR = os.path.dirname(PROJECT_DIR)
+
+# Load both supported local env locations deterministically. UI_API/.env keeps
+# compatibility precedence; an explicit repository-external deployment file
+# can provide one complete Pilot contract without copying secrets into Git.
+_external_env_file = str(os.getenv("PROJECT_2026_ENV_FILE", "") or "").strip()
+if _external_env_file:
+    _external_env_path = Path(_external_env_file).expanduser()
+    if not _external_env_path.is_file():
+        raise RuntimeError(f"PROJECT_2026_ENV_FILE does not exist: {_external_env_path}")
+    load_dotenv(_external_env_path, override=False)
+load_dotenv(os.path.join(PROJECT_DIR, ".env"))
+load_dotenv(os.path.join(REPOSITORY_DIR, ".env"))
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -74,14 +87,30 @@ def validate_startup_config() -> None:
     """Fail fast for unsafe commercial runtime configuration (staging/pilot/production)."""
     if APP_ENV not in KNOWN_APP_ENVS:
         raise RuntimeError(f"Unknown APP_ENV '{APP_ENV}'. Expected one of: {', '.join(sorted(KNOWN_APP_ENVS))}")
+    from modules.runtime_persistence import PersistenceConfigurationError, adapter_coverage
+    from modules.runtime_persistence.runtime import current_profile
+
+    try:
+        persistence = current_profile(app_env=APP_ENV)
+        persistence.runtime_paths.ensure()
+    except PersistenceConfigurationError as exc:
+        raise RuntimeError(f"Invalid Runtime Persistence Profile: {exc}") from exc
+    coverage = adapter_coverage(persistence.backend)
+    if not coverage["complete"] and APP_ENV != "test":
+        missing = ", ".join(coverage["missing"])
+        raise RuntimeError(f"Runtime persistence adapter coverage is incomplete: {missing}")
     if not is_commercial_runtime():
         return
     label = APP_ENV
     errors: list[str] = []
+    if _external_env_file and _external_env_path.stat().st_mode & 0o077:
+        errors.append("PROJECT_2026_ENV_FILE must use private file permissions (0600)")
     if not is_security_enforced():
         errors.append(f"SECURITY_ENFORCED must be true in {label}")
-    if ENABLE_LEGACY_ADMIN_TOKEN and not _token_configured(ADMIN_API_TOKEN):
-        errors.append("ADMIN_API_TOKEN must be configured when legacy Admin authentication is enabled")
+    if APP_ENV == "pilot" and ENABLE_NGROK:
+        errors.append("ENABLE_NGROK must be false for the local-pilot HTTP deployment")
+    if ADMIN_LOCAL_MANAGER_AUTH_ENABLED:
+        errors.append("ADMIN_LOCAL_MANAGER_AUTH_ENABLED is development-only and must be false in commercial runtime")
     if ENABLE_LEGACY_KIOSK_TOKEN and not _token_configured(KIOSK_DEVICE_TOKEN):
         errors.append("KIOSK_DEVICE_TOKEN must be configured when legacy Kiosk authentication is enabled")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
@@ -97,10 +126,12 @@ def validate_startup_config() -> None:
             errors.append(f"LOG_RETENTION_DAYS must be positive in {label}")
     except ValueError:
         errors.append("LOG_RETENTION_DAYS must be a valid integer")
-    if str(os.getenv("MEMBER_STORAGE_BACKEND", "json")).strip().lower() != "postgres":
-        errors.append(f"MEMBER_STORAGE_BACKEND must be postgres in {label}")
-    if not _token_configured(os.getenv("DATABASE_URL", "")):
-        errors.append(f"DATABASE_URL must be configured in {label}")
+    if persistence.backend != "postgresql":
+        errors.append(f"DATABASE_BACKEND must be postgresql in {label}")
+    if not persistence.database_url:
+        errors.append(f"DATABASE_URL or DATABASE_URL_FILE must be configured in {label}")
+    if label == "production" and not bool(persistence.endpoint_summary().get("tls_requested")):
+        errors.append("Production PostgreSQL must request TLS using sslmode")
     shared_rate_default = APP_ENV in {"production", "staging"}
     if _env_bool("SHARED_RATE_LIMIT_ENABLED", shared_rate_default) and not _token_configured(
         os.getenv("REDIS_URL", "")
@@ -151,7 +182,10 @@ def validate_startup_config() -> None:
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
-from prompts import defaults as _prompts
+from modules.runtime_persistence import configured_runtime_paths  # noqa: E402
+from prompts import defaults as _prompts  # noqa: E402
+
+_RUNTIME_PATHS = configured_runtime_paths(os.environ, repository_root=Path(REPOSITORY_DIR))
 
 # ==========================================
 # 靜態與網路設定 (需寫在 .env)
@@ -160,7 +194,17 @@ OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generat
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL",
     OLLAMA_API_URL.split("/api/")[0] if "/api/" in OLLAMA_API_URL else "http://localhost:11434"
 )
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+# Provider credentials live only in the environment: they must never enter the settings
+# document, which is versioned, scoped, and broadcast to connected clients.
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_API_BASE_URL = os.getenv("NVIDIA_API_BASE_URL", "https://integrate.api.nvidia.com/v1")
+STT_API_KEY = os.getenv("STT_API_KEY", "")
+TTS_API_KEY = os.getenv("TTS_API_KEY", "")
+CREDENTIAL_SETTING_KEYS = frozenset({
+    "NVIDIA_API_KEY",
+    "STT_API_KEY",
+    "TTS_API_KEY",
+})
 EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
 R1_OMNI_GRADIO_URL = os.getenv("R1_OMNI_GRADIO_URL", "http://127.0.0.1:7890")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
@@ -170,14 +214,15 @@ APP_PORT = int(os.getenv("APP_PORT", "8000"))
 ADMIN_PORT = int(os.getenv("ADMIN_PORT", "8001"))
 DEMO_PUBLIC_MODE = os.getenv("DEMO_PUBLIC_MODE", "false")
 POS_DEMO_TOKEN = os.getenv("POS_DEMO_TOKEN", "")
-ADMIN_DEMO_TOKEN = os.getenv("ADMIN_DEMO_TOKEN", "")
 WS_DEMO_TOKEN = os.getenv("WS_DEMO_TOKEN", "")
-ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", ADMIN_DEMO_TOKEN)
 KIOSK_DEVICE_TOKEN = os.getenv("KIOSK_DEVICE_TOKEN", POS_DEMO_TOKEN)
-ENABLE_LEGACY_ADMIN_TOKEN = _env_bool("ENABLE_LEGACY_ADMIN_TOKEN", not is_production())
 ENABLE_LEGACY_KIOSK_TOKEN = _env_bool("ENABLE_LEGACY_KIOSK_TOKEN", not is_production())
 ADMIN_SESSION_COOKIE_NAME = os.getenv("ADMIN_SESSION_COOKIE_NAME", "admin_session")
 ADMIN_SESSION_TTL_SEC = int(os.getenv("ADMIN_SESSION_TTL_SEC", "28800"))
+ADMIN_LOCAL_MANAGER_AUTH_ENABLED = _env_bool("ADMIN_LOCAL_MANAGER_AUTH_ENABLED", False)
+ADMIN_MANAGER_LOGIN_IDENTITY = os.getenv("ADMIN_MANAGER_LOGIN_IDENTITY", "admin").strip() or "admin"
+ADMIN_MANAGER_PASSWORD = os.getenv("ADMIN_MANAGER_PASSWORD", "")
+ADMIN_MANAGER_IDLE_TIMEOUT_SEC = int(os.getenv("ADMIN_MANAGER_IDLE_TIMEOUT_SEC", "1800"))
 DEVICE_SESSION_COOKIE_NAME = os.getenv("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session")
 DEVICE_SESSION_TTL_SEC = int(os.getenv("DEVICE_SESSION_TTL_SEC", "3600"))
 DEVICE_CREDENTIAL_TTL_DAYS = int(os.getenv("DEVICE_CREDENTIAL_TTL_DAYS", "90"))
@@ -200,10 +245,10 @@ for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
     if _public_origin and _public_origin not in CORS_ORIGINS:
         CORS_ORIGINS.append(_public_origin)
 MENU_JSON_PATH = os.getenv("MENU_JSON_PATH", os.path.join(PROJECT_DIR, "menu_data", "menu.json"))
-LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", os.path.join(PROJECT_DIR, "learning_data"))
+LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", str(_RUNTIME_PATHS.exports))
 SETTINGS_JSON_PATH = os.getenv("SETTINGS_JSON_PATH", os.path.join(LEARNING_DATA_DIR, "settings.json"))
-RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR") or os.path.join(PROJECT_DIR, "rag_documents")
-_rag_chroma_dir = os.getenv("RAG_CHROMA_DIR") or os.path.join(LEARNING_DATA_DIR, "chroma_rag")
+RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR") or str(_RUNTIME_PATHS.imports)
+_rag_chroma_dir = os.getenv("RAG_CHROMA_DIR") or str(_RUNTIME_PATHS.rag_indexes)
 RAG_CHROMA_DIR = _rag_chroma_dir if os.path.isabs(_rag_chroma_dir) else os.path.join(PROJECT_DIR, _rag_chroma_dir)
 RAG_COLLECTION = os.getenv("RAG_COLLECTION") or "kiosk_rag"
 os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
@@ -221,11 +266,16 @@ DEFAULT_SETTINGS = {
     "SECURITY_ENFORCED": SECURITY_ENFORCED,
     "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
     "MODEL_NAME": "qwen3.5:4b",
-    "ENABLE_GEMINI_OPTIONS": False,
-    "GEMINI_MODEL_NAME": "gemini-3-flash-preview",
-    "GEMINI_COOLDOWN_SEC": 60,
-    "GEMINI_NUM_PREDICT": 512,
-    "GEMINI_USE_JSON_MIME": False,
+    # 文字模型選路：策略決定本機／雲端的先後與是否允許對外，雲端提供者決定 chain 裡的雲端那一段。
+    "LLM_ROUTING_POLICY": "local_first",    # local_first | cloud_first | local_only | cloud_only
+    # NVIDIA NIM is the sole cloud text provider; its API key/base URL live only in the
+    # environment (NVIDIA_API_KEY / NVIDIA_API_BASE_URL), never in this settings document.
+    "NIM_MODEL_NAME": "meta/llama-3.1-8b-instruct",
+    "NIM_VOICE_MODEL": "meta/llama-3.1-8b-instruct",
+    # Admin-added model IDs not in the built-in NIM Model Catalog (see NIM_TEXT_MODEL_CATALOG /
+    # NIM_VOICE_MODEL_CATALOG below), appended to their respective dropdowns once saved.
+    "NIM_CUSTOM_TEXT_MODELS": [],
+    "NIM_CUSTOM_VOICE_MODELS": [],
     "ENABLE_DEBUG_ROUTES": False,
     "ENABLE_DEMO_ROUTES": _env_bool("ENABLE_DEMO_ROUTES", not is_production()),
     "ENABLE_TEST_ROUTES": _env_bool("ENABLE_TEST_ROUTES", not is_production()),
@@ -238,6 +288,7 @@ DEFAULT_SETTINGS = {
     "OLLAMA_NUM_PREDICT": 2048,
     "OLLAMA_LOG_RAW": False,
     "OLLAMA_TIMEOUT": 120,           # HTTP 請求 timeout（秒），熱改有效
+    "OLLAMA_KEEP_ALIVE": "30m",      # 模型閒置保留時間，避免首位顧客承擔冷載入
     "OLLAMA_POOL_CONNECTIONS": 2,    # 連線池數量（需重啟生效）
     "OLLAMA_POOL_MAXSIZE": 4,        # 連線池最大連線數（需重啟生效）
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
@@ -267,8 +318,11 @@ DEFAULT_SETTINGS = {
         {"variant_id": "control", "strategy": "weighted_random", "traffic": 50},
         {"variant_id": "ranked", "strategy": "ranked_top_score", "traffic": 50},
     ],
-    "MEMBER_STORAGE_BACKEND": os.getenv("MEMBER_STORAGE_BACKEND", "json"),  # "json" | "postgres"
-    "DATABASE_URL": os.getenv("DATABASE_URL", ""),  # PostgreSQL 連線字串
+    "RECOMMENDATION_PURCHASE_RATE_TARGET": 0.10,  # 主管設定：有效曝光後確認購買率
+    "RECOMMENDATION_IGNORE_RATE_GUARDRAIL": 0.35,  # 主管設定：有效曝光忽略率警戒值
+    "DATABASE_BACKEND": os.getenv("DATABASE_BACKEND", "postgresql"),
+    "DATABASE_TOPOLOGY": os.getenv("DATABASE_TOPOLOGY", "single"),
+    "DATABASE_URL": os.getenv("DATABASE_URL", ""),
     "MEMBER_SESSION_TTL_SEC": int(os.getenv("MEMBER_SESSION_TTL_SEC", "86400")),
     "ENABLE_MEMBER_DUAL_WRITE": os.getenv("ENABLE_MEMBER_DUAL_WRITE", "false").lower() in ("1", "true", "yes", "on"),
     "ADMIN_MEMBER_REF_SECRET": os.getenv("ADMIN_MEMBER_REF_SECRET", ""),
@@ -289,14 +343,20 @@ DEFAULT_SETTINGS = {
     "RAG_ALERT_WEBHOOK_TIMEOUT_SEC": float(os.getenv("RAG_ALERT_WEBHOOK_TIMEOUT_SEC", "5")),
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
+    "VOICE_LLM_PREWARM_ENABLED": True,
     "VOICE_HISTORY_MAX_TURNS": 4,           # 注入 LLM 的對話歷史輪數
     "VOICE_ASSIST_SYSTEM_PROMPT": _prompts.VOICE_ASSIST_SYSTEM_PROMPT,
     "VOICE_ASSIST_SYSTEM_PROMPT_EN": _prompts.VOICE_ASSIST_SYSTEM_PROMPT_EN,
     "AI_PUSH_SYSTEM_PROMPT": _prompts.AI_PUSH_SYSTEM_PROMPT,
     # ── AI 推播 / 前端行為 ────────────────────
-    "AI_PUSH_TEXT_MIN": 18,                 # push_text 最少字數
-    "AI_PUSH_TEXT_MAX": 34,                 # push_text 最多字數
+    "AI_PUSH_TEXT_MIN": 18,                 # 推薦詞最少字數（Admin 產生推薦詞時遵守）
+    "AI_PUSH_TEXT_MAX": 34,                 # 推薦詞最多字數（Admin 產生推薦詞時遵守）
     "AI_PUSH_REFRESH_SEC": 15,              # 推播欄刷新間隔（秒）
+    # 推播範圍是「哪些品項有資格被推播」的過濾器；排序仍由推薦引擎負責。
+    "AI_PUSH_SCOPE_MODE": "all",            # all | categories | new_items | popular
+    "AI_PUSH_SCOPE_CATEGORIES": [],         # AI_PUSH_SCOPE_MODE 為 categories 時生效
+    "AI_PUSH_EXCLUDE_SEEN": True,           # 「換一個」累積排除本次已看過的品項
+    "AI_PUSH_PREFETCH": True,               # 預先取回候選，讓「換一個」不必等待
     "PASSIVE_VOICE_KEYWORDS": ["找不到", "在哪裡", "哪邊有", "哪裡有", "哪裡可以"],
     "PASSIVE_VOICE_ALIASES": {},   # {"MCDxxx": ["別名1", "別名2"]}
     "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效
@@ -310,7 +370,6 @@ DEFAULT_SETTINGS = {
     "STT_LANGUAGE": "zh",                   # "" = 自動偵測
     "STT_INITIAL_PROMPT": "麥當勞點餐，繁體中文，常見品項：大麥克、薯條、麥克雞塊、可樂、套餐、咖啡、拿鐵",
     "STT_API_URL": "https://api.openai.com",
-    "STT_API_KEY": "",
     "STT_HTTP_TIMEOUT_SEC": 30,             # HTTP STT API 請求 timeout（秒）
     # ── TTS ───────────────────────────────────
     "TTS_PROVIDER": "edge",                 # "edge" | "melo" | "openai_compatible"
@@ -320,7 +379,6 @@ DEFAULT_SETTINGS = {
     "TTS_MODEL": "tts-1",                   # openai_compatible 模型名稱
     "TTS_VOICE": "alloy",                   # openai_compatible 聲音
     "TTS_API_URL": "https://api.openai.com",
-    "TTS_API_KEY": "",
     "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
     # ── 情緒分析 ─────────────────────────────────────────────
     "EMOTION_PROVIDER": "emotion_llama",    # "emotion_llama"（:7889）| "r1_omni"（:7890）
@@ -329,6 +387,9 @@ DEFAULT_SETTINGS = {
     "EMOTION_LLAMA_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
     "EMOTION_LLAMA_QUALITY_CHECK": True,
     "EMOTION_LLAMA_AFFECT_VOICE": False,
+    "EMOTION_ASSISTANCE_MODE": "shadow",     # disabled | shadow | active
+    "EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD": 0.70,
+    "EMOTION_ASSISTANCE_ROLLOUT_PERCENT": 0,  # active mode deterministic 0/5/25/50/100 rollout
     "EMOTION_LLAMA_EVENT_VOICE": True,       # 語音模式開始／結束皆在背景觸發分析
     "EMOTION_LLAMA_INCLUDE_STT": True,        # 語音結束分析同時提供 STT 逐字稿與影音
     "EMOTION_LLAMA_ANALYSIS_MODE": "media_plus_stt",  # media_only | media_plus_stt | paired
@@ -364,10 +425,66 @@ PUBLIC_SETTINGS_KEYS = {
     "EMOTION_LLAMA_INCLUDE_STT",         # Kiosk 需要：STT 完成後啟動影音＋逐字稿分析
     "EMOTION_LLAMA_ANALYSIS_MODE",
     "AI_PUSH_REFRESH_SEC",
+    # Kiosk 決定「換一個」行為時需要，故列為公開投影。
+    "AI_PUSH_EXCLUDE_SEEN",
+    "AI_PUSH_PREFETCH",
     "PASSIVE_VOICE_KEYWORDS",
     "MEMBER_ENABLED",
     "MEMBER_USUALS_COUNT",
 }
+
+
+LLM_ROUTING_POLICIES = ("local_first", "cloud_first", "local_only", "cloud_only")
+# Cloud provider choices this settings document has carried over time. NVIDIA NIM is now the
+# only cloud text provider the runtime supports; a stored choice of any of these just means
+# "this store previously preferred the cloud half of the chain" and maps to cloud_first.
+_LEGACY_CLOUD_PROVIDER_NAMES = ("gemini", "openai")
+
+# NIM Model Catalog: the curated, developer-maintained set of NVIDIA NIM model IDs offered in
+# the Admin dropdown for NIM_MODEL_NAME. Admin may additionally save Custom NIM Model Entries
+# (NIM_CUSTOM_TEXT_MODELS) that are appended to this list without validation against NVIDIA's
+# actual catalog.
+NIM_TEXT_MODEL_CATALOG = (
+    "meta/llama-3.1-8b-instruct",
+    "meta/llama-3.1-70b-instruct",
+    "meta/llama-3.3-70b-instruct",
+    "mistralai/mistral-7b-instruct-v0.3",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+    "deepseek-ai/deepseek-v4-flash",
+)
+# Voice keeps a separate, smaller/faster catalog for NIM_VOICE_MODEL — same mechanism
+# (curated list + admin-added Custom NIM Model Entries via NIM_CUSTOM_VOICE_MODELS).
+NIM_VOICE_MODEL_CATALOG = (
+    "meta/llama-3.1-8b-instruct",
+    "meta/llama-3.2-3b-instruct",
+    "meta/llama-3.2-1b-instruct",
+    "nvidia/llama-3.1-nemotron-nano-8b-v1",
+)
+
+
+def migrate_llm_routing_settings(settings: dict) -> dict:
+    """Derive the routing policy from legacy provider-selection keys.
+
+    Earlier versions let a store name which cloud provider it wanted (`AI_PROVIDER`, then
+    `LLM_CLOUD_PROVIDER` choosing between Gemini and an OpenAI-compatible endpoint). The
+    runtime now has exactly one cloud provider, NVIDIA NIM, so there is nothing left to
+    choose — only whether the store prefers cloud or local stays a real decision. A stored
+    cloud preference becomes cloud_first so an offline store still gets served; the legacy
+    keys are dropped so there is one source of truth.
+    """
+
+    result = dict(settings or {})
+    legacy = str(result.pop("AI_PROVIDER", "") or "").strip().lower()
+    legacy_cloud_provider = str(result.pop("LLM_CLOUD_PROVIDER", "") or "").strip().lower()
+    result.pop("QA_AI_PROVIDER", None)
+    result.pop("ENABLE_GEMINI_OPTIONS", None)
+    prefers_cloud = legacy in _LEGACY_CLOUD_PROVIDER_NAMES or legacy_cloud_provider in _LEGACY_CLOUD_PROVIDER_NAMES
+    if str(result.get("LLM_ROUTING_POLICY") or "").strip().lower() not in LLM_ROUTING_POLICIES:
+        result["LLM_ROUTING_POLICY"] = "cloud_first" if prefers_cloud else "local_first"
+    for key in CREDENTIAL_SETTING_KEYS:
+        result.pop(key, None)
+    return result
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -430,8 +547,77 @@ def _apply_security_env_overrides(settings: dict) -> None:
         settings["ENABLE_DEMO_ROUTES"] = False
         settings["ENABLE_TEST_ROUTES"] = False
 
+def _finalize_settings(settings: dict) -> dict:
+    """Apply env-derived overrides shared by every settings source (JSON file or Postgres)."""
+
+    settings = migrate_llm_routing_settings(settings)
+
+    if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
+        settings["DEMO_PUBLIC_MODE"] = True
+
+    for env_key in ("DATABASE_BACKEND", "DATABASE_TOPOLOGY", "DATABASE_URL", "MEMBER_SESSION_TTL_SEC"):
+        env_value = os.getenv(env_key)
+        if env_value not in (None, ""):
+            if env_key == "MEMBER_SESSION_TTL_SEC":
+                try:
+                    settings[env_key] = int(env_value)
+                except ValueError:
+                    pass
+            else:
+                settings[env_key] = env_value
+    emotion_provider = str(os.getenv("EMOTION_PROVIDER", "") or "").strip().lower()
+    if emotion_provider in {"emotion_llama", "r1_omni"}:
+        settings["EMOTION_PROVIDER"] = emotion_provider
+    dual_write_env = str(os.getenv("ENABLE_MEMBER_DUAL_WRITE", "")).lower()
+    if dual_write_env in ("1", "true", "yes", "on"):
+        settings["ENABLE_MEMBER_DUAL_WRITE"] = True
+    elif dual_write_env in ("0", "false", "no", "off"):
+        settings["ENABLE_MEMBER_DUAL_WRITE"] = False
+    _apply_security_env_overrides(settings)
+    return settings
+
+
+def _use_postgres_settings() -> bool:
+    from repositories import postgres_utils
+
+    return postgres_utils.use_postgres()
+
+
+_pg_settings_cache = None
+_pg_settings_last_check = 0.0
+
+
+def _load_settings_postgres():
+    """Postgres is authoritative once selected — never fall back to the JSON file, per
+    postgres_utils's "never split authority" rule. TTL-cached like the JSON path's mtime
+    check so 215+ config.get() call sites don't turn into a database round-trip each."""
+
+    global _pg_settings_cache, _pg_settings_last_check
+
+    now = time.time()
+    if _pg_settings_cache is not None and now - _pg_settings_last_check < 1.0:
+        return _pg_settings_cache.copy()
+
+    with _settings_lock:
+        now = time.time()
+        if _pg_settings_cache is not None and now - _pg_settings_last_check < 1.0:
+            return _pg_settings_cache.copy()
+
+        from repositories import commercial_settings_repository
+
+        settings = _deep_merge(DEFAULT_SETTINGS.copy(), commercial_settings_repository.get_settings())
+        settings = _finalize_settings(settings)
+
+        _pg_settings_cache = settings.copy()
+        _pg_settings_last_check = now
+        return settings.copy()
+
+
 def load_settings():
     global _settings_cache, _settings_mtime, _settings_last_check
+
+    if _use_postgres_settings():
+        return _load_settings_postgres()
 
     now = time.time()
     try:
@@ -480,29 +666,7 @@ def load_settings():
                 print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
                 should_write = True
 
-        if settings.get("ENABLE_GEMINI_OPTIONS") is not True:
-            settings["AI_PROVIDER"] = "ollama"
-            settings["QA_AI_PROVIDER"] = "ollama"
-
-        if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
-            settings["DEMO_PUBLIC_MODE"] = True
-
-        for env_key in ("MEMBER_STORAGE_BACKEND", "DATABASE_URL", "MEMBER_SESSION_TTL_SEC"):
-            env_value = os.getenv(env_key)
-            if env_value not in (None, ""):
-                if env_key == "MEMBER_SESSION_TTL_SEC":
-                    try:
-                        settings[env_key] = int(env_value)
-                    except ValueError:
-                        pass
-                else:
-                    settings[env_key] = env_value
-        dual_write_env = str(os.getenv("ENABLE_MEMBER_DUAL_WRITE", "")).lower()
-        if dual_write_env in ("1", "true", "yes", "on"):
-            settings["ENABLE_MEMBER_DUAL_WRITE"] = True
-        elif dual_write_env in ("0", "false", "no", "off"):
-            settings["ENABLE_MEMBER_DUAL_WRITE"] = False
-        _apply_security_env_overrides(settings)
+        settings = _finalize_settings(settings)
 
         if should_write:
             try:
@@ -521,9 +685,15 @@ def load_settings():
         return settings.copy()
 
 
+def public_settings(settings: dict | None = None) -> dict:
+    """Project a settings document down to the keys a customer-facing client may receive."""
+
+    source = settings if isinstance(settings, dict) else load_settings()
+    return {key: source.get(key, DEFAULT_SETTINGS.get(key)) for key in PUBLIC_SETTINGS_KEYS}
+
+
 def load_public_settings():
-    settings = load_settings()
-    return {key: settings.get(key, DEFAULT_SETTINGS.get(key)) for key in PUBLIC_SETTINGS_KEYS}
+    return public_settings()
 
 
 def with_effective_emotion_prompt(settings: dict | None) -> dict:
@@ -551,13 +721,12 @@ def get(key, default=None):
     runtime_values = {
         "APP_ENV": APP_ENV,
         "SECURITY_ENFORCED": is_security_enforced(),
-        "ADMIN_API_TOKEN": ADMIN_API_TOKEN,
         "KIOSK_DEVICE_TOKEN": KIOSK_DEVICE_TOKEN,
         "ALLOW_POSTGRES_JSON_FALLBACK": ALLOW_POSTGRES_JSON_FALLBACK,
-        "ENABLE_LEGACY_ADMIN_TOKEN": ENABLE_LEGACY_ADMIN_TOKEN,
         "ENABLE_LEGACY_KIOSK_TOKEN": ENABLE_LEGACY_KIOSK_TOKEN,
         "ADMIN_SESSION_COOKIE_NAME": ADMIN_SESSION_COOKIE_NAME,
         "ADMIN_SESSION_TTL_SEC": ADMIN_SESSION_TTL_SEC,
+        "ADMIN_MANAGER_IDLE_TIMEOUT_SEC": ADMIN_MANAGER_IDLE_TIMEOUT_SEC,
         "DEVICE_SESSION_COOKIE_NAME": DEVICE_SESSION_COOKIE_NAME,
         "DEVICE_SESSION_TTL_SEC": DEVICE_SESSION_TTL_SEC,
         "DEVICE_CREDENTIAL_TTL_DAYS": DEVICE_CREDENTIAL_TTL_DAYS,
@@ -568,6 +737,11 @@ def get(key, default=None):
         "REDIS_URL": REDIS_URL,
         "SHARED_RATE_LIMIT_ENABLED": SHARED_RATE_LIMIT_ENABLED,
     }
+    emotion_enabled_env = str(os.getenv("EMOTION_LLAMA_ENABLED", "")).strip().lower()
+    if emotion_enabled_env in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
+        # Emotion Runtime Profile is process-local. A startup profile must not
+        # be overridden by a stale value persisted in shared UI settings.
+        runtime_values["EMOTION_LLAMA_ENABLED"] = emotion_enabled_env in {"1", "true", "yes", "on"}
     if key in runtime_values:
         return runtime_values[key] if runtime_values[key] not in (None, "") else default
     value = load_settings().get(key)

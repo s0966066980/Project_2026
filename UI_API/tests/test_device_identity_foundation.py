@@ -182,6 +182,45 @@ def test_device_session_cookie_is_http_only_secure_and_not_in_body(monkeypatch: 
     assert "raw-device-session" not in response.text
 
 
+def test_device_session_status_returns_database_owned_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.device_identity import DevicePrincipal
+    from routes import device_identity_routes
+
+    now = datetime.now(timezone.utc)
+    principal = DevicePrincipal(
+        device_id=DEVICE_ID,
+        store_id=STORE_ID,
+        tenant_id=TENANT_ID,
+        credential_id=uuid4(),
+        session_id=uuid4(),
+        issued_at=now,
+        expires_at=now + timedelta(hours=1),
+        auth_method="device_session",
+    )
+    monkeypatch.setattr(device_identity_routes, "require_kiosk_token", lambda _request: principal)
+    app = FastAPI()
+    app.include_router(device_identity_routes.create_router({}))
+
+    response = TestClient(app).get(
+        "/api/device/auth/session",
+        headers={
+            "X-Tenant-ID": str(uuid4()),
+            "X-Store-ID": str(uuid4()),
+            "X-Device-ID": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "authenticated": True,
+        "device_id": str(DEVICE_ID),
+        "store_id": str(STORE_ID),
+        "tenant_id": str(TENANT_ID),
+        "expires_at": principal.expires_at.isoformat(),
+        "auth_method": "device_session",
+    }
+
+
 def test_legacy_kiosk_token_requires_explicit_compatibility_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi import HTTPException
     from starlette.requests import Request
@@ -260,9 +299,8 @@ def test_production_can_disable_legacy_kiosk_token(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(config, "APP_ENV", "production")
     monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
-    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
     monkeypatch.setattr(config, "ENABLE_LEGACY_KIOSK_TOKEN", False)
-    monkeypatch.setattr(config, "ADMIN_API_TOKEN", "")
+    monkeypatch.setattr(config, "ADMIN_LOCAL_MANAGER_AUTH_ENABLED", False)
     monkeypatch.setattr(config, "KIOSK_DEVICE_TOKEN", "")
     monkeypatch.setattr(config, "CORS_ORIGINS", ["https://kiosk.example.com"])
     monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
@@ -271,8 +309,13 @@ def test_production_can_disable_legacy_kiosk_token(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("DEFAULT_TENANT_ID", str(TENANT_ID))
     monkeypatch.setenv("DEFAULT_STORE_ID", str(STORE_ID))
     monkeypatch.setenv("DEFAULT_DEVICE_ID", str(DEVICE_ID))
-    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://configured-by-secret-manager")
+    monkeypatch.setenv("DATABASE_BACKEND", "postgresql")
+    monkeypatch.setenv("DATABASE_TOPOLOGY", "ha")
+    monkeypatch.setenv("DATABASE_URL_FILE", "")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://configured-by-secret-manager/project?sslmode=verify-full",
+    )
     monkeypatch.setenv("OBJECT_STORAGE_SIGNING_SECRET", "object-storage-signing-secret")
     monkeypatch.setenv("OBJECT_STORAGE_BACKEND", "local")
 

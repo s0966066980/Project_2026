@@ -54,6 +54,11 @@ class LLMAdapterResult:
     safe_error: str
     retryable: bool
     parsed: dict[str, Any] | None = None
+    # True when the provider itself reported finish_reason='length' even though JSON repair
+    # produced a syntactically valid (but semantically incomplete) result — e.g. a cut-off value
+    # got repaired into an empty string. Lets a later schema failure be reported as truncation
+    # rather than a misleading "the model didn't include this field" message.
+    provider_truncated: bool = False
 
 
 class LLMPort(Protocol):

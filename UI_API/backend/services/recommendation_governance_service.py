@@ -275,7 +275,6 @@ def assign_experiment_variant(
 
             from psycopg.types.json import Jsonb  # noqa: F401
 
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """

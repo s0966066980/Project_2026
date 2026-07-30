@@ -112,7 +112,6 @@ def _order_item_rows(order: dict) -> list[dict]:
 
 
 def _postgres_upsert_member(record: dict, scope: CommercialScope) -> dict:
-    postgres_utils.init_schema()
     phone = str(record.get("phone") or "").strip()
     if not phone:
         return record
@@ -354,7 +353,6 @@ def _postgres_record_for_member_row(member_row: dict, scope: CommercialScope) ->
 
 
 def _postgres_get_member(phone: str, scope: CommercialScope) -> dict | None:
-    postgres_utils.init_schema()
     key = str(phone or "")
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
@@ -369,7 +367,6 @@ def _postgres_get_member(phone: str, scope: CommercialScope) -> dict | None:
 
 
 def _postgres_get_member_by_id(member_id: UUID, scope: CommercialScope) -> dict | None:
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT * FROM members WHERE id = %s AND tenant_id = %s",
@@ -380,7 +377,6 @@ def _postgres_get_member_by_id(member_id: UUID, scope: CommercialScope) -> dict 
 
 
 def _postgres_get_member_by_lookup_hash(lookup_hash: str, scope: CommercialScope) -> dict | None:
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT * FROM members WHERE tenant_id = %s AND phone_lookup_hash = %s",
@@ -391,7 +387,6 @@ def _postgres_get_member_by_lookup_hash(lookup_hash: str, scope: CommercialScope
 
 
 def _postgres_get_all_members(scope: CommercialScope) -> list:
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -408,7 +403,6 @@ def _postgres_get_all_members(scope: CommercialScope) -> list:
 
 
 def _postgres_delete_member(phone: str, scope: CommercialScope) -> bool:
-    postgres_utils.init_schema()
     key = str(phone or "")
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
@@ -421,7 +415,6 @@ def _postgres_delete_member(phone: str, scope: CommercialScope) -> bool:
 def _postgres_anonymize_member(member_id: UUID, scope: CommercialScope) -> bool:
     """Remove Member PII while retaining a non-identifying lifecycle record."""
 
-    postgres_utils.init_schema()
     tombstone = f"deleted:{member_id}"
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(

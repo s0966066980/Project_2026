@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from modules.runtime_persistence.runtime import current_profile
+
 
 @dataclass(frozen=True)
 class AdapterSelection:
@@ -24,7 +26,7 @@ def resolve_adapter_selection() -> AdapterSelection:
         object_storage=os.getenv("OBJECT_STORAGE_PORT", "local").strip().lower() or "local",
         payment=os.getenv("PAYMENT_BACKEND", os.getenv("PAYMENT_PORT", "manual")).strip().lower() or "manual",
         pos=os.getenv("POS_BACKEND", os.getenv("POS_PORT", "manual")).strip().lower() or "manual",
-        database=os.getenv("DATABASE_PORT", "postgres").strip().lower() or "postgres",
+        database=current_profile().backend,
     )
 
 

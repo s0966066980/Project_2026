@@ -124,3 +124,24 @@ def test_admin_metrics_distinguish_completed_and_incomplete(svc):
 
 def test_admin_detail_missing(svc):
     assert svc.admin_detail("0900000000") is None
+
+
+def test_verified_preferences_are_separate_from_inferred_preferences(svc):
+    svc.register("s1", "0911222333", "Alice", True, True)
+
+    verified = svc.admin_update_verified_preferences(
+        "0911222333",
+        {
+            "allergies": ["花生", "花生"],
+            "dietary_preferences": ["不吃辣"],
+            "favorite_item_ids": ["MCD001"],
+            "service_notes": "由會員本人確認",
+        },
+        actor_id="manager-1",
+    )
+    detail = svc.admin_detail("0911222333")
+
+    assert verified["allergies"] == ["花生"]
+    assert verified["source"] == "member_confirmed"
+    assert detail["verified_preferences"]["dietary_preferences"] == ["不吃辣"]
+    assert detail["inferred_preferences"]["source"] == "completed_order_history"

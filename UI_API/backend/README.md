@@ -16,7 +16,7 @@ backend/
 ├── modules/identity/   # 目前唯一已抽離的 domain Application API
 ├── routes/             # HTTP/WebSocket transport
 ├── services/           # use cases、policies、legacy application layer
-├── repositories/       # JSON/PostgreSQL/Redis adapters
+├── repositories/       # PostgreSQL/Redis adapters and transition shims
 ├── integrations/       # Payment/POS 外部邊界；目前 manual-only
 ├── realtime/           # WebSocket connection manager/event bus
 ├── schemas/            # PostgreSQL schema/migrations
@@ -40,7 +40,7 @@ FastAPI route
 
 - `services/admin_identity_service.py`、`admin_access_service.py`、`admin_authorization_service.py` 是 Identity compatibility shims。
 - `routes/v1_routes.py` 同時提供多 domain typed read/write endpoints，仍直接呼叫 service/repository。
-- JSON 與 PostgreSQL 雙路徑仍共存；只有 development/test 可使用 JSON 相容模式。
+- Runtime Persistence Profile 是唯一資料庫選擇 seam；JSON 不得成為 runtime fallback。
 
 ## 執行與安全邊界
 

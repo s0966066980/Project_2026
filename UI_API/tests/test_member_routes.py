@@ -3,6 +3,7 @@ import importlib
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from tests.auth_test_support import authenticate_client, configure_admin_session, configure_device_session
 
 
 @pytest.fixture
@@ -17,16 +18,20 @@ def client(tmp_path, monkeypatch):
     member_service._session_member.clear()
     from routes import member_routes
     importlib.reload(member_routes)
+    configure_admin_session(monkeypatch)
+    configure_device_session(monkeypatch)
     app = FastAPI()
     app.include_router(member_routes.create_router({}))
-    return TestClient(app)
+    test_client = TestClient(app)
+    authenticate_client(test_client, admin=True, device=True)
+    return test_client
 
 
 def test_register_then_login(client):
-    r = client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    r = client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明", "necessary_terms_accepted": "true"})
     assert r.status_code == 200 and r.json()["ok"] is True
     assert r.json()["member"]["nickname"] == "小明"
-    assert r.json()["member"]["order_history_consent"] is True
+    assert r.json()["member"]["order_history_consent"] is False
 
     r2 = client.post("/api/member/login", data={"session_id": "s2", "phone": "0912345678"})
     assert r2.json()["found"] is True
@@ -42,15 +47,14 @@ def test_register_rejects_missing_consent(client):
         "session_id": "s1",
         "phone": "0912345678",
         "nickname": "小明",
-        "order_history_consent": "false",
-        "personalization_consent": "true",
+        "necessary_terms_accepted": "false",
     })
     assert r.status_code == 200
     assert r.json() == {"ok": False, "error": "consent_required"}
 
 
 def test_abandoned_order_route(client):
-    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明", "necessary_terms_accepted": "true"})
     r = client.post("/api/member/abandoned_order", data={
         "session_id": "s1",
         "cart_ids": '["MCD001"]',
@@ -65,7 +69,7 @@ def test_abandoned_order_route(client):
 
 
 def test_admin_list_and_detail(client):
-    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明", "necessary_terms_accepted": "true"})
     rows = client.get("/api/members").json()
     assert isinstance(rows, list) and rows[0]["phone_masked"] == "0912-***-678"
     assert "phone" not in rows[0]
@@ -77,7 +81,7 @@ def test_admin_list_and_detail(client):
 
 
 def test_admin_export_and_audit(client):
-    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明", "necessary_terms_accepted": "true"})
     response = client.get("/api/members/export")
     assert response.status_code == 200
     assert "0912-***-678" in response.text
@@ -89,7 +93,7 @@ def test_admin_export_and_audit(client):
 
 
 def test_admin_delete_records_writes_audit(client):
-    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明"})
+    client.post("/api/member/register", data={"session_id": "s1", "phone": "0912345678", "nickname": "小明", "necessary_terms_accepted": "true"})
     member_ref = client.get("/api/members").json()[0]["member_ref"]
     response = client.delete(f"/api/members/{member_ref}/records")
     assert response.status_code == 200

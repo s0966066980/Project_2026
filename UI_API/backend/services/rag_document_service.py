@@ -6,9 +6,12 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
 import config
-from services import rag_alert_service, rag_index_selection
+from models.worker_jobs import JobValidationError
+from services import rag_alert_service, rag_index_selection, worker_service
 from services.rag_provider import get_rag
 
 SUPPORTED_EXTENSIONS = {".md", ".markdown", ".txt", ".json", ".csv"}
@@ -20,6 +23,10 @@ ALLOWED_SOURCE_TYPES = {
     "promotion",
     "nutrition",
     "customer_service",
+    "store_information",
+    "menu_information",
+    "promotion_information",
+    "other",
 }
 
 
@@ -85,6 +92,10 @@ def _source_type(root: Path, path: Path, explicit: str | None = None) -> str:
         "nutrition": "nutrition",
         "store_policy": "policy",
         "customer_service": "customer_service",
+        "store_information": "store_information",
+        "menu_information": "menu_information",
+        "promotion_information": "promotion_information",
+        "other": "other",
     }
     return mapping.get(first, "manual")
 
@@ -344,8 +355,87 @@ def load_source_documents() -> list[dict]:
         extension = path.suffix.lower()
         if extension not in SUPPORTED_EXTENSIONS:
             continue
-        documents.extend(_load_documents_from_path(root, path))
+        documents.extend(
+            document
+            for document in _load_documents_from_path(root, path)
+            if str(document.get("source_type") or "") != "faq"
+        )
     return documents
+
+
+def snapshot_source_selection(selected_source_ids: list[str] | None = None) -> list[str]:
+    documents = load_source_documents()
+    available_ids = [str(document.get("source_id") or "") for document in documents]
+    available_set = set(available_ids)
+    if selected_source_ids is not None:
+        return rag_index_selection.normalize(selected_source_ids)
+    selection_configured, saved_source_ids = rag_index_selection.read()
+    if not selection_configured:
+        return rag_index_selection.normalize(available_ids)
+    resolved = [source_id for source_id in saved_source_ids if source_id in available_set]
+    if resolved != saved_source_ids:
+        rag_index_selection.write(resolved)
+    return resolved
+
+
+def enqueue_rebuild(
+    *,
+    tenant_id: UUID,
+    store_id: UUID | None,
+    selected_source_ids: list[str] | None = None,
+    actor: str = "system",
+    store: worker_service.JobStore | None = None,
+    document_id: str = "",
+    version: int | None = None,
+) -> dict[str, Any]:
+    selection = snapshot_source_selection(selected_source_ids)
+    selection_digest = hashlib.sha256(
+        json.dumps(selection, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:20]
+    try:
+        job = worker_service.enqueue_job(
+            tenant_id=tenant_id,
+            store_id=store_id,
+            job_type="rag.rebuild",
+            payload_ref={
+                "selected_source_ids": selection,
+                "selection_digest": selection_digest,
+                "actor": str(actor or "system"),
+                "document_id": str(document_id or ""),
+                "version": int(version) if version is not None else None,
+            },
+            idempotency_key=(
+                f"rag-rebuild-{document_id}-v{version}-{selection_digest}"
+                if document_id and version is not None
+                else f"rag-rebuild-{selection_digest}"
+            ),
+            store=store,
+        )
+    except JobValidationError as exc:
+        raise ValueError(str(exc)) from exc
+    return worker_service.job_as_public_dict(job)
+
+
+def rebuild_job_status(
+    job_id: str,
+    *,
+    tenant_id: UUID,
+    store_id: UUID | None,
+    store: worker_service.JobStore | None = None,
+) -> dict[str, Any]:
+    try:
+        resolved_job_id = UUID(str(job_id))
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise LookupError("rebuild_job_not_found") from exc
+    job = (store or worker_service.default_store()).get_job(resolved_job_id)
+    if (
+        job is None
+        or job.job_type != "rag.rebuild"
+        or job.tenant_id != tenant_id
+        or (store_id is not None and job.store_id != store_id)
+    ):
+        raise LookupError("rebuild_job_not_found")
+    return worker_service.job_as_public_dict(job)
 
 
 async def rebuild_from_source_documents(selected_source_ids: list[str] | None = None) -> dict:

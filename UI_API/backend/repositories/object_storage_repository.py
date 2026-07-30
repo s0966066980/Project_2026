@@ -37,7 +37,6 @@ def _row_to_meta(row: dict) -> ObjectMetadata:
 def upsert_metadata(meta: ObjectMetadata) -> None:
     if not postgres_utils.use_postgres():
         return
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -88,7 +87,6 @@ def upsert_metadata(meta: ObjectMetadata) -> None:
 def get_metadata(object_id: str, *, tenant_id: UUID) -> ObjectMetadata | None:
     if not postgres_utils.use_postgres():
         return None
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -104,7 +102,6 @@ def get_metadata(object_id: str, *, tenant_id: UUID) -> ObjectMetadata | None:
 def mark_deleted(object_id: str, *, tenant_id: UUID) -> bool:
     if not postgres_utils.use_postgres():
         return False
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """

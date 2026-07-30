@@ -13,7 +13,8 @@ ALLOWED_JOB_TYPES = frozenset(
         "outbox.order_confirmed",
         "outbox.order_completed",
         "outbox.order_cancelled",
-        "rag.rebuild",
+        "rag.studio.index",
+        "rag.studio.evaluate",
         "report.generate",
         "event.deliver",
         "ai.background",
@@ -120,8 +121,21 @@ def validate_job_payload_ref(payload_ref: Mapping[str, Any] | None) -> dict[str,
         lowered = key_text.casefold()
         if lowered in FORBIDDEN_PAYLOAD_KEYS or any(part in lowered for part in FORBIDDEN_PAYLOAD_KEYS):
             raise JobValidationError(f"payload_ref must not contain secret or PII key: {key_text}")
-        if isinstance(value, (dict, list)):
-            raise JobValidationError("payload_ref values must be scalar object references")
+        if isinstance(value, dict):
+            raise JobValidationError("payload_ref values must be scalar object references or scalar lists")
+        if isinstance(value, list):
+            if len(value) > 500:
+                raise JobValidationError("payload_ref lists must stay under 500 items")
+            normalized_items: list[str | int | float | bool] = []
+            for item in value:
+                if isinstance(item, (dict, list)) or item is None:
+                    raise JobValidationError("payload_ref lists must contain scalar object references")
+                text = str(item)
+                if len(text) > 500:
+                    raise JobValidationError("payload_ref list values must stay under 500 characters")
+                normalized_items.append(item if isinstance(item, (str, int, float, bool)) else text)
+            sanitized[key_text] = normalized_items
+            continue
         if value is None:
             continue
         text = str(value)

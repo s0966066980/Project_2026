@@ -10,12 +10,30 @@ import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.
 const $ = (id) => document.getElementById(id);
 let memberPhoneNumber = '';
 let onMemberResolved = null;
+let entryHooks = {};
+let memberLookupOutcome = '';
+const LOGIN_HINT_DEFAULT = '輸入完整 10 碼後按「下一步」';
+const REGISTER_HINT_DEFAULT = '輸入暱稱即可完成（可留空）';
 
 function show(element) { element?.classList.remove('hidden'); element?.setAttribute('aria-hidden', 'false'); }
 function hide(element) { element?.classList.add('hidden'); element?.setAttribute('aria-hidden', 'true'); }
 
 function hideAll() {
   ['memberChoiceOverlay', 'memberLoginOverlay', 'memberRegisterOverlay'].forEach((id) => hide($(id)));
+}
+
+function setHint(id, message, isError = false) {
+  const element = $(id);
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle('member-hint-error', isError);
+}
+
+function setButtonBusy(id, busy, busyLabel, idleLabel) {
+  const button = $(id);
+  if (!button) return;
+  button.disabled = busy;
+  button.textContent = busy ? busyLabel : idleLabel;
 }
 
 export function getMember() { return state.member; }
@@ -28,6 +46,13 @@ export function isMemberFlowVisible() {
 function resolve(member) {
   hideAll();
   state.member = member || null;
+  if (!member) {
+    memberPhoneNumber = '';
+    if ($('memberNicknameInput')) $('memberNicknameInput').value = '';
+    ['memberConsentInput', 'memberOrderHistoryConsent', 'memberPersonalizationConsent'].forEach(id => {
+      if ($(id)) $(id).checked = false;
+    });
+  }
   const resolveCallback = onMemberResolved;
   onMemberResolved = null;
   resolveCallback?.(state.member);
@@ -50,22 +75,44 @@ function onKey(k) {
   if (k === 'clear') memberPhoneNumber = '';
   else if (k === 'back') memberPhoneNumber = memberPhoneNumber.slice(0, -1);
   else if (/^\d$/.test(k) && memberPhoneNumber.length < 10) memberPhoneNumber += k;
+  setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
+  const next = $('memberLoginNext');
+  if (next) next.textContent = '下一步 →';
   renderPhone();
 }
 
 async function submitLogin() {
   if (memberPhoneNumber.length !== 10) return;
+  if (memberLookupOutcome) {
+    await entryHooks.onMemberRetry?.();
+    memberLookupOutcome = '';
+  }
   const sessionId = getRequiredRuntimeDependency('sessionId');
-  const res = await api.memberLogin(sessionId, memberPhoneNumber).catch(() => ({ found: false }));
-  if (res && res.found && res.member) {
-    resolve(res.member);
-  } else {
-    $('memberRegisterPhone').textContent = memberPhoneNumber;
-    $('memberNicknameInput').value = '';
-    if ($('memberConsentInput')) $('memberConsentInput').checked = false;
-    renderRegisterConsent();
-    hideAll();
-    show($('memberRegisterOverlay'));
+  setHint('memberLoginHint', '正在登入…');
+  setButtonBusy('memberLoginNext', true, '登入中…', '下一步 →');
+  try {
+    const res = await api.memberLogin(sessionId, memberPhoneNumber);
+    if (res && res.found && res.member) {
+      await entryHooks.onMemberFound?.(res.member);
+      resolve(res.member);
+      return;
+    }
+    await entryHooks.onMemberNotFound?.();
+    memberLookupOutcome = 'not_found';
+    setHint('memberLoginHint', '查無會員。您可以修正電話、註冊會員，或改用訪客點餐。', true);
+    $('memberLoginRegister')?.classList.remove('hidden');
+  } catch {
+    memberLookupOutcome = 'unavailable';
+    try { await entryHooks.onMemberUnavailable?.(); } catch { /* retain the recoverable login UI */ }
+    setHint('memberLoginHint', '登入服務暫時無法使用，請重試或改以訪客點餐。', true);
+    const next = $('memberLoginNext');
+    if (next) next.textContent = '重試';
+  } finally {
+    const next = $('memberLoginNext');
+    if (next) {
+      next.disabled = memberPhoneNumber.length !== 10;
+      if (next.textContent === '登入中…') next.textContent = '下一步 →';
+    }
   }
 }
 
@@ -77,29 +124,84 @@ async function submitRegister() {
   }
   const nickname = String($('memberNicknameInput')?.value || '').trim();
   const sessionId = getRequiredRuntimeDependency('sessionId');
-  const res = await api.memberRegister(sessionId, memberPhoneNumber, nickname, {
-    orderHistoryConsent: true,
-    personalizationConsent: true,
-  }).catch(() => null);
-  resolve(res && res.ok ? res.member : null);
+  setHint('memberRegisterHint', '正在建立會員資料…');
+  setButtonBusy('memberRegisterDone', true, '註冊中…', '完成註冊並開始點餐 →');
+  try {
+    await entryHooks.onRegistrationStarted?.();
+    const res = await api.memberRegister(sessionId, memberPhoneNumber, nickname, {
+      necessaryTermsAccepted: true,
+      orderHistoryConsent: Boolean($('memberOrderHistoryConsent')?.checked),
+      personalizationConsent: Boolean($('memberPersonalizationConsent')?.checked),
+    });
+    if (!res?.ok || !res?.member) throw new Error(res?.error || 'registration failed');
+    await entryHooks.onRegistered?.(res.member);
+    resolve(res.member);
+  } catch {
+    setHint('memberRegisterHint', '會員註冊尚未完成，請重試或改以訪客點餐。', true);
+    const done = $('memberRegisterDone');
+    if (done) done.textContent = '重試註冊';
+  } finally {
+    renderRegisterConsent();
+  }
 }
 
-export function showMemberChoice(onResolved) {
+export function showMemberChoice(onResolved, { preserveInput = false, hooks = {} } = {}) {
   onMemberResolved = onResolved;
-  memberPhoneNumber = '';
+  entryHooks = hooks;
+  memberLookupOutcome = '';
+  $('memberLoginRegister')?.classList.add('hidden');
+  if (!preserveInput) memberPhoneNumber = '';
+  setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
+  const next = $('memberLoginNext');
+  if (next) next.textContent = '下一步 →';
   renderPhone();
   hideAll();
   show($('memberChoiceOverlay'));
 }
 
 // 事件綁定（模組載入時註冊一次；元素不存在則略過）
-$('memberChoiceMember')?.addEventListener('click', () => { hideAll(); show($('memberLoginOverlay')); renderPhone(); });
-$('memberChoiceGuest')?.addEventListener('click', () => resolve(null));
-$('memberLoginBack')?.addEventListener('click', () => { hideAll(); show($('memberChoiceOverlay')); });
-$('memberLoginSkip')?.addEventListener('click', () => resolve(null));
+$('memberChoiceMember')?.addEventListener('click', async () => {
+  if (state.member) {
+    await entryHooks.onMemberMode?.();
+    await entryHooks.onMemberFound?.(state.member);
+    resolve(state.member);
+    return;
+  }
+  await entryHooks.onMemberMode?.();
+  hideAll();
+  setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
+  const next = $('memberLoginNext');
+  if (next) next.textContent = '下一步 →';
+  show($('memberLoginOverlay'));
+  renderPhone();
+});
+$('memberChoiceGuest')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
+$('memberLoginBack')?.addEventListener('click', async () => {
+  await entryHooks.onReturnToMode?.();
+  hideAll(); show($('memberChoiceOverlay'));
+});
+$('memberLoginSkip')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
 $('memberLoginNext')?.addEventListener('click', submitLogin);
-$('memberRegisterBack')?.addEventListener('click', () => { hideAll(); show($('memberLoginOverlay')); });
-$('memberRegisterSkip')?.addEventListener('click', () => resolve(null));
+$('memberLoginRegister')?.addEventListener('click', () => {
+  $('memberRegisterPhone').textContent = memberPhoneNumber;
+  $('memberNicknameInput').value = '';
+  if ($('memberConsentInput')) $('memberConsentInput').checked = false;
+  if ($('memberOrderHistoryConsent')) $('memberOrderHistoryConsent').checked = false;
+  if ($('memberPersonalizationConsent')) $('memberPersonalizationConsent').checked = false;
+  setHint('memberRegisterHint', `這支號碼 ${memberPhoneNumber} 還不是會員，${REGISTER_HINT_DEFAULT}`);
+  renderRegisterConsent();
+  hideAll();
+  show($('memberRegisterOverlay'));
+});
+$('memberRegisterBack')?.addEventListener('click', async () => {
+  await entryHooks.onMemberRetry?.();
+  hideAll();
+  setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
+  const next = $('memberLoginNext');
+  if (next) next.textContent = '下一步 →';
+  show($('memberLoginOverlay'));
+});
+$('memberRegisterSkip')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
 $('memberRegisterDone')?.addEventListener('click', submitRegister);
 $('memberConsentInput')?.addEventListener('change', renderRegisterConsent);
 renderRegisterConsent();

@@ -16,29 +16,33 @@ sys.path.insert(0, str(BACKEND))
 PROFILES = {
     "local-dev": {
         "APP_ENV": "development",
-        "MEMBER_STORAGE_BACKEND": "json",
+        "DATABASE_BACKEND": "postgresql",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "false",
-        "require_database_url": False,
+        "require_database_url": True,
         "require_redis": False,
     },
     "local-postgres": {
         "APP_ENV": "development",
-        "MEMBER_STORAGE_BACKEND": "postgres",
+        "DATABASE_BACKEND": "postgresql",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "false",
         "require_database_url": True,
         "require_redis": False,
     },
     "local-full": {
         "APP_ENV": "development",
-        "MEMBER_STORAGE_BACKEND": "postgres",
+        "DATABASE_BACKEND": "postgresql",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "true",
         "require_database_url": True,
         "require_redis": True,
         "require_no_demo": True,
     },
     "local-pilot": {
-        "APP_ENV": "production",
-        "MEMBER_STORAGE_BACKEND": "postgres",
+        "APP_ENV": "pilot",
+        "DATABASE_BACKEND": "postgresql",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "true",
         "require_database_url": True,
         "require_redis": False,
@@ -46,14 +50,16 @@ PROFILES = {
     },
     "test": {
         "APP_ENV": "test",
-        "MEMBER_STORAGE_BACKEND": "json",
+        "DATABASE_BACKEND": "sqlite",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "false",
         "require_database_url": False,
         "require_redis": False,
     },
     "ci": {
         "APP_ENV": "test",
-        "MEMBER_STORAGE_BACKEND": "json",
+        "DATABASE_BACKEND": "sqlite",
+        "DATABASE_TOPOLOGY": "single",
         "SECURITY_ENFORCED": "false",
         "require_database_url": False,
         "require_redis": False,
@@ -77,26 +83,24 @@ def apply_profile(name: str) -> dict[str, str]:
         raise SystemExit(f"FAIL: unknown profile {name}")
     profile = PROFILES[name]
     resolved = {
-        "APP_ENV": _env("APP_ENV", str(profile["APP_ENV"])),
-        "MEMBER_STORAGE_BACKEND": _env("MEMBER_STORAGE_BACKEND", str(profile["MEMBER_STORAGE_BACKEND"])),
-        "SECURITY_ENFORCED": _env("SECURITY_ENFORCED", str(profile["SECURITY_ENFORCED"])),
+        # A named profile owns its identity and safety boundary. Ambient .env
+        # values may provide credentials and paths, but cannot silently turn a
+        # local-pilot validation into a development/SQLite validation.
+        "APP_ENV": str(profile["APP_ENV"]),
+        "DATABASE_BACKEND": str(profile["DATABASE_BACKEND"]),
+        "DATABASE_TOPOLOGY": str(profile["DATABASE_TOPOLOGY"]),
+        "SECURITY_ENFORCED": str(profile["SECURITY_ENFORCED"]),
         "DATABASE_URL": _env("DATABASE_URL"),
+        "DATABASE_URL_FILE": _env("DATABASE_URL_FILE"),
         "REDIS_URL": _env("REDIS_URL"),
-        "ENABLE_DEMO_ROUTES": _env(
-            "ENABLE_DEMO_ROUTES",
-            "true" if name == "local-dev" else "false",
-        ),
-        "ENABLE_TEST_ROUTES": _env(
-            "ENABLE_TEST_ROUTES",
-            "true" if name in {"local-dev", "test", "ci"} else "false",
-        ),
-        "ENABLE_DEBUG_ROUTES": _env("ENABLE_DEBUG_ROUTES", "false"),
-        "APP_PROFILE": _env("APP_PROFILE", name),
+        "ENABLE_DEMO_ROUTES": "true" if name == "local-dev" else "false",
+        "ENABLE_TEST_ROUTES": "true" if name in {"local-dev", "test", "ci"} else "false",
+        "ENABLE_DEBUG_ROUTES": "false",
+        "APP_PROFILE": name,
         "PAYMENT_BACKEND": _env("PAYMENT_BACKEND", "manual"),
         "POS_BACKEND": _env("POS_BACKEND", "manual"),
         "OBJECT_STORAGE_BACKEND": _env("OBJECT_STORAGE_BACKEND", "local" if name != "local-dev" else "memory"),
     }
-    # Environment overrides profile defaults already applied via _env second arg only when unset.
     return resolved
 
 
@@ -121,19 +125,23 @@ def validate(name: str) -> int:
 
     print(f"profile={name}")
     print(f"INFO: APP_ENV={resolved['APP_ENV']}")
-    print(f"INFO: MEMBER_STORAGE_BACKEND={resolved['MEMBER_STORAGE_BACKEND']}")
+    print(f"INFO: DATABASE_BACKEND={resolved['DATABASE_BACKEND']}")
+    print(f"INFO: DATABASE_TOPOLOGY={resolved['DATABASE_TOPOLOGY']}")
     print(f"INFO: SECURITY_ENFORCED={resolved['SECURITY_ENFORCED']}")
 
-    if resolved["MEMBER_STORAGE_BACKEND"] not in {"json", "postgres"}:
-        fail("MEMBER_STORAGE_BACKEND must be json or postgres")
+    if _env("MEMBER_STORAGE_BACKEND") or _env("DATABASE_PORT"):
+        fail("legacy MEMBER_STORAGE_BACKEND / DATABASE_PORT must be removed")
+    elif resolved["DATABASE_BACKEND"] not in {"sqlite", "postgresql"}:
+        fail("DATABASE_BACKEND must be sqlite or postgresql")
     else:
         pass_("storage backend recognized")
 
     if profile.get("require_database_url"):
-        if _token_configured(resolved["DATABASE_URL"]):
-            pass_("DATABASE_URL configured")
+        url_file = Path(resolved["DATABASE_URL_FILE"]) if resolved["DATABASE_URL_FILE"] else None
+        if _token_configured(resolved["DATABASE_URL"]) or (url_file is not None and url_file.is_file()):
+            pass_("DATABASE_URL or DATABASE_URL_FILE configured")
         else:
-            fail("DATABASE_URL required for this profile")
+            fail("DATABASE_URL or DATABASE_URL_FILE required for this profile")
     else:
         pass_("DATABASE_URL not required")
 
@@ -150,16 +158,32 @@ def validate(name: str) -> int:
 
     if profile.get("require_no_demo"):
         if resolved["ENABLE_DEMO_ROUTES"].lower() in {"1", "true", "yes", "on"}:
-            fail("ENABLE_DEMO_ROUTES must be false for local-full")
+            fail(f"ENABLE_DEMO_ROUTES must be false for {name}")
         else:
             pass_("demo routes disabled")
         if resolved["ENABLE_DEBUG_ROUTES"].lower() in {"1", "true", "yes", "on"}:
-            fail("ENABLE_DEBUG_ROUTES must be false for local-full")
+            fail(f"ENABLE_DEBUG_ROUTES must be false for {name}")
         else:
             pass_("debug routes disabled")
 
-    if resolved["MEMBER_STORAGE_BACKEND"] == "postgres" and not _token_configured(resolved["DATABASE_URL"]):
-        fail("postgres backend without DATABASE_URL")
+    if resolved["DATABASE_BACKEND"] == "postgresql":
+        url_file = Path(resolved["DATABASE_URL_FILE"]) if resolved["DATABASE_URL_FILE"] else None
+        if not _token_configured(resolved["DATABASE_URL"]) and not (url_file is not None and url_file.is_file()):
+            fail("postgresql backend without DATABASE_URL or DATABASE_URL_FILE")
+
+    if name == "local-pilot":
+        # Run the same fail-closed safety contract used by UI_API startup. The
+        # validator must never report a pilot profile as safe when main.py
+        # would reject it for missing identity, scope, or signing material.
+        os.environ.update(resolved)
+        try:
+            import config
+
+            config.validate_startup_config()
+        except RuntimeError as exc:
+            fail(f"startup safety contract: {exc}")
+        else:
+            pass_("startup safety contract")
 
     print(f"summary: fail={fails} warn={warns}")
     return 1 if fails else 0
@@ -174,11 +198,20 @@ def main(argv: list[str] | None = None) -> int:
         help="Profile to validate (default local-dev)",
     )
     parser.add_argument("--list", action="store_true", help="List profiles")
+    parser.add_argument(
+        "--no-env-files",
+        action="store_true",
+        help="Do not load the supported UI_API/.env and repository .env files (isolated tests only)",
+    )
     args = parser.parse_args(argv)
     if args.list:
         for name, meta in PROFILES.items():
-            print(f"{name}: storage={meta['MEMBER_STORAGE_BACKEND']} redis_required={meta.get('require_redis')}")
+            print(f"{name}: storage={meta['DATABASE_BACKEND']} redis_required={meta.get('require_redis')}")
         return 0
+    if not args.no_env_files:
+        from modules.runtime_persistence import load_environment_files
+
+        load_environment_files(ROOT.parent)
     return validate(args.profile)
 
 

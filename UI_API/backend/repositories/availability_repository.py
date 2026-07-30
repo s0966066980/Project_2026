@@ -91,7 +91,6 @@ def get_availability() -> dict:
 
 def get_availability_scoped(scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT payload FROM store_availability WHERE tenant_id = %s AND store_id = %s",
@@ -114,7 +113,6 @@ def save_availability_scoped(data: dict, scope: CommercialScope) -> dict:
         row["store_id"] = str(scope.store_id)
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """

@@ -2394,8 +2394,7 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
   flex-wrap: nowrap;
 }
 .ai-push-btn-pick,
-.ai-push-btn-refresh,
-.ai-push-btn-voice {
+.ai-push-btn-refresh {
   min-height: 42px;
   border-radius: 999px;
   padding: 0 18px;
@@ -2412,24 +2411,17 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
   border: none;
   box-shadow: 0 3px 10px rgba(200,80,10,0.24);
 }
-.ai-push-btn-refresh,
-.ai-push-btn-voice {
+.ai-push-btn-refresh {
   background: rgba(255,255,255,0.62);
   color: #8f5e14;
   border: 1.5px solid #f3c98b;
 }
-.ai-push-btn-voice {
-  color: #5b6f46;
-  border-color: #cbd8af;
-}
 .ai-push-btn-pick:hover,
-.ai-push-btn-refresh:hover,
-.ai-push-btn-voice:hover {
+.ai-push-btn-refresh:hover {
   filter: brightness(1.04);
 }
 .ai-push-btn-pick:active,
-.ai-push-btn-refresh:active,
-.ai-push-btn-voice:active {
+.ai-push-btn-refresh:active {
   transform: scale(0.97);
 }
 .ai-push-bar.loading .ai-push-btn-refresh {
@@ -2472,8 +2464,7 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
     flex-wrap: wrap;
   }
   .ai-push-btn-pick,
-  .ai-push-btn-refresh,
-  .ai-push-btn-voice {
+  .ai-push-btn-refresh {
     min-height: 30px;
     padding: 0 11px;
     font-size: 12px;
@@ -2481,6 +2472,81 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 }
 
 /* ============ Item Confirm Modal ============ */
+.voice-order-draft-modal {
+  position: fixed; inset: 0; z-index: 9400; display: grid; place-items: center; padding: 20px;
+}
+.voice-order-draft-modal.hidden, .voice-order-draft-section.hidden { display: none; }
+.voice-order-draft-backdrop { position: absolute; inset: 0; background: rgba(26,17,8,.76); backdrop-filter: blur(7px); }
+.voice-order-draft-card {
+  position: relative; z-index: 1; width: min(960px, 96vw); max-height: min(900px, 94dvh);
+  overflow-y: auto; background: #fffaf4; border-radius: 28px; padding: clamp(20px, 3vw, 34px);
+  box-shadow: 0 28px 90px rgba(0,0,0,.42); color: #241a13;
+}
+.voice-order-draft-close {
+  position: absolute; top: 16px; right: 16px; width: 42px; height: 42px; border: 0;
+  border-radius: 50%; background: #eee4da; color: #3a2e28; cursor: pointer;
+}
+.voice-order-draft-header { padding-right: 50px; margin-bottom: 22px; }
+.voice-order-draft-kicker { color: #c8102e; font-weight: 900; letter-spacing: .04em; margin-bottom: 5px; }
+.voice-order-draft-header h2 { font-size: clamp(24px, 3.5vw, 36px); font-weight: 950; line-height: 1.2; }
+.voice-order-draft-header > p:last-child { color: #6f6258; font-weight: 650; margin-top: 8px; }
+.voice-order-draft-items { display: grid; gap: 12px; }
+.voice-order-draft-item {
+  display: grid; grid-template-columns: 46px 92px minmax(150px,1fr) auto auto 38px;
+  gap: 14px; align-items: center; padding: 14px; background: #fff; border: 2px solid #eadfd4;
+  border-radius: 18px;
+}
+.voice-order-draft-check {
+  position: relative; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
+}
+.voice-order-draft-check input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0;
+  cursor: pointer; z-index: 1;
+}
+.voice-order-draft-check > span:not(.sr-only) {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+  border: 3px solid #c8bbae; color: transparent; pointer-events: none;
+}
+.voice-order-draft-check input:checked + span { background: #15803d; border-color: #15803d; color: #fff; }
+.voice-order-draft-check input:focus-visible + span { outline: 3px solid #ffc72c; outline-offset: 2px; }
+.voice-order-draft-photo { width: 92px; height: 76px; display: grid; place-items: center; background: #fff2e5; border-radius: 14px; overflow: hidden; font-size: 38px; }
+.voice-order-draft-photo img { width: 100%; height: 100%; object-fit: contain; }
+.voice-order-draft-info h3 { font-size: 18px; font-weight: 900; }
+.voice-order-draft-info p { color: #77695e; font-size: 13px; line-height: 1.35; margin: 3px 0 5px; }
+.voice-order-draft-info strong, .voice-order-draft-subtotal { color: #c8102e; font-weight: 900; }
+.voice-order-draft-qty { display: flex; align-items: center; gap: 7px; }
+.voice-order-draft-qty button { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #ddd0c4; background: #fff; font-size: 20px; font-weight: 900; }
+.voice-order-draft-qty b { min-width: 22px; text-align: center; font-size: 18px; }
+.voice-order-draft-remove { width: 38px; height: 38px; border: 0; border-radius: 10px; background: #f7e7e9; color: #c8102e; }
+.voice-order-draft-empty { padding: 22px; border: 2px dashed #d9c9bb; border-radius: 16px; color: #6f6258; text-align: center; }
+.voice-order-draft-section { margin-top: 22px; padding-top: 18px; border-top: 2px solid #eadfd4; }
+.voice-order-draft-section h3 { font-size: 17px; font-weight: 900; margin-bottom: 12px; }
+.voice-order-draft-suggestions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.voice-order-draft-suggestion { display: grid; grid-template-columns: 58px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 10px; border: 2px solid #eadfd4; border-radius: 15px; background: #fff; }
+.voice-order-draft-suggestion:hover { border-color: #ffc72c; background: #fff8e8; }
+.voice-order-draft-suggestion-photo { width: 58px; height: 52px; display: grid; place-items: center; overflow: hidden; border-radius: 11px; background: #fff2e5; font-size: 28px; }
+.voice-order-draft-suggestion-photo img { width: 100%; height: 100%; object-fit: contain; }
+.voice-order-draft-suggestion b, .voice-order-draft-suggestion small { display: block; }
+.voice-order-draft-suggestion b { font-weight: 850; }
+.voice-order-draft-suggestion small { color: #c8102e; font-weight: 800; margin-top: 3px; }
+.voice-order-draft-status { min-height: 24px; color: #b42318; font-weight: 800; margin-top: 12px; }
+.voice-order-draft-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; position: sticky; bottom: -34px; padding: 14px 0 0; background: #fffaf4; }
+.voice-order-draft-actions button { min-height: 56px; border-radius: 14px; font-size: 17px; font-weight: 900; }
+.voice-order-draft-cancel { border: 2px solid #d9ccc0; background: #fff; color: #3a2e28; }
+.voice-order-draft-confirm { border: 0; background: #c8102e; color: #fff; box-shadow: 0 8px 20px rgba(200,16,46,.24); }
+.voice-order-draft-confirm:disabled { background: #b9ada4; box-shadow: none; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .voice-order-draft-modal { padding: 8px; }
+  .voice-order-draft-card { width: 100%; max-height: 96dvh; border-radius: 20px; padding: 18px 14px; }
+  .voice-order-draft-item { grid-template-columns: 38px 70px minmax(0,1fr) 34px; gap: 9px; }
+  .voice-order-draft-photo { width: 70px; height: 64px; }
+  .voice-order-draft-qty { grid-column: 2 / 4; justify-self: start; }
+  .voice-order-draft-subtotal { grid-column: 3; grid-row: 2; justify-self: end; }
+  .voice-order-draft-remove { grid-column: 4; grid-row: 1 / 3; }
+  .voice-order-draft-suggestions { grid-template-columns: 1fr; }
+  .voice-order-draft-actions { bottom: -18px; }
+}
+
 .item-confirm-modal {
   position: fixed;
   inset: 0;
@@ -3106,31 +3172,54 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
     0 0 72px rgba(255,80,60,0.38);
 }
 
-/* 叉叉關閉按鈕 */
-.voice-assist-stop {
-  width: clamp(80px, 8.5vw, 118px);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.96);
-  color: #1f1714;
-  border: 4px solid rgba(255,80,54,0.82);
+/* 自動收音的人工補救操作 */
+.voice-assist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(12px, 2vw, 24px);
+}
+.voice-assist-action {
+  min-width: clamp(170px, 21vw, 250px);
+  min-height: 72px;
+  padding: 16px 28px;
+  border-radius: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(34px, 4.4vw, 54px);
-  box-shadow: 0 0 24px rgba(226,64,42,0.38);
+  gap: 12px;
+  font-size: clamp(20px, 2.2vw, 28px);
+  font-weight: 900;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease, opacity 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.voice-assist-stop:active {
-  transform: scale(0.88);
-  box-shadow: 0 0 0 10px rgba(226,64,42,0.16);
+.voice-assist-send {
+  background: #ffc72c;
+  color: #231800;
+  border: 3px solid #fff1b8;
+}
+.voice-assist-cancel {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: 3px solid rgba(255,255,255,0.72);
+}
+.voice-assist-action:active {
+  transform: scale(0.94);
+}
+.voice-assist-action:disabled {
+  cursor: wait;
+  opacity: 0.45;
 }
 .voice-assist-stop-text {
   font-size: clamp(15px, 1.8vw, 23px) !important;
   color: rgba(255,255,255,0.88) !important;
   margin-top: -4px !important;
+}
+.voice-reply-playback-warning {
+  color: #7a3d00;
+  background: #fff3cd;
+  border: 1px solid #ffd56a;
 }
 
 /* ── 付款倒數 Modal ───────────────────────────────────── */
@@ -3459,6 +3548,7 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 .member-phone-display { background:#fff; border:2px solid #e0d3c6; border-radius:16px; height:84px; display:flex;
   align-items:center; justify-content:center; font-size:40px; font-weight:800; letter-spacing:4px; color:#2a2018; }
 .member-hint { text-align:center; font-size:16px; color:#a8978a; margin:12px 0 24px; min-height:20px; }
+.member-hint.member-hint-error { color:#b42318; font-weight:700; }
 .member-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 .member-keypad button { background:#fff; border:1px solid #e6dace; border-radius:16px; min-height:80px; font-size:34px;
   font-weight:700; color:#2a2018; cursor:pointer; }
@@ -3473,6 +3563,10 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 .member-primary:disabled { opacity:.45; cursor:not-allowed; }
 .member-skip { background:none; border:none; color:#8a7866; font-size:17px; text-decoration:underline; cursor:pointer;
   margin-top:18px; }
+.menu-load-error-card { align-items:center; text-align:center; }
+.menu-load-error-icon { width:88px; height:88px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#fff3e8; color:#c2410c; font-size:42px; }
+.menu-load-error-card .member-primary { width:100%; }
 /* 會員彈跳視窗（點餐歷史紀錄，含您的常點） */
 .kiosk-bottom-history.hidden { display:none; }
 .member-modal { position:absolute; inset:0; z-index:70; display:flex; align-items:center; justify-content:center; }
@@ -3524,3 +3618,101 @@ body:has(#memberRegisterOverlay:not(.hidden)) #aiPushBar {
 .member-history-reorder { margin-top:12px; border:1.5px solid #da291c; background:#fff; color:#da291c;
   border-radius:12px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
 .member-history-reorder:hover { background:#da291c; color:#fff; }
+.kiosk-device-auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(22, 18, 15, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.kiosk-device-auth-card {
+  width: min(560px, 100%);
+  padding: 34px;
+  border: 1px solid rgba(255, 199, 44, 0.48);
+  border-radius: 24px;
+  background: #fffaf2;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+  color: #28231f;
+}
+
+.kiosk-device-auth-card h1 {
+  margin: 6px 0 12px;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 900;
+}
+
+.kiosk-device-auth-kicker {
+  margin: 0;
+  color: #7a5510;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kiosk-device-auth-help,
+.kiosk-device-auth-note {
+  color: #62584f;
+  line-height: 1.65;
+}
+
+.kiosk-device-auth-card label {
+  display: block;
+  margin: 18px 0 7px;
+  font-weight: 800;
+}
+
+.kiosk-device-auth-card input {
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 2px solid #d5c7b8;
+  border-radius: 12px;
+  background: #fff;
+  font: 600 16px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.kiosk-device-auth-card input:focus {
+  border-color: #b77b00;
+  outline: 3px solid rgba(255, 199, 44, 0.28);
+}
+
+.kiosk-device-auth-card button {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: #ffc72c;
+  color: #24211e;
+  font-size: 17px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.kiosk-device-auth-card button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.kiosk-device-auth-error {
+  min-height: 24px;
+  margin: 14px 0 0;
+  color: #a51d1d;
+  font-weight: 800;
+}
+
+.kiosk-device-auth-status {
+  min-height: 20px;
+  margin: 4px 0 0;
+  color: #594810;
+}
+
+.kiosk-device-auth-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+}

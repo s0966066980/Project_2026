@@ -316,7 +316,19 @@ class InMemoryJobStore:
 _DEFAULT_STORE = InMemoryJobStore()
 
 
-def default_store() -> InMemoryJobStore:
+def default_store() -> JobStore:
+    """Return the runtime's authoritative queue adapter.
+
+    PostgreSQL application processes and the independent worker must enqueue
+    and consume from the same durable queue.  The in-memory adapter remains the
+    offline/test default when PostgreSQL is not selected.
+    """
+    from repositories import postgres_utils
+
+    if postgres_utils.use_postgres():
+        from repositories.postgres_worker_store import PostgresJobStore
+
+        return PostgresJobStore()
     return _DEFAULT_STORE
 
 

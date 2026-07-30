@@ -1,0 +1,43 @@
+name: project-2026-local
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: project_2026
+      POSTGRES_USER: project_migrator
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_migration_password
+      POSTGRES_RUNTIME_PASSWORD_FILE: /run/project-2026-secrets/postgres_runtime_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    entrypoint: /project-entrypoint.sh
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f
+    ports:
+      # The host already runs an unrelated PostgreSQL on 5432. Keep this
+      # project-scoped runtime isolated without changing PostgreSQL's internal port.
+      - 127.0.0.1:55432:5432
+    volumes:
+      - ${RUNTIME_DATA_ROOT:-/home/oliver/.local/share/project-2026}/postgres/pgdata:/var/lib/postgresql/data
+      - ${RUNTIME_DATA_ROOT:-/home/oliver/.local/share/project-2026}/postgres/wal-archive:/var/lib/postgresql/wal-archive
+      - ./init/010-runtime-role.sh:/docker-entrypoint-initdb.d/010-runtime-role.sh:ro
+      - ./project-entrypoint.sh:/project-entrypoint.sh:ro
+    secrets:
+      - postgres_migration_password
+      - postgres_runtime_password
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U project_migrator -d project_2026]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+secrets:
+  postgres_migration_password:
+    file: ${PROJECT_2026_SECRET_ROOT:-/home/oliver/.config/project-2026/secrets}/postgres_migration_password
+  postgres_runtime_password:
+    file: ${PROJECT_2026_SECRET_ROOT:-/home/oliver/.config/project-2026/secrets}/postgres_runtime_password

@@ -24,7 +24,6 @@ def get_settings() -> dict:
 
 def get_settings_scoped(scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -37,10 +36,48 @@ def get_settings_scoped(scope: CommercialScope) -> dict:
                 (scope.tenant_id, scope.store_id),
             )
             row = cur.fetchone()
-        return dict(row["settings"]) if row else dict(config.load_settings())
+        # No version yet for this scope: seed from the built-in defaults, never from the JSON
+        # file — config.load_settings() itself resolves through here when Postgres is active,
+        # and falling back to it would recurse.
+        return dict(row["settings"]) if row else dict(config.DEFAULT_SETTINGS)
     if not is_legacy_store_scope(scope):
         return {}
     return dict(config.load_settings())
+
+
+def list_versions_scoped(scope: CommercialScope, limit: int = 25) -> list[dict]:
+    """Newest-first settings versions. The JSON fallback keeps no history and returns nothing."""
+
+    if not postgres_utils.use_postgres():
+        return []
+    with postgres_utils.connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT version, settings, actor_id, created_at
+            FROM commercial_settings_versions
+            WHERE tenant_id = %s AND (store_id = %s OR store_id IS NULL)
+            ORDER BY version DESC
+            LIMIT %s
+            """,
+            (scope.tenant_id, scope.store_id, max(1, min(int(limit), 100))),
+        )
+        rows = cur.fetchall()
+    return [
+        {
+            "version": int(row["version"]),
+            "settings": dict(row["settings"] or {}),
+            "actor_id": str(row["actor_id"] or ""),
+            "created_at": row["created_at"].isoformat() if row["created_at"] else "",
+        }
+        for row in rows
+    ]
+
+
+def get_version_settings(scope: CommercialScope, version: int) -> dict | None:
+    for row in list_versions_scoped(scope, limit=100):
+        if row["version"] == int(version):
+            return row["settings"]
+    return None
 
 
 def save_settings(data: dict, *, actor_id: UUID | None = None) -> dict:
@@ -57,7 +94,6 @@ def save_settings_scoped(
     if postgres_utils.use_postgres():
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",

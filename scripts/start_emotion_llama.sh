@@ -6,7 +6,8 @@
 #   1. 把後台 EMOTION_PROVIDER 設成 emotion_llama
 #   2. Ollama serve                         :11434
 #   3. Emotion-LLaMA /predict server        :7889
-#   4. UI_API 主服務 (Kiosk + 後台)         :9000 / 9001
+#   4. Reliable worker（RAG 發布 / outbox）
+#   5. UI_API 主服務 (Kiosk + 後台)         :9000 / 9001
 #
 # main.py 在前景執行；按 Ctrl-C 會把「本腳本啟動的」背景服務一起關掉
 # （原本就在跑的 Ollama / Emotion-LLaMA 不會被動到）。
@@ -20,12 +21,13 @@ set -euo pipefail
 
 # ── 路徑與環境 ────────────────────────────────────────────────
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UI_PY="${UI_PY:-/home/oliver/anaconda3/envs/emotion_ui/bin/python}"
+source "$REPO/scripts/activate_emotion_ui.sh"
 LLAMA_PY="${LLAMA_PY:-/home/oliver/anaconda3/envs/emotion_ollama/bin/python}"
 OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 APP_PORT="${APP_PORT:-9000}"
 ADMIN_PORT="${ADMIN_PORT:-9001}"
 OPEN_BROWSER="${OPEN_BROWSER:-true}"
+ALLOW_EXISTING_UI_API="${ALLOW_EXISTING_UI_API:-false}"
 KIOSK_URL="http://127.0.0.1:${APP_PORT}/kiosk"
 ADMIN_URL="http://127.0.0.1:${ADMIN_PORT}/admin"
 export APP_PORT ADMIN_PORT
@@ -78,9 +80,17 @@ wait_for_port() {  # wait_for_port <port> <名稱> <秒數>
   return 0
 }
 
-# ── 1. 切換情緒模型為 emotion_llama ───────────────────────────
-echo "⚙️  設定 EMOTION_PROVIDER = emotion_llama …"
-( cd "$REPO/UI_API" && "$UI_PY" -c "import config; config.save_settings({'EMOTION_PROVIDER':'emotion_llama'})" )
+# ── 1. 本次程序選擇 emotion_llama（不寫入共用設定）────────────
+export EMOTION_PROVIDER="emotion_llama"
+export EMOTION_LLAMA_ENABLED="true"
+echo "⚙️  本次程序 EMOTION_PROVIDER = $EMOTION_PROVIDER"
+
+if [[ "$ALLOW_EXISTING_UI_API" != "true" ]] && { port_open "$APP_PORT" || port_open "$ADMIN_PORT"; }; then
+  echo "❌ ${APP_PORT}/${ADMIN_PORT} 已有舊 UI API 程序，無法保證前後端契約與情緒模型設定一致。"
+  echo "   請先停止既有 main.py，再重新執行本腳本。"
+  echo "   若只想補啟動模型服務，請明確設定 ALLOW_EXISTING_UI_API=true。"
+  exit 1
+fi
 
 # ── 2. Ollama ─────────────────────────────────────────────────
 if port_open 11434; then
@@ -107,7 +117,19 @@ else
   echo "✓ Emotion-LLaMA 就緒"
 fi
 
-# ── 4. UI_API 主服務 (:9000 / :9001) ──────────────────────────
+# ── 4. Reliable worker ─────────────────────────────────────────
+WORKER_SCRIPT="$REPO/UI_API/backend/scripts/run_worker.py"
+if pgrep -f "$WORKER_SCRIPT" >/dev/null 2>&1; then
+  echo "✓ Reliable worker 已在執行"
+else
+  echo "🚀 啟動 Reliable worker（RAG 發布 / outbox）…"
+  ( cd "$REPO/UI_API" && exec "$UI_PY" backend/scripts/run_worker.py ) \
+      >"$LOG_DIR/worker.log" 2>&1 &
+  STARTED_PIDS+=("$!")
+  echo "✓ Reliable worker 已啟動（log: logs/worker.log）"
+fi
+
+# ── 5. UI_API 主服務 (:9000 / :9001) ──────────────────────────
 if port_open "$APP_PORT" || port_open "$ADMIN_PORT"; then
   echo "⚠️  ${APP_PORT}/${ADMIN_PORT} 已被占用，主服務可能已在跑 —— 略過啟動 main.py。"
   echo "    若要重啟，請先停掉既有的 main.py。"

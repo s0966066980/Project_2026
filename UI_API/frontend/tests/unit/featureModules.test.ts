@@ -46,29 +46,29 @@ describe('Kiosk bootstrap preferences', () => {
 });
 
 describe('Admin auth feature', () => {
-  it('builds compatibility headers only from session storage', () => {
+  it('never rebuilds a shared Admin credential from browser storage', () => {
     const storage = new MemoryStorage();
     vi.stubGlobal('sessionStorage', storage);
     expect(adminHeaders()).toEqual({});
     storage.setItem('admin_demo_token', 'compat-token');
-    expect(adminHeaders({ Accept: 'application/json' })).toMatchObject({
-      Accept: 'application/json',
-      Authorization: 'Bearer compat-token',
-    });
+    expect(adminHeaders({ Accept: 'application/json' })).toEqual({ Accept: 'application/json' });
   });
 
-  it('shows the gate on failure and loads the dashboard after authentication', async () => {
+  it('keeps Admin locked until a durable session is authenticated', async () => {
     const storage = new MemoryStorage();
     const backdrop = { style: { display: '' } };
     vi.stubGlobal('sessionStorage', storage);
-    vi.stubGlobal('document', { getElementById: () => backdrop });
+    vi.stubGlobal('document', { getElementById: (id: string) => id === 'adminAuthBackdrop' ? backdrop : null });
     const onAuthenticated = vi.fn(async () => undefined);
     const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 200 }));
     const controller = createAdminAuthController({ apiBaseUrl: '', onAuthenticated, fetchImpl });
     await controller.bootstrap();
     expect(backdrop.style.display).toBe('flex');
+    expect(onAuthenticated).not.toHaveBeenCalled();
     await controller.bootstrap();
     expect(backdrop.style.display).toBe('none');
     expect(onAuthenticated).toHaveBeenCalledOnce();
@@ -100,12 +100,16 @@ describe('Admin auth feature', () => {
     vi.stubGlobal('HTMLInputElement', FakeInput);
     vi.stubGlobal('document', { getElementById: (id: string) => elements[id] ?? null });
     const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{"manager_login_identity":"admin"}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))
       .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+      .mockResolvedValueOnce(new Response('{"manager_login_identity":"admin"}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 200 }));
     const onAuthenticated = vi.fn(async () => undefined);
     createAdminAuthController({ apiBaseUrl: '', onAuthenticated, fetchImpl }).bind();
     await vi.waitFor(() => expect(backdrop.style.display).toBe('flex'));
+    createAdminAuthController({ apiBaseUrl: '', onAuthenticated, fetchImpl }).openManagerLogin();
+    expect(backdrop.style.display).toBe('flex');
     expect(submit).toBeTypeOf('function');
     await submit?.({ preventDefault: vi.fn() });
     expect(password.value).toBe('');
@@ -132,12 +136,15 @@ describe('Admin auth feature', () => {
     vi.stubGlobal('HTMLInputElement', FakeInput);
     vi.stubGlobal('document', { getElementById: (id: string) => elements[id] ?? null });
     const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{"manager_login_identity":"admin"}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))
       .mockResolvedValueOnce(new Response('{}', { status: 403 }));
-    createAdminAuthController({ apiBaseUrl: '', onAuthenticated: vi.fn(), fetchImpl }).bind();
+    const controller = createAdminAuthController({ apiBaseUrl: '', onAuthenticated: vi.fn(), fetchImpl });
+    controller.bind();
     await vi.waitFor(() => expect(backdrop.style.display).toBe('flex'));
+    controller.openManagerLogin();
     await submit?.({ preventDefault: vi.fn() });
-    expect(error.textContent).toContain('登入失敗');
+    expect(error.textContent).toContain('沒有主管權限');
     expect(password.value).toBe('');
   });
 });

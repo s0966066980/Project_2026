@@ -9,6 +9,7 @@ def _client(tmp_path, monkeypatch):
     from services import rag_alert_service
     importlib.reload(rag_alert_service)
     importlib.reload(rag_routes)
+    monkeypatch.setattr(rag_routes, "authorize_admin_request", lambda request, permission: object())
     monkeypatch.setattr(rag_alert_service.config, "LEARNING_DATA_DIR", str(tmp_path / "learning_data"))
     monkeypatch.setattr(rag_alert_service.config, "get", lambda key, default=None: {
         "RAG_ALERT_MAX_RECORDS": 1000,

@@ -23,4 +23,26 @@ describe('管理後台權限導覽', () => {
 
     expect(canViewAdminPage(permissions, 'stats')).toBe(true);
   });
+
+  it('營運讀取人員看得到健康狀態，但不因此取得系統測試頁', () => {
+    const permissions = ['operations.read'];
+
+    expect(canViewAdminPage(permissions, 'health')).toBe(true);
+    expect(canViewAdminPage(permissions, 'test')).toBe(false);
+  });
+
+  it('受限管理員只看到被授權的營運總覽與供應狀態', () => {
+    const permissions = [
+      'recommendations.effectiveness.read',
+      'catalog.availability.read',
+      'catalog.availability.write',
+    ];
+
+    expect(canViewAdminPage(permissions, 'stats')).toBe(true);
+    expect(canViewAdminPage(permissions, 'availability')).toBe(true);
+    expect(canViewAdminPage(permissions, 'health')).toBe(false);
+    expect(canViewAdminPage(permissions, 'members')).toBe(false);
+    expect(canViewAdminPage(permissions, 'rag')).toBe(false);
+    expect(canViewAdminPage(permissions, 'settings')).toBe(false);
+  });
 });

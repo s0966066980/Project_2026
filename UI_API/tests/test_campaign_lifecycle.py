@@ -1,4 +1,6 @@
 from dataclasses import replace
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -9,9 +11,12 @@ from modules.promotion import (
     CampaignStateError,
     create_campaign_draft,
     preview_campaign,
+    publish_campaign,
     revise_campaign_draft,
     transition_campaign,
 )
+
+TAIPEI = ZoneInfo("Asia/Taipei")
 
 
 class MemoryCampaignRepository:
@@ -104,6 +109,108 @@ def test_archived_campaign_cannot_be_reopened_or_deleted_in_place():
 
     with pytest.raises(CampaignStateError):
         transition_campaign(archived.campaign_id, "draft", LEGACY_DEFAULT_SCOPE, expected_version=2, actor_id="staff", repository=repository)
+
+
+def test_publish_takes_a_new_campaign_on_air_in_one_call():
+    repository = MemoryCampaignRepository()
+
+    published = publish_campaign(
+        campaign_payload(),
+        LEGACY_DEFAULT_SCOPE,
+        actor_id="manager",
+        repository=repository,
+        now=datetime(2026, 7, 20, 12, 0, tzinfo=TAIPEI),
+    )
+
+    assert (published.status, published.version) == ("active", 3)
+    assert repository.projections[-1].status == "active"
+    assert [action for _, action, _ in repository.audits][0] == "campaign_publish_requested"
+
+
+def test_publish_schedules_a_campaign_that_has_not_started():
+    repository = MemoryCampaignRepository()
+
+    published = publish_campaign(
+        campaign_payload(),
+        LEGACY_DEFAULT_SCOPE,
+        actor_id="manager",
+        repository=repository,
+        now=datetime(2026, 7, 1, 12, 0, tzinfo=TAIPEI),
+    )
+
+    assert published.status == "scheduled"
+
+
+def test_publish_refuses_a_campaign_that_is_already_on_air():
+    repository = MemoryCampaignRepository()
+    published = publish_campaign(
+        campaign_payload(), LEGACY_DEFAULT_SCOPE, actor_id="manager", repository=repository,
+        now=datetime(2026, 7, 20, 12, 0, tzinfo=TAIPEI),
+    )
+
+    with pytest.raises(CampaignStateError, match="campaign_is_already_published"):
+        publish_campaign(
+            campaign_payload(),
+            LEGACY_DEFAULT_SCOPE,
+            campaign_id=published.campaign_id,
+            expected_version=published.version,
+            actor_id="manager",
+            repository=repository,
+        )
+
+    assert repository.rows[published.campaign_id].status == "active"
+
+
+def test_publish_fails_closed_when_the_form_was_based_on_an_older_version():
+    repository = MemoryCampaignRepository()
+    draft = create_campaign_draft(campaign_payload(), LEGACY_DEFAULT_SCOPE, actor_id="staff", repository=repository)
+    revise_campaign_draft(
+        draft.campaign_id, campaign_payload("別人改的名稱"), LEGACY_DEFAULT_SCOPE,
+        expected_version=1, actor_id="other", repository=repository,
+    )
+
+    with pytest.raises(CampaignConflictError):
+        publish_campaign(
+            campaign_payload(),
+            LEGACY_DEFAULT_SCOPE,
+            campaign_id=draft.campaign_id,
+            expected_version=1,
+            actor_id="staff",
+            repository=repository,
+        )
+
+    assert repository.rows[draft.campaign_id].status == "draft"
+
+
+def test_revising_a_paused_campaign_keeps_it_paused():
+    repository = MemoryCampaignRepository()
+    published = publish_campaign(
+        campaign_payload(), LEGACY_DEFAULT_SCOPE, actor_id="manager", repository=repository,
+        now=datetime(2026, 7, 20, 12, 0, tzinfo=TAIPEI),
+    )
+    paused = transition_campaign(
+        published.campaign_id, "paused", LEGACY_DEFAULT_SCOPE,
+        expected_version=published.version, actor_id="manager", repository=repository,
+    )
+
+    revised = revise_campaign_draft(
+        paused.campaign_id, campaign_payload("改過的名稱"), LEGACY_DEFAULT_SCOPE,
+        expected_version=paused.version, actor_id="staff", repository=repository,
+    )
+
+    assert revised.status == "paused"
+    assert revised.payload["name"] == "改過的名稱"
+
+
+def test_campaign_without_a_start_time_is_rejected():
+    repository = MemoryCampaignRepository()
+    payload = campaign_payload()
+    payload["schedule"] = {"starts_at": "", "ends_at": "2026-07-31T22:00"}
+
+    preview = preview_campaign(payload, LEGACY_DEFAULT_SCOPE, repository=repository)
+
+    assert preview.valid is False
+    assert {"schedule.starts_at"} == {error["path"] for error in preview.field_errors}
 
 
 def test_campaign_preview_reports_overlap_in_chinese():

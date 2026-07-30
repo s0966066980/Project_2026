@@ -31,9 +31,9 @@ def test_legacy_members_upgrade_to_uuid_protected_identity(
     from services.member_pii_service import protect_phone, reveal_phone
 
     base_url = postgres_utils.database_url()
-    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "postgres")
+    monkeypatch.setenv("DATABASE_BACKEND", "postgresql")
     monkeypatch.setenv("ALLOW_POSTGRES_JSON_FALLBACK", "false")
-    monkeypatch.setattr(postgres_utils, "storage_backend", lambda: "postgres")
+    monkeypatch.setattr(postgres_utils, "storage_backend", lambda: "postgresql")
     schema = "member_identity_integration"
     with psycopg.connect(base_url, autocommit=True) as conn:
         conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')

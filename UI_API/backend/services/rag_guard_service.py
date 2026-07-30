@@ -76,32 +76,29 @@ def build_voice_guard_section(
     return "\n".join(lines)
 
 
-def build_ai_push_guard_section(
-    *,
+def offers_targeting_item(
     item_id: str,
+    *,
     category: str = "",
     offers: list[dict] | None = None,
     audience: str = "guest",
-) -> str:
-    visible_offers = [
+) -> list[dict]:
+    """Offers visible to this audience that actually apply to this item."""
+
+    return [
         offer
         for offer in _visible_offers(offers or [], audience)
         if _offer_targets_item(offer, item_id, category)
     ]
-    lines = ["【推播文案防編造規則】"]
-    if visible_offers:
-        titles = "、".join(str(offer.get("title") or offer.get("offer_id") or "").strip() for offer in visible_offers if offer)
-        lines.append(f"此餐點可引用的已驗證活動：{titles or '無'}。")
-        lines.append("push_text 若提到優惠，只能使用上述活動，不得新增折扣、價格或期限。")
-    else:
-        lines.append("此餐點目前沒有已驗證活動；push_text 不得出現優惠、折扣、特價、買一送一、限時優惠、加購價等促銷詞。")
-    return "\n".join(lines)
 
 
-def sanitize_unverified_promotion_claims(text: str, item_name: str, *, has_verified_offer: bool) -> str:
-    clean_text = str(text or "").strip()
-    if has_verified_offer or not clean_text:
-        return clean_text
-    if _text_contains_any(clean_text, UNVERIFIED_PROMOTION_TERMS):
-        return f"{item_name}現在很適合來一份，搭配點餐剛剛好！"
-    return clean_text
+def unverified_promotion_terms(text: str) -> list[str]:
+    """Promotional terms present in authored push copy, for save-time rejection.
+
+    Push copy is now written in Admin rather than generated per request, so a promotional claim
+    would be shown to every customer until someone noticed — and campaigns end while static text
+    does not. Base copy is therefore rejected at save time instead of rewritten at serve time.
+    """
+
+    normalized = str(text or "").lower()
+    return sorted(term for term in UNVERIFIED_PROMOTION_TERMS if term.lower() in normalized)

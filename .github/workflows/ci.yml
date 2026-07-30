@@ -191,7 +191,8 @@ jobs:
         working-directory: UI_API
     env:
       APP_ENV: test
-      MEMBER_STORAGE_BACKEND: postgres
+      # MEMBER_STORAGE_BACKEND is a rejected legacy selection key: setting it makes
+      # load_profile() raise PersistenceConfigurationError. DATABASE_URL selects PostgreSQL.
       DATABASE_URL: postgresql://migration_ci@127.0.0.1:5432/migration_ci
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
@@ -232,6 +233,9 @@ jobs:
 
       - name: Verify Order checkout transaction boundary
         run: pytest -q tests/postgres_order_checkout_integration.py
+
+      - name: Verify kiosk ordering cart store
+        run: pytest -q tests/postgres_cart_store_integration.py
 
       - name: Verify commercial readiness and observability
         run: pytest -q tests/postgres_observability_integration.py

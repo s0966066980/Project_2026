@@ -30,8 +30,24 @@ function videoRecorderOptions() {
     : { mimeType: 'video/webm', videoBitsPerSecond: 180000 };
 }
 
+function audioRecorderOptions() {
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+    return { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 64000 };
+  }
+  return { mimeType: 'audio/webm', audioBitsPerSecond: 64000 };
+}
+
 export function createVideoRecorder(stream) {
   return new MediaRecorder(stream, videoRecorderOptions());
+}
+
+export function createVoiceRecorder(stream) {
+  if (!stream?.getAudioTracks?.().length) {
+    throw new Error('Voice recorder requires an audio track.');
+  }
+  return stream.getVideoTracks().length
+    ? new MediaRecorder(stream, videoRecorderOptions())
+    : new MediaRecorder(stream, audioRecorderOptions());
 }
 
 // ── Rolling Buffer（Emotion-LLaMA 事件截片用）────────────────────────

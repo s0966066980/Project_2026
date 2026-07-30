@@ -61,7 +61,15 @@ def register_v1_error_handlers(app: FastAPI) -> None:
         if not request.url.path.startswith("/api/v1/"):
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
         code, message = _ERRORS.get(exc.status_code, ("request_failed", "The request could not be completed."))
-        return JSONResponse(_payload(request, code, message), status_code=exc.status_code, headers=exc.headers)
+        # Only a dict detail is a deliberately public envelope written by a route; a string
+        # detail is internal wording (auth failures carry credential context) and stays suppressed.
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        code = str(detail.get("code") or code)
+        message = str(detail.get("message") or message)
+        details = detail.get("field_errors") if isinstance(detail.get("field_errors"), list) else None
+        return JSONResponse(
+            _payload(request, code, message, details), status_code=exc.status_code, headers=exc.headers
+        )
 
     @app.exception_handler(Exception)
     async def unexpected_error(request: Request, _exc: Exception):

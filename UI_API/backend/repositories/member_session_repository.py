@@ -18,7 +18,6 @@ def bind_session(session_id: str, phone: str) -> None:
 def bind_session_scoped(session_id: str, phone: str, scope: CommercialScope) -> None:
     if not postgres_utils.use_postgres():
         return
-    postgres_utils.init_schema()
     now = datetime.now().isoformat()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
@@ -72,7 +71,6 @@ def get_session_phone(session_id: str) -> str:
 def get_session_phone_scoped(session_id: str, scope: CommercialScope) -> str:
     if not postgres_utils.use_postgres():
         return ""
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -97,7 +95,6 @@ def clear_session(session_id: str) -> None:
 def clear_session_scoped(session_id: str, scope: CommercialScope) -> None:
     if not postgres_utils.use_postgres():
         return
-    postgres_utils.init_schema()
     now = datetime.now().isoformat()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:

@@ -39,6 +39,22 @@ async function openKioskPaymentScreen(page: import('@playwright/test').Page) {
   await page.locator('#checkoutBtn').click();
 }
 
+test('Kiosk boots to the start screen without browser failures', async ({ page }) => {
+  const errors = observeCriticalBrowserFailures(page);
+  await page.route('**/api/public_settings', route => route.fulfill({
+    status: 200,
+    json: { MEMBER_ENABLED: false, EMOTION_LLAMA_ENABLED: false, DEMO_PUBLIC_MODE: false },
+  }));
+  await page.route('**/api/menu', route => route.fulfill({ status: 200, json: [] }));
+
+  await page.goto('/kiosk');
+
+  await expect(page.locator('#startSystemBtn')).toBeVisible();
+  await expect(page.locator('#startSystemBtn')).toContainText('開始點餐');
+  await page.waitForTimeout(100);
+  expect(errors).toEqual([]);
+});
+
 test('Kiosk preserves start, menu, cart and checkout navigation contracts', async ({ page }) => {
   const errors = observeCriticalBrowserFailures(page);
   await page.addInitScript(() => {
@@ -57,9 +73,13 @@ test('Kiosk preserves start, menu, cart and checkout navigation contracts', asyn
     status: 200,
     json: [{ id: 'MCD001', name: '測試套餐', category: '超值全餐', price: 100, image: '' }],
   }));
-  await page.route('**/api/checkout', route => route.fulfill({
+  await page.route('**/api/checkout/confirm', route => route.fulfill({
     status: 200,
-    json: { status: 'success', order_number: 123, session_id: 'e2e-kiosk' },
+    json: {
+      type: 'confirmed',
+      order: { order_id: 'order-e2e', pickup_number: 123, session_id: 'e2e-kiosk' },
+      replayed: false,
+    },
   }));
   await page.goto('/kiosk');
   await expect(page.locator('#startSystemBtn')).toContainText('開始點餐');
@@ -120,27 +140,32 @@ test('Kiosk 快速結帳保留 15 秒失敗情境與人員通知，但不啟動�
   expect(checkoutRequests).toBe(0);
 });
 
-test('Admin preserves login, dashboard and logout request contracts', async ({ page }) => {
+test('Admin requires a durable session before dashboard access', async ({ page }) => {
   const errors = observeCriticalBrowserFailures(page);
   let authenticated = false;
+  await page.route('**/api/admin/auth/ui-config', route => route.fulfill({
+    status: 200,
+    json: { manager_login_identity: 'admin', manager_idle_timeout_sec: 1800 },
+  }));
   await page.route('**/api/admin/auth/me', route => route.fulfill(
     authenticated
-      ? { status: 200, json: { principal: { user_id: 'test', permissions: ['operations.read'] } } }
+      ? { status: 200, json: { principal: { user_id: 'test', permissions: ['*'] } } }
       : { status: 401, json: { detail: 'authentication required' } },
   ));
   await page.route('**/api/admin/auth/login', async route => {
     authenticated = true;
     await route.fulfill({ status: 200, json: { principal: { user_id: 'test' } } });
   });
+  await page.route('**/api/admin/auth/logout', route => route.fulfill({ status: 200, json: { status: 'success' } }));
   await page.route('**/api/menu', route => route.fulfill({ status: 200, json: [] }));
   await page.route('**/api/session_stats', route => route.fulfill({ status: 200, json: { status: 'success' } }));
   await page.goto('/admin');
   await expect(page.locator('#adminAuthBackdrop')).toBeVisible();
-  await page.locator('#adminLoginIdentity').fill('e2e-admin');
   await page.locator('#adminLoginPassword').fill('not-a-real-password');
   await page.locator('#adminAuthForm button[type="submit"]').click();
   await expect(page.locator('#adminAuthBackdrop')).toBeHidden();
   await expect(page.locator('#page-stats')).toBeVisible();
+  await page.waitForTimeout(100);
   errors.length = 0; // The expected pre-login /me 401 is Chromium resource noise, not a page failure.
   const logout = await page.request.post('/api/admin/auth/logout');
   expect(logout.status()).toBe(200);
@@ -219,6 +244,16 @@ test('一般員工可用中文精靈建立並發布活動', async ({ page }) => 
     campaign = { campaign_id: 'cmp-e2e', version: 1, status: 'draft', payload: { ...payload, updated_by: 'staff-001' } };
     await route.fulfill({ status: 200, json: { data: campaign, meta: { request_id: 'req_e2e', timestamp: new Date().toISOString() } } });
   });
+  await page.route('**/api/v1/campaigns/publish', async route => {
+    const payload = route.request().postDataJSON();
+    campaign = {
+      campaign_id: 'cmp-e2e',
+      version: (payload.expected_version || 0) + 3,
+      status: 'active',
+      payload: { ...payload, status: 'active', updated_by: 'staff-001' },
+    };
+    await route.fulfill({ status: 200, json: { data: campaign, meta: { request_id: 'req_e2e', timestamp: new Date().toISOString() } } });
+  });
   await page.route('**/api/v1/campaigns/cmp-e2e/transition', async route => {
     const payload = route.request().postDataJSON();
     campaign = { ...campaign!, version: payload.expected_version + 1, status: payload.target_status, payload: { ...campaign!.payload, status: payload.target_status } };
@@ -252,12 +287,14 @@ test('一般員工可用中文精靈建立並發布活動', async ({ page }) => 
   expect(placementOverflow.offenders).toEqual([]);
   await page.getByRole('button', { name: /1\. 基本資料/ }).click();
   await page.locator('#campaignName').fill('夏日薯條優惠');
+  await page.locator('#campaignStart').fill('2026-07-15T08:00');
   await page.getByRole('button', { name: /2\. 優惠內容/ }).click();
   await page.locator('#campaignItem').selectOption('fries');
   await page.locator('#campaignPrice').fill('30');
   await page.locator('#campaignPublishBtn').click();
 
-  await expect(page.locator('#campaignSaveState')).toContainText('發布完成');
+  await expect(page.locator('#campaignWizard')).toBeHidden();
+  await expect(page.locator('.campaign-announcement')).toContainText('「夏日薯條優惠」已發布');
   await expect(page.locator('#campaignList')).toContainText('夏日薯條優惠');
   await expect(page.locator('#campaignList')).toContainText('進行中');
   expect(errors).toEqual([]);

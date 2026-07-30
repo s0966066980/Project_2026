@@ -16,6 +16,27 @@
 </head>
 <body class="w-full min-h-screen font-sans antialiased bg-[#e2d7cf] text-[#242424] flex flex-col md:flex-row">
 
+<div id="kioskDeviceAuthBackdrop" class="kiosk-device-auth-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="kioskDeviceAuthTitle" style="display:none">
+  <form id="kioskDeviceAuthForm" class="kiosk-device-auth-card" autocomplete="off">
+    <p class="kiosk-device-auth-kicker"><i class="fas fa-shield-halved"></i> Store-scoped Device Identity</p>
+    <h1 id="kioskDeviceAuthTitle">設定此點餐機</h1>
+    <p class="kiosk-device-auth-help">
+      第一次使用或 session 到期時，請開啟主管提供的
+      <code>device-1-provisioning.json</code>，輸入以下兩個欄位。原始憑證不會儲存在瀏覽器。
+    </p>
+    <label for="kioskDeviceKeyId">key_id</label>
+    <input id="kioskDeviceKeyId" name="key_id" type="text" inputmode="text" spellcheck="false" maxlength="128" required>
+    <label for="kioskDeviceCredential">credential</label>
+    <input id="kioskDeviceCredential" name="credential" type="password" spellcheck="false" minlength="16" maxlength="1024" required>
+    <p id="kioskDeviceAuthError" class="kiosk-device-auth-error" role="alert"></p>
+    <p id="kioskDeviceAuthStatus" class="kiosk-device-auth-status" aria-live="polite"></p>
+    <button id="kioskDeviceAuthSubmit" type="submit">
+      <i class="fas fa-link"></i> 驗證並啟用此裝置
+    </button>
+    <p class="kiosk-device-auth-note">tenant、store 與 device 範圍由 PostgreSQL 憑證紀錄決定，畫面無法自行指定。</p>
+  </form>
+</div>
+
 <!-- ============ Kiosk floating notices ============ -->
 <div id="aiOverlayStack">
   <div id="floatPush"></div>
@@ -40,9 +61,6 @@
         <button id="aiPushRefreshBtn" class="ai-push-btn-refresh" type="button">
           <i class="fas fa-sync-alt"></i> 換一個
         </button>
-        <button id="aiPushVoiceBtn" class="ai-push-btn-voice" type="button">
-          <i class="fas fa-microphone"></i> 語音模式
-        </button>
       </div>
     </div>
 
@@ -59,6 +77,35 @@
       <span id="voiceLangBadge" class="voice-reply-lang"></span>
     </div>
     <div class="tutorial-popup-timer"><div id="voiceReplyTimerBar" class="tutorial-popup-timer-bar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<!-- 語音點餐草稿：確認前不會修改購物車 -->
+<div id="voiceOrderDraftModal" class="voice-order-draft-modal hidden" role="dialog" aria-modal="true" aria-labelledby="voiceOrderDraftTitle">
+  <div class="voice-order-draft-backdrop" data-voice-draft-cancel></div>
+  <div class="voice-order-draft-card">
+    <button class="voice-order-draft-close" type="button" data-voice-draft-cancel aria-label="關閉"><i class="fas fa-times"></i></button>
+    <header class="voice-order-draft-header">
+      <p class="voice-order-draft-kicker"><i class="fas fa-microphone"></i> 語音點餐草稿</p>
+      <h2 id="voiceOrderDraftTitle">請勾選要加入購物車的餐點</h2>
+      <p>以下是語音提到的餐點。確認前不會修改購物車。</p>
+    </header>
+    <div id="voiceOrderDraftItems" class="voice-order-draft-items"></div>
+    <section id="voiceOrderClarificationSection" class="voice-order-draft-section hidden">
+      <h3><i class="fas fa-circle-question"></i> 需要您確認是哪一項</h3>
+      <div id="voiceOrderClarificationItems" class="voice-order-draft-suggestions"></div>
+    </section>
+    <section id="voiceOrderRecommendationSection" class="voice-order-draft-section hidden">
+      <h3><i class="fas fa-plus-circle"></i> 還可以加選</h3>
+      <div id="voiceOrderRecommendationItems" class="voice-order-draft-suggestions"></div>
+    </section>
+    <p id="voiceOrderDraftStatus" class="voice-order-draft-status" aria-live="polite"></p>
+    <footer class="voice-order-draft-actions">
+      <button class="voice-order-draft-cancel" type="button" data-voice-draft-cancel>取消</button>
+      <button id="voiceOrderDraftConfirm" class="voice-order-draft-confirm" type="button">
+        <i class="fas fa-cart-plus"></i> 確認加入購物車
+      </button>
+    </footer>
   </div>
 </div>
 
@@ -231,7 +278,7 @@
       <h2 class="member-title">會員登入</h2>
       <p class="member-sub">請輸入手機號碼</p>
       <div id="memberPhoneDisplay" class="member-phone-display"></div>
-      <p id="memberLoginHint" class="member-hint">輸入完整 10 碼後按「下一步」</p>
+      <p id="memberLoginHint" class="member-hint" aria-live="polite">輸入完整 10 碼後按「下一步」</p>
       <div id="memberKeypad" class="member-keypad">
         <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
         <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
@@ -239,6 +286,7 @@
         <button type="button" data-k="clear" class="fn">清除</button><button type="button" data-k="0">0</button><button type="button" data-k="back" class="fn">⌫</button>
       </div>
       <button id="memberLoginNext" class="member-primary" type="button">下一步 →</button>
+      <button id="memberLoginRegister" class="member-primary hidden" type="button">註冊會員</button>
       <button id="memberLoginSkip" class="member-skip" type="button">略過，直接點餐</button>
     </div>
   </div>
@@ -248,14 +296,37 @@
     <div class="member-card">
       <button id="memberRegisterBack" class="member-back" type="button">←</button>
       <h2 class="member-title">快速註冊會員</h2>
-      <p class="member-hint">這支號碼 <b id="memberRegisterPhone"></b> 還不是會員，輸入暱稱即可完成（可留空）</p>
+      <p id="memberRegisterHint" class="member-hint" aria-live="polite">這支號碼 <b id="memberRegisterPhone"></b> 還不是會員，輸入暱稱即可完成（可留空）</p>
       <input id="memberNicknameInput" class="member-input" type="text" maxlength="20" placeholder="暱稱（例如：小明）" />
       <label class="member-consent">
         <input id="memberConsentInput" type="checkbox" />
-        <span>我同意保存點餐紀錄並用於個人化推薦</span>
+        <span>我同意本次註冊所需的服務條款與隱私告知</span>
       </label>
+      <label class="member-consent"><input id="memberOrderHistoryConsent" type="checkbox" /><span>儲存點餐紀錄（選填）</span></label>
+      <label class="member-consent"><input id="memberPersonalizationConsent" type="checkbox" /><span>使用個人化推薦（選填）</span></label>
       <button id="memberRegisterDone" class="member-primary" type="button">完成註冊並開始點餐 →</button>
       <button id="memberRegisterSkip" class="member-skip" type="button">略過，直接點餐</button>
+    </div>
+  </div>
+
+  <!-- 菜單初始化失敗：保留目前會員狀態，提供原地重試或返回點餐方式。 -->
+  <div id="menuLoadErrorOverlay" class="member-overlay hidden" aria-hidden="true">
+    <div class="member-card menu-load-error-card" role="alertdialog" aria-modal="true" aria-labelledby="menuLoadErrorTitle">
+      <div class="menu-load-error-icon"><i class="fas fa-triangle-exclamation"></i></div>
+      <h2 id="menuLoadErrorTitle" class="member-title">菜單暫時無法載入</h2>
+      <p id="menuLoadErrorMessage" class="member-sub">請確認網路連線後再試一次。</p>
+      <button id="menuLoadRetry" class="member-primary" type="button">重試</button>
+      <button id="menuLoadBack" class="member-skip" type="button">返回點餐方式</button>
+    </div>
+  </div>
+
+  <!-- 訂單確認結果未知：持續向伺服器查詢同一報價，期間不得呈現為失敗 -->
+  <div id="confirmationPendingOverlay" class="member-overlay hidden" aria-hidden="true">
+    <div class="member-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmationPendingTitle">
+      <div class="menu-load-error-icon"><i class="fas fa-spinner fa-spin"></i></div>
+      <h2 id="confirmationPendingTitle" class="member-title">正在確認訂單…</h2>
+      <p class="member-sub">網路不穩，我們正在向伺服器確認這筆訂單是否已建立。請勿重複付款或離開。</p>
+      <button id="confirmationPendingAssist" class="member-skip" type="button">呼叫服務人員</button>
     </div>
   </div>
 
@@ -356,7 +427,7 @@
           <div class="order-option-block">
             <h3><i class="fas fa-clipboard-list"></i> 訂單資訊</h3>
             <div class="order-info-list">
-              <div><span><i class="far fa-clipboard"></i> 訂單編號</span><strong id="confirmOrderNumber">#A000</strong></div>
+              <div><span><i class="far fa-clipboard"></i> 訂單編號</span><strong id="confirmOrderNumber">付款完成後產生</strong></div>
               <div><span><i class="far fa-clock"></i> 預計完成時間</span><strong id="confirmPrepTime">約 0 分鐘</strong></div>
               <div><span><i class="fas fa-microphone"></i> 語音助理已完成點餐</span></div>
             </div>
@@ -566,10 +637,15 @@
         <span></span><span></span><span></span><span></span>
       </div>
     </div>
-    <button id="voiceAssistStopBtn" class="voice-assist-stop" type="button" aria-label="關閉收音">
-      <i class="fas fa-times"></i>
-    </button>
-    <p id="voiceAssistStopText" class="voice-assist-stop-text">點擊或按住關閉</p>
+    <div class="voice-assist-actions">
+      <button id="voiceAssistSendBtn" class="voice-assist-action voice-assist-send" type="button">
+        <i class="fas fa-paper-plane"></i><span>立即送出</span>
+      </button>
+      <button id="voiceAssistStopBtn" class="voice-assist-action voice-assist-cancel" type="button">
+        <i class="fas fa-times"></i><span>取消</span>
+      </button>
+    </div>
+    <p id="voiceAssistStopText" class="voice-assist-stop-text">說完後停頓 1.5 秒會自動送出</p>
   </div>
 </div>
 

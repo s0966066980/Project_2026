@@ -14,7 +14,7 @@ SCRIPT = ROOT / "UI_API/backend/scripts/validate_local_pilot_data_paths.py"
 def test_validate_local_pilot_data_paths_script_runs() -> None:
     env = os.environ.copy()
     env.pop("APP_PROFILE", None)
-    env["MEMBER_STORAGE_BACKEND"] = "json"
+    env["DATABASE_BACKEND"] = "sqlite"
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         cwd=str(ROOT / "UI_API"),
@@ -31,8 +31,9 @@ def test_local_pilot_profile_requires_postgres(monkeypatch) -> None:
     for key in list(env):
         if key in {
             "DATABASE_URL",
+            "DATABASE_URL_FILE",
             "REDIS_URL",
-            "MEMBER_STORAGE_BACKEND",
+            "DATABASE_BACKEND",
             "SECURITY_ENFORCED",
             "ENABLE_DEMO_ROUTES",
             "APP_ENV",

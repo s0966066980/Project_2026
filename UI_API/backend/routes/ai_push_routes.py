@@ -33,7 +33,6 @@ def create_router(deps: dict) -> APIRouter:
         check_rate_limit(request, "ai_push", limit=60, key=session_id)
         return await ai_push_service.generate(
             session_id=session_id,
-            ollama_semaphore=deps["ollama_semaphore"],
             exclude_ids=_parse_ids(exclude_ids),
             cart_ids=_parse_ids(cart_ids),
             scope=scope,
@@ -46,7 +45,6 @@ def create_router(deps: dict) -> APIRouter:
         check_rate_limit(request, "assist_recommend", limit=60, key=session_id)
         return await ai_push_service.generate_three(
             session_id=session_id,
-            ollama_semaphore=deps["ollama_semaphore"],
             cart_ids=_parse_ids(cart_ids),
             scope=scope,
         )

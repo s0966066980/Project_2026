@@ -407,15 +407,22 @@ if __name__ == "__main__":
         video_path: str
         question: str
         skip_quality_check: bool = False
+        media_mode: str = "video_audio"
 
     api = FastAPI()
 
     @api.get("/health")
     def _health():
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "model_loaded": _chat is not None,
+            "capabilities": ["video_audio"],
+        }
 
     @api.post("/predict")
     def _predict(req: _InferRequest):
+        if req.media_mode != "video_audio":
+            return {"result": f"[EMOTION_LLAMA_ERROR] unsupported_media_mode: {req.media_mode}"}
         result = process_video_question(req.video_path, req.question, req.skip_quality_check)
         return {"result": result}
 

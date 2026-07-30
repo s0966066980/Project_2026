@@ -1,22 +1,25 @@
-"""AI 推播服務 — 經 LLM Gateway 生成底部欄推播餐點與理由。"""
+"""AI 推播服務 — 由推薦引擎選品，文案取自 Admin 預先撰寫的推薦詞。
+
+執行時不呼叫 LLM：文案在 Admin 端撰寫並存於 menu_item_push_copy，此處只負責查表，
+因此推播不會慢、不會失敗，也不可能編造促銷。詳見 docs/adr/0016。
+"""
 import asyncio
-import re
+import logging
 import time
 
 import config
 from models.commercial_scope import CommercialScope
-from models.llm import LLMModelPolicy, LLMRequest
 from modules.recommendation import decide
-from repositories import menu_repository
+from repositories import menu_repository, push_copy_repository
 from services import (
-    llm_gateway_service,
-    rag_guard_service,
-    rag_offer_service,
+    push_copy_service,
     recommendation_context_service,
     recommendation_engine_service,
     recommendation_experiment_service,
 )
 from services.popular_service import get_top_items
+
+logger = logging.getLogger(__name__)
 
 _menu_cache: dict = {"items": None, "ts": 0.0}
 
@@ -76,9 +79,18 @@ def _fallback_item(items: list[dict], exclude: set) -> dict:
     return candidates[0] if candidates else (items[0] if items else {})
 
 
-def _recommendation_metadata(item: dict, rank: int = 1, experiment: dict | None = None, strategy: str = "") -> dict:
+def _recommendation_metadata(
+    item: dict,
+    rank: int = 1,
+    experiment: dict | None = None,
+    strategy: str = "",
+    model_status: str = "",
+) -> dict:
     experiment_row = experiment if isinstance(experiment, dict) else {}
     return {
+        # kiosk 遙測讀的是 recommendation.model_status；沒有它就永遠分不出
+        # 文案是 LLM 生成、guard 改寫，還是 LLM 失敗備援。
+        "model_status": model_status,
         "item_id": item.get("id", ""),
         "item_name": item.get("name", ""),
         "category": item.get("category", ""),
@@ -113,145 +125,77 @@ def _item_category(context: dict, item_id: str) -> str:
     return ""
 
 
-def _has_verified_offer_for_item(context: dict, item_id: str, category: str = "") -> bool:
-    audience = context.get("audience", "guest")
-    for offer in context.get("rag", {}).get("offers") or []:
-        if not isinstance(offer, dict):
-            continue
-        if offer.get("member_only") and audience != "member":
-            continue
-        item_ids = {str(value or "").strip() for value in offer.get("item_ids") or []}
-        categories = {str(value or "").strip() for value in offer.get("categories") or []}
-        if item_id in item_ids or (category and category in categories):
-            return True
-    return False
+def _live_offer_ids(context: dict) -> set:
+    """Offers active right now for this audience — the gate on serving campaign copy."""
 
-
-def _fallback_push_text(item_name: str, has_verified_offer: bool = False) -> str:
-    if has_verified_offer:
-        return f"{item_name}現在很適合來一份，搭配活動更有感！"
-    return f"{item_name}現在很適合來一份，搭配點餐剛剛好！"
-
-
-async def _generate_push_text(
-    context: dict,
-    item_id: str,
-    item_name: str,
-    ollama_semaphore,
-    num_predict_override: int | None = None,
-) -> tuple[str, str]:
-    category = _item_category(context, item_id)
-    has_verified_offer = _has_verified_offer_for_item(context, item_id, category)
-    guard_section = rag_guard_service.build_ai_push_guard_section(
-        item_id=item_id,
-        category=category,
-        offers=context.get("rag", {}).get("offers") or [],
-        audience=context.get("audience", "guest"),
-    )
-    rag_section = ""
-    if guard_section:
-        rag_section = f"{guard_section}\n\n"
-    if context.get("rag", {}).get("context"):
-        rag_section += f"{context['rag']['context']}\n\n"
-    offer_section = rag_offer_service.format_offer_prompt_section(
+    return push_copy_service.active_offer_ids(
         context.get("rag", {}).get("offers") or [],
         audience=context.get("audience", "guest"),
-        limit=3,
-    )
-    if offer_section:
-        rag_section += f"{offer_section}\n\n"
-
-    system = config.get("AI_PUSH_SYSTEM_PROMPT")
-    member_section = ""
-    ctx = recommendation_context_service.member_prompt_section(context)
-    if ctx:
-        member_section = f"{ctx}\n\n"
-    user = (
-        f"{rag_section}"
-        f"{member_section}"
-        f"【指定推播餐點】{item_id}｜{item_name}\n\n"
-        f"push_text 必須是繁體中文，字數至少 {config.get('AI_PUSH_TEXT_MIN', 18)} 字、最多 {config.get('AI_PUSH_TEXT_MAX', 34)} 字，"
-        f"自然熱情地促購此餐點，不要出現 JSON 以外的文字。"
-        f'直接輸出：{{"recommendation_id":"{item_id}","push_text":"..."}}'
     )
 
-    push_num_predict = num_predict_override if num_predict_override is not None else max(
-        int(config.get("OLLAMA_NUM_PREDICT", 220)),
-        int(config.get("AI_PUSH_TEXT_MAX", 34)) * 4
+
+def _push_text_for(
+    item: dict,
+    copy_rows: dict,
+    live_offer_ids: set,
+) -> tuple[str, str]:
+    """Look up the authored sentence for one item. No LLM, no network, cannot fail."""
+
+    item_id = str(item.get("id") or "")
+    return push_copy_service.resolve_copy(
+        item,
+        copy_rows.get(item_id),
+        live_offer_ids=live_offer_ids,
     )
 
-    try:
-        async with ollama_semaphore:
-            response = await asyncio.to_thread(
-                llm_gateway_service.generate,
-                LLMRequest(
-                    task="ai_push_copy",
-                    system_prompt=str(system or ""),
-                    user_prompt=user,
-                    model_policy=LLMModelPolicy.LOCAL_FIRST,
-                    timeout_seconds=float(config.get("OLLAMA_TIMEOUT", 30) or 30),
-                    prompt_version="ai_push-v1",
-                    expect_json=True,
-                    response_tag="AI_PUSH",
-                    model_name=str(config.get("MODEL_NAME", "qwen3.5:4b") or "qwen3.5:4b"),
-                    max_tokens=push_num_predict,
-                    max_retries=0,
-                    scope_safe_context={"item_id": item_id},
-                ),
-            )
-    except Exception as exc:
-        response = None
-        raw = {"error": str(exc)}
-    else:
-        raw = dict(response.parsed or {})
-        if response.safe_error or response.finish_reason in {"error", "timeout", "schema_failure"}:
-            raw = {"error": response.safe_error or response.finish_reason}
 
-    if isinstance(raw, list):
-        raw = next((row for row in raw if isinstance(row, dict)), {})
+async def _scope_controls(
+    items: list[dict],
+    copy_rows: dict,
+    exclude: set,
+) -> list[str]:
+    """Ids the push scope excludes, merged with the caller's own exclusions.
 
-    hard_cap = int(config.get("AI_PUSH_TEXT_MAX", 34)) * 2
-    if not isinstance(raw, dict) or "error" in raw:
-        return _fallback_push_text(item_name, has_verified_offer), "fallback"
+    The scope is a filter over eligibility; ranking still belongs to the recommendation engine,
+    so scope is expressed as exclusions rather than by handing it a pre-picked item.
+    """
 
-    push_text = re.sub(r"\s+", " ", str(raw.get("push_text") or "")).strip()[:hard_cap]
-    if not push_text:
-        push_text = _fallback_push_text(item_name, has_verified_offer)
-    push_text = rag_guard_service.sanitize_unverified_promotion_claims(
-        push_text,
-        item_name,
-        has_verified_offer=has_verified_offer,
-    )
-    return push_text, "success"
+    popular_ids = [row.get("id") for row in await asyncio.to_thread(get_top_items, 20) if row.get("id")]
+    eligible = set(push_copy_service.eligible_item_ids(items, copy_rows, popular_ids=popular_ids))
+    excluded = {str(item.get("id")) for item in items if str(item.get("id") or "") not in eligible}
+    return sorted(excluded | set(exclude))
 
 
 async def generate(
     session_id: str,
-    ollama_semaphore,
     exclude_ids: list[str] | None = None,
-    num_predict_override: int | None = None,
     cart_ids: list[str] | None = None,
     scope: CommercialScope | None = None,
 ) -> dict:
-    """
-    呼叫 Ollama 選出 1 個推薦餐點並生成促購短句。
-    回傳 {"recommendation_id": "MCDxxx", "push_text": "...", "status": "success|fallback"}
+    """選出 1 個推薦餐點，文案取自 Admin 預先撰寫的推薦詞（不呼叫 LLM）。
+
+    回傳 {"recommendation_id": "MCDxxx", "push_text": "...", "status": "authored_base|..."}
     """
     items   = await _get_menu_cached()
     by_id   = {i["id"]: i for i in items if i.get("id")}
     ids     = list(by_id)
     exclude = set(exclude_ids or [])
-    fallback = _fallback_item(items, exclude)
-    fb_id    = fallback.get("id") or (ids[0] if ids else "")
-    fb_name  = fallback.get("name") or "推薦餐點"
 
     if not ids:
         return {"status": "error", "message": "menu is empty"}
 
+    copy_rows = await asyncio.to_thread(
+        push_copy_repository.list_copy_scoped, scope
+    ) if scope else await asyncio.to_thread(push_copy_repository.list_copy)
+
+    scoped_exclusions = await _scope_controls(items, copy_rows, exclude)
+    fallback = _fallback_item(items, set(scoped_exclusions))
+    fb_id    = fallback.get("id") or (ids[0] if ids else "")
+
     context = await recommendation_context_service.build_context(
         session_id,
         cart_ids=cart_ids,
-        exclude_ids=list(exclude),
+        exclude_ids=scoped_exclusions,
         rag_query="推薦 活動 特惠 主打 套餐",
         rag_top_k=2,
         surface="ai_push",
@@ -261,7 +205,7 @@ async def generate(
     experiment = recommendation_experiment_service.assign(session_id)
     context["experiment"] = experiment
 
-    # 推薦品項由統一推薦引擎決定；此服務只負責 AI push 文案。
+    # 推薦品項由統一推薦引擎決定；此服務只負責取出對應的預寫推薦詞。
     recommendation = await asyncio.to_thread(
         decide,
         context,
@@ -276,15 +220,8 @@ async def generate(
     if not picked:
         picked = fallback
     sel_id   = picked.get("id") or fb_id
-    sel_name = picked.get("name") or fb_name
 
-    push_text, status = await _generate_push_text(
-        context,
-        sel_id,
-        sel_name,
-        ollama_semaphore,
-        num_predict_override,
-    )
+    push_text, status = _push_text_for(by_id.get(sel_id, picked), copy_rows, _live_offer_ids(context))
 
     return {
         "status": status,
@@ -303,22 +240,26 @@ async def generate(
             1,
             experiment,
             recommendation.get("strategy", experiment.get("strategy", "")),
+            model_status=status,
         ),
     }
 
 
 async def generate_three(
     session_id: str,
-    ollama_semaphore,
     cart_ids: list[str] | None = None,
     scope: CommercialScope | None = None,
 ) -> list[dict]:
-    """由統一推薦引擎一次選出三個不重複品項，再沿用單品推播文案格式。"""
+    """由統一推薦引擎一次選出三個不重複品項，文案同樣取自預寫推薦詞（不呼叫 LLM）。"""
     items = await _get_menu_cached()
     items_map = {i["id"]: i for i in items if i.get("id")}
+    copy_rows = await asyncio.to_thread(
+        push_copy_repository.list_copy_scoped, scope
+    ) if scope else await asyncio.to_thread(push_copy_repository.list_copy)
     context = await recommendation_context_service.build_context(
         session_id,
         cart_ids=cart_ids,
+        exclude_ids=await _scope_controls(items, copy_rows, set()),
         surface="assist_recommend",
         menu_items=items,
         scope=scope,
@@ -336,19 +277,15 @@ async def generate_three(
         experiment=experiment,
     )
 
+    live_offer_ids = _live_offer_ids(context)
     results = []
     for index, item in enumerate(recommendation.get("items", []), start=1):
         rec_id = item.get("id", "")
         menu_item = items_map.get(rec_id, {})
         item_name = menu_item.get("name", "") or item.get("name", "") or "推薦餐點"
-        push_text, _ = await _generate_push_text(
-            context,
-            rec_id,
-            item_name,
-            ollama_semaphore,
-            80,
-        )
+        push_text, push_status = _push_text_for(menu_item or item, copy_rows, live_offer_ids)
         results.append({
+            "model_status": push_status,
             "id": rec_id,
             "name": item_name,
             "price": menu_item.get("price", 0),

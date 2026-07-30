@@ -61,7 +61,8 @@ def test_supported_rag_strategy_names_and_aliases():
 
     assert normalize_rag_strategy("dense") == "dense"
     assert normalize_rag_strategy("keyword") == "bm25"
-    assert normalize_rag_strategy("rrf") == "hybrid"
+    assert normalize_rag_strategy("rrf") == "hybrid_rrf"
+    assert normalize_rag_strategy("reranker") == "hybrid_reranker"
 
 
 def test_search_switches_dense_bm25_and_hybrid_without_changing_interface(tmp_path, monkeypatch):
@@ -91,6 +92,60 @@ def test_search_switches_dense_bm25_and_hybrid_without_changing_interface(tmp_pa
     assert [row["id"] for row in bm25["results"]] == ["keyword", "semantic"]
     assert {row["id"] for row in hybrid["results"]} == {"semantic", "keyword"}
     assert all(set(row["match_types"]) == {"dense", "bm25"} for row in hybrid["results"])
+
+
+def test_scoped_search_only_exposes_artifacts_behind_committed_publication_pointer(monkeypatch):
+    from services.rag_provider import RAGProvider
+
+    tenant_id = "00000000-0000-4000-8000-000000000001"
+    store_id = "00000000-0000-4000-8000-000000000002"
+    rows = [
+        {
+            "id": "committed",
+            "document": "published knowledge",
+            "metadata": {
+                "tenant_id": tenant_id,
+                "store_id": store_id,
+                "publication_attempt_id": "pa-committed",
+            },
+            "dense_rank": 1,
+            "distance": 0.1,
+        },
+        {
+            "id": "staged",
+            "document": "staged knowledge",
+            "metadata": {
+                "tenant_id": tenant_id,
+                "store_id": store_id,
+                "publication_attempt_id": "pa-staged",
+            },
+            "dense_rank": 2,
+            "distance": 0.2,
+        },
+    ]
+    monkeypatch.setattr(RAGProvider, "_collection", FakeCollection(rows))
+    monkeypatch.setattr(RAGProvider, "_model", FakeModel())
+    monkeypatch.setattr(RAGProvider, "_bm25", None)
+    monkeypatch.setattr(RAGProvider, "_bm25_ids", [])
+    monkeypatch.setattr(RAGProvider, "_bm25_docs", [])
+    monkeypatch.setattr(
+        "modules.knowledge_publication.runtime.published_attempt_ids",
+        lambda **_scope: {"pa-committed"},
+    )
+    provider = RAGProvider()
+    monkeypatch.setattr(provider, "_init", lambda: None)
+
+    result = asyncio.run(
+        provider.search(
+            "knowledge",
+            strategy="dense",
+            top_k=5,
+            tenant_id=tenant_id,
+            store_id=store_id,
+        )
+    )
+
+    assert [row["id"] for row in result["results"]] == ["committed"]
 
 
 def test_query_fails_closed_when_authoritative_selection_is_empty(tmp_path, monkeypatch):

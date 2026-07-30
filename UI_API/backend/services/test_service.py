@@ -49,10 +49,8 @@ def ask_voice_style(
     user_prompt = _build_voice_user_prompt(user_text, history)
 
     t0 = time.time()
-    if provider == "gemini":
-        raw = ai_services.ask_gemini(sp, user_prompt, model_name=model)
-    elif provider == "openai":
-        raw = _ask_openai_text(sp, user_prompt, model)
+    if provider == "nvidia_nim":
+        raw = _ask_nvidia_nim_text(sp, user_prompt, model)
     else:
         raw = ai_services.ask_ollama(sp, user_prompt, model_name=model)
 
@@ -63,14 +61,15 @@ def ask_voice_style(
     return raw
 
 
-def _ask_openai_text(system_prompt: str, user_prompt: str, model: str) -> dict:
-    base_url = str(config.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
-    api_key = config.get("OPENAI_API_KEY", "")
+def _ask_nvidia_nim_text(system_prompt: str, user_prompt: str, model: str) -> dict:
+    default_model = "meta/llama-3.1-8b-instruct"
+    base_url = str(config.NVIDIA_API_BASE_URL or "https://integrate.api.nvidia.com/v1").rstrip("/")
+    api_key = config.NVIDIA_API_KEY
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     payload = {
-        "model": model or "gpt-4o-mini",
+        "model": model or default_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -81,13 +80,13 @@ def _ask_openai_text(system_prompt: str, user_prompt: str, model: str) -> dict:
         res = requests.post(f"{base_url}/chat/completions", json=payload, headers=headers, timeout=60)
         res.raise_for_status()
         text = res.json()["choices"][0]["message"]["content"]
-        parsed = ai_services.parse_llm_json(text, "TEST_OPENAI")
+        parsed = ai_services.parse_llm_json(text, "TEST_NVIDIA_NIM")
         if isinstance(parsed, dict) and "error" not in parsed:
             parsed["latency_ms"] = int((time.time() - t0) * 1000)
-            parsed["provider"] = "openai"
-            parsed["model"] = model or "gpt-4o-mini"
+            parsed["provider"] = "nvidia_nim"
+            parsed["model"] = model or default_model
             return parsed
         return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
-                "provider": "openai", "model": model or "gpt-4o-mini"}
+                "provider": "nvidia_nim", "model": model or default_model}
     except Exception as e:
         return {"error": str(e), "text": "", "latency_ms": 0}

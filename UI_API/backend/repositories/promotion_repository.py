@@ -53,7 +53,6 @@ def list_promotions() -> list[dict]:
 
 def list_promotions_scoped(scope: CommercialScope) -> list[dict]:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -117,7 +116,6 @@ def get_promotion_scoped(
     if not is_valid_id(normalized):
         return None
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -160,7 +158,6 @@ def save_promotion_scoped(
     if postgres_utils.use_postgres():
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -203,7 +200,6 @@ def delete_promotion_scoped(
     if not is_valid_id(normalized):
         return False
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """

@@ -19,7 +19,7 @@ from repositories import (
     postgres_utils,
     session_repository,
 )
-from services import member_service, observability_service, recommendation_event_service
+from services import emotion_service, member_service, observability_service, recommendation_event_service
 
 CheckoutIdempotencyConflictError = checkout_order_repository.CheckoutIdempotencyConflictError
 
@@ -228,5 +228,14 @@ async def process_checkout(
     if order_result is not None:
         response["order"] = order_result
         response["order_number"] = order_result["order_id"]
+    try:
+        await asyncio.to_thread(
+            emotion_service.record_assistance_outcome,
+            session_id,
+            "checkout_completed",
+        )
+    except Exception:
+        # Emotion outcome telemetry must never block checkout.
+        observability_service.increment_metric("emotion_assistance_outcome", status="failed")
     observability_service.increment_metric("checkout_attempts_total", status="confirmed")
     return response

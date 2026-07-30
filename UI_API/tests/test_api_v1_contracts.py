@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from tests.auth_test_support import authenticate_client, configure_admin_session, configure_device_session
 
 V1_PATHS = {
     "/api/v1/auth/me",
@@ -15,21 +16,35 @@ V1_PATHS = {
     "/api/v1/recommendation-effectiveness",
     "/api/v1/audits",
     "/api/v1/settings",
-    "/api/v1/rag/reviews",
+    "/api/v1/rag/studio",
+    "/api/v1/rag/knowledge",
+    "/api/v1/rag/retrieval/configurations",
+    "/api/v1/rag/test-cases",
+    "/api/v1/rag/evaluation-runs",
 }
 
 
-def _client(monkeypatch) -> TestClient:
+def _client(monkeypatch, *, authenticated: bool = True) -> TestClient:
     from backend import app_factory
 
     monkeypatch.setattr(app_factory.config, "validate_startup_config", lambda: None)
-    return TestClient(app_factory.create_app())
+    if authenticated:
+        configure_admin_session(monkeypatch)
+        configure_device_session(monkeypatch)
+    client = TestClient(app_factory.create_app())
+    if authenticated:
+        authenticate_client(client, admin=True, device=True)
+    return client
 
 
 def test_openapi_exposes_unique_typed_v1_operations_and_security(monkeypatch) -> None:
-    client = _client(monkeypatch)
+    client = _client(monkeypatch, authenticated=False)
     schema = client.get("/openapi.json").json()
     assert V1_PATHS <= set(schema["paths"])
+    assert "/api/rag/reviews" not in schema["paths"]
+    assert "/api/v1/rag/reviews" not in schema["paths"]
+    assert "/api/v1/rag/test" not in schema["paths"]
+    assert "/api/v1/rag/status" not in schema["paths"]
     operation_ids = []
     for path in V1_PATHS:
         operation = schema["paths"][path]["get"]
@@ -70,6 +85,41 @@ def test_v1_pagination_validation_uses_safe_error_envelope(monkeypatch) -> None:
     assert "sql" not in str(payload).lower()
 
 
+def test_v1_error_envelope_keeps_route_authored_detail(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    response = client.get("/api/v1/campaigns/does-not-exist")
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] == "campaign_not_found"
+    assert payload["error"]["message"] == "找不到活動。"
+
+
+def test_v1_error_envelope_suppresses_internal_string_detail(monkeypatch) -> None:
+    client = _client(monkeypatch, authenticated=False)
+    response = client.get("/api/v1/campaigns", headers={"Authorization": "Bearer should-never-echo"})
+    assert response.status_code in {401, 403}
+    payload = response.json()
+    assert payload["error"]["code"] in {"unauthorized", "forbidden"}
+    assert payload["error"]["message"] in {"Authentication is required.", "The action is not allowed."}
+    assert "should-never-echo" not in str(payload)
+
+
+def test_v1_campaign_validation_errors_reach_the_client(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    response = client.post("/api/v1/campaigns/publish", json={
+        "name": "缺開始時間的活動",
+        "objective": "promote_item",
+        "audience": "all",
+        "schedule": {"starts_at": "", "ends_at": "2026-08-31T22:00"},
+        "promotion_rules": [{"type": "fixed_item_price", "item_ids": ["fries"], "promotion_price": 30}],
+        "placements": ["menu_card"],
+    })
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "campaign_invalid"
+    assert any(item["path"] == "schedule.starts_at" for item in payload["error"]["details"])
+
+
 def test_v1_collection_contract_has_pagination_filter_and_sort(monkeypatch) -> None:
     client = _client(monkeypatch)
     response = client.get("/api/v1/members?page=1&page_size=10&sort_by=created_at&sort_order=desc&q=none")
@@ -85,16 +135,7 @@ def test_v1_collection_contract_has_pagination_filter_and_sort(monkeypatch) -> N
 
 
 def test_v1_auth_failure_is_safe_and_does_not_echo_credentials(monkeypatch) -> None:
-    from utils import auth_utils
-
-    client = _client(monkeypatch)
-    monkeypatch.setattr(auth_utils, "_security_enforced", lambda: True)
-    original_get = auth_utils.config.get
-    monkeypatch.setattr(
-        auth_utils.config,
-        "get",
-        lambda key, default=None: "expected-token" if key == "ADMIN_API_TOKEN" else original_get(key, default),
-    )
+    client = _client(monkeypatch, authenticated=False)
     response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer should-never-echo"})
     assert response.status_code in {401, 403}
     payload = response.json()
@@ -117,7 +158,7 @@ def test_v1_scope_ignores_unverified_commercial_headers(monkeypatch) -> None:
     assert forged == expected
 
 
-def test_legacy_api_contract_remains_available(monkeypatch) -> None:
+def test_legacy_api_contract_remains_available_to_authenticated_principals(monkeypatch) -> None:
     client = _client(monkeypatch)
     assert client.get("/api/public_settings").status_code == 200
     assert client.get("/api/v1/settings").status_code == 200

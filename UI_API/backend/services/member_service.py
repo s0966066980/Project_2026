@@ -289,13 +289,14 @@ def register(
     personalization_consent: bool = True,
     consent_source: str = "kiosk",
     scope: CommercialScope | None = None,
+    necessary_terms_accepted: bool = True,
 ) -> dict:
     norm = normalize_phone(phone)
     if not norm:
         return {"ok": False, "error": "invalid_phone"}
     order_history_consent = _as_bool(order_history_consent)
     personalization_consent = _as_bool(personalization_consent)
-    if not order_history_consent or not personalization_consent:
+    if not _as_bool(necessary_terms_accepted):
         return {"ok": False, "error": "consent_required"}
     existing = _get_member_for_phone(norm, scope)
     if existing:
@@ -685,6 +686,40 @@ def admin_list(scope: CommercialScope | None = None) -> list:
     return rows
 
 
+def admin_search(
+    query: str = "",
+    *,
+    page: int = 1,
+    page_size: int = 25,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    scope: CommercialScope | None = None,
+) -> tuple[list[dict], int]:
+    """Search and page masked Admin member summaries behind one interface."""
+
+    rows = admin_list(scope)
+    needle = str(query or "").strip().casefold()
+    if needle:
+        rows = [
+            row
+            for row in rows
+            if needle in " ".join(
+                str(row.get(key) or "").casefold()
+                for key in ("member_id", "member_ref", "nickname", "phone_masked")
+            )
+        ]
+    allowed_sort = {"created_at", "nickname", "visit_count", "total_spend"}
+    resolved_sort = sort_by if sort_by in allowed_sort else "created_at"
+    rows.sort(
+        key=lambda row: (row.get(resolved_sort) is not None, row.get(resolved_sort) or ""),
+        reverse=sort_order != "asc",
+    )
+    total = len(rows)
+    safe_page_size = max(1, min(int(page_size), 100))
+    offset = (max(1, int(page)) - 1) * safe_page_size
+    return rows[offset:offset + safe_page_size], total
+
+
 def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
     m = _resolve_member(phone, scope)
     if not m:
@@ -751,6 +786,14 @@ def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
         "pairs_ranked": pairs_ranked,
         "recent_item_ids": list(m.get("recent_item_ids") or []),
         "preference_updated_at": m.get("preference_updated_at", ""),
+        "verified_preferences": dict(m.get("verified_preferences") or {}),
+        "inferred_preferences": {
+            "favorite_items": ranked,
+            "categories": categories_ranked,
+            "pairs": pairs_ranked,
+            "source": "completed_order_history",
+            "updated_at": m.get("preference_updated_at", ""),
+        },
         "recommendation_summary": _member_recommendation_summary(m),
         "orders": orders,
         **metrics,
@@ -817,6 +860,45 @@ def export_members_csv(scope: CommercialScope | None = None) -> str:
             "preferred_categories": "、".join(category for category in categories if category),
         })
     return output.getvalue()
+
+
+def admin_update_verified_preferences(
+    identifier,
+    preferences: dict,
+    *,
+    actor_id: str = "",
+    scope: CommercialScope | None = None,
+) -> dict | None:
+    member = _resolve_member(identifier, scope)
+    if not member:
+        return None
+
+    def string_list(key: str, limit: int = 10) -> list[str]:
+        values = preferences.get(key) or []
+        if not isinstance(values, list):
+            raise ValueError(f"{key} must be a list")
+        normalized = []
+        for value in values:
+            text = str(value or "").strip()[:80]
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized[:limit]
+
+    verified = {
+        "allergies": string_list("allergies"),
+        "dietary_preferences": string_list("dietary_preferences"),
+        "favorite_item_ids": string_list("favorite_item_ids", 20),
+        "service_notes": str(preferences.get("service_notes") or "").strip()[:500],
+        "source": "member_confirmed",
+        "verified_at": datetime.now().isoformat(),
+        "verified_by": str(actor_id or ""),
+    }
+    member["verified_preferences"] = verified
+    if scope:
+        member_repository.upsert_member_scoped(member, scope)
+    else:
+        member_repository.upsert_member(member)
+    return verified
 
 
 def admin_clear_records(phone, scope: CommercialScope | None = None) -> bool:

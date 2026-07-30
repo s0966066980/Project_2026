@@ -7,7 +7,7 @@ const PAGE_PERMISSIONS = Object.freeze({
   settings: ['settings.write'],
   rag: ['rag.read'],
   emotion: ['settings.write'],
-  health: ['system.debug'],
+  health: ['operations.read'],
   test: ['system.debug'],
 });
 
@@ -26,6 +26,15 @@ export function applyAdminNavigation(principal, root = document) {
     const allowed = canViewAdminPage(permissions, button.dataset.page || '');
     button.hidden = !allowed;
     button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+  });
+  root.querySelectorAll('[data-nav-pages]').forEach(rawLabel => {
+    const label = /** @type {HTMLElement} */ (rawLabel);
+    const pages = String(label.dataset.navPages || '').split(',').filter(Boolean);
+    const visible = pages.some(page => {
+      const button = root.querySelector(`.nav-item[data-page="${page}"]`);
+      return button && !button.hasAttribute('hidden');
+    });
+    label.hidden = !visible;
   });
   const active = /** @type {HTMLButtonElement|null} */ (
     root.querySelector('.nav-item.active:not([hidden])') || root.querySelector('.nav-item[data-page]:not([hidden])')

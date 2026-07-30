@@ -12,11 +12,11 @@ function healthLabel(status) {
 
 export const HEALTH_SERVICE_GUIDE = Object.freeze({
   postgres: {
-    label: 'PostgreSQL 商業資料庫',
-    requirement: '正式環境必要',
-    purpose: '保存會員、訂單、活動與營運資料，是 pilot / staging / production 的商業資料唯一來源。',
-    impact: '不可用時不得以 JSON 靜默接手；正式結帳與管理寫入應停止並告警。',
-    action: '確認 DATABASE_URL、migration 與資料庫連線。',
+    label: 'Runtime Persistence Profile',
+    requirement: '所有 durable records 必要',
+    purpose: '驗證實際 database adapter、去敏 endpoint、PostgreSQL 版本、schema、拓撲與 capability coverage。',
+    impact: '不可用時不得切換 SQLite 或 JSON；需要 durable transaction 的操作必須停止。',
+    action: '確認 DATABASE_BACKEND、DATABASE_TOPOLOGY、secret file、migration 與資料庫連線。',
   },
   rag: {
     label: 'RAG / Chroma 知識索引',
@@ -53,7 +53,13 @@ export function healthServiceView(checks = {}) {
   return Object.entries(HEALTH_SERVICE_GUIDE).map(([key, guide]) => {
     const check = checks[key] || {};
     let evidence = check.message || check.reason || '尚未取得檢查結果';
-    if (key === 'postgres' && !check.message && !check.reason) evidence = `backend=${check.backend || '—'}；migration=${check.schema_migration_count ?? '—'}`;
+    if (key === 'postgres' && !check.message && !check.reason) {
+      const endpoint = check.endpoint || {};
+      const connection = check.connection || {};
+      const schema = check.schema || {};
+      const coverage = check.adapter_coverage || {};
+      evidence = `backend=${check.effective_backend || '—'}；topology=${check.topology || '—'}；endpoint=${endpoint.fingerprint || '—'}；PostgreSQL=${connection.server_major || '—'}；schema=${schema.head || '—'}；coverage=${coverage.covered ?? 0}/${coverage.registered ?? 0}`;
+    }
     if (key === 'rag') evidence = `Chroma 文件 ${check.doc_count ?? 0} 筆；正式選取 ${check.selected_source_count ?? 0} 筆；collection=${check.collection_name || '—'}`;
     if (key === 'rag_alerts') evidence = `未處理 ${check.open_count ?? 0} 筆；已知悉 ${check.acknowledged_count ?? 0} 筆`;
     if (key === 'recommendation_events') evidence = `可讀取 ${check.sampled_records ?? 0} 筆；最新抽樣 ${check.latest_sampled_records ?? 0} 筆；最後事件 ${check.latest_event_at || '尚無有效時間'}`;
@@ -66,7 +72,7 @@ export function healthServiceView(checks = {}) {
 export function readinessView(readiness = {}) {
   /** @type {Record<string, [string, string]>} */
   const labels = {
-    database: ['資料庫連線', '正式環境必須能連線，且不可回退到 JSON。'],
+    database: ['Runtime Persistence Profile', '驗證有效 adapter、連線、PostgreSQL 18、拓撲與 capability coverage，且不可回退到其他儲存。'],
     migration: ['資料庫版本', '所有 forward migration 必須完整且順序一致。'],
     commercial_scope: ['商業資料範圍', '門市／租戶 scope 必須明確，避免跨店資料。'],
     shared_infrastructure: ['共用基礎設施', '多程序部署時確認 rate limit、session 與事件協調。'],
@@ -78,6 +84,33 @@ export function readinessView(readiness = {}) {
     status: check?.status || 'skipped',
     detail: check?.error_code || check?.reason || (check?.status === 'ok' ? '檢查通過' : '未提供細節'),
   }));
+}
+
+/** @param {AnyRecord} operational */
+export function operationalHealthView(operational = {}) {
+  /** @type {Record<string, {tone: string, label: string}>} */
+  const states = {
+    safe_to_operate: { tone: 'ok', label: '可以正常營運' },
+    operate_with_degraded_features: { tone: 'degraded', label: '可以營運，但部分功能降級' },
+    unsafe_to_operate: { tone: 'not_ready', label: '不可安全營運' },
+  };
+  /** @type {Record<string, string>} */
+  const capabilityLabels = {
+    available: '可用',
+    degraded: '降級',
+    unavailable: '不可用',
+  };
+  const current = states[operational.state] || { tone: 'skipped', label: '狀態未知' };
+  return {
+    ...current,
+    headline: operational.headline || current.label,
+    businessImpact: operational.business_impact || '尚未取得營運影響。',
+    capabilities: (operational.capabilities || []).map(/** @param {AnyRecord} capability */ capability => ({
+      ...capability,
+      statusLabel: capabilityLabels[capability.status] || '未知',
+    })),
+    incidents: Array.isArray(operational.incidents) ? operational.incidents : [],
+  };
 }
 
 /** @param {unknown} size */
@@ -102,6 +135,7 @@ function formatHealthTime(value) {
  *   getElement: (id: string) => HTMLElement | null,
  *   setText: (id: string, value: string) => void,
  *   escapeHtml: (value: any) => string,
+ *   hasPermission?: (permission: string) => boolean,
  * }} options
  */
 export function createHealthAdmin({
@@ -110,6 +144,7 @@ export function createHealthAdmin({
   getElement,
   setText,
   escapeHtml,
+  hasPermission = () => false,
 }) {
   /** @param {string | null | undefined} status */
   function healthPillHtml(status) {
@@ -137,6 +172,48 @@ export function createHealthAdmin({
     box.innerHTML = rows.length ? rows.map(row => `
       <div class="health-readiness-row"><div><b>${escapeHtml(row.label)}</b><span>${escapeHtml(row.purpose)}</span></div><div>${healthPillHtml(row.status)}<small>${escapeHtml(row.detail)}</small></div></div>
     `).join('') : '<div class="adm-empty">尚未取得 readiness 檢查。</div>';
+  }
+
+  /** @param {AnyRecord} operational */
+  function renderOperational(operational) {
+    const view = operationalHealthView(operational);
+    const summary = getElement('healthOperationalSummary');
+    if (summary) {
+      summary.className = `health-operational-summary ${view.tone}`;
+      summary.innerHTML = `<div><span>${escapeHtml(view.label)}</span><h2>${escapeHtml(view.headline)}</h2><p>${escapeHtml(view.businessImpact)}</p></div>`;
+    }
+    const capabilityBox = getElement('healthCapabilities');
+    if (capabilityBox) {
+      capabilityBox.innerHTML = view.capabilities.map(/** @param {AnyRecord} capability */ capability => `
+        <div class="health-capability ${escapeHtml(capability.status)}">
+          <b>${escapeHtml(capability.label)}</b><span>${escapeHtml(capability.statusLabel)}</span>
+        </div>
+      `).join('');
+    }
+    const incidentsBox = getElement('healthIncidents');
+    if (!incidentsBox) return;
+    if (!view.incidents.length) {
+      incidentsBox.innerHTML = '<div class="adm-empty">目前沒有需要處理的營運事件。</div>';
+      return;
+    }
+    const canAct = hasPermission('operations.write');
+    incidentsBox.innerHTML = view.incidents.map(/** @param {AnyRecord} incident */ incident => `
+      <article class="health-incident ${escapeHtml(incident.severity || 'warning')}">
+        <div class="health-incident-head"><div><span>${incident.severity === 'critical' ? '必要功能' : '降級功能'}</span><b>${escapeHtml(incident.title)}</b></div><em>${escapeHtml(incident.status === 'escalated' ? '已升級' : incident.status === 'acknowledged' ? '已確認' : '待處理')}</em></div>
+        <p><strong>營運影響</strong>${escapeHtml(incident.impact)}</p>
+        <p><strong>建議檢查</strong>${escapeHtml(incident.suggested_action)}</p>
+        <p><strong>負責角色</strong>${escapeHtml(incident.owner)}</p>
+        ${canAct ? `<div class="health-incident-actions"><button type="button" data-health-action="acknowledge" data-incident-id="${escapeHtml(incident.incident_id)}">確認收到</button><button type="button" data-health-action="escalate" data-incident-id="${escapeHtml(incident.incident_id)}">升級處理</button></div>` : ''}
+      </article>
+    `).join('');
+    incidentsBox.querySelectorAll('[data-health-action]').forEach(button => {
+      button.addEventListener('click', () => performIncidentAction(
+        button.getAttribute('data-incident-id') || '',
+        button.getAttribute('data-health-action') || '',
+      ).catch(error => {
+        setText('healthGeneratedAt', error instanceof Error ? error.message : String(error));
+      }));
+    });
   }
 
   /** @param {AnyRecord[]} logs */
@@ -185,8 +262,21 @@ export function createHealthAdmin({
       `).join('');
     }
     renderHealthRows(checks);
+    renderOperational(data.operational || {});
     renderReadiness(data.readiness || {});
     renderHealthLogs(runtimeLogs);
+  }
+
+  /** @param {string} incidentId @param {string} action */
+  async function performIncidentAction(incidentId, action) {
+    if (!incidentId || !['acknowledge', 'escalate'].includes(action)) return;
+    const res = await fetch(`${apiBaseUrl}/api/admin/health/incidents/${encodeURIComponent(incidentId)}/${action}`, {
+      method: 'POST',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: '' }),
+    });
+    if (!res.ok) throw new Error(`事件更新失敗：HTTP ${res.status}`);
+    renderAdminHealth(await res.json());
   }
 
   async function loadAdminHealth() {
@@ -210,6 +300,13 @@ export function createHealthAdmin({
         recommendation_events: { status: 'skipped', sampled_records: 0 },
         runtime_logs: { status: 'degraded', retention_days: 0 },
       });
+      renderOperational({
+        state: 'unsafe_to_operate',
+        headline: '無法取得維運健康資料',
+        business_impact: '請通知值班技術人員確認後台連線；不要從此頁執行破壞性操作。',
+        capabilities: [],
+        incidents: [],
+      });
       renderReadiness({});
       renderHealthLogs([]);
     }
@@ -217,6 +314,7 @@ export function createHealthAdmin({
 
   return {
     loadAdminHealth,
+    performIncidentAction,
     renderAdminHealth,
   };
 }

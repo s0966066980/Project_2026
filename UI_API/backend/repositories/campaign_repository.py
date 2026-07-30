@@ -40,7 +40,6 @@ def _write_rows(rows: list[dict]) -> None:
 class CampaignRepository:
     def get(self, scope: CommercialScope, campaign_id: str) -> CampaignSnapshot | None:
         if postgres_utils.use_postgres():
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """SELECT d.campaign_id, d.current_version, d.status, v.payload
@@ -61,7 +60,6 @@ class CampaignRepository:
 
     def list(self, scope: CommercialScope) -> list[CampaignSnapshot]:
         if postgres_utils.use_postgres():
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """SELECT d.campaign_id, d.current_version, d.status, v.payload
@@ -94,7 +92,6 @@ class CampaignRepository:
         if postgres_utils.use_postgres():
             from psycopg.types.json import Jsonb
 
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """SELECT id, current_version FROM campaign_definitions

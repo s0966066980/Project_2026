@@ -11,7 +11,6 @@ from repositories import postgres_utils
 def _connection():
     if not postgres_utils.use_postgres():
         raise postgres_utils.PostgresUnavailableError("Admin identity requires PostgreSQL storage")
-    postgres_utils.init_schema()
     return postgres_utils.connect()
 
 

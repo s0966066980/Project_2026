@@ -6,19 +6,15 @@ from bootstrap.startup import ensure_ollama
 
 
 def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
-    def _check_emotion_llama() -> str:
-        import urllib.request
-        try:
-            urllib.request.urlopen(f"{config.EMOTION_LLAMA_GRADIO_URL}/health", timeout=1)
-            return "✅ 開啟"
-        except Exception:
-            return "❌ 未開啟"
+    from services.multimodal_evidence_gateway import configured_provider_status
 
     model_name = config.get("MODEL_NAME", "qwen3.5:4b")
     voice_model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
     stt_provider = config.get("STT_PROVIDER", "faster_whisper")
     tts_provider = config.get("TTS_PROVIDER", "edge")
-    emotion_stat = _check_emotion_llama()
+    emotion_provider = str(config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama")
+    emotion_ready = configured_provider_status()
+    emotion_stat = "✅ 開啟" if emotion_ready.get("status") == "ready" else "❌ 未開啟"
 
     print("\n" + "=" * 65)
     print("📋 功能模組狀態")
@@ -26,7 +22,7 @@ def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
     print(f"   🎙️  語音 LLM     : {voice_model}")
     print(f"   👂 STT          : {stt_provider}")
     print(f"   🔊 TTS          : {tts_provider}")
-    print(f"   👁️  Emotion-LLaMA: {emotion_stat}")
+    print(f"   👁️  情緒模型     : {emotion_provider} {emotion_stat}")
     print()
     print(f"🖥️ Kiosk local URL: http://{local_host}:{pos_port}/kiosk")
     print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")
@@ -71,8 +67,7 @@ def maybe_start_ngrok(pos_port: int):
             public_url = tunnel_url.rstrip("/")
             print(f"🖥️  Kiosk:  {public_url}/kiosk"
                   + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
-            print(f"🛠️  Admin:  {public_url}/admin"
-                  + (f"?token={config.ADMIN_DEMO_TOKEN}" if config.ADMIN_DEMO_TOKEN else ""))
+            print(f"🛠️  Admin:  {public_url}/admin")
     except ImportError:
         print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
     except Exception as e:

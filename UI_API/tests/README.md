@@ -20,7 +20,7 @@ Target test：
 
 ```bash
 cd UI_API
-APP_ENV=test MEMBER_STORAGE_BACKEND=json DATABASE_URL= ENABLE_NGROK=false \
+APP_ENV=test DATABASE_BACKEND=sqlite DATABASE_URL= ENABLE_NGROK=false \
 pytest -q tests/test_target.py
 ```
 

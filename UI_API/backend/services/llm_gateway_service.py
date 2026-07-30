@@ -5,6 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import time
+from dataclasses import replace
 from typing import Any, Mapping
 
 from models.llm import (
@@ -39,7 +40,9 @@ _GATEWAY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 # Task-level structured output contracts (required keys). Values are further
 # validated by the calling application service (menu whitelist, length, etc.).
 TASK_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
-    "ai_push_copy": frozenset({"recommendation_id", "push_text"}),
+    # Authored in Admin, not generated per request — the gateway only sees this task when an
+    # operator presses 產生推薦詞, never on a Kiosk push.
+    "ai_push_copy": frozenset({"push_text"}),
     "voice_assist": frozenset({"ai_response"}),
     "payment_assist": frozenset(),  # free-form assist message fields accepted
     "emotion_extract": frozenset({"emotion", "intensity"}),
@@ -47,13 +50,16 @@ TASK_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
 
 
 def _provider_chain(policy: LLMModelPolicy) -> list[str]:
+    from services import llm_routing_service
+
+    cloud = llm_routing_service.CLOUD_PROVIDER
     if policy is LLMModelPolicy.LOCAL_ONLY:
         return ["ollama"]
     if policy is LLMModelPolicy.CLOUD_ONLY:
-        return ["gemini"]
+        return [cloud]
     if policy is LLMModelPolicy.CLOUD_FIRST:
-        return ["gemini", "ollama"]
-    return ["ollama", "gemini"]
+        return [cloud, "ollama"]
+    return ["ollama", cloud]
 
 
 def _is_retryable(safe_error: str, explicit: bool | None = None) -> bool:
@@ -155,87 +161,124 @@ class OllamaAdapter:
         )
 
 
-class GeminiAdapter:
-    name = "gemini"
+class NvidiaNimAdapter:
+    """NVIDIA NIM: the sole cloud text provider, spoken via the OpenAI chat-completions schema."""
+
+    name = "nvidia_nim"
 
     def generate(self, request: LLMRequest) -> LLMAdapterResult:
-        import ai_services
+        import requests
 
+        import ai_services
+        import config
+
+        model = request.model_name or "meta/llama-3.1-8b-instruct"
         started = time.perf_counter()
-        raw_obj: Any
-        if request.expect_json:
-            raw_obj = ai_services.ask_gemini(
-                request.system_prompt,
-                request.user_prompt,
-                request.response_tag,
-                request.model_name,
-            )
-        else:
-            raw_obj = ai_services.ask_gemini_raw_text(
-                request.system_prompt,
-                request.user_prompt,
-                request.model_name,
-            )
-        latency_ms = (time.perf_counter() - started) * 1000.0
-        if not isinstance(raw_obj, dict):
+        api_key = config.NVIDIA_API_KEY
+        if not api_key:
             return LLMAdapterResult(
                 content="",
                 provider=self.name,
-                model=request.model_name or "gemini",
-                latency_ms=latency_ms,
+                model=model,
+                latency_ms=0.0,
                 usage=None,
                 finish_reason="error",
-                safe_error="invalid_provider_payload",
-                retryable=True,
+                safe_error="missing_credential",
+                retryable=False,
                 parsed=None,
             )
-        raw: dict[str, Any] = raw_obj
-        error = str(raw.get("error") or "")
-        content = str(raw.get("raw_content") or raw.get("content") or "")
-        if error:
-            provider_error = str(raw.get("_provider_error") or error)
+        base_url = str(config.NVIDIA_API_BASE_URL or "https://integrate.api.nvidia.com/v1").rstrip("/")
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": request.system_prompt},
+                {"role": "user", "content": request.user_prompt},
+            ],
+        }
+        if request.max_tokens:
+            payload["max_tokens"] = int(request.max_tokens)
+        if request.expect_json:
+            payload["response_format"] = {"type": "json_object"}
+        try:
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=max(1.0, float(request.timeout_seconds)),
+            )
+            response.raise_for_status()
+            body = response.json()
+            choice = body["choices"][0]
+            content = str(choice["message"]["content"] or "")
+            provider_finish = str(choice.get("finish_reason") or "")
+            usage = body.get("usage") if isinstance(body.get("usage"), dict) else None
+        except Exception as exc:  # noqa: BLE001 - provider text is normalised before it leaves here
+            provider_error = str(exc)
             return LLMAdapterResult(
-                content=content,
+                content="",
                 provider=self.name,
-                model=str(raw.get("model") or request.model_name or "gemini"),
-                latency_ms=latency_ms,
+                model=model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
                 usage=None,
                 finish_reason="error",
                 safe_error=_safe_error(provider_error),
-                retryable=_is_retryable(
-                    provider_error,
-                    explicit=any(
-                        marker in provider_error.casefold()
-                        for marker in ("cooldown", "rate", "unavailable", "internal")
-                    )
-                    or None,
-                ),
+                retryable=_is_retryable(provider_error),
                 parsed=None,
             )
-        parsed: dict[str, Any] | None = {
-            k: v for k, v in raw.items() if not str(k).startswith("_") and k not in {"error", "raw_content"}
-        }
-        if request.expect_json and not parsed:
-            parsed = _validate_json_content(content)
-        if request.expect_json and parsed:
-            body = content or json.dumps(parsed, ensure_ascii=False)
-        else:
-            body = content
+        latency_ms = (time.perf_counter() - started) * 1000.0
+        # Reasoning models spend the same max_tokens budget on their hidden thinking, so a small
+        # budget yields finish_reason='length' with empty content. That is a truncation, not a
+        # malformed payload — conflating the two sends operators hunting for a parsing bug.
+        if provider_finish == "length" and not content.strip():
+            return LLMAdapterResult(
+                content="",
+                provider=self.name,
+                model=model,
+                latency_ms=latency_ms,
+                usage=usage,
+                finish_reason="error",
+                safe_error="response_truncated",
+                retryable=False,
+                parsed=None,
+            )
+        parsed = None
+        if request.expect_json:
+            parsed = ai_services.parse_llm_json(content, request.response_tag)
+            if not isinstance(parsed, dict) or "error" in parsed:
+                parsed = _validate_json_content(content)
+            if parsed is None:
+                return LLMAdapterResult(
+                    content=content,
+                    provider=self.name,
+                    model=model,
+                    latency_ms=latency_ms,
+                    usage=usage,
+                    finish_reason="error",
+                    # A partial JSON body is still truncation rather than a provider defect.
+                    safe_error="response_truncated" if provider_finish == "length" else "invalid_provider_payload",
+                    retryable=provider_finish != "length",
+                    parsed=None,
+                )
         return LLMAdapterResult(
-            content=body,
+            content=content,
             provider=self.name,
-            model=str(raw.get("model") or request.model_name or "gemini"),
+            model=model,
             latency_ms=latency_ms,
-            usage=None,
+            usage=usage,
             finish_reason="stop",
             safe_error="",
             retryable=False,
-            parsed=parsed if request.expect_json else None,
+            parsed=parsed,
+            # JSON repair can turn a value cut off mid-string into a syntactically valid but
+            # empty field (e.g. {"push_text": ""}), which parses successfully yet is missing
+            # the content a task schema check requires — that failure needs to read as
+            # truncation, not as "the model omitted this field".
+            provider_truncated=provider_finish == "length",
         )
 
 
 def default_adapters() -> dict[str, LLMPort]:
-    return {"ollama": OllamaAdapter(), "gemini": GeminiAdapter()}
+    return {"ollama": OllamaAdapter(), "nvidia_nim": NvidiaNimAdapter()}
 
 
 def parse_structured_content(content: str, tag: str = "") -> dict[str, Any]:
@@ -252,9 +295,20 @@ def stream_tokens(
     *,
     num_predict: int | None = None,
 ):
-    """Stream tokens through the Ollama adapter path only (Gemini stream not required)."""
+    """Stream tokens from Ollama; a cloud-only store gets one non-streamed chunk instead.
+
+    Only the local adapter streams. Rather than quietly using Ollama when the store asked for
+    cloud-only, fall back to a normal generate call and emit its text as a single token.
+    """
 
     import ai_services
+    from services import llm_routing_service
+
+    if not llm_routing_service.allows_local(request.model_policy):
+        response = generate(request)
+        if response.content:
+            yield response.content
+        return
 
     model = request.model_name or ""
     yield from ai_services.stream_ollama_tokens(
@@ -313,6 +367,17 @@ def _call_with_timeout(adapter: LLMPort, request: LLMRequest) -> LLMAdapterResul
         )
 
 
+def _request_for_provider(request: LLMRequest, provider_name: str) -> LLMRequest:
+    """Callers name a local model; a cloud provider in the chain needs its own configured model."""
+
+    if provider_name == "ollama":
+        return request
+    from services import llm_routing_service
+
+    model = llm_routing_service.cloud_model(voice=str(request.task) == "voice_assist")
+    return replace(request, model_name=model) if model else request
+
+
 def generate(
     request: LLMRequest,
     *,
@@ -333,11 +398,12 @@ def generate(
         if adapter is None:
             last_error = f"adapter_missing:{provider_name}"
             continue
+        attempt_request = _request_for_provider(request, provider_name)
         attempts = 0
         max_attempts = max(0, int(request.max_retries)) + 1
         while attempts < max_attempts:
             attempts += 1
-            result = _call_with_timeout(adapter, request)
+            result = _call_with_timeout(adapter, attempt_request)
             last_provider = result.provider or provider_name
             last_model = result.model
             last_latency = result.latency_ms
@@ -377,7 +443,9 @@ def generate(
                     break
                 task_schema_error = _validate_task_schema(request.task, parsed)
                 if task_schema_error:
-                    last_error = task_schema_error
+                    # A required field parsed as empty because the provider cut the response
+                    # off mid-value, not because it chose to omit the field.
+                    last_error = "response_truncated" if result.provider_truncated else task_schema_error
                     _metric(provider_name, "schema_failure")
                     primary_failed = True
                     if index >= len(chain) - 1:

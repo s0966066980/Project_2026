@@ -79,11 +79,14 @@ def test_json_log_formatter_outputs_structured_request_fields():
 def test_create_app_adds_request_id_header(monkeypatch):
     import app_factory
 
+    import config
+
     async def fake_background_init():
         return None
 
     monkeypatch.setattr(app_factory, "background_init", fake_background_init)
     monkeypatch.setattr(app_factory.observability_service, "apply_runtime_retention", lambda: {})
+    monkeypatch.setattr(config, "APP_ENV", "test")
 
     client = TestClient(app_factory.create_app())
     response = client.get("/api/public_settings", headers={"X-Request-Id": "req_existing"})

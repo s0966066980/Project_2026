@@ -1,23 +1,23 @@
 import asyncio
 
-from fastapi import APIRouter, Body, Form, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from realtime import event_bus
 
 import config
 from core.constants import FRONTEND_DIR
+from models.settings_contract import SettingsUpdateRequest
 from repositories import commercial_settings_repository, log_repository
 from services import (
-    checkout_pricing_service,
-    checkout_service,
+    admin_audit_service,
     health_service,
-    member_service,
+    llm_routing_service,
     observability_service,
     stats_service,
 )
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
-from utils.parsing import parse_json_list, parse_non_negative_int
 
 
 def create_router(deps: dict) -> APIRouter:
@@ -51,7 +51,8 @@ def create_router(deps: dict) -> APIRouter:
     async def get_session_stats(request: Request):
         authorize_admin_request(request, "operations.read")
         logs = await asyncio.to_thread(log_repository.get_session_logs)
-        return {"status": "success", **stats_service.compute_session_stats(logs)}
+        stats = stats_service.compute_session_stats(logs)
+        return {"status": "success", **stats}
 
     @router.get("/api/public_settings")
     async def get_public_settings(request: Request):
@@ -63,6 +64,20 @@ def create_router(deps: dict) -> APIRouter:
             for key in config.PUBLIC_SETTINGS_KEYS
         }
 
+    def _settings_changes(rows: list[dict], version: int) -> list[dict]:
+        """Diff one version against the one before it, skipping unchanged keys."""
+        index = next((i for i, row in enumerate(rows) if row["version"] == version), -1)
+        if index < 0:
+            return []
+        current = rows[index]["settings"]
+        previous = rows[index + 1]["settings"] if index + 1 < len(rows) else {}
+        keys = sorted(set(current) | set(previous))
+        return [
+            {"key": key, "before": previous.get(key), "after": current.get(key)}
+            for key in keys
+            if current.get(key) != previous.get(key)
+        ][:20]
+
     @router.get("/api/settings")
     async def get_settings(request: Request):
         principal = authorize_admin_request(request, "settings.read")
@@ -70,24 +85,153 @@ def create_router(deps: dict) -> APIRouter:
         settings = commercial_settings_repository.get_settings_scoped(scope)
         return config.with_effective_emotion_prompt(settings)
 
+    @router.get("/api/settings/llm-routing")
+    async def get_llm_routing(request: Request):
+        """Whether each half of the configured chain can serve, without sending a prompt."""
+        authorize_admin_request(request, "settings.read")
+        return await asyncio.to_thread(llm_routing_service.readiness)
+
+    @router.get("/api/settings/llm-traffic")
+    async def get_llm_traffic(request: Request):
+        """Which provider actually answered recently — the check against configured intent."""
+        authorize_admin_request(request, "settings.read")
+        counters = observability_service.metrics_snapshot().get("llm_provider_requests_total", {})
+        providers: dict[str, float] = {}
+        fallbacks = 0.0
+        for label, count in counters.items():
+            provider, _, reason = str(label).partition("_")
+            providers[provider] = providers.get(provider, 0.0) + float(count)
+            if reason in {"timeout", "error", "schema_failure"}:
+                fallbacks += float(count)
+        return {
+            "providers": {name: int(value) for name, value in sorted(providers.items())},
+            "fallbacks": int(fallbacks),
+            "total": int(sum(providers.values())),
+        }
+
+    @router.post("/api/settings/llm-connectivity-test")
+    async def test_llm_connectivity(request: Request):
+        """Send one real probe per configured provider. Changes no settings."""
+        authorize_admin_request(request, "settings.write")
+        check_rate_limit(request, "admin_llm_connectivity_test", limit=10)
+        return await asyncio.to_thread(llm_routing_service.connectivity_test)
+
+    @router.get("/api/settings/versions")
+    async def list_settings_versions(request: Request):
+        principal = authorize_admin_request(request, "settings.read")
+        scope = scope_from_admin_principal(principal)
+        rows = await asyncio.to_thread(commercial_settings_repository.list_versions_scoped, scope, 25)
+        return {"versions": [
+            {
+                "version": row["version"],
+                "actor_id": row["actor_id"],
+                "created_at": row["created_at"],
+                "changes": _settings_changes(rows, row["version"]),
+            }
+            for row in rows
+        ]}
+
+    @router.post("/api/settings/versions/{version}/rollback")
+    async def rollback_settings_version(request: Request, version: int):
+        principal = authorize_admin_request(request, "settings.write")
+        scope = scope_from_admin_principal(principal)
+        check_rate_limit(request, "admin_settings_update", limit=30)
+        target = await asyncio.to_thread(commercial_settings_repository.get_version_settings, scope, version)
+        if target is None:
+            raise HTTPException(status_code=404, detail={"code": "settings_version_not_found", "message": "找不到這個設定版本。"})
+        # Roll forward to a copy of the old document rather than deleting versions, so the
+        # rollback itself stays auditable.
+        saved_settings = commercial_settings_repository.save_settings_scoped(
+            target, scope, actor_id=principal.user_id
+        )
+        await event_bus.publish_event({
+            "type": "settings_changed",
+            "session_id": "",
+            "payload": {"settings": config.public_settings(saved_settings)},
+        })
+        return {"status": "success", "restored_from": version}
+
     @router.get("/api/admin/health")
     async def get_admin_health(request: Request):
-        authorize_admin_request(request, "operations.read")
-        return await health_service.build_admin_health()
+        principal = authorize_admin_request(request, "operations.read")
+        scope = scope_from_admin_principal(principal)
+        actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
+        return await health_service.build_admin_health(actions)
+
+    async def record_health_incident_action(request: Request, incident_id: str, action: str, body: dict) -> dict:
+        principal = authorize_admin_request(request, "operations.write")
+        scope = scope_from_admin_principal(principal)
+        check_rate_limit(request, "admin_health_incident_action", limit=30)
+        actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
+        current = await health_service.build_admin_health(actions)
+        incidents = current.get("operational", {}).get("incidents", [])
+        incident = next((row for row in incidents if row.get("incident_id") == incident_id), None)
+        if incident is None:
+            raise HTTPException(status_code=404, detail="health incident is no longer active")
+        reason = str((body or {}).get("reason") or "").strip()[:500]
+        await asyncio.to_thread(
+            admin_audit_service.record_admin_action,
+            action,
+            target_type="health_incident",
+            target_id=incident_id,
+            request=request,
+            metadata={"reason": reason, "check_key": incident.get("check_key", "")},
+            scope=scope,
+        )
+        updated_actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
+        return await health_service.build_admin_health(updated_actions)
+
+    @router.post("/api/admin/health/incidents/{incident_id}/acknowledge")
+    async def acknowledge_health_incident(request: Request, incident_id: str, body: dict = Body(default={})):
+        return await record_health_incident_action(request, incident_id, "health.incident.acknowledge", body)
+
+    @router.post("/api/admin/health/incidents/{incident_id}/escalate")
+    async def escalate_health_incident(request: Request, incident_id: str, body: dict = Body(default={})):
+        return await record_health_incident_action(request, incident_id, "health.incident.escalate", body)
 
     @router.post("/api/settings")
     async def update_settings(request: Request, new_settings: dict = Body(...)):
         principal = authorize_admin_request(request, "settings.write")
         scope = scope_from_admin_principal(principal)
         check_rate_limit(request, "admin_settings_update", limit=30)
+        submitted = new_settings if isinstance(new_settings, dict) else {}
+        credentials = sorted(config.CREDENTIAL_SETTING_KEYS & set(submitted))
+        if credentials:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "credential_not_accepted",
+                    "message": f"{'、'.join(credentials)} 屬於憑證，請在 .env 設定後重啟服務。",
+                },
+            )
+        try:
+            validated = SettingsUpdateRequest.model_validate(submitted)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "settings_invalid",
+                    "message": "設定內容有誤，請修正後再儲存。",
+                    "field_errors": [
+                        {
+                            "path": ".".join(str(part) for part in error.get("loc") or ()),
+                            "code": str(error.get("type") or "invalid"),
+                            "message": str(error.get("msg") or "此欄位無效。"),
+                        }
+                        for error in exc.errors()
+                    ],
+                },
+            ) from exc
         saved_settings = commercial_settings_repository.save_settings_scoped(
-            new_settings, scope, actor_id=principal.user_id
+            validated.changed_settings(), scope, actor_id=principal.user_id
         )
         await event_bus.publish_event(
             {
                 "type": "settings_changed",
                 "session_id": "",
-                "payload": {"settings": saved_settings},
+                # broadcast_all reaches every connected client including kiosk devices, so only
+                # the public projection may travel here — never the full settings document.
+                "payload": {"settings": config.public_settings(saved_settings)},
             }
         )
         return {"status": "success"}
@@ -123,74 +267,5 @@ def create_router(deps: dict) -> APIRouter:
         authorize_admin_request(request, "operations.write")
         deleted = await asyncio.to_thread(log_repository.delete_session_log, log_index)
         return {"status": "success" if deleted else "not_found"}
-
-    @router.post("/api/checkout")
-    async def process_checkout(
-        request: Request,
-        session_id: str = Form(...),
-        pushed_ids: str = Form(...),
-        cart_ids: str = Form(...),
-        cart_items: str = Form(default="[]"),
-        ai_push_cart_count: str = Form(default="0"),
-        cart_sources: str = Form(default="[]"),
-        cart_total: str = Form(default="0"),
-    ):
-        principal = require_kiosk_token(request)
-        scope = scope_from_device_principal(principal) if principal is not None else None
-        check_rate_limit(request, "checkout", limit=120, key=session_id)
-        parsed_cart_ids = parse_json_list(cart_ids, fallback_csv=True)
-        parsed_cart_items = parse_json_list(cart_items)
-        member = await asyncio.to_thread(
-            member_service.get_session_member,
-            session_id,
-            *(() if scope is None else (scope,)),
-        )
-        try:
-            priced_cart = await asyncio.to_thread(
-                checkout_pricing_service.price_checkout_cart,
-                parsed_cart_items,
-                parsed_cart_ids,
-                is_member=bool(member),
-                scope=scope,
-            )
-        except checkout_pricing_service.CartValidationError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"code": exc.code, "message": str(exc)},
-            ) from exc
-        checkout_args = (
-            session_id,
-            parse_json_list(pushed_ids, fallback_csv=True),
-            priced_cart["cart_ids"],
-            priced_cart["cart_items"],
-            parse_non_negative_int(ai_push_cart_count),
-            parse_json_list(cart_sources),
-            priced_cart["total"],
-            scope,
-            str(request.headers.get("Idempotency-Key") or f"legacy:{session_id}"),
-            priced_cart,
-        )
-        correlation_token = (
-            observability_service.bind_correlation_context(
-                tenant_id=scope.tenant_id,
-                store_id=scope.store_id,
-                device_id=scope.device_id,
-            )
-            if scope is not None
-            else None
-        )
-        request.state.commercial_scope = scope
-        try:
-            result = await checkout_service.process_checkout(*checkout_args)
-        except checkout_service.CheckoutIdempotencyConflictError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={"code": "idempotency_conflict", "message": str(exc)},
-            ) from exc
-        finally:
-            if correlation_token is not None:
-                observability_service.reset_correlation_context(correlation_token)
-        result["cart_total"] = priced_cart["total"]
-        return result
 
     return router

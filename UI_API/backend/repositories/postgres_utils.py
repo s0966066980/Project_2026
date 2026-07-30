@@ -1,16 +1,23 @@
-"""PostgreSQL helpers for optional commercial storage backends.
+"""Compatibility facade for the Runtime Persistence Profile.
 
-The project defaults to JSON storage. These helpers are imported lazily by
-repositories only when `MEMBER_STORAGE_BACKEND=postgres`.
+Database selection, secrets and connection ownership live in the persistence
+module. Repositories retain this import surface while their persistence ports
+are moved behind the module seam.
 """
 
 import hashlib
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Mapping, Sequence, TypedDict
 
-import config
+from modules.runtime_persistence.database import (
+    PersistenceConnectionError,
+    direct_connection,
+    pooled_connection,
+)
+from modules.runtime_persistence.runtime import current_profile
 
 SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "schemas"
 SCHEMA_PATH = SCHEMAS_DIR / "membership_postgres.sql"
@@ -104,44 +111,59 @@ class PostgresOperationError(PostgresUnavailableError):
 
 
 def storage_backend() -> str:
-    return str(config.get("MEMBER_STORAGE_BACKEND", "json") or "json").strip().lower()
+    return current_profile().backend
 
 
 def use_postgres() -> bool:
-    return storage_backend() == "postgres"
+    return storage_backend() == "postgresql"
 
 
 def allow_postgres_json_fallback() -> bool:
-    """Allow JSON compatibility fallback only when development opts in explicitly."""
+    """JSON is not a runtime persistence adapter."""
 
-    return str(config.APP_ENV).lower() == "development" and bool(config.get("ALLOW_POSTGRES_JSON_FALLBACK", False))
+    return False
 
 
 def handle_postgres_failure(exc: Exception) -> None:
-    """Raise a safe, observable error unless explicit development fallback is enabled."""
+    """Never split authority by falling back to a different storage engine."""
 
-    if allow_postgres_json_fallback():
-        return
     raise PostgresOperationError("PostgreSQL operation failed") from exc
 
 
 def database_url() -> str:
-    return str(config.get("DATABASE_URL", "") or "").strip()
+    return current_profile().database_url
+
+
+def migration_database_url() -> str:
+    profile = current_profile()
+    return profile.migration_database_url
 
 
 def connect():
     url = database_url()
     if not url:
-        raise PostgresUnavailableError("DATABASE_URL is required when MEMBER_STORAGE_BACKEND=postgres")
+        raise PostgresUnavailableError("DATABASE_URL is required when DATABASE_BACKEND=postgresql")
     try:
-        import psycopg
-        from psycopg.rows import dict_row
-    except Exception as exc:
-        raise PostgresUnavailableError("psycopg is required for PostgreSQL storage") from exc
+        return pooled_connection(
+            url=url,
+            minimum_size=int(os.getenv("DATABASE_POOL_MIN_SIZE", "1") or 1),
+            maximum_size=int(os.getenv("DATABASE_POOL_MAX_SIZE", "10") or 10),
+            timeout_seconds=float(os.getenv("DATABASE_POOL_TIMEOUT_SECONDS", "5") or 5),
+        )
+    except PersistenceConnectionError as exc:
+        raise PostgresUnavailableError(str(exc)) from exc
+
+
+def migration_connect():
+    url = migration_database_url()
+    if not url:
+        raise PostgresUnavailableError(
+            "MIGRATION_DATABASE_URL is required for explicit schema migration"
+        )
     try:
-        return psycopg.connect(url, row_factory=dict_row)
-    except Exception as exc:
-        raise PostgresUnavailableError("Unable to connect to PostgreSQL") from exc
+        return direct_connection(url=url)
+    except PersistenceConnectionError as exc:
+        raise PostgresUnavailableError(str(exc)) from exc
 
 
 def migration_files() -> list[Path]:
@@ -240,6 +262,25 @@ def _fetch_applied_migrations(cur) -> dict[str, str]:
     return {str(row.get("version") or ""): str(row.get("checksum") or "") for row in cur.fetchall()}
 
 
+def _grant_runtime_role(cur) -> None:
+    role = str(os.getenv("DATABASE_RUNTIME_ROLE", "") or "").strip()
+    if not role:
+        return
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role) is None:
+        raise MigrationValidationError("DATABASE_RUNTIME_ROLE is not a safe PostgreSQL identifier")
+    cur.execute(f"GRANT USAGE ON SCHEMA public TO {role}")
+    cur.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}")
+    cur.execute(f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {role}")
+    cur.execute(
+        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+        f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {role}"
+    )
+    cur.execute(
+        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+        f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {role}"
+    )
+
+
 def get_migration_plan() -> MigrationPlan:
     files = migration_files()
     _validate_migration_files(files)
@@ -252,7 +293,7 @@ def get_migration_plan() -> MigrationPlan:
 def init_schema() -> None:
     files = migration_files()
     _validate_migration_files(files)
-    with connect() as conn:
+    with migration_connect() as conn:
         with conn.cursor() as cur:
             _acquire_migration_lock(cur)
             _ensure_migration_table(cur)
@@ -272,6 +313,7 @@ def init_schema() -> None:
                     """,
                     (record.version, record.checksum),
                 )
+            _grant_runtime_role(cur)
         conn.commit()
 
 

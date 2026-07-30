@@ -33,8 +33,12 @@ describe('legacy API allowlist freeze', () => {
       });
       expect(ok, `unexpected legacy fetch not on allowlist: ${JSON.stringify(hit)}`).toBe(true);
     }
+    for (const entry of allowlist.entries) {
+      const prefix = entry.pattern.replace(/^fetch\(['"]/, '').replace(/['"]$/, '');
+      const stillUsed = found.some(hit => entry.file === hit.file && hit.path.startsWith(prefix));
+      expect(stillUsed, `stale legacy allowlist entry: ${JSON.stringify(entry)}`).toBe(true);
+    }
     // Freeze: allowlist must not silently expand without review.
     expect(allowlist.entries.length).toBeLessThanOrEqual(2);
-    expect(found.length).toBeGreaterThan(0);
   });
 });

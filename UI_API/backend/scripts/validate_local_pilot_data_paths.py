@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate local-pilot commercial data stays on PostgreSQL (no JSON SoT)."""
+"""Validate local-pilot durable records stay on the selected PostgreSQL runtime."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ def _is_local_pilot() -> bool:
     return (
         os.getenv("APP_PROFILE", "").strip().lower() == "local-pilot"
         or (
-            os.getenv("APP_ENV", "").strip().lower() == "production"
-            and os.getenv("MEMBER_STORAGE_BACKEND", "").strip().lower() == "postgres"
+            os.getenv("APP_ENV", "").strip().lower() == "pilot"
+            and os.getenv("DATABASE_BACKEND", "").strip().lower() == "postgresql"
             and os.getenv("SECURITY_ENFORCED", "").strip().lower() in {"1", "true", "yes", "on"}
         )
     )
@@ -55,21 +55,16 @@ def main() -> int:
     if not _is_local_pilot():
         warn("not in local-pilot mode; running structural checks only")
 
-    backend = os.getenv("MEMBER_STORAGE_BACKEND", "json").strip().lower()
-    if _is_local_pilot() and backend != "postgres":
-        fail("local-pilot requires MEMBER_STORAGE_BACKEND=postgres")
+    backend = os.getenv("DATABASE_BACKEND", "postgresql").strip().lower()
+    if _is_local_pilot() and backend != "postgresql":
+        fail("local-pilot requires DATABASE_BACKEND=postgresql")
     else:
         pass_("storage backend check")
 
-    if _is_local_pilot() and os.getenv("ALLOW_POSTGRES_JSON_FALLBACK", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }:
-        fail("local-pilot must not allow postgres JSON fallback")
+    if os.getenv("MEMBER_STORAGE_BACKEND", "").strip() or os.getenv("DATABASE_PORT", "").strip():
+        fail("legacy database selection must be removed")
     else:
-        pass_("no JSON fallback flag for pilot")
+        pass_("single database selection authority")
 
     # Structural: commercial adapters must not open learning_data json paths as SoT
     for rel in COMMERCIAL_REPO_FILES:

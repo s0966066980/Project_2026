@@ -215,7 +215,6 @@ def append_interaction_event_scoped(event: dict, scope: CommercialScope) -> dict
     if postgres_utils.use_postgres():
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -264,7 +263,6 @@ def get_interaction_events_scoped(
     except Exception:
         safe_limit = 200
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         params: list = [scope.tenant_id, scope.store_id]
         device_filter = ""
         if scope.device_id is not None:
@@ -334,7 +332,6 @@ def append_intervention_log_scoped(log: dict, scope: CommercialScope) -> dict:
     if postgres_utils.use_postgres():
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -383,7 +380,6 @@ def update_intervention_result_scoped(
     if postgres_utils.use_postgres():
         from psycopg.types.json import Jsonb
 
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -462,7 +458,6 @@ def get_intervention_logs_scoped(
     except Exception:
         safe_limit = 200
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         params: list = [scope.tenant_id, scope.store_id]
         device_filter = ""
         if scope.device_id is not None:
@@ -499,7 +494,6 @@ def clear_intervention_logs() -> int:
 
 def clear_intervention_logs_scoped(scope: CommercialScope) -> int:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         params: list = [scope.tenant_id, scope.store_id]
         device_filter = ""
         if scope.device_id is not None:
@@ -527,7 +521,6 @@ def clear_interaction_events() -> int:
 
 def clear_interaction_events_scoped(scope: CommercialScope) -> int:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         params: list = [scope.tenant_id, scope.store_id]
         device_filter = ""
         if scope.device_id is not None:

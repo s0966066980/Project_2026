@@ -14,13 +14,12 @@ def _actor_from_request(request) -> str:
     principal = getattr(getattr(request, "state", None), "admin_principal", None)
     if principal is not None:
         return str(principal.user_id)
-    if request.headers.get("X-Admin-Token") or str(request.headers.get("Authorization", "")).lower().startswith(
-        "bearer "
-    ):
-        return "admin"
+    device_principal = getattr(getattr(request, "state", None), "device_principal", None)
+    if device_principal is not None:
+        return str(device_principal.device_id)
     if request.headers.get("X-Kiosk-Token") or request.headers.get("X-Pos-Token"):
         return "kiosk"
-    return "admin"
+    return "system"
 
 
 def _request_metadata(request) -> dict:

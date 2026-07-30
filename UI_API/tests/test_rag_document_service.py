@@ -1,4 +1,7 @@
 import importlib
+from uuid import UUID
+
+import pytest
 
 
 class FakeRag:
@@ -72,8 +75,8 @@ def test_rebuild_imports_valid_documents_after_validation(tmp_path, monkeypatch)
     service = _service(tmp_path, monkeypatch)
     fake_rag = FakeRag()
     root = tmp_path / "rag_documents"
-    (root / "faq").mkdir(parents=True)
-    (root / "faq" / "payment.md").write_text("# 付款 FAQ\n可使用現金或信用卡。", encoding="utf-8")
+    (root / "store_information").mkdir(parents=True)
+    (root / "store_information" / "payment.md").write_text("# 付款方式\n可使用現金或信用卡。", encoding="utf-8")
     monkeypatch.setattr(service, "get_rag", lambda: fake_rag)
 
     import asyncio
@@ -82,13 +85,13 @@ def test_rebuild_imports_valid_documents_after_validation(tmp_path, monkeypatch)
     assert result["status"] == "ok"
     assert fake_rag.deleted is True
     assert result["imported"] == 1
-    assert fake_rag.documents[0]["source_type"] == "faq"
+    assert fake_rag.documents[0]["source_type"] == "store_information"
 
 
 def test_rebuild_imports_only_selected_sources_and_reuses_saved_selection(tmp_path, monkeypatch):
     service = _service(tmp_path, monkeypatch)
     fake_rag = FakeRag()
-    root = tmp_path / "rag_documents" / "faq"
+    root = tmp_path / "rag_documents" / "store_information"
     root.mkdir(parents=True)
     (root / "keep.md").write_text("# 保留\n有效內容", encoding="utf-8")
     (root / "legacy.md").write_text("# 舊文件\n不應再匯入", encoding="utf-8")
@@ -96,7 +99,9 @@ def test_rebuild_imports_only_selected_sources_and_reuses_saved_selection(tmp_pa
 
     import asyncio
     preview = service.validate_source_documents(include_documents=True)
-    selected_id = next(row["source_id"] for row in preview["documents"] if row["path"] == "faq/keep.md")
+    selected_id = next(
+        row["source_id"] for row in preview["documents"] if row["path"] == "store_information/keep.md"
+    )
 
     first = asyncio.run(service.rebuild_from_source_documents(selected_source_ids=[selected_id]))
     second = asyncio.run(service.rebuild_from_source_documents())
@@ -111,7 +116,7 @@ def test_rebuild_imports_only_selected_sources_and_reuses_saved_selection(tmp_pa
 def test_rebuild_reconciles_deleted_sources_from_saved_selection(tmp_path, monkeypatch):
     service = _service(tmp_path, monkeypatch)
     fake_rag = FakeRag()
-    root = tmp_path / "rag_documents" / "faq"
+    root = tmp_path / "rag_documents" / "store_information"
     root.mkdir(parents=True)
     keep_path = root / "keep.md"
     legacy_path = root / "legacy.md"
@@ -129,9 +134,9 @@ def test_rebuild_reconciles_deleted_sources_from_saved_selection(tmp_path, monke
 
     assert rebuilt["status"] == "ok"
     assert rebuilt["selection_source"] == "saved"
-    assert rebuilt["selected_source_ids"] == [source_ids["faq/keep.md"]]
+    assert rebuilt["selected_source_ids"] == [source_ids["store_information/keep.md"]]
     assert rebuilt["imported"] == 1
-    assert [row["source_id"] for row in fake_rag.documents] == [source_ids["faq/keep.md"]]
+    assert [row["source_id"] for row in fake_rag.documents] == [source_ids["store_information/keep.md"]]
 
 
 def test_clear_index_saves_empty_selection_so_rebuild_does_not_restore_old_sources(tmp_path, monkeypatch):
@@ -159,6 +164,22 @@ def test_direct_write_is_added_to_authoritative_selection(tmp_path, monkeypatch)
     selected = service.include_source_in_index("direct-b")
 
     assert selected == ["source-a", "direct-b"]
+
+
+def test_legacy_rebuild_worker_is_rejected_after_studio_cutover(tmp_path, monkeypatch):
+    service = _service(tmp_path, monkeypatch)
+    from services import worker_service
+
+    tenant = UUID("00000000-0000-4000-8000-000000000001")
+    store_id = UUID("00000000-0000-4000-8000-000000000002")
+    job_store = worker_service.InMemoryJobStore()
+    with pytest.raises(ValueError, match="Unsupported job type: rag.rebuild"):
+        service.enqueue_rebuild(
+            tenant_id=tenant,
+            store_id=store_id,
+            selected_source_ids=["faq-a", "policy-b"],
+            store=job_store,
+        )
 
 
 def test_successful_rebuild_resolves_previous_rebuild_alert(tmp_path, monkeypatch):

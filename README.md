@@ -10,9 +10,9 @@ Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用
 
 - **Kiosk**：菜單、購物車、會員、推薦、活動廣告、語音協助、互動障礙偵測、結帳。
 - **Admin**：登入與權限、設定、會員、供應狀態、活動、推薦事件、RAG、健康檢查。
-- **Backend**：FastAPI、HTTP / WebSocket、Admin/Device identity、RBAC、健康檢查、結構化 logging、JSON 相容儲存與 PostgreSQL 商用路徑。
-- **資料與非同步工作**：11 個 forward PostgreSQL migrations、Redis shared rate-limit/cache/lock、可靠 worker、transactional outbox、local/S3 object-storage contract。
-- **AI**：Ollama、Gemini、Emotion-LLaMA、R1-Omni、STT / TTS；AI provider 必須保持可替換，失敗時不得破壞核心交易流程。
+- **Backend**：FastAPI、HTTP / WebSocket、Admin/Device identity、RBAC、健康檢查、結構化 logging，以及由 Runtime Persistence Profile 管理的 PostgreSQL 路徑。
+- **資料與非同步工作**：21 個 forward PostgreSQL migrations、隔離的 SQLite 測試 adapter、Redis shared rate-limit/cache/lock、可靠 worker、transactional outbox、local/S3 object-storage contract；JSON 不是 runtime persistence adapter。
+- **AI**：Ollama（本機）、NVIDIA NIM（雲端）、Emotion-LLaMA、R1-Omni、STT / TTS；AI provider 必須保持可替換，失敗時不得破壞核心交易流程。
 
 ## 專案結構
 
@@ -27,7 +27,7 @@ Project_2026/
 │   │   ├── modules/                # 新模組邊界；目前 Identity 已開始抽離
 │   │   ├── routes/                 # HTTP / WebSocket transport
 │   │   ├── services/               # 既有 application workflow 與相容層
-│   │   ├── repositories/           # JSON / PostgreSQL 資料存取
+│   │   ├── repositories/           # PostgreSQL / Redis 資料存取
 │   │   ├── integrations/           # Payment、POS、AI / 外部 provider adapters
 │   │   ├── schemas/                # Schema、migration、跨層資料結構
 │   │   ├── realtime/               # WebSocket 與事件推送
@@ -69,7 +69,7 @@ UI_API/main.py
 
 ```text
 既有相容路徑
-Route → Service → Repository → JSON / PostgreSQL
+Route → Service → Repository → PostgreSQL
 
 目標模組路徑
 Route → modules/<domain>/application.py
@@ -85,14 +85,15 @@ Identity 已移至 `backend/modules/identity`，但既有 route 仍可經 `servi
 2. 業務規則放在 module Application API 或 service，不在 route 直接讀寫資料。
 3. Repository / adapter 負責 I/O；不得反向依賴 route。
 4. 新模組只透過其他模組的公開 Application API 或事件互動，不直接 import 對方的 repository / adapter。
-5. Ollama、Gemini、Emotion、Payment、POS 等外部呼叫集中於 integration / adapter。
+5. Ollama、NVIDIA NIM、Emotion、Payment、POS 等外部呼叫集中於 integration / adapter。
 6. `pilot`、`staging`、`production` 必須使用 PostgreSQL，禁止資料庫失敗後靜默 fallback 到 JSON。
 7. AI、RAG、語音與情緒分析不得成為 checkout 的必要條件。
 
 目前資料與整合邊界：
 
-- `development` / `test` 可使用 JSON compatibility storage；`staging` / `pilot` / `production` 啟動時會檢查 PostgreSQL、安全設定與 commercial scope。
-- PostgreSQL migrations `0001`–`0011` 涵蓋會員、tenant/store/device scope、Admin RBAC、Order/outbox、worker、object metadata、RAG governance，以及 recommendation/fleet/analytics control plane。
+- 目前部署目標是本機單一主機的 PostgreSQL 18，資料庫只綁定 loopback；`staging` / `pilot` / `production` 啟動時會檢查 PostgreSQL、安全設定與 commercial scope。
+- PostgreSQL migrations `0001`–`0021` 涵蓋會員、tenant/store/device scope、Admin RBAC、Order/outbox、worker、object metadata、RAG governance，以及已抽離的 domain durable records。
+- `RUNTIME_DATA_ROOT` 將 PostgreSQL、備份、物件、RAG 索引、SQLite、日誌、匯入匯出與暫存資料完全分目錄；PostgreSQL 容器只取得其資料與 WAL 目錄。未來 production 才部署 primary、同步 standby、非同步 standby 至三台 VM／三個可用區，詳見 [ADR 0010](docs/adr/0010-adopt-local-single-host-postgresql-runtime.md)。
 - Redis 是 shared cache、rate limit 與 lock adapter；未設定時只允許非商用相容路徑。
 - Payment/POS 目前只有 manual adapter；不應把 pending manual result 描述成自動付款完成或 POS 已送單。
 
@@ -109,11 +110,11 @@ Identity 已移至 `backend/modules/identity`，但既有 route 仍可經 `servi
 
 ### Backend
 
-建議 Python 3.10 或 3.12：
+UI_API 的本機 Python 執行環境統一為 Conda `emotion_ui`（Python 3.10）：
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+source /home/oliver/anaconda3/etc/profile.d/conda.sh
+conda activate emotion_ui
 python -m pip install -U pip
 pip install -r UI_API/requirements.txt
 ```
@@ -132,9 +133,13 @@ npm ci --ignore-scripts
 ### UI_API 單獨啟動
 
 ```bash
+source /home/oliver/anaconda3/etc/profile.d/conda.sh
+conda activate emotion_ui
 cd UI_API
 ENABLE_NGROK=false python main.py
 ```
+
+建議使用 `bash scripts/start_emotion_llama.sh` 或 `bash scripts/start_r1_omni.sh`；兩個腳本都會明確啟用 `emotion_ui`，並在啟動前檢查 `faster_whisper`、`fastembed` 與 `edge_tts`。不要使用環境不明的 shell Python 或專案 `.venv` 啟動 UI_API。
 
 預設網址：
 

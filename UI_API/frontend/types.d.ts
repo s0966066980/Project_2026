@@ -99,18 +99,75 @@ export interface VoiceStreamTranscriptChunk {
   detected_lang?: string;
 }
 
+export interface VoiceStreamAssistantTextChunk {
+  type: "assistant_text";
+  ai_response: string;
+  user_text?: string;
+  detected_lang?: string;
+}
+
 export interface VoiceStreamDoneChunk {
   type: "done";
   status?: string;
   [key: string]: unknown;
 }
 
-export type VoiceStreamChunk = VoiceStreamAudioChunk | VoiceStreamTranscriptChunk | VoiceStreamDoneChunk;
+export type VoiceStreamChunk = VoiceStreamAudioChunk | VoiceStreamTranscriptChunk | VoiceStreamAssistantTextChunk | VoiceStreamDoneChunk;
+
+export type VoiceTurnEventType =
+  | "accepted"
+  | "transcribing"
+  | "transcript"
+  | "assistant_result"
+  | "completed"
+  | "transcription_failed"
+  | "assistant_failed";
+
+export interface VoiceTurnEventPayload {
+  status?: string;
+  message?: string;
+  user_text?: string;
+  ai_response?: string;
+  detected_lang?: string;
+  audio_base64?: string;
+  audio_format?: string;
+  playback_status?: string;
+  playback_message?: string;
+  order_draft?: unknown;
+  mentioned_ids?: string[];
+  dialogue?: unknown;
+  [key: string]: unknown;
+}
+
+export interface VoiceTurnEvent {
+  voice_turn_id: string;
+  sequence: number;
+  type: VoiceTurnEventType;
+  payload: VoiceTurnEventPayload;
+  terminal: boolean;
+}
+
+export interface VoiceTurnEventCandidate {
+  voice_turn_id: unknown;
+  sequence: unknown;
+  type: unknown;
+  payload: unknown;
+  terminal: unknown;
+}
+
+export interface VoiceTurnProtocolState {
+  voiceTurnId: string;
+  lastAcknowledgedSequence: number;
+  terminal: boolean;
+  signatures: Map<number, string>;
+}
 
 export interface VoiceStreamHandlers {
   onAudio: (base64Audio: string, format: string) => void;
-  onTranscript?: (chunk: VoiceStreamTranscriptChunk) => void;
-  onDone: (chunk: VoiceStreamChunk) => void;
+  onEvent?: (event: VoiceTurnEventCandidate) => void;
+  onTranscript?: (payload: VoiceTurnEventPayload) => void;
+  onAssistantText?: (payload: VoiceTurnEventPayload) => void;
+  onDone: (payload: VoiceTurnEventPayload) => void;
   onError: (message: string) => void;
 }
 

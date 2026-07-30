@@ -84,7 +84,6 @@ def _event_id(event: dict) -> str:
 
 
 def _postgres_append_events(events: list[dict], scope: CommercialScope) -> list[dict]:
-    postgres_utils.init_schema()
     records = [dict(event or {}) for event in events if isinstance(event, dict) and _event_id(event)]
     if not records:
         return []
@@ -154,7 +153,6 @@ def _postgres_append_events(events: list[dict], scope: CommercialScope) -> list[
 
 
 def _postgres_get_events(scope: CommercialScope, session_id: str = "", limit: int = 200) -> list:
-    postgres_utils.init_schema()
     try:
         safe_limit = max(1, min(int(limit), MAX_RECORDS))
     except Exception:
@@ -186,7 +184,6 @@ def _postgres_get_events(scope: CommercialScope, session_id: str = "", limit: in
 
 
 def _postgres_clear_events(scope: CommercialScope) -> int:
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
             cur.execute(

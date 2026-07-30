@@ -9,7 +9,7 @@
 - Kiosk：菜單、購物車、會員、推薦、活動 banner、語音/情緒輔助、互動介入、checkout。
 - Admin：登入/RBAC、設定、會員、供應、活動、推薦事件、RAG、健康與 AI 測試。
 - Backend：legacy `/api/*`、typed `/api/v1/*`、WebSocket、Admin/Device identity、commercial scope、audit/observability。
-- Data：JSON development compatibility、PostgreSQL commercial path、Redis shared infrastructure、local/S3 object-storage contract。
+- Data：Runtime Persistence Profile、PostgreSQL 18 單機路徑、隔離的 SQLite 測試 adapter、Redis shared infrastructure、local/S3 object-storage contract；JSON 不再是 runtime adapter。
 - Async：獨立 worker 處理 durable jobs 與 order outbox；AI/provider 失敗不得阻擋 checkout。
 
 ## 結構
@@ -25,9 +25,9 @@ UI_API/
 │   ├── modules/identity/      # 已抽離的 Identity Application API
 │   ├── routes/                # HTTP/WebSocket transport
 │   ├── services/              # 既有 workflows 與 compatibility shims
-│   ├── repositories/          # JSON/PostgreSQL/Redis persistence adapters
+│   ├── repositories/          # PostgreSQL/Redis persistence adapters
 │   ├── integrations/          # manual Payment/POS adapters
-│   ├── schemas/               # PostgreSQL migrations 0001–0011
+│   ├── schemas/               # PostgreSQL migrations 0001–0021
 │   └── scripts/               # migration、pilot、worker、validation CLI
 ├── frontend/                  # Kiosk、Admin、shared clients/UI
 ├── menu_data/                 # 菜單來源
@@ -62,6 +62,8 @@ python backend/scripts/run_worker.py --help
 
 ```bash
 cd UI_API
+source /home/oliver/anaconda3/etc/profile.d/conda.sh
+conda activate emotion_ui
 ENABLE_NGROK=false python main.py
 ```
 
@@ -72,6 +74,20 @@ cd UI_API
 python backend/scripts/validate_local_environment.py --profile local-pilot
 ```
 
+目前資料庫目標是本機單一主機，不是 HA：
+
+```bash
+cd UI_API
+uv run python backend/scripts/prepare_local_persistence.py --refresh-database-urls
+docker compose -f deploy/postgres/compose.yaml up -d
+uv run python backend/scripts/manage_runtime_persistence.py migrate
+uv run python backend/scripts/manage_runtime_persistence.py status
+uv run python backend/scripts/manage_runtime_persistence.py write-probe
+```
+
+`RUNTIME_DATA_ROOT` 下的 PostgreSQL、備份、物件、RAG 索引、SQLite、日誌、匯入匯出與暫存目錄互不重疊且預設為 `0700`。PostgreSQL 容器只掛載 `postgres/pgdata` 與 `postgres/wal-archive`。完整存取矩陣與未來三 VM／三可用區契約見 [ADR 0010](../docs/adr/0010-adopt-local-single-host-postgresql-runtime.md)。
+容器對主機只綁定 `127.0.0.1:55432`，避免干擾主機既有的 5432 PostgreSQL；容器內仍使用標準 5432。
+
 模型整合啟動方式見 [Repository README](../README.md#本機啟動)。
 
 ## 邊界與限制
@@ -80,5 +96,6 @@ python backend/scripts/validate_local_environment.py --profile local-pilot
 - `services/admin_identity_service.py` 等檔案是相容 shim，不新增業務責任。
 - `/api/v1` 已有 typed read/write contracts，但 `v1_routes.py` 仍直接依賴多個 service/repository。
 - `staging`、`pilot`、`production` 必須以 PostgreSQL 為商業資料 Source of Truth，並在啟動時 fail closed。
+- 本機 `DATABASE_TOPOLOGY=single` 不構成 production readiness；production 必須使用可觀測到同步與非同步 standby 的 `ha` 拓撲。
 - Payment/POS 目前只有 manual adapter；manual pending 不代表已自動扣款或送單。
 - 大型模型不是核心 API 的必要條件。

@@ -19,6 +19,17 @@ class STTProvider(ABC):
 
 # ── FasterWhisper 本地實作 ────────────────────────────────────────
 
+def _faster_whisper_runtime() -> tuple[str, str]:
+    """Select the CTranslate2 runtime without requiring the unrelated torch package."""
+    try:
+        import ctranslate2
+
+        if ctranslate2.get_cuda_device_count() > 0:
+            return "cuda", "float16"
+    except Exception:
+        pass
+    return "cpu", "int8"
+
 class FasterWhisperSTT(STTProvider):
     _model = None
     _lock = threading.Lock()
@@ -27,9 +38,7 @@ class FasterWhisperSTT(STTProvider):
         if FasterWhisperSTT._model is None:
             from faster_whisper import WhisperModel
             model_size = config.get("STT_MODEL", "small")
-            import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            compute_type = "float16" if device == "cuda" else "int8"
+            device, compute_type = _faster_whisper_runtime()
             print(f"載入 faster-whisper ({model_size}, {compute_type}, {device})...")
             try:
                 FasterWhisperSTT._model = WhisperModel(
@@ -84,7 +93,7 @@ class OpenAICompatibleSTT(STTProvider):
         import httpx
 
         url = config.get("STT_API_URL", "https://api.openai.com").rstrip("/")
-        api_key = config.get("STT_API_KEY", "none") or "none"
+        api_key = config.STT_API_KEY or "none"
         language = config.get("STT_LANGUAGE", "zh")
         model = config.get("STT_MODEL", "whisper-1")
 

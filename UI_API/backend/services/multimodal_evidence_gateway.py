@@ -26,6 +26,46 @@ def _metric(provider: str, status: str) -> None:
     observability_service.increment_metric("emotion_evidence_total", status=f"{provider}_{status}"[:80])
 
 
+def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
+    """Return a safe readiness view for the currently selected local provider."""
+    provider = str(config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama").strip().lower()
+    base_url = (
+        str(config.R1_OMNI_GRADIO_URL)
+        if provider == "r1_omni"
+        else str(config.EMOTION_LLAMA_GRADIO_URL)
+    )
+    started = time.perf_counter()
+    try:
+        response = httpx.get(base_url.rstrip("/") + "/health", timeout=max(0.1, timeout_seconds))
+        response.raise_for_status()
+        body = response.json() if response.content else {}
+        model_loaded = bool(body.get("model_loaded", False)) if isinstance(body, dict) else False
+        declared_capabilities = body.get("capabilities", []) if isinstance(body, dict) else []
+        capabilities = [str(value) for value in declared_capabilities if str(value)]
+        if not capabilities:
+            capabilities = ["video_audio"]
+        ready = bool(isinstance(body, dict) and body.get("status") == "ok" and model_loaded)
+        result = {
+            "provider": provider,
+            "status": "ready" if ready else "unavailable",
+            "model_loaded": model_loaded,
+            "capabilities": capabilities,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+        if not ready:
+            result["message"] = f"{provider} 服務可連線，但模型尚未載入完成。"
+        return result
+    except Exception:
+        return {
+            "provider": provider,
+            "status": "unavailable",
+            "model_loaded": False,
+            "capabilities": [],
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "message": f"{provider} 本機服務未就緒，請使用對應啟動腳本重新啟動。",
+        }
+
+
 class NullEvidenceAdapter:
     """Always returns no evidence; used when models are disabled or unavailable."""
 
@@ -93,6 +133,7 @@ def _http_provider_analyze(
                     "video_path": request.media_path,
                     "question": request.question,
                     "skip_quality_check": request.skip_quality_check,
+                    "media_mode": request.media_mode,
                 },
             )
             response.raise_for_status()

@@ -137,7 +137,7 @@ def test_build_context_includes_rag_text_when_query_is_enabled(ctx_service, monk
     recommendation_context_service, _ = ctx_service
 
     class FakeRag:
-        async def query(self, text, top_k=None):
+        async def query(self, text, top_k=None, *, scope=None):
             assert text == "會員優惠"
             assert top_k == 2
             return "【RAG 補充資訊】會員薯條活動"

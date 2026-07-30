@@ -16,6 +16,7 @@ langchain-huggingface
 langchain-text-splitters
 chromadb
 fastembed
+faster-whisper
 rank-bm25
 jieba
 pypdf

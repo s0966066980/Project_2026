@@ -1,8 +1,8 @@
 import asyncio
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Body, Form, HTTPException, Query, Request, Response
 
-from services import admin_audit_service, member_service
+from services import admin_audit_service, emotion_service, member_service
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
@@ -38,8 +38,9 @@ def create_router(deps: dict) -> APIRouter:
         session_id: str = Form(...),
         phone: str = Form(...),
         nickname: str = Form(default=""),
-        order_history_consent: bool = Form(default=True),
-        personalization_consent: bool = Form(default=True),
+        order_history_consent: bool = Form(default=False),
+        personalization_consent: bool = Form(default=False),
+        necessary_terms_accepted: bool = Form(default=False),
     ):
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
@@ -53,6 +54,7 @@ def create_router(deps: dict) -> APIRouter:
             personalization_consent,
             "kiosk",
             scope,
+            necessary_terms_accepted,
         )
         await asyncio.to_thread(
             admin_audit_service.record_admin_action,
@@ -92,6 +94,14 @@ def create_router(deps: dict) -> APIRouter:
             reason,
             scope,
         )
+        try:
+            await asyncio.to_thread(
+                emotion_service.record_assistance_outcome,
+                session_id,
+                "order_abandoned",
+            )
+        except Exception:
+            pass
         return {"ok": bool(member), "member": member_service._public_member(member) if member else None}
 
     @router.get("/api/members")
@@ -136,6 +146,39 @@ def create_router(deps: dict) -> APIRouter:
         if detail is None:
             raise HTTPException(status_code=404, detail="member not found")
         return detail
+
+    @router.put("/api/members/{member_ref}/verified-preferences")
+    async def update_verified_preferences(request: Request, member_ref: str, body: dict = Body(...)):
+        principal = authorize_admin_request(request, "members.write")
+        scope = scope_from_admin_principal(principal)
+        try:
+            verified = await asyncio.to_thread(
+                member_service.admin_update_verified_preferences,
+                member_ref,
+                body,
+                actor_id=str(principal.user_id),
+                scope=scope,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if verified is None:
+            raise HTTPException(status_code=404, detail="member not found")
+        audit = await asyncio.to_thread(
+            admin_audit_service.record_admin_action,
+            "member_verified_preferences.update",
+            target_type="member",
+            target_id=member_ref,
+            request=request,
+            metadata={
+                "fields": sorted(
+                    key
+                    for key in body
+                    if key in {"allergies", "dietary_preferences", "favorite_item_ids", "service_notes"}
+                )
+            },
+            scope=scope,
+        )
+        return {"ok": True, "verified_preferences": verified, "audit_id": audit.get("audit_id", "")}
 
     @router.delete("/api/members/{member_ref}/records")
     async def member_clear_records(request: Request, member_ref: str):

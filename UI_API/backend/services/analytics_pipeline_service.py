@@ -1,6 +1,6 @@
 """Replayable analytics event envelope and idempotent sink adapter.
 
-PostgreSQL analytics_event_log is the durable sink when MEMBER_STORAGE_BACKEND=postgres.
+PostgreSQL analytics_event_log is the durable sink when DATABASE_BACKEND=postgresql.
 JSON / in-memory remain development and unit-test compatibility only.
 """
 
@@ -92,7 +92,6 @@ class PostgresAnalyticsSink:
             raise AnalyticsError("event_id_required")
         if not postgres_utils.use_postgres():
             raise AnalyticsError("postgres_sink_unavailable")
-        postgres_utils.init_schema()
         scope = envelope.get("scope") or {}
         try:
             from psycopg.types.json import Jsonb
@@ -225,7 +224,7 @@ def publish(envelope: dict[str, Any], *, sink: AnalyticsSinkPort | None = None) 
     reject_forbidden_payload((envelope or {}).get("payload") or {})
     active = sink or default_sink()
     accepted = active.write(envelope)
-    # JSON compatibility mirror for non-postgres or dual observability.
+    # Transitional export mirror; never a runtime source of truth.
     if accepted and not isinstance(active, PostgresAnalyticsSink):
         path = _path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -244,7 +243,6 @@ def publish(envelope: dict[str, Any], *, sink: AnalyticsSinkPort | None = None) 
 
 def _load_source_rows() -> list[dict[str, Any]]:
     if postgres_utils.use_postgres():
-        postgres_utils.init_schema()
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -325,7 +323,6 @@ def replay(
     cp.write_text(json.dumps(checkpoint, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if postgres_utils.use_postgres():
         try:
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn, conn.cursor() as cur:
                 cur.execute(
                     """

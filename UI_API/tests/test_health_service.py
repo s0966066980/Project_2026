@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from tests.auth_test_support import authenticate_client, configure_admin_session
 
 
 def test_health_runtime_summary_reports_log_counts(tmp_path, monkeypatch):
@@ -39,10 +40,10 @@ def test_health_runtime_summary_marks_invalid_json_as_degraded(tmp_path, monkeyp
     assert result["warnings"]
 
 
-def test_admin_health_route_requires_admin_token(monkeypatch):
+def test_admin_health_route_requires_admin_session(monkeypatch):
     from routes import core_routes
 
-    async def fake_health():
+    async def fake_health(_actions=None):
         return {
             "status": "ok",
             "generated_at": datetime.now().isoformat(),
@@ -51,23 +52,15 @@ def test_admin_health_route_requires_admin_token(monkeypatch):
         }
 
     monkeypatch.setattr(core_routes.health_service, "build_admin_health", fake_health)
-    def fake_config_get(key, default=None):
-        values = {
-            "SECURITY_ENFORCED": True,
-            "ADMIN_API_TOKEN": "admin-token",
-        }
-        return values.get(key, default)
-
-    monkeypatch.setattr(core_routes.config, "get", fake_config_get)
-    monkeypatch.setattr(core_routes.config, "is_demo_public_mode", lambda: False)
-    monkeypatch.setattr(core_routes.config, "ADMIN_API_TOKEN", "admin-token")
-
+    monkeypatch.setattr(core_routes.admin_audit_service, "list_admin_audits", lambda limit, scope: [])
     app = FastAPI()
     app.include_router(core_routes.create_router({}))
     client = TestClient(app)
 
     assert client.get("/api/admin/health").status_code == 401
-    ok = client.get("/api/admin/health", headers={"X-Admin-Token": "admin-token"})
+    configure_admin_session(monkeypatch)
+    authenticate_client(client)
+    ok = client.get("/api/admin/health")
     assert ok.status_code == 200
     assert ok.json()["status"] == "ok"
 
@@ -94,6 +87,34 @@ def test_admin_health_is_not_ready_when_required_check_fails(monkeypatch):
 
     assert result["status"] == "not_ready"
     assert result["readiness"]["ready"] is False
+    assert result["operational"]["state"] == "unsafe_to_operate"
+    assert result["operational"]["incidents"][0]["severity"] == "critical"
+
+
+def test_operational_health_restores_acknowledged_incident_state():
+    from services import health_service
+
+    checks = {
+        "recommendation_events": {"status": "degraded", "message": "events stale"},
+        "rag": {"status": "ok"},
+        "rag_alerts": {"status": "ok"},
+    }
+    readiness = {"ready": True, "required_checks": {"database": {"status": "ok"}}}
+    first = health_service.build_operational_health(checks, readiness)
+    incident_id = first["incidents"][0]["incident_id"]
+    action = {
+        "action": "health.incident.acknowledge",
+        "target_type": "health_incident",
+        "target_id": incident_id,
+        "actor": "manager-1",
+        "created_at": "2026-07-24T08:00:00+08:00",
+    }
+
+    result = health_service.build_operational_health(checks, readiness, [action])
+
+    assert result["state"] == "operate_with_degraded_features"
+    assert result["incidents"][0]["status"] == "acknowledged"
+    assert result["incidents"][0]["last_actor"] == "manager-1"
 
 
 def test_recommendation_health_requires_fresh_events(monkeypatch):

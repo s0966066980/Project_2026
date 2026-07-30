@@ -1,8 +1,4 @@
-"""RAG document review and publishing workflow.
-
-Draft records are stored in runtime JSON. Published records are written back to
-rag_documents so Chroma can always be rebuilt from source files.
-"""
+"""Legacy RAG review contract backed by the canonical governed-document lifecycle."""
 from __future__ import annotations
 
 import hashlib
@@ -14,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import config
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE
+from models.rag_governance import RagAssetStatus, RagAssetVersion
+from services import rag_governance_service
 
 ALLOWED_REVIEW_SOURCE_TYPES = {
     "manual",
@@ -24,7 +23,6 @@ ALLOWED_REVIEW_SOURCE_TYPES = {
     "nutrition",
     "customer_service",
 }
-EDITABLE_STATUSES = {"draft", "rejected", "approved", "published"}
 REVIEW_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{2,120}$")
 SOURCE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{2,120}$")
 
@@ -61,14 +59,6 @@ def _load_queue() -> list[dict]:
     return [dict(row) for row in rows if isinstance(row, dict)]
 
 
-def _write_queue(rows: list[dict]) -> None:
-    path = _queue_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f".json.{os.getpid()}.tmp")
-    tmp_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, path)
-
-
 def _folder_for_source_type(source_type: str) -> str:
     return {
         "faq": "faq",
@@ -84,19 +74,6 @@ def _folder_for_source_type(source_type: str) -> str:
 def _published_path(source_type: str, source_id: str) -> Path:
     folder = _folder_for_source_type(source_type)
     return _documents_root() / folder / f"{_slug(source_id, 120)}.json"
-
-
-def _public_record(record: dict) -> dict:
-    public = dict(record)
-    public["history"] = list(public.get("history") or [])[-8:]
-    return public
-
-
-def _find_review(rows: list[dict], review_id: str) -> tuple[int, dict | None]:
-    for index, row in enumerate(rows):
-        if row.get("review_id") == review_id:
-            return index, row
-    return -1, None
 
 
 def _validate_payload(payload: dict, *, existing: dict | None = None) -> tuple[dict | None, list[str]]:
@@ -135,95 +112,6 @@ def _validate_payload(payload: dict, *, existing: dict | None = None) -> tuple[d
     }, []
 
 
-def list_reviews(status: str = "") -> list[dict]:
-    rows = _load_queue()
-    status_filter = _safe_text(status, 40)
-    if status_filter:
-        rows = [row for row in rows if row.get("status") == status_filter]
-    rows.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
-    return [_public_record(row) for row in rows]
-
-
-def create_review(payload: dict, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    normalized, errors = _validate_payload(payload)
-    if errors or not normalized:
-        return None, errors
-    rows = _load_queue()
-    review_id = _safe_text(payload.get("review_id"), 140) if isinstance(payload, dict) else ""
-    if review_id and not REVIEW_ID_PATTERN.match(review_id):
-        return None, ["review_id 必須為 3-121 字元，只能使用英數、底線或連字號，且需以英數開頭"]
-    review_id = review_id or f"rag_review_{_now_iso().replace(':', '').replace('-', '').replace('T', '_')}_{_slug(normalized['source_id'], 24)}"
-    if any(row.get("review_id") == review_id for row in rows):
-        return None, ["review_id 已存在"]
-    if any(row.get("source_id") == normalized["source_id"] and row.get("status") in {"draft", "approved"} for row in rows):
-        return None, ["已有同 source_id 的待審核或已核准草稿"]
-    now = _now_iso()
-    record = {
-        "review_id": review_id,
-        **normalized,
-        "status": "draft",
-        "version": 1,
-        "created_at": now,
-        "updated_at": now,
-        "created_by": actor,
-        "updated_by": actor,
-        "approved_at": "",
-        "approved_by": "",
-        "published_at": "",
-        "published_by": "",
-        "published_path": "",
-        "rejection_reason": "",
-        "history": [],
-    }
-    rows.append(record)
-    _write_queue(rows)
-    return _public_record(record), []
-
-
-def update_review(review_id: str, payload: dict, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    rows = _load_queue()
-    index, existing = _find_review(rows, review_id)
-    if not existing:
-        return None, ["review_id 不存在"]
-    if existing.get("status") == "archived":
-        return None, ["已封存文件不可編輯"]
-    normalized, errors = _validate_payload(payload, existing=existing)
-    if errors or not normalized:
-        return None, errors
-    now = _now_iso()
-    history = list(existing.get("history") or [])
-    history.append({
-        "version": existing.get("version", 1),
-        "status": existing.get("status", ""),
-        "title": existing.get("title", ""),
-        "content": existing.get("content", ""),
-        "updated_at": existing.get("updated_at", ""),
-        "updated_by": existing.get("updated_by", ""),
-    })
-    version = int(existing.get("version") or 1)
-    if (
-        normalized["content"] != existing.get("content")
-        or normalized["title"] != existing.get("title")
-        or normalized["source_type"] != existing.get("source_type")
-    ):
-        version += 1
-    updated = {
-        **existing,
-        **normalized,
-        "status": "draft",
-        "version": version,
-        "updated_at": now,
-        "updated_by": actor,
-        "approved_at": "",
-        "approved_by": "",
-        "rejection_reason": "",
-        "history": history[-20:],
-    }
-    rows[index] = updated
-    _write_queue(rows)
-    return _public_record(updated), []
-
-
 def _validate_review_for_publish(record: dict) -> list[str]:
     _, errors = _validate_payload(record, existing=record)
     if errors:
@@ -249,111 +137,291 @@ def _validate_review_for_publish(record: dict) -> list[str]:
     return []
 
 
-def approve_review(review_id: str, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    rows = _load_queue()
-    index, record = _find_review(rows, review_id)
-    if not record:
+def _details(asset: RagAssetVersion) -> dict[str, Any]:
+    for event in asset.history:
+        if event.get("event") == "created" and isinstance(event.get("document"), dict):
+            return dict(event["document"])
+    return {}
+
+
+def _review_id(asset: RagAssetVersion) -> str:
+    return str(_details(asset).get("legacy_review_id") or asset.document_id)
+
+
+def _event(asset: RagAssetVersion, event_name: str) -> dict[str, Any]:
+    return next((dict(event) for event in reversed(asset.history) if event.get("event") == event_name), {})
+
+
+def _legacy_status(status: RagAssetStatus) -> str:
+    return {
+        RagAssetStatus.REVIEW: "draft",
+        RagAssetStatus.RETIRED: "archived",
+    }.get(status, status.value)
+
+
+def _record(asset: RagAssetVersion) -> dict[str, Any]:
+    details = _details(asset)
+    approved = _event(asset, "approved")
+    rejected = _event(asset, "rejected")
+    published = _event(asset, "published") or _event(asset, "rollback_publish")
+    updated = asset.history[-1] if asset.history else {}
+    source_type = str(details.get("source_type") or asset.source or "manual")
+    source_id = str(details.get("source_id") or asset.document_id)
+    published_path = _published_path(source_type, source_id)
+    return {
+        "review_id": _review_id(asset),
+        "source_id": source_id,
+        "source_type": source_type,
+        "title": str(details.get("title") or source_id),
+        "content": rag_governance_service.read_content(asset),
+        "metadata": dict(details.get("metadata") or {}),
+        "status": _legacy_status(asset.status),
+        "version": asset.version,
+        "created_at": asset.created_at,
+        "updated_at": str(updated.get("at") or asset.created_at),
+        "created_by": str((asset.history[0] if asset.history else {}).get("actor") or asset.owner),
+        "updated_by": str(updated.get("actor") or asset.owner),
+        "approved_at": str(approved.get("at") or ""),
+        "approved_by": str(approved.get("actor") or ""),
+        "published_at": asset.published_at or str(published.get("at") or ""),
+        "published_by": str(published.get("actor") or ""),
+        "published_path": (
+            published_path.relative_to(_documents_root()).as_posix()
+            if published_path.is_file()
+            else ""
+        ),
+        "rejection_reason": str(rejected.get("reason") or ""),
+        "history": list(asset.history)[-8:],
+    }
+
+
+def _latest_assets() -> dict[str, RagAssetVersion]:
+    latest: dict[str, RagAssetVersion] = {}
+    for asset in rag_governance_service.list_versions():
+        review_id = _review_id(asset)
+        if review_id not in latest or asset.version > latest[review_id].version:
+            latest[review_id] = asset
+    return latest
+
+
+def _apply_imported_status(asset: RagAssetVersion, status: str, *, actor: str, reason: str = "") -> None:
+    normalized = str(status or "draft")
+    if normalized == "draft":
+        return
+    if normalized == "archived":
+        rag_governance_service.retire(asset.document_id, asset.version, actor=actor)
+        return
+    reviewed = rag_governance_service.submit_for_review(asset.document_id, asset.version, actor=actor)
+    if normalized == "review":
+        return
+    if normalized == "rejected":
+        rag_governance_service.reject(
+            reviewed.document_id,
+            reviewed.version,
+            reason=reason,
+            actor=actor,
+        )
+        return
+    approved = rag_governance_service.approve(reviewed.document_id, reviewed.version, actor=actor)
+    if normalized == "published":
+        rag_governance_service.publish(approved.document_id, approved.version, actor=actor)
+
+
+def _ensure_legacy_imported() -> None:
+    legacy_rows = _load_queue()
+    if not legacy_rows:
+        return
+    imported = {
+        (_review_id(asset), int(_details(asset).get("legacy_version") or asset.version))
+        for asset in rag_governance_service.list_versions()
+        if _details(asset).get("legacy_review_id")
+    }
+    for row in legacy_rows:
+        review_id = str(row.get("review_id") or row.get("source_id") or "")
+        snapshots = [
+            {**row, **history_row, "history": []}
+            for history_row in (row.get("history") or [])
+            if isinstance(history_row, dict) and history_row.get("content")
+        ]
+        snapshots.append(dict(row))
+        snapshots.sort(key=lambda item: int(item.get("version") or 1))
+        for snapshot in snapshots:
+            legacy_version = int(snapshot.get("version") or 1)
+            if (review_id, legacy_version) in imported:
+                continue
+            normalized, errors = _validate_payload(snapshot, existing=row)
+            if errors or not normalized:
+                raise rag_governance_service.RagGovernanceError(
+                    f"legacy_review_import_invalid:{review_id}:{';'.join(errors)}"
+                )
+            actor = str(snapshot.get("updated_by") or snapshot.get("created_by") or "legacy-import")
+            asset = rag_governance_service.create_draft(
+                document_id=normalized["source_id"],
+                content=normalized["content"],
+                source=normalized["source_type"],
+                owner=actor,
+                tenant_id=LEGACY_DEFAULT_SCOPE.tenant_id,
+                store_id=LEGACY_DEFAULT_SCOPE.store_id,
+                actor=actor,
+                title=normalized["title"],
+                metadata=normalized["metadata"],
+                legacy_review_id=review_id,
+                legacy_version=legacy_version,
+            )
+            _apply_imported_status(
+                asset,
+                str(snapshot.get("status") or "draft"),
+                actor=actor,
+                reason=str(snapshot.get("rejection_reason") or ""),
+            )
+            imported.add((review_id, legacy_version))
+
+
+def list_reviews(status: str = "") -> list[dict]:
+    _ensure_legacy_imported()
+    rows = [_record(asset) for asset in _latest_assets().values()]
+    status_filter = _safe_text(status, 40)
+    if status_filter:
+        rows = [row for row in rows if row.get("status") == status_filter]
+    rows.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
+    return rows
+
+
+def create_review(payload: dict, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
+    _ensure_legacy_imported()
+    normalized, errors = _validate_payload(payload)
+    if errors or not normalized:
+        return None, errors
+    review_id = _safe_text(payload.get("review_id"), 140) if isinstance(payload, dict) else ""
+    if review_id and not REVIEW_ID_PATTERN.match(review_id):
+        return None, ["review_id 必須為 3-121 字元，只能使用英數、底線或連字號，且需以英數開頭"]
+    review_id = review_id or f"rag_review_{_now_iso().replace(':', '').replace('-', '').replace('T', '_')}_{_slug(normalized['source_id'], 24)}"
+    latest = _latest_assets()
+    if review_id in latest:
+        return None, ["review_id 已存在"]
+    if any(
+        asset.document_id == normalized["source_id"]
+        and asset.status in {RagAssetStatus.DRAFT, RagAssetStatus.REVIEW, RagAssetStatus.APPROVED}
+        for asset in latest.values()
+    ):
+        return None, ["已有同 source_id 的待審核或已核准草稿"]
+    try:
+        asset = rag_governance_service.create_draft(
+            document_id=normalized["source_id"],
+            content=normalized["content"],
+            source=normalized["source_type"],
+            owner=actor,
+            tenant_id=LEGACY_DEFAULT_SCOPE.tenant_id,
+            store_id=LEGACY_DEFAULT_SCOPE.store_id,
+            actor=actor,
+            title=normalized["title"],
+            metadata=normalized["metadata"],
+            legacy_review_id=review_id,
+        )
+        return _record(asset), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]
+
+
+def update_review(review_id: str, payload: dict, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
+    _ensure_legacy_imported()
+    existing_asset = _latest_assets().get(review_id)
+    if not existing_asset:
         return None, ["review_id 不存在"]
-    if record.get("status") not in {"draft", "rejected"}:
-        return None, ["只有 draft 或 rejected 文件可核准"]
+    if existing_asset.status is RagAssetStatus.RETIRED:
+        return None, ["已封存文件不可編輯"]
+    existing = _record(existing_asset)
+    normalized, errors = _validate_payload(payload, existing=existing)
+    if errors or not normalized:
+        return None, errors
+    if all(
+        normalized[key] == existing.get(key)
+        for key in ("source_id", "source_type", "title", "content", "metadata")
+    ):
+        return existing, []
+    try:
+        asset = rag_governance_service.create_draft(
+            document_id=existing_asset.document_id,
+            content=normalized["content"],
+            source=normalized["source_type"],
+            owner=actor,
+            tenant_id=existing_asset.tenant_id,
+            store_id=existing_asset.store_id,
+            actor=actor,
+            title=normalized["title"],
+            metadata=normalized["metadata"],
+            legacy_review_id=review_id,
+        )
+        return _record(asset), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]
+
+
+def approve_review(review_id: str, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
+    _ensure_legacy_imported()
+    asset = _latest_assets().get(review_id)
+    if not asset:
+        return None, ["review_id 不存在"]
+    if asset.status is RagAssetStatus.APPROVED:
+        return _record(asset), []
+    if asset.status is not RagAssetStatus.DRAFT:
+        return None, ["只有 draft 文件可核准；rejected 文件需建立新版本"]
+    record = _record(asset)
     errors = _validate_review_for_publish(record)
     if errors:
         return None, errors
-    now = _now_iso()
-    updated = {
-        **record,
-        "status": "approved",
-        "approved_at": now,
-        "approved_by": actor,
-        "updated_at": now,
-        "updated_by": actor,
-        "rejection_reason": "",
-    }
-    rows[index] = updated
-    _write_queue(rows)
-    return _public_record(updated), []
-
-
-def _write_published_file(record: dict) -> str:
-    path = _published_path(record["source_type"], record["source_id"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "source_id": record["source_id"],
-        "source_type": record["source_type"],
-        "title": record["title"],
-        "content": record["content"],
-        "metadata": {
-            **(record.get("metadata") if isinstance(record.get("metadata"), dict) else {}),
-            "review_id": record["review_id"],
-            "version": record.get("version", 1),
-            "status": "published",
-            "published_at": _now_iso(),
-        },
-    }
-    tmp_path = path.with_suffix(f".json.{os.getpid()}.tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, path)
-    return path.relative_to(_documents_root()).as_posix()
+    try:
+        reviewed = rag_governance_service.submit_for_review(asset.document_id, asset.version, actor=actor)
+        approved = rag_governance_service.approve(reviewed.document_id, reviewed.version, actor=actor)
+        return _record(approved), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]
 
 
 def publish_review(review_id: str, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    rows = _load_queue()
-    index, record = _find_review(rows, review_id)
-    if not record:
+    _ensure_legacy_imported()
+    asset = _latest_assets().get(review_id)
+    if not asset:
         return None, ["review_id 不存在"]
-    if record.get("status") not in {"approved", "published"}:
+    if asset.status is RagAssetStatus.PUBLISHED:
+        return _record(asset), []
+    if asset.status is not RagAssetStatus.APPROVED:
         return None, ["文件需先核准才可發布"]
-    errors = _validate_review_for_publish(record)
-    if errors:
-        return None, errors
-    now = _now_iso()
-    published_path = _write_published_file(record)
-    updated = {
-        **record,
-        "status": "published",
-        "published_at": now,
-        "published_by": actor,
-        "published_path": published_path,
-        "updated_at": now,
-        "updated_by": actor,
-    }
-    rows[index] = updated
-    _write_queue(rows)
-    return _public_record(updated), []
+    try:
+        return _record(rag_governance_service.publish(asset.document_id, asset.version, actor=actor)), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]
 
 
 def reject_review(review_id: str, reason: str = "", *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    rows = _load_queue()
-    index, record = _find_review(rows, review_id)
-    if not record:
+    _ensure_legacy_imported()
+    asset = _latest_assets().get(review_id)
+    if not asset:
         return None, ["review_id 不存在"]
-    if record.get("status") in {"published", "archived"}:
-        return None, ["已發布或封存文件不可拒絕"]
-    now = _now_iso()
-    updated = {
-        **record,
-        "status": "rejected",
-        "rejection_reason": _safe_text(reason, 500),
-        "updated_at": now,
-        "updated_by": actor,
-    }
-    rows[index] = updated
-    _write_queue(rows)
-    return _public_record(updated), []
+    if asset.status is RagAssetStatus.DRAFT:
+        asset = rag_governance_service.submit_for_review(asset.document_id, asset.version, actor=actor)
+    if asset.status is not RagAssetStatus.REVIEW:
+        return None, ["只有待審核文件可拒絕"]
+    try:
+        rejected = rag_governance_service.reject(
+            asset.document_id,
+            asset.version,
+            reason=_safe_text(reason, 500),
+            actor=actor,
+        )
+        return _record(rejected), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]
 
 
 def archive_review(review_id: str, *, actor: str = "admin") -> tuple[dict | None, list[str]]:
-    rows = _load_queue()
-    index, record = _find_review(rows, review_id)
-    if not record:
+    _ensure_legacy_imported()
+    asset = _latest_assets().get(review_id)
+    if not asset:
         return None, ["review_id 不存在"]
-    now = _now_iso()
-    updated = {
-        **record,
-        "status": "archived",
-        "updated_at": now,
-        "updated_by": actor,
-    }
-    rows[index] = updated
-    _write_queue(rows)
-    return _public_record(updated), []
+    if asset.status is RagAssetStatus.RETIRED:
+        return _record(asset), []
+    try:
+        return _record(rag_governance_service.retire(asset.document_id, asset.version, actor=actor)), []
+    except rag_governance_service.RagGovernanceError as exc:
+        return None, [str(exc)]

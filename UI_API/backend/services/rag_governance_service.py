@@ -1,22 +1,26 @@
 """Governed RAG lifecycle: version, review, publish, rollback, retrieval trace.
 
-PostgreSQL is the durable source of truth when MEMBER_STORAGE_BACKEND=postgres.
+PostgreSQL is the durable source of truth when DATABASE_BACKEND=postgresql.
 JSON under LEARNING_DATA_DIR remains development/default-scope compatibility only.
 """
 
 from __future__ import annotations
 
+import copy
 import hashlib
+import json
+import os
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 import config  # re-exported for tests monkeypatching LEARNING_DATA_DIR
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from models.rag_governance import RAG_PERMISSIONS, RagAssetStatus, RagAssetVersion, RetrievalTrace
-from models.worker_jobs import JobValidationError
 from repositories import rag_governance_repository
-from services import object_storage_service, worker_service
+from services import object_storage_service
 
 # Prevent unused-import cleanup from dropping the public config attribute used by tests.
 _ = config.LEARNING_DATA_DIR
@@ -24,6 +28,21 @@ _ = config.LEARNING_DATA_DIR
 
 class RagGovernanceError(ValueError):
     """Raised for invalid RAG lifecycle transitions."""
+
+
+_SOURCE_FOLDER = {
+    "faq": "faq",
+    "policy": "store_policy",
+    "menu_supplement": "menu",
+    "nutrition": "nutrition",
+    "customer_service": "customer_service",
+    "promotion": "promotion_notes",
+    "manual": "manual",
+    "store_information": "store_information",
+    "menu_information": "menu_information",
+    "promotion_information": "promotion_information",
+    "other": "other",
+}
 
 
 def _now() -> str:
@@ -50,6 +69,13 @@ def _row(asset: RagAssetVersion) -> dict[str, Any]:
     return rag_governance_repository.asset_to_row(asset)
 
 
+def _document_details(row: dict[str, Any]) -> dict[str, Any]:
+    for event in row.get("history") or []:
+        if event.get("event") == "created" and isinstance(event.get("document"), dict):
+            return dict(event["document"])
+    return {}
+
+
 def _store_content(*, content: str, tenant_id: UUID | None, store_id: UUID | None, owner: str) -> str:
     """Persist binary/text content via object storage when possible; return content_ref."""
 
@@ -66,9 +92,83 @@ def _store_content(*, content: str, tenant_id: UUID | None, store_id: UUID | Non
             retention_days=365,
         )
         return f"object:{meta.object_id}"
-    except Exception:
-        # Compatibility: inline ref when storage is unavailable in constrained tests.
-        return f"inline:{checksum[:16]}"
+    except Exception as exc:
+        raise RagGovernanceError("content_storage_unavailable") from exc
+
+
+def read_content(asset: RagAssetVersion | dict[str, Any]) -> str:
+    row = _row(asset) if isinstance(asset, RagAssetVersion) else asset
+    content_ref = str(row.get("content_ref") or "")
+    if not content_ref.startswith("object:"):
+        raise RagGovernanceError("content_storage_unavailable")
+    object_id = content_ref.removeprefix("object:")
+    tenant_id = UUID(str(row.get("tenant_id"))) if row.get("tenant_id") else LEGACY_DEFAULT_SCOPE.tenant_id
+    try:
+        return object_storage_service.storage().get(object_id, tenant_id=tenant_id).decode("utf-8")
+    except Exception as exc:
+        raise RagGovernanceError("content_read_failed") from exc
+
+
+def _documents_root() -> Path:
+    configured = Path(config.RAG_DOCUMENTS_DIR)
+    base = Path(__file__).resolve().parents[2]
+    return configured.resolve() if configured.is_absolute() else (base / configured).resolve()
+
+
+def _slug(value: str, limit: int = 120) -> str:
+    text = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(value or "")).strip("_").lower()
+    return text[:limit] or hashlib.sha1(str(value or "").encode("utf-8")).hexdigest()[:12]
+
+
+def _materialized_path(row: dict[str, Any]) -> Path:
+    details = _document_details(row)
+    source_id = str(details.get("source_id") or row.get("document_id") or "")
+    source_type = str(details.get("source_type") or row.get("source") or "manual")
+    folder = _SOURCE_FOLDER.get(source_type, "manual")
+    return _documents_root() / folder / f"{_slug(source_id)}.json"
+
+
+def _materialize(row: dict[str, Any], *, actor: str) -> tuple[Path, bytes | None]:
+    content = read_content(row)
+    details = _document_details(row)
+    path = _materialized_path(row)
+    previous = path.read_bytes() if path.is_file() else None
+    payload = {
+        "source_id": str(details.get("source_id") or row.get("document_id") or ""),
+        "source_type": str(details.get("source_type") or row.get("source") or "manual"),
+        "title": str(details.get("title") or row.get("document_id") or ""),
+        "content": content,
+        "metadata": {
+            **(details.get("metadata") if isinstance(details.get("metadata"), dict) else {}),
+            "review_id": str(details.get("legacy_review_id") or row.get("document_id") or ""),
+            "version": int(row.get("version") or 1),
+            "status": "published",
+            "published_at": _now(),
+            "published_by": actor,
+            "tenant_id": str(row.get("tenant_id") or ""),
+            "store_id": str(row.get("store_id") or ""),
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(f".json.{os.getpid()}.tmp")
+    try:
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    return path, previous
+
+
+def _restore_materialized(path: Path, previous: bytes | None) -> None:
+    if previous is None:
+        path.unlink(missing_ok=True)
+        return
+    temp_path = path.with_suffix(f".restore.{os.getpid()}.tmp")
+    try:
+        temp_path.write_bytes(previous)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def require_rag_permission(permission: str, granted: set[str] | frozenset[str]) -> None:
@@ -87,6 +187,10 @@ def create_draft(
     tenant_id: UUID | None = None,
     store_id: UUID | None = None,
     actor: str = "system",
+    title: str = "",
+    metadata: dict[str, Any] | None = None,
+    legacy_review_id: str = "",
+    legacy_version: int | None = None,
 ) -> RagAssetVersion:
     rows = _load_assets()
     doc_id = str(document_id or "").strip() or f"doc-{uuid4().hex[:12]}"
@@ -112,7 +216,21 @@ def create_draft(
         store_id=store_id,
         created_at=_now(),
         content_ref=content_ref,
-        history=[{"event": "created", "actor": actor, "at": _now()}],
+        history=[
+            {
+                "event": "created",
+                "actor": actor,
+                "at": _now(),
+                "document": {
+                    "source_id": doc_id,
+                    "source_type": source,
+                    "title": str(title or doc_id),
+                    "metadata": dict(metadata or {}),
+                    "legacy_review_id": str(legacy_review_id or ""),
+                    "legacy_version": legacy_version,
+                },
+            }
+        ],
     )
     row = _row(asset)
     row["size_bytes"] = len(content.encode("utf-8"))
@@ -123,11 +241,165 @@ def create_draft(
 
 
 def submit_for_review(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
-    return _transition(document_id, version, RagAssetStatus.REVIEW, actor=actor, event="submitted")
+    return _transition(
+        document_id,
+        version,
+        RagAssetStatus.REVIEW,
+        allowed_from={RagAssetStatus.DRAFT},
+        actor=actor,
+        event="submitted",
+    )
+
+
+def approve(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
+    return _transition(
+        document_id,
+        version,
+        RagAssetStatus.APPROVED,
+        allowed_from={RagAssetStatus.REVIEW},
+        actor=actor,
+        event="approved",
+    )
+
+
+def reject(document_id: str, version: int, *, reason: str = "", actor: str = "system") -> RagAssetVersion:
+    return _transition(
+        document_id,
+        version,
+        RagAssetStatus.REJECTED,
+        allowed_from={RagAssetStatus.REVIEW},
+        actor=actor,
+        event="rejected",
+        event_metadata={"reason": str(reason or "")[:500]},
+    )
+
+
+def retire(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
+    current = next(
+        (
+            asset
+            for asset in list_versions(document_id)
+            if asset.version == int(version)
+        ),
+        None,
+    )
+    asset = _transition(
+        document_id,
+        version,
+        RagAssetStatus.RETIRED,
+        allowed_from={
+            RagAssetStatus.DRAFT,
+            RagAssetStatus.REVIEW,
+            RagAssetStatus.APPROVED,
+            RagAssetStatus.REJECTED,
+            RagAssetStatus.PUBLISHED,
+            RagAssetStatus.INDEXING,
+            RagAssetStatus.INDEX_FAILED,
+            RagAssetStatus.FAILED,
+        },
+        actor=actor,
+        event="retired",
+    )
+    if current and current.status is RagAssetStatus.PUBLISHED:
+        rag_governance_repository.clear_publication_pointer(
+            document_id=document_id,
+            version=int(version),
+        )
+    if any(
+        item.document_id == document_id and item.status is RagAssetStatus.PUBLISHED
+        for item in list_versions(document_id)
+    ):
+        return asset
+    _materialized_path(_row(asset)).unlink(missing_ok=True)
+    return asset
+
+
+def start_indexing(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
+    """Materialize a draft and mark it unavailable while its index is rebuilt."""
+
+    rows = _load_assets()
+    target = next(
+        (
+            row
+            for row in rows
+            if row.get("document_id") == document_id and int(row.get("version") or 0) == int(version)
+        ),
+        None,
+    )
+    if target is None:
+        raise RagGovernanceError("asset_not_found")
+    current = RagAssetStatus(str(target.get("status") or ""))
+    if current not in {RagAssetStatus.DRAFT, RagAssetStatus.INDEX_FAILED}:
+        raise RagGovernanceError("invalid_indexing_status")
+    _materialize(target, actor=actor)
+    return _transition(
+        document_id,
+        version,
+        RagAssetStatus.INDEXING,
+        allowed_from={RagAssetStatus.DRAFT, RagAssetStatus.INDEX_FAILED},
+        actor=actor,
+        event="indexing_started",
+    )
+
+
+def complete_indexing(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
+    """Publish only after the background index build succeeds."""
+
+    rows = _load_assets()
+    target = None
+    now = _now()
+    for row in rows:
+        if row.get("document_id") == document_id and int(row.get("version") or 0) == int(version):
+            target = row
+        elif row.get("document_id") == document_id and row.get("status") == RagAssetStatus.PUBLISHED.value:
+            row["status"] = RagAssetStatus.RETIRED.value
+            row["superseded_at"] = now
+            row["history"] = [
+                *(row.get("history") or []),
+                {"event": "superseded", "actor": actor, "at": now},
+            ]
+    if target is None:
+        raise RagGovernanceError("asset_not_found")
+    if target.get("status") != RagAssetStatus.INDEXING.value:
+        raise RagGovernanceError("invalid_index_complete_status")
+    target["status"] = RagAssetStatus.PUBLISHED.value
+    target["published_at"] = now
+    target["published_by"] = actor
+    target["history"] = [
+        *(target.get("history") or []),
+        {"event": "indexing_completed", "actor": actor, "at": now},
+    ]
+    _save_assets(rows)
+    rag_governance_repository.set_publication_pointer(
+        document_id=document_id,
+        version=int(version),
+        actor=actor,
+        index_namespace=f"{document_id}@v{version}",
+    )
+    return _to_asset(target)
+
+
+def fail_indexing(
+    document_id: str,
+    version: int,
+    *,
+    actor: str = "system",
+    reason: str = "",
+) -> RagAssetVersion:
+    return _transition(
+        document_id,
+        version,
+        RagAssetStatus.INDEX_FAILED,
+        allowed_from={RagAssetStatus.INDEXING},
+        actor=actor,
+        event="indexing_failed",
+        event_metadata={"reason": str(reason or "")[:500]},
+    )
 
 
 def publish(document_id: str, version: int, *, actor: str = "system") -> RagAssetVersion:
     rows = _load_assets()
+    original_rows = copy.deepcopy(rows)
     target = None
     for row in rows:
         if row.get("document_id") == document_id and int(row.get("version") or 0) == int(version):
@@ -135,8 +407,9 @@ def publish(document_id: str, version: int, *, actor: str = "system") -> RagAsse
             break
     if target is None:
         raise RagGovernanceError("asset_not_found")
-    if target.get("status") not in {RagAssetStatus.REVIEW.value, RagAssetStatus.DRAFT.value}:
+    if target.get("status") != RagAssetStatus.APPROVED.value:
         raise RagGovernanceError("invalid_publish_status")
+    materialized_path, previous_materialized = _materialize(target, actor=actor)
     # Supersede previously published versions for the same document.
     now = _now()
     for row in rows:
@@ -156,18 +429,27 @@ def publish(document_id: str, version: int, *, actor: str = "system") -> RagAsse
     history = list(target.get("history") or [])
     history.append({"event": "published", "actor": actor, "at": now})
     target["history"] = history
-    _save_assets(rows)
-    rag_governance_repository.set_publication_pointer(
-        document_id=document_id,
-        version=int(version),
-        actor=actor,
-        index_namespace=f"{document_id}@v{version}",
-    )
+    try:
+        _save_assets(rows)
+        rag_governance_repository.set_publication_pointer(
+            document_id=document_id,
+            version=int(version),
+            actor=actor,
+            index_namespace=f"{document_id}@v{version}",
+        )
+    except Exception:
+        _restore_materialized(materialized_path, previous_materialized)
+        try:
+            _save_assets(original_rows)
+        except Exception:
+            pass
+        raise
     return _to_asset(target)
 
 
 def rollback(document_id: str, to_version: int, *, actor: str = "system") -> RagAssetVersion:
     rows = _load_assets()
+    original_rows = copy.deepcopy(rows)
     target = None
     for row in rows:
         if row.get("document_id") == document_id and int(row.get("version") or 0) == int(to_version):
@@ -181,6 +463,7 @@ def rollback(document_id: str, to_version: int, *, actor: str = "system") -> Rag
         RagAssetStatus.RETIRED.value,
     }:
         raise RagGovernanceError("rollback_target_not_published_history")
+    materialized_path, previous_materialized = _materialize(target, actor=actor)
     now = _now()
     for row in rows:
         if row.get("document_id") == document_id and row.get("status") == RagAssetStatus.PUBLISHED.value:
@@ -196,22 +479,33 @@ def rollback(document_id: str, to_version: int, *, actor: str = "system") -> Rag
     history = list(target.get("history") or [])
     history.append({"event": "rollback_publish", "actor": actor, "at": now})
     target["history"] = history
-    _save_assets(rows)
-    rag_governance_repository.set_publication_pointer(
-        document_id=document_id,
-        version=int(to_version),
-        actor=actor,
-        index_namespace=f"{document_id}@v{to_version}",
-    )
+    try:
+        _save_assets(rows)
+        rag_governance_repository.set_publication_pointer(
+            document_id=document_id,
+            version=int(to_version),
+            actor=actor,
+            index_namespace=f"{document_id}@v{to_version}",
+        )
+    except Exception:
+        _restore_materialized(materialized_path, previous_materialized)
+        try:
+            _save_assets(original_rows)
+        except Exception:
+            pass
+        raise
     return _to_asset(target)
 
 
-def list_published(document_id: str | None = None) -> list[RagAssetVersion]:
-    rows = _load_assets()
-    assets = [_to_asset(row) for row in rows if row.get("status") == RagAssetStatus.PUBLISHED.value]
+def list_versions(document_id: str | None = None) -> list[RagAssetVersion]:
+    assets = [_to_asset(row) for row in _load_assets()]
     if document_id:
         assets = [asset for asset in assets if asset.document_id == document_id]
-    return assets
+    return sorted(assets, key=lambda asset: (asset.document_id, asset.version))
+
+
+def list_published(document_id: str | None = None) -> list[RagAssetVersion]:
+    return [asset for asset in list_versions(document_id) if asset.status is RagAssetStatus.PUBLISHED]
 
 
 def published_only_retrieval_candidates(document_id: str | None = None) -> list[str]:
@@ -264,112 +558,28 @@ def build_retrieval_trace(
     return trace
 
 
-def execute_rebuild_job(
-    *,
-    document_id: str,
-    tenant_id: UUID,
-    store_id: UUID | None,
-    actor: str = "worker",
-) -> str:
-    """Execute a rebuild side effect for a governed asset (index rebuild expands in milestone 6A)."""
-
-    normalized = str(document_id or "").strip()
-    if not normalized:
-        raise RagGovernanceError("missing_document_id")
-    rows = _load_assets()
-    matched = False
-    matched_version = 0
-    side_effect_id = ""
-    for row in rows:
-        if str(row.get("document_id") or "") != normalized:
-            continue
-        row_tenant = row.get("tenant_id")
-        if row_tenant and UUID(str(row_tenant)) != tenant_id:
-            raise RagGovernanceError("tenant_scope_mismatch")
-        row_store = row.get("store_id")
-        if store_id is not None and row_store and UUID(str(row_store)) != store_id:
-            raise RagGovernanceError("store_scope_mismatch")
-        history = list(row.get("history") or [])
-        version = int(row.get("version") or 1)
-        # Staging index namespace then atomic publish pointer only for published assets.
-        index_version = f"idx:{normalized}:v{version}:{uuid4().hex[:8]}"
-        side_effect_id = f"rag-rebuild:{normalized}:{version}:{index_version}"
-        history.append(
-            {
-                "event": "rebuild_executed",
-                "actor": actor,
-                "at": _now(),
-                "side_effect_id": side_effect_id,
-                "index_version": index_version,
-            }
-        )
-        row["history"] = history
-        row["last_rebuild_at"] = _now()
-        row["index_version"] = index_version
-        row["chunking_version"] = str(row.get("chunking_version") or "chunk-v1")
-        row["extractor_version"] = str(row.get("extractor_version") or "extract-v1")
-        row["embedding_provider"] = str(row.get("embedding_provider") or "local")
-        row["embedding_model"] = str(row.get("embedding_model") or "bge-small-zh-v1.5")
-        row["embedding_version"] = str(row.get("embedding_version") or "emb-v1")
-        row["retrieval_config_version"] = str(row.get("retrieval_config_version") or "retrieval-v1")
-        matched = True
-        matched_version = version
-        break
-    if not matched:
-        raise RagGovernanceError("asset_not_found")
-    _save_assets(rows)
-    try:
-        rag_governance_repository.record_rebuild_run(
-            document_id=normalized,
-            version=matched_version,
-            tenant_id=tenant_id,
-            store_id=store_id,
-            status="succeeded",
-            side_effect_id=side_effect_id,
-        )
-    except Exception:
-        pass
-    return side_effect_id
-
-
-def enqueue_rebuild(
-    *,
-    tenant_id: UUID,
-    store_id: UUID | None,
-    document_id: str,
-    actor: str = "system",
-    store: worker_service.JobStore | None = None,
-) -> dict[str, Any]:
-    try:
-        job = worker_service.enqueue_job(
-            tenant_id=tenant_id,
-            store_id=store_id,
-            job_type="rag.rebuild",
-            payload_ref={"document_id": document_id, "actor": actor},
-            idempotency_key=f"rag-rebuild-{document_id}",
-            store=store,
-        )
-    except JobValidationError as exc:
-        raise RagGovernanceError(str(exc)) from exc
-    return worker_service.job_as_public_dict(job)
-
-
 def _transition(
     document_id: str,
     version: int,
     status: RagAssetStatus,
     *,
+    allowed_from: set[RagAssetStatus],
     actor: str,
     event: str,
+    event_metadata: dict[str, Any] | None = None,
 ) -> RagAssetVersion:
     rows = _load_assets()
     for row in rows:
         if row.get("document_id") == document_id and int(row.get("version") or 0) == int(version):
+            current = RagAssetStatus(str(row.get("status") or ""))
+            if current not in allowed_from:
+                raise RagGovernanceError(f"invalid_{event}_status")
             row["status"] = status.value
-            if status is RagAssetStatus.REVIEW:
+            if status in {RagAssetStatus.REVIEW, RagAssetStatus.APPROVED, RagAssetStatus.REJECTED}:
                 row["reviewed_at"] = _now()
+                row["reviewed_by"] = actor
             history = list(row.get("history") or [])
-            history.append({"event": event, "actor": actor, "at": _now()})
+            history.append({"event": event, "actor": actor, "at": _now(), **(event_metadata or {})})
             row["history"] = history
             _save_assets(rows)
             return _to_asset(row)

@@ -6,6 +6,8 @@ import { fetchJson, postFormJson, postJson } from './httpClient.js';
 /** @typedef {import('../types.d.ts').VoiceStreamAudioChunk} VoiceStreamAudioChunk */
 /** @typedef {import('../types.d.ts').VoiceStreamChunk} VoiceStreamChunk */
 /** @typedef {import('../types.d.ts').VoiceStreamHandlers} VoiceStreamHandlers */
+/** @typedef {import('../types.d.ts').VoiceTurnEventCandidate} VoiceTurnEventCandidate */
+/** @typedef {import('../types.d.ts').VoiceTurnEventPayload} VoiceTurnEventPayload */
 
 export const API_BASE = (
   window.location.protocol === 'file:'
@@ -58,15 +60,18 @@ function parseVoiceStreamChunk(value) {
       ...(typeof value.detected_lang === 'string' ? { detected_lang: value.detected_lang } : {}),
     };
   }
+  if (value.type === 'assistant_text' && typeof value.ai_response === 'string') {
+    return {
+      type: 'assistant_text',
+      ai_response: value.ai_response,
+      ...(typeof value.user_text === 'string' ? { user_text: value.user_text } : {}),
+      ...(typeof value.detected_lang === 'string' ? { detected_lang: value.detected_lang } : {}),
+    };
+  }
   if (value.type === 'done') {
     return { ...value, type: 'done' };
   }
   return null;
-}
-
-/** @returns {string} */
-function demoToken() {
-  return sessionStorage.getItem('admin_demo_token') || '';
 }
 
 /**
@@ -74,8 +79,7 @@ function demoToken() {
  * @returns {Record<string, string>}
  */
 function adminHeaders(extra = {}) {
-  const token = demoToken();
-  return token ? { ...extra, 'X-Admin-Token': token, Authorization: `Bearer ${token}` } : extra;
+  return extra;
 }
 
 /** @returns {string} */
@@ -200,63 +204,158 @@ export async function requestAiPushRecommendation(formData) {
  * @param {VoiceStreamHandlers} handlers
  * @returns {Promise<void>}
  */
-export async function streamVoiceAssistantResponse(formData, { onAudio, onTranscript, onDone, onError }) {
-  let resp;
-  try {
-    resp = await fetch(`${API_BASE}/api/ask/stream`, { method: 'POST', body: formData, headers: kioskHeaders() });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  } catch (e) {
-    onError(String(e));
-    return;
+export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio, onTranscript, onAssistantText, onDone, onError }) {
+  const voiceTurnId = String(formData.get('voice_turn_id') || '');
+  let lastSequence = 0;
+  let terminal = false;
+
+  /** @param {string} line */
+  function consumeLine(line) {
+    if (!line.trim()) return;
+    const event = /** @type {VoiceTurnEventCandidate} */ (JSON.parse(line));
+    onEvent?.(event);
+    lastSequence = Number(event.sequence || lastSequence);
+    terminal = Boolean(event.terminal);
+    if (!isObjectRecord(event.payload)) throw new Error('invalid_voice_turn_event_payload');
+    const payload = /** @type {VoiceTurnEventPayload} */ (event.payload);
+    if (event.type === 'transcript') onTranscript?.(payload);
+    if (event.type === 'assistant_result') onAssistantText?.(payload);
+    if (event.type === 'completed') {
+      if (payload.audio_base64) onAudio?.(payload.audio_base64, payload.audio_format || 'wav');
+      onDone(payload);
+    }
+    if (event.type === 'transcription_failed' || event.type === 'assistant_failed') onDone(payload);
   }
-  if (!resp.body) {
-    onError('Empty streaming response body');
-    return;
-  }
-  const reader  = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let leftover  = '';
-  try {
+
+  /** @param {Response} response */
+  async function consumeResponse(response) {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error('Empty streaming response body');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let leftover = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const text  = leftover + decoder.decode(value, { stream: true });
-      const lines = text.split('\n');
-      leftover    = lines.pop() || '';          // 可能不完整的最後一行
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          /** @type {unknown} */
-          const parsedJson = JSON.parse(line);
-          const parsedChunk = parseVoiceStreamChunk(parsedJson);
-          if (!parsedChunk) continue;
-          if (
-            parsedChunk.type === 'audio'
-          ) {
-            onAudio(parsedChunk.data, parsedChunk.format || 'wav');
-          } else if (parsedChunk.type === 'transcript') {
-            onTranscript?.(parsedChunk);
-          } else if (parsedChunk.type === 'done') {
-            onDone(parsedChunk);
-          }
-        } catch { /* 忽略格式異常的行 */ }
+      const lines = (leftover + decoder.decode(value, { stream: true })).split('\n');
+      leftover = lines.pop() || '';
+      lines.forEach(consumeLine);
+    }
+    consumeLine(leftover + decoder.decode());
+  }
+
+  try {
+    await consumeResponse(await fetch(`${API_BASE}/api/ask/stream`, {
+      method: 'POST', body: formData, headers: kioskHeaders(),
+    }));
+  } catch (e) {
+    if (!voiceTurnId || lastSequence === 0) {
+      onError(String(e));
+      throw e;
+    }
+  }
+
+  for (let reconnect = 0; !terminal && reconnect < 3; reconnect += 1) {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 150 * (2 ** reconnect)));
+      const params = new URLSearchParams({ after_sequence: String(lastSequence) });
+      await consumeResponse(await fetch(
+        `${API_BASE}/api/ask/stream/${encodeURIComponent(voiceTurnId)}?${params}`,
+        { headers: kioskHeaders() },
+      ));
+    } catch (error) {
+      if (reconnect === 2) {
+        onError(String(error));
+        throw error;
       }
     }
-  } catch (e) {
-    onError(String(e));
+  }
+  if (!terminal) {
+    const error = new Error('voice_turn_eof_before_terminal');
+    onError(String(error));
+    throw error;
   }
 }
 
 /**
- * @param {FormData} formData
- * @param {AbortSignal} [signal]
+ * @param {string} sessionId
+ * @param {import('../types.d.ts').CartItem[]} cartItems
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function syncCart(sessionId, cartItems) {
+  const currentResponse = await fetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, { headers: kioskHeaders() });
+  if (!currentResponse.ok) throw new Error(`cart_read_failed:${currentResponse.status}`);
+  const current = await currentResponse.json();
+  const response = await fetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
+    body: JSON.stringify({
+      expected_revision: Number(current.revision || 0),
+      lines: cartItems.map(item => ({ item_id: item.id, quantity: Number(item.quantity || 1), options: item.options || [], applied_offer_id: item.applied_offer_id || '' })),
+    }),
+  });
+  if (!response.ok) throw new Error(`cart_write_failed:${response.status}`);
+  return response.json();
+}
+
+/** @param {string} sessionId @returns {Promise<Record<string, unknown>>} */
+export async function prepareCheckout(sessionId) {
+  const response = await fetch(`${API_BASE}/api/checkout/prepare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!response.ok) throw new Error(`checkout_prepare_failed:${response.status}`);
+  return response.json();
+}
+
+/**
+ * @param {string} quoteId
+ * @param {string} idempotencyKey
+ * @param {AbortSignal | undefined} signal
  * @returns {Promise<Response>}
  */
-export async function submitCheckout(formData, signal) {
-  /** @type {RequestInit} */
-  const requestOptions = { method: 'POST', body: formData, headers: kioskHeaders() };
-  if (signal) requestOptions.signal = signal;
-  return fetch(`${API_BASE}/api/checkout`, requestOptions);
+export async function confirmCheckout(quoteId, idempotencyKey, signal) {
+  const headers = { ...kioskHeaders(), 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
+  return fetch(`${API_BASE}/api/checkout/confirm`, {
+    method: 'POST', headers, body: JSON.stringify({ quote_id: quoteId }), ...(signal ? { signal } : {}),
+  });
+}
+
+/**
+ * @param {string} quoteId
+ * @param {string} idempotencyKey
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function getCheckoutOutcome(quoteId, idempotencyKey) {
+  const params = new URLSearchParams({ idempotency_key: idempotencyKey });
+  const response = await fetch(`${API_BASE}/api/checkout/outcome/${encodeURIComponent(quoteId)}?${params}`, { headers: kioskHeaders() });
+  if (!response.ok) throw new Error(`checkout_outcome_failed:${response.status}`);
+  return response.json();
+}
+
+/** @param {Record<string, unknown>} [payload] @returns {Promise<Record<string, unknown>>} */
+export async function startEntryFlow(payload = {}) {
+  const response = await fetch(`${API_BASE}/api/entry-flow/start`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`entry_flow_start_failed:${response.status}`);
+  return response.json();
+}
+
+/**
+ * @param {string} entryFlowId
+ * @param {number} phaseRevision
+ * @param {string} command
+ * @param {Record<string, unknown>} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function commandEntryFlow(entryFlowId, phaseRevision, command, payload = {}) {
+  const response = await fetch(`${API_BASE}/api/entry-flow/${encodeURIComponent(entryFlowId)}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
+    body: JSON.stringify({ phase_revision: phaseRevision, command, payload }),
+  });
+  if (!response.ok) throw new Error(`entry_flow_command_failed:${response.status}`);
+  return response.json();
 }
 
 /**
@@ -337,14 +436,18 @@ export async function memberLogin(sessionId, phone) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
   formData.append('phone', phone);
-  return postFormJson(`${API_BASE}/api/member/login`, formData, { headers: kioskHeaders() });
+  const response = await postFormJson(`${API_BASE}/api/member/login`, formData, { headers: kioskHeaders() });
+  if (!isObjectRecord(response) || typeof response.found !== 'boolean') {
+    throw new Error('member login returned an invalid response');
+  }
+  return response;
 }
 
 /**
  * @param {string} sessionId
  * @param {string} phone
  * @param {string} nickname
- * @param {{orderHistoryConsent?: boolean, personalizationConsent?: boolean}} [options]
+ * @param {{necessaryTermsAccepted?: boolean, orderHistoryConsent?: boolean, personalizationConsent?: boolean}} [options]
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function memberRegister(sessionId, phone, nickname, options = {}) {
@@ -352,9 +455,14 @@ export async function memberRegister(sessionId, phone, nickname, options = {}) {
   formData.append('session_id', sessionId);
   formData.append('phone', phone);
   formData.append('nickname', nickname || '');
-  formData.append('order_history_consent', String(options.orderHistoryConsent !== false));
-  formData.append('personalization_consent', String(options.personalizationConsent !== false));
-  return postFormJson(`${API_BASE}/api/member/register`, formData, { headers: kioskHeaders() });
+  formData.append('necessary_terms_accepted', String(options.necessaryTermsAccepted === true));
+  formData.append('order_history_consent', String(options.orderHistoryConsent === true));
+  formData.append('personalization_consent', String(options.personalizationConsent === true));
+  const response = await postFormJson(`${API_BASE}/api/member/register`, formData, { headers: kioskHeaders() });
+  if (!isObjectRecord(response) || typeof response.ok !== 'boolean') {
+    throw new Error('member registration returned an invalid response');
+  }
+  return response;
 }
 
 /**

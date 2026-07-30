@@ -13,7 +13,9 @@ BACKEND_DIR = ROOT_DIR / "backend"
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(BACKEND_DIR))
 
-# The script must add backend/ before importing the repository package.
+# Compatibility CLI now crosses the Runtime Persistence Profile seam.
+from modules.runtime_persistence import migrations  # noqa: E402
+
 from repositories import postgres_utils  # noqa: E402
 
 
@@ -32,15 +34,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "apply":
-            plan = postgres_utils.apply_migrations()
+            plan = migrations.migrate_to_head()
         else:
-            plan = postgres_utils.get_migration_plan()
+            plan = migrations.inspect_schema()
             if args.command == "status":
                 print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
-            postgres_utils.validate_migration_plan(
-                plan,
-                require_clean=bool(args.require_clean),
-            )
+            if not plan.is_valid:
+                raise migrations.MigrationValidationError("; ".join(plan.errors))
+            if args.require_clean:
+                migrations.require_schema_head()
         if args.command != "status":
             print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
         return 0

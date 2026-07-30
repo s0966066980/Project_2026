@@ -215,12 +215,17 @@ def test_voice_cache_is_round_scoped_and_ignores_older_completed_analysis(monkey
     monkeypatch.setattr(
         voice_service.config,
         "get",
-        lambda key, default=None: True if key == "EMOTION_LLAMA_AFFECT_VOICE" else default,
+        lambda key, default=None: {
+            "EMOTION_LLAMA_AFFECT_VOICE": True,
+            "EMOTION_ASSISTANCE_MODE": "active",
+            "EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD": 0.7,
+            "EMOTION_ASSISTANCE_ROLLOUT_PERCENT": 100,
+        }.get(key, default),
     )
     context = voice_service._build_emotion_context("voice-session", "round-a")
-    assert "本輪點餐的顧客情緒參考" in context
-    assert "anxious" in context
-    assert "第 1 次語音結束的已完成背景分析" in context
+    assert "本輪回覆輔助政策" in context
+    assert "不得診斷或提及顧客情緒" in context
+    assert "anxious" not in context
     assert voice_service._build_emotion_context("voice-session", "round-b") == ""
 
 
@@ -228,10 +233,12 @@ def test_voice_stream_exposes_stt_before_building_llm_context() -> None:
     source = (SERVICES / "voice_service.py").read_text(encoding="utf-8")
     stream_start = source.index("async def handle_voice_stream")
     transcript_yield = source.index('"type": "transcript"', stream_start)
-    current_turn_analysis = source.index("await _analyze_current_voice_emotion_pair", transcript_yield)
+    background_observation = source.index("_schedule_voice_emotion_observation(", transcript_yield)
     context_build = source.index("await _build_voice_context", transcript_yield)
 
-    assert transcript_yield < current_turn_analysis < context_build
+    assert transcript_yield < background_observation < context_build
+    critical_path = source[transcript_yield:context_build]
+    assert "await _analyze_current_voice_emotion_pair" not in critical_path
 
 
 def test_voice_emotion_pair_uses_the_same_media_and_returns_stt_variant(monkeypatch) -> None:
@@ -280,7 +287,7 @@ def test_voice_emotion_pair_uses_the_same_media_and_returns_stt_variant(monkeypa
     assert {call["analysis_variant"] for call in calls} == {"media_only", "media_plus_stt"}
     assert {call["speech_text"] for call in calls} == {"", "我不知道要選哪一個套餐"}
     assert len({call["comparison_pair_id"] for call in calls}) == 1
-    assert all(call["cache_voice_observation"] is False for call in calls)
+    assert all(call["cache_voice_observation"] is True for call in calls)
     assert reference["analysis_variant"] == "media_plus_stt"
     assert reference["emotion"] == "anxious"
 

@@ -1,0 +1,13 @@
+# Route text models by policy and keep credentials in the environment
+
+Status: accepted
+
+Admin persists a Text Model Routing Policy — local-first, cloud-first, local-only, or cloud-only — plus which Cloud Text Provider fills the cloud half of the chain. Every text-model caller resolves that policy at request time instead of naming a provider, and the gateway builds its chain from the policy and the selected provider. Provider Credentials are read only from the environment; the settings surface reports whether each one is present and refuses to accept, store, or return any of them.
+
+Before this, `AI_PROVIDER` was written by the settings page and read by nothing. Every caller hardcoded a local-first policy, the chain named Gemini as the only cloud provider, no OpenAI-compatible adapter existed, and a hidden `ENABLE_GEMINI_OPTIONS` flag — default off, with no way to turn it on from the interface — reset the saved provider back to Ollama on every JSON settings load while the Postgres path skipped that reset entirely. The result was a control that appeared to work, diverged by storage backend, and could never change what actually served a request.
+
+We chose a policy rather than a single-provider selector because a store that picks a cloud model still needs to take orders when its network drops, and because the gateway already modelled fallback this way. Naming one provider would have matched the old interface more closely but would make a cloud outage a full outage for push copy and voice assistance. Splitting the choice per caller was rejected as unjustified: nothing in operation asks for push copy and voice assistance to sit on different providers, and it would triple the surface an operator has to keep coherent.
+
+Credentials move to the environment because the settings document is versioned into `commercial_settings_versions`, scoped per store, and published on the `settings_changed` event. That event broadcasts to every connected client, kiosk devices included, so any secret in the document was already reaching customer-facing hardware. Encrypting settings-held keys would have kept in-interface rotation at the cost of a key-management scheme and secrets in version history; reading them from the environment removes the class of problem instead. The cost is real and accepted: rotating a key means editing `.env` and restarting, and the interface can only tell the operator which variable is missing.
+
+Because a saved policy is not evidence that it works, the surface reports Provider Readiness, an on-demand connectivity probe, and the provider mix of recent requests. A policy that prefers a provider which answered nothing is surfaced as a contradiction rather than left for the operator to infer.

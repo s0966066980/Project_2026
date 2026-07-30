@@ -10,6 +10,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request
+from tests.auth_test_support import authenticate_client, configure_admin_session
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,15 +19,12 @@ def _security_config(monkeypatch, config_module) -> None:
     values = {
         "SECURITY_ENFORCED": True,
         "RATE_LIMIT_ENABLED": True,
-        "ADMIN_API_TOKEN": "admin-secret",
     }
     monkeypatch.setattr(config_module, "get", lambda key, default=None: values.get(key, default))
-    monkeypatch.setattr(config_module, "ADMIN_API_TOKEN", "admin-secret")
-    monkeypatch.setattr(config_module, "ADMIN_DEMO_TOKEN", "")
     monkeypatch.setattr(config_module, "is_demo_public_mode", lambda: False)
 
 
-def test_session_stats_requires_admin_token(monkeypatch):
+def test_session_stats_requires_admin_session(monkeypatch):
     import config
     from routes import core_routes
 
@@ -46,10 +44,9 @@ def test_session_stats_requires_admin_token(monkeypatch):
     client = TestClient(app)
 
     assert client.get("/api/session_stats").status_code == 401
-    authorized = client.get(
-        "/api/session_stats",
-        headers={"X-Admin-Token": "admin-secret"},
-    )
+    configure_admin_session(monkeypatch)
+    authenticate_client(client)
+    authorized = client.get("/api/session_stats")
     assert authorized.status_code == 200
     assert authorized.json()["sessions"][0]["session_id"] == "private-session"
 
@@ -74,7 +71,9 @@ def test_rag_status_requires_admin_read_permission(monkeypatch):
     client = TestClient(app)
 
     assert client.get("/api/rag/status").status_code == 401
-    authorized = client.get("/api/rag/status", headers={"X-Admin-Token": "admin-secret"})
+    configure_admin_session(monkeypatch)
+    authenticate_client(client)
+    authorized = client.get("/api/rag/status")
     assert authorized.status_code == 200
     assert authorized.json()["chroma_path"] == "/private/chroma"
 
@@ -278,47 +277,13 @@ def test_application_adds_security_headers(monkeypatch):
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
 
 
-def test_checkout_route_passes_only_authoritative_cart_to_order_service(monkeypatch):
-    from routes import core_routes
+def test_checkout_cutover_exposes_quote_identity_operations_only():
+    from routes import checkout_confirmation_routes, core_routes
 
-    monkeypatch.setattr(core_routes, "require_kiosk_token", lambda _request: None)
-    monkeypatch.setattr(core_routes, "check_rate_limit", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(core_routes.member_service, "get_session_member", lambda _session_id: None)
-    monkeypatch.setattr(
-        core_routes.checkout_pricing_service,
-        "price_checkout_cart",
-        lambda *_args, **_kwargs: {
-            "cart_ids": ["MCD001"],
-            "cart_items": [{"id": "MCD001", "price": 155, "quantity": 2}],
-            "total": 310,
-        },
-    )
-    received = {}
-
-    async def process_checkout(*args):
-        received["args"] = args
-        return {"status": "success", "session_id": args[0], "order_number": 7}
-
-    monkeypatch.setattr(core_routes.checkout_service, "process_checkout", process_checkout)
-    app = FastAPI()
-    app.include_router(core_routes.create_router({}))
-    response = TestClient(app).post(
-        "/api/checkout",
-        headers={"Idempotency-Key": "checkout-key"},
-        data={
-            "session_id": "checkout-test",
-            "pushed_ids": "[]",
-            "cart_ids": '["MCD001"]',
-            "cart_items": '[{"id":"MCD001","price":1,"quantity":2}]',
-            "cart_total": "2",
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.json()["cart_total"] == 310
-    assert received["args"][3] == [{"id": "MCD001", "price": 155, "quantity": 2}]
-    assert received["args"][6] == 310
-    assert received["args"][8] == "checkout-key"
+    legacy_paths = {route.path for route in core_routes.create_router({}).routes}
+    checkout_paths = {route.path for route in checkout_confirmation_routes.create_router({}).routes}
+    assert "/api/checkout" not in legacy_paths
+    assert {"/api/checkout/prepare", "/api/checkout/confirm", "/api/checkout/outcome/{quote_id}"} <= checkout_paths
 
 
 def test_tracked_settings_do_not_contain_credentials_or_fixed_secrets():

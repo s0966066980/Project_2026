@@ -6,18 +6,48 @@ import config
 
 
 _background_init_done = False
+_background_init_claim_lock = threading.Lock()
+_background_init_ready = threading.Event()
 
 
 async def background_init():
     global _background_init_done
-    if _background_init_done:
+    with _background_init_claim_lock:
+        should_initialize = not _background_init_done
+        if should_initialize:
+            _background_init_done = True
+
+    if should_initialize:
+        try:
+            await _background_init_once()
+        finally:
+            # The kiosk and admin servers run in separate event-loop threads.
+            # Do not let either port report startup complete before the shared
+            # voice/RAG warm-up attempt has finished.
+            _background_init_ready.set()
         return
-    _background_init_done = True
-    await _background_init_once()
+
+    await asyncio.to_thread(_background_init_ready.wait)
 
 
 async def _background_init_once():
     tasks = []
+
+    async def _cleanup_voice_turns():
+        try:
+            from modules.voice_turn.runtime import cleanup_expired
+            await asyncio.to_thread(cleanup_expired)
+        except Exception as e:
+            print(f"⚠️ Voice Turn retention cleanup 失敗（不影響服務）: {e}")
+    tasks.append(_cleanup_voice_turns())
+
+    async def _dispatch_checkout_outbox():
+        try:
+            from modules.checkout_confirmation.runtime import dispatch_outbox
+            await asyncio.to_thread(dispatch_outbox)
+        except Exception as e:
+            print(f"⚠️ Checkout outbox dispatch 失敗（不影響已確認訂單）: {e}")
+    tasks.append(_dispatch_checkout_outbox())
 
     if config.get("STT_PROVIDER", "faster_whisper") != "openai_compatible":
         async def _init_stt():
@@ -50,15 +80,23 @@ async def _background_init_once():
                 print(f"⚠️ RAG 預載失敗（不影響服務）: {e}")
         tasks.append(_init_rag())
 
-    if config.get("ENABLE_GEMINI_OPTIONS", False):
-        async def _init_gemini():
+        async def _cleanup_knowledge_artifacts():
             try:
-                ok = await asyncio.to_thread(ai_services.init_gemini_client)
-                if ok:
-                    print("✅ Gemini client 背景初始化完成")
+                from modules.knowledge_publication.runtime import cleanup_expired_artifacts
+                await asyncio.to_thread(cleanup_expired_artifacts)
             except Exception as e:
-                print(f"❌ Gemini client 背景初始化失敗: {e}")
-        tasks.append(_init_gemini())
+                print(f"⚠️ Knowledge artifact retention cleanup 失敗（不影響服務）: {e}")
+        tasks.append(_cleanup_knowledge_artifacts())
+
+    if config.get("VOICE_LLM_PREWARM_ENABLED", True):
+        async def _init_voice_llm():
+            model = str(config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b") or "qwen3.5:4b")
+            result = await asyncio.to_thread(ai_services.warm_ollama_model, model)
+            if result.get("status") == "ready":
+                print(f"✅ 語音 LLM 預熱完成（{model}, {result.get('latency_ms')}ms）")
+            else:
+                print(f"⚠️ 語音 LLM 預熱失敗（不影響服務）: {result.get('message') or result.get('reason')}")
+        tasks.append(_init_voice_llm())
 
     if tasks:
         await asyncio.gather(*tasks)
@@ -133,4 +171,3 @@ def ensure_ollama(
                 break
 
     threading.Thread(target=_pull, name="ollama-pull", daemon=True).start()
-

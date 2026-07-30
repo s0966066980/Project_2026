@@ -23,15 +23,38 @@ def _get_ollama_session() -> requests.Session:
         _ollama_session = s
     return _ollama_session
 
-try:
-    from google import genai
-except Exception:
-    genai = None
 
-_gemini_client = None
-_gemini_cooldown_until = 0.0
-_gemini_last_error = ""
-
+def warm_ollama_model(model_name: str) -> dict:
+    """Load a local model without generating text and keep it ready for voice traffic."""
+    model = str(model_name or "").strip()
+    if not model:
+        return {"status": "skipped", "reason": "missing_model"}
+    started = time.perf_counter()
+    try:
+        response = _get_ollama_session().post(
+            config.OLLAMA_API_URL,
+            json={
+                "model": model,
+                "prompt": "",
+                "stream": False,
+                "keep_alive": str(config.get("OLLAMA_KEEP_ALIVE", "30m") or "30m"),
+                "options": {"num_predict": 0},
+            },
+            timeout=int(config.get("OLLAMA_TIMEOUT", 120)),
+        )
+        response.raise_for_status()
+        return {
+            "status": "ready",
+            "model": model,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "model": model,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "message": str(exc)[:200],
+        }
 
 def _strip_think_blocks(content: str) -> str:
     """剝除 qwen3 / 思維模型輸出的 <think>...</think> block，避免干擾 JSON 擷取。"""
@@ -137,25 +160,6 @@ def _enforced_json_system_prompt(system_prompt: str) -> str:
     )
 
 
-def _resolve_gemini_model(model_name: str = "") -> str:
-    candidate = str(model_name or "").strip()
-    if candidate.startswith(("gemini-", "gemma-")):
-        return candidate
-    return config.get("GEMINI_MODEL_NAME", "gemini-3-flash-preview")
-
-
-def _get_gemini_client():
-    global _gemini_client
-    if genai is None:
-        raise RuntimeError("尚未安裝 google-genai，請先執行 pip install google-genai")
-    if _gemini_client is None:
-        kwargs = {}
-        if config.GEMINI_API_KEY:
-            kwargs["api_key"] = config.GEMINI_API_KEY
-        _gemini_client = genai.Client(**kwargs)
-    return _gemini_client
-
-
 def _parse_llm_json_response(content: str, response_tag: str = "") -> dict:
     parsed = _repair_and_extract_json(content)
     if parsed is not None:
@@ -164,72 +168,6 @@ def _parse_llm_json_response(content: str, response_tag: str = "") -> dict:
         parsed["_raw_content"] = content
         return parsed
     return {"error": "找不到 JSON 格式的輸出", "raw_content": content}
-
-
-def _extract_retry_delay_sec(error_text: str) -> int:
-    retry_match = re.search(r"'retryDelay':\s*'(\d+)s'", error_text)
-    if not retry_match:
-        retry_match = re.search(r"retry in ([0-9.]+)s", error_text, re.IGNORECASE)
-    if retry_match:
-        try:
-            return max(1, int(float(retry_match.group(1))) + 2)
-        except Exception:
-            pass
-    return int(config.get("GEMINI_COOLDOWN_SEC", 60))
-
-
-def _gemini_error_matches(error_text: str, *patterns: str) -> bool:
-    lowered = str(error_text or "").lower()
-    return any(p in lowered for p in patterns)
-
-
-def _is_gemini_quota_error(error_text: str) -> bool:
-    lowered = str(error_text or "").lower()
-    return ("429" in lowered or "resource_exhausted" in lowered or "quota" in lowered
-            or ("rate" in lowered and "limit" in lowered))
-
-
-def _is_gemini_internal_error(error_text: str) -> bool:
-    return _gemini_error_matches(error_text, "500", "internal")
-
-
-def _is_gemini_unavailable_error(error_text: str) -> bool:
-    return _gemini_error_matches(error_text, "503", "unavailable", "high demand", "overloaded", "try again later")
-
-
-def _gemini_cooldown_remaining() -> int:
-    return max(0, int(_gemini_cooldown_until - time.time()))
-
-
-def _generate_gemini_content(
-    system_prompt: str,
-    user_prompt: str,
-    model: str,
-    force_json_mime: bool = True,
-) -> str:
-    client = _get_gemini_client()
-    contents = f"【系統指令】\n{_enforced_json_system_prompt(system_prompt)}\n\n{user_prompt}"
-    kwargs = {
-        "model": model,
-        "contents": contents,
-    }
-    if force_json_mime:
-        from google.genai import types as genai_types
-
-        config_kwargs = {
-            "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
-            "max_output_tokens": int(config.get("GEMINI_NUM_PREDICT", 512)),
-            "response_mime_type": "application/json",
-        }
-        kwargs["config"] = genai_types.GenerateContentConfig(**config_kwargs)
-    response = client.models.generate_content(**kwargs)
-    return getattr(response, "text", "") or ""
-
-
-def _should_use_gemini_json_mime(model: str) -> bool:
-    if str(model or "").startswith("gemma-"):
-        return False
-    return bool(config.get("GEMINI_USE_JSON_MIME", False))
 
 
 def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float | None = None, num_predict: int | None = None) -> dict:
@@ -243,6 +181,7 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         "stream": False,
         "format": "json",
         "think": False,          # disable thinking mode for qwen3/thinking models (Ollama ≥0.5.1)
+        "keep_alive": str(config.get("OLLAMA_KEEP_ALIVE", "30m") or "30m"),
         "options": {
             "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)) if temperature is None else float(temperature),
             "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220))
@@ -260,64 +199,6 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
     except Exception as e:
         print(f"❌ Ollama 請求失敗: {e}")
         return {"error": str(e), "raw_content": "無法連線至 Ollama"}
-
-
-def ask_gemini(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "") -> dict:
-    """呼叫 Gemini API，回傳格式與 Ollama 路徑一致。"""
-    global _gemini_cooldown_until, _gemini_last_error
-    model = _resolve_gemini_model(model_name)
-    try:
-        remaining = _gemini_cooldown_remaining()
-        if remaining > 0:
-            return {
-                "error": f"Gemini API 暫停呼叫中，{remaining} 秒後重試。",
-                "raw_content": _gemini_last_error or "Gemini API cooldown",
-                "_provider_error": "gemini_cooldown",
-            }
-        force_json_mime = _should_use_gemini_json_mime(model)
-        content = _generate_gemini_content(
-            system_prompt,
-            user_prompt,
-            model,
-            force_json_mime,
-        )
-        if config.get("OLLAMA_LOG_RAW", False):
-            print(f"📝 Gemini[{model}]{'['+response_tag+']' if response_tag else ''} 原始回應:\n{content[:400]}\n{'='*40}")
-        return _parse_llm_json_response(content, response_tag)
-    except Exception as e:
-        error_text = str(e)
-        print(f"⚠️ Gemini API 請求失敗，將依設定使用備援: {error_text}")
-        if _is_gemini_quota_error(error_text):
-            retry_sec = _extract_retry_delay_sec(error_text)
-            _gemini_cooldown_until = time.time() + retry_sec
-            _gemini_last_error = error_text
-            return {
-                "error": f"Gemini API 額度或速率限制，{retry_sec} 秒內改用備援。",
-                "raw_content": error_text,
-                "_provider_error": "gemini_rate_limited",
-                "_retry_after_sec": retry_sec,
-            }
-        if _is_gemini_internal_error(error_text):
-            retry_sec = int(config.get("GEMINI_COOLDOWN_SEC", 60))
-            _gemini_cooldown_until = time.time() + retry_sec
-            _gemini_last_error = error_text
-            return {
-                "error": f"Gemini API 服務端暫時錯誤，{retry_sec} 秒內改用備援。",
-                "raw_content": error_text,
-                "_provider_error": "gemini_internal",
-                "_retry_after_sec": retry_sec,
-            }
-        if _is_gemini_unavailable_error(error_text):
-            retry_sec = _extract_retry_delay_sec(error_text)
-            _gemini_cooldown_until = time.time() + retry_sec
-            _gemini_last_error = error_text
-            return {
-                "error": f"Gemini API 暫時繁忙，{retry_sec} 秒內改用備援。",
-                "raw_content": error_text,
-                "_provider_error": "gemini_unavailable",
-                "_retry_after_sec": retry_sec,
-            }
-        return {"error": error_text, "raw_content": "無法連線至 Gemini API", "_provider_error": "gemini_failed"}
 
 
 def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None) -> dict:
@@ -339,6 +220,7 @@ def stream_ollama_tokens(
         "stream": True,
         "format": "json",
         "think": False,
+        "keep_alive": str(config.get("OLLAMA_KEEP_ALIVE", "30m") or "30m"),
         "options": {
             "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)),
             "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220)),
@@ -392,28 +274,3 @@ def ask_ollama_raw_text(system_prompt: str, user_prompt: str, model_name: str = 
         return {"error": str(e), "text": "", "latency_ms": 0}
 
 
-def ask_gemini_raw_text(system_prompt: str, user_prompt: str, model_name: str = "") -> dict:
-    """Gemini 自由文字回應，供管理後台測試頁使用。"""
-    global _gemini_cooldown_until, _gemini_last_error
-    model = _resolve_gemini_model(model_name)
-    try:
-        remaining = _gemini_cooldown_remaining()
-        if remaining > 0:
-            return {"error": f"Gemini API 冷卻中，{remaining} 秒後重試", "text": "", "latency_ms": 0}
-        client = _get_gemini_client()
-        contents = f"[系統指令]\n{system_prompt}\n\n[使用者]\n{user_prompt}"
-        t0 = time.time()
-        response = client.models.generate_content(model=model, contents=contents)
-        text = _strip_think_blocks(getattr(response, "text", "") or "")
-        return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
-                "provider": "gemini", "model": model}
-    except Exception as e:
-        return {"error": str(e), "text": "", "latency_ms": 0}
-
-
-def init_gemini_client():
-    if not config.GEMINI_API_KEY:
-        print("Gemini client 預載略過: 未設定 GEMINI_API_KEY / GOOGLE_API_KEY")
-        return False
-    _get_gemini_client()
-    return True

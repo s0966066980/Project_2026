@@ -132,6 +132,35 @@ export function createRecommendationEventsAdmin({
     renderEffectivenessNotice(warnings.join(' '));
   }
 
+  async function loadTodaySummary() {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const params = new URLSearchParams({
+      since: start.toISOString(),
+      until: now.toISOString(),
+    });
+    const res = await fetch(`${apiBaseUrl}/api/v1/recommendation-effectiveness?${params.toString()}`, {
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`成效服務回應 ${res.status}`);
+    const payload = await res.json();
+    const report = payload?.data || {};
+    const summary = {
+      impressions: Number(report.impressions || 0),
+      purchases: Number(report.purchases || 0),
+      ignored: Number(report.ignored || 0),
+      purchaseRate: Number(report.purchase_rate || 0),
+      ignoreRate: Number(report.ignore_rate || 0),
+      purchaseRateTarget: Number(report.purchase_rate_target || 0),
+      ignoreRateGuardrail: Number(report.ignore_rate_guardrail || 0),
+      targetStatus: String(report.target_status || 'insufficient_data'),
+      sampleWarning: String(report.sample_warning || ''),
+    };
+    onSummary(summary);
+    return summary;
+  }
+
   function filteredRecommendationEvents() {
     const eventType = getValue('recommendationEventTypeFilter');
     const surface = getValue('recommendationSurfaceFilter');
@@ -170,16 +199,6 @@ export function createRecommendationEventsAdmin({
       .map(([label, value, sub]) => `<div class="recommendation-kpi"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span><small>${escapeHtml(sub)}</small></div>`)
       .join('');
 
-    if (report) {
-      onSummary({
-        impressions: Number(report.impressions || 0),
-        purchases: Number(report.purchases || 0),
-        purchaseRate: Number(report.purchase_rate || 0),
-        sampleWarning: String(report.sample_warning || ''),
-      });
-    } else {
-      onSummary({ impressions: shown, purchases: checked, purchaseRate: shown ? checked / shown : 0, provisional: true });
-    }
   }
 
   function renderRecommendationCountRows(containerId, groupedCounts, labelMap, emptyText) {
@@ -336,6 +355,7 @@ export function createRecommendationEventsAdmin({
   }
 
   return {
+    loadTodaySummary,
     loadRecommendationEvents,
     renderRecommendationDashboard,
   };

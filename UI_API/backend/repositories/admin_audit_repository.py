@@ -51,7 +51,6 @@ def _jsonb(value, default):
 
 
 def _postgres_append(record: dict, scope: CommercialScope) -> dict:
-    postgres_utils.init_schema()
     store_id = None if "store_id" in record and record.get("store_id") is None else scope.store_id
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
@@ -120,7 +119,6 @@ def get_admin_audits_scoped(scope: CommercialScope, limit: int = 200) -> list:
     if postgres_utils.use_postgres():
         try:
             safe_limit = max(1, min(int(limit), _max_records()))
-            postgres_utils.init_schema()
             with postgres_utils.connect() as conn:
                 with conn.cursor() as cur:
                     cur.execute(

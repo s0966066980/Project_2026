@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 import config
 from services import admin_identity_service
-from utils.auth_utils import check_rate_limit, require_admin_token
+from utils.auth_utils import check_rate_limit, require_admin_token, staff_principal_from_device
 from utils.commercial_scope_config import resolve_commercial_scope
 
 
@@ -30,6 +30,14 @@ def _principal_payload(principal) -> dict:
 
 def create_router(_deps: dict | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
+
+    @router.get("/ui-config")
+    async def ui_config():
+        """Expose non-secret behavior required before the Admin login completes."""
+        return {
+            "manager_login_identity": config.ADMIN_MANAGER_LOGIN_IDENTITY,
+            "manager_idle_timeout_sec": max(1, int(config.ADMIN_MANAGER_IDLE_TIMEOUT_SEC)),
+        }
 
     @router.post("/login")
     async def login(payload: AdminLoginRequest, request: Request, response: Response):
@@ -57,17 +65,28 @@ def create_router(_deps: dict | None = None) -> APIRouter:
 
     @router.post("/logout")
     async def logout(request: Request, response: Response):
-        principal = require_admin_token(request)
         cookie_name = str(config.get("ADMIN_SESSION_COOKIE_NAME", "admin_session"))
         token = request.cookies.get(cookie_name, "")
-        if principal and principal.auth_method == "session":
+        principal = admin_identity_service.authenticate_admin_session(token) if token else None
+        if principal is not None:
             await asyncio.to_thread(admin_identity_service.logout_admin, token, resolve_commercial_scope())
         response.delete_cookie(cookie_name, path="/", httponly=True, samesite="strict")
         return {"status": "success"}
 
     @router.get("/me")
     async def current_admin(request: Request):
-        return {"principal": _principal_payload(require_admin_token(request))}
+        """回傳目前身分：有主管 session 就是主管，否則退回裝置憑證發放的員工身分。
+
+        Admin 頁面預設以員工模式開啟（一般員工不需要登入），主管功能才需要密碼，
+        因此這裡不能在沒有主管 session 時直接 401。
+        """
+        try:
+            principal = require_admin_token(request)
+        except HTTPException as exc:
+            if exc.status_code != 401:
+                raise
+            principal = staff_principal_from_device(request)
+        return {"principal": _principal_payload(principal), "manager": principal.auth_method != "device_staff"}
 
     @router.post("/rotate")
     async def rotate(request: Request, response: Response):

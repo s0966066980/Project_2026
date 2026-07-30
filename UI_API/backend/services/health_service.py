@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+
+from modules.runtime_persistence.evidence import inspect_persistence
 
 import config
 from repositories import postgres_utils, recommendation_event_repository
@@ -27,96 +31,41 @@ def _degraded(name: str, message: str, **details) -> dict:
     }
 
 
-def _postgres_health() -> dict:
-    backend = postgres_utils.storage_backend()
-    if backend != "postgres":
-        return _skipped("postgres", "MEMBER_STORAGE_BACKEND is not postgres", backend=backend)
-    try:
-        postgres_utils.init_schema()
-        with postgres_utils.connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 AS value")
-                ping = cur.fetchone() or {}
-                cur.execute(
-                    """
-                    SELECT version, applied_at
-                    FROM schema_migrations
-                    ORDER BY applied_at DESC, version DESC
-                    LIMIT 1
-                    """
-                )
-                latest = cur.fetchone() or {}
-                cur.execute("SELECT COUNT(*) AS value FROM schema_migrations")
-                count_row = cur.fetchone() or {}
-        return _ok(
-            "postgres",
-            backend=backend,
-            ping=ping.get("value") == 1,
-            schema_migration_count=int(count_row.get("value", 0) or 0),
-            latest_schema_migration={
-                "version": str(latest.get("version") or ""),
-                "applied_at": str(latest.get("applied_at") or ""),
-            },
-        )
-    except Exception as exc:
-        return _degraded("postgres", str(exc)[:500], backend=backend)
+def _postgres_health(evidence: dict | None = None) -> dict:
+    profile = evidence or inspect_persistence()
+    status = "ok" if profile.get("status") == "ok" else "degraded"
+    return {"name": "postgres", "status": status, **profile}
 
 
-def _database_readiness() -> dict:
-    backend = postgres_utils.storage_backend()
-    if backend != "postgres":
-        if config.APP_ENV in {"production", "staging"}:
-            return {"status": "failed", "error_code": "postgres_required"}
-        return {"status": "skipped", "reason": "json_compatibility_backend"}
-    try:
-        with postgres_utils.connect() as conn, conn.cursor() as cur:
-            cur.execute("SELECT 1 AS value")
-            if (cur.fetchone() or {}).get("value") != 1:
-                raise RuntimeError
-            cur.execute(
-                """
-                SELECT COUNT(*) AS count
-                FROM order_outbox
-                WHERE published_at IS NULL AND dead_lettered_at IS NULL
-                """
-            )
-            pending_outbox = int((cur.fetchone() or {}).get("count") or 0)
-            try:
-                cur.execute(
-                    """
-                    SELECT COUNT(*) AS count
-                    FROM background_jobs
-                    WHERE status IN ('pending', 'running', 'failed')
-                    """
-                )
-                job_depth = int((cur.fetchone() or {}).get("count") or 0)
-            except Exception:
-                job_depth = 0
-        observability_service.increment_metric("postgres_operations_total", status="ready_success")
-        observability_service.set_metric("order_outbox_pending", pending_outbox)
-        observability_service.set_metric("worker_jobs_depth", job_depth)
-        observability_service.set_metric("queue_backlog", pending_outbox + job_depth)
-        return {"status": "ok", "pending_outbox": pending_outbox, "worker_jobs_depth": job_depth}
-    except Exception:
-        observability_service.increment_metric("postgres_operations_total", status="ready_failure")
-        return {"status": "failed", "error_code": "database_unavailable"}
+def _database_readiness(evidence: dict | None = None) -> dict:
+    profile = evidence or inspect_persistence()
+    status = "ok" if profile.get("status") == "ok" else "failed"
+    observability_service.increment_metric(
+        "postgres_operations_total", status="ready_success" if status == "ok" else "ready_failure"
+    )
+    return {
+        "status": status,
+        "error_code": profile.get("error_code", "") if status == "failed" else "",
+        "configured_backend": profile.get("configured_backend", ""),
+        "effective_backend": profile.get("effective_backend", ""),
+        "topology": profile.get("topology", ""),
+        "endpoint": profile.get("endpoint", {}),
+        "connection": profile.get("connection", {}),
+        "adapter_coverage": profile.get("adapter_coverage", {}),
+    }
 
 
-def _migration_readiness() -> dict:
-    if postgres_utils.storage_backend() != "postgres":
-        return {"status": "skipped", "reason": "json_compatibility_backend"}
-    try:
-        plan = postgres_utils.get_migration_plan()
-        postgres_utils.validate_migration_plan(plan, require_clean=True)
-        return {"status": "ok", "applied_count": len(plan.applied_versions)}
-    except Exception:
+def _migration_readiness(evidence: dict | None = None) -> dict:
+    schema = dict((evidence or inspect_persistence()).get("schema") or {})
+    if schema.get("status") != "ok":
         observability_service.increment_metric("migration_validation_failures_total", status="not_clean")
-        return {"status": "failed", "error_code": "migration_not_clean"}
+        return {"status": "failed", "error_code": schema.get("error_code", "migration_not_clean"), **schema}
+    return schema
 
 
 def _scope_readiness() -> dict:
-    if postgres_utils.storage_backend() != "postgres":
-        return {"status": "skipped", "reason": "json_compatibility_backend"}
+    if postgres_utils.storage_backend() != "postgresql":
+        return {"status": "skipped", "reason": "local_sqlite_runtime"}
     try:
         validate_configured_commercial_scope()
         return {"status": "ok"}
@@ -219,7 +168,109 @@ def _overall_status(checks: dict) -> str:
     return "degraded" if any(check.get("status") in unhealthy for check in checks.values()) else "ok"
 
 
-async def build_admin_health() -> dict:
+_INCIDENT_GUIDE = {
+    "database": ("資料庫無法安全使用", "點餐、結帳、會員與管理寫入可能失敗。", "值班技術人員", "確認資料庫連線與 DATABASE_URL，勿切換到 JSON。"),
+    "migration": ("資料庫版本未就緒", "商業資料結構可能與目前程式不相容。", "值班技術人員", "停止寫入並確認 forward migration 狀態。"),
+    "commercial_scope": ("門市資料範圍未就緒", "可能無法保證資料只屬於目前門市。", "系統管理員", "確認 tenant、store 與 device 的有效關聯。"),
+    "shared_infrastructure": ("共用基礎設施未就緒", "多程序下的 session、限流或事件協調可能不一致。", "值班技術人員", "依 readiness error code 檢查共用基礎設施。"),
+    "postgres": ("商業資料庫異常", "會員、訂單、活動與管理寫入可能失敗。", "值班技術人員", "確認資料庫連線、migration 與儲存 backend。"),
+    "rag": ("知識回答降級", "點餐與結帳可繼續，但知識回答可能缺少資料。", "知識管理者", "檢查最後一次成功建索引與已發布來源。"),
+    "rag_alerts": ("RAG 有未處理警示", "知識索引可能過期、不完整或存在驗證失敗。", "知識管理者", "前往 RAG 頁檢查並處理未結警示。"),
+    "recommendation_events": ("推薦成效量測降級", "推薦仍可運作，但今日成效與歸因可能不可靠。", "店長", "確認 Kiosk 是否持續送出事件及最後事件時間。"),
+    "runtime_logs": ("問題追查能力降級", "顧客流程通常可繼續，但故障證據可能不完整。", "值班技術人員", "檢查不可解析記錄、磁碟空間與保留設定。"),
+}
+
+
+def _incident_id(key: str, check: dict) -> str:
+    evidence = {
+        "key": key,
+        "status": check.get("status"),
+        "error_code": check.get("error_code"),
+        "reason": check.get("reason"),
+        "message": check.get("message"),
+    }
+    digest = sha256(json.dumps(evidence, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    return f"health_{key}_{digest}"
+
+
+def build_operational_health(checks: dict, readiness: dict, incident_actions: list[dict] | None = None) -> dict:
+    """Translate technical checks into an operator-facing health interface."""
+
+    actions_by_incident: dict[str, dict] = {}
+    for row in incident_actions or []:
+        if row.get("target_type") != "health_incident":
+            continue
+        incident_id = str(row.get("target_id") or "")
+        if incident_id:
+            actions_by_incident[incident_id] = row
+
+    incident_checks = {
+        key: check
+        for key, check in (readiness.get("required_checks") or {}).items()
+        if check.get("status") not in {"ok", "skipped"}
+    }
+    incident_checks.update({
+        key: check
+        for key, check in checks.items()
+        if check.get("status") in {"degraded", "failed", "not_ready"}
+    })
+    incidents = []
+    for key, check in incident_checks.items():
+        title, impact, owner, action = _INCIDENT_GUIDE.get(
+            key,
+            (f"{key} 檢查異常", "部分功能可能降級。", "值班技術人員", "依檢查證據與操作手冊處理。"),
+        )
+        incident_id = _incident_id(key, check)
+        latest_action = actions_by_incident.get(incident_id, {})
+        action_name = str(latest_action.get("action") or "")
+        incidents.append({
+            "incident_id": incident_id,
+            "check_key": key,
+            "severity": "critical" if key in (readiness.get("required_checks") or {}) else "warning",
+            "title": title,
+            "impact": impact,
+            "suggested_action": action,
+            "owner": owner,
+            "status": (
+                "escalated" if action_name == "health.incident.escalate"
+                else "acknowledged" if action_name == "health.incident.acknowledge"
+                else "open"
+            ),
+            "last_action_at": latest_action.get("created_at"),
+            "last_actor": latest_action.get("actor", ""),
+        })
+
+    if not readiness.get("ready"):
+        state = "unsafe_to_operate"
+        headline = "目前不可安全營運"
+        impact = "必要的資料或門市範圍檢查未通過，應停止建立新的商業寫入。"
+    elif incidents:
+        state = "operate_with_degraded_features"
+        headline = "可以營運，但部分功能降級"
+        impact = "點餐與結帳必要條件已通過；請依事件卡處理受影響的選用功能。"
+    else:
+        state = "safe_to_operate"
+        headline = "目前可以正常營運"
+        impact = "必要條件與本次選用功能檢查均正常。"
+
+    required_ready = bool(readiness.get("ready"))
+    rag_ok = checks.get("rag", {}).get("status") == "ok" and checks.get("rag_alerts", {}).get("status") == "ok"
+    measurement_ok = checks.get("recommendation_events", {}).get("status") == "ok"
+    return {
+        "state": state,
+        "headline": headline,
+        "business_impact": impact,
+        "capabilities": [
+            {"key": "ordering_checkout", "label": "點餐與結帳", "status": "available" if required_ready else "unavailable"},
+            {"key": "member_service", "label": "會員查詢與服務", "status": "available" if required_ready else "unavailable"},
+            {"key": "recommendation_measurement", "label": "推薦成效量測", "status": "available" if measurement_ok else "degraded"},
+            {"key": "rag_answers", "label": "RAG 知識回答", "status": "available" if rag_ok else "degraded"},
+        ],
+        "incidents": incidents,
+    }
+
+
+async def build_admin_health(incident_actions: list[dict] | None = None) -> dict:
     checks = {
         "postgres": _postgres_health(),
         "runtime_logs": _runtime_health(),
@@ -233,16 +284,18 @@ async def build_admin_health() -> dict:
         checks["rag"] = _degraded("rag", str(exc)[:500])
 
     readiness = build_readiness()
+    operational = build_operational_health(checks, readiness, incident_actions)
     return {
         "status": _overall_status(checks) if readiness.get("ready") else "not_ready",
         "generated_at": datetime.now().isoformat(),
         "app": {
             "environment": config.APP_ENV,
             "security_enforced": config.is_security_enforced(),
-            "member_storage_backend": postgres_utils.storage_backend(),
+            "database_backend": postgres_utils.storage_backend(),
             "structured_logging_enabled": bool(config.get("STRUCTURED_LOGGING_ENABLED", True)),
         },
         "checks": checks,
         "readiness": readiness,
+        "operational": operational,
         "metrics": observability_service.metrics_snapshot(),
     }

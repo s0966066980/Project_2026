@@ -56,16 +56,26 @@ def test_register_default_nickname(svc):
     assert reg["member"]["nickname"] == "會員0321"
 
 
-def test_register_requires_consent(svc):
+def test_register_requires_only_necessary_terms_and_keeps_optional_consent_independent(svc):
     out = svc.register(
         "s1",
         "0912345678",
         "小明",
         order_history_consent=False,
         personalization_consent=True,
+        necessary_terms_accepted=False,
     )
     assert out == {"ok": False, "error": "consent_required"}
     assert svc.member_repository.get_member("0912345678") is None
+    accepted = svc.register(
+        "s1", "0912345678", "小明",
+        order_history_consent=False,
+        personalization_consent=False,
+        necessary_terms_accepted=True,
+    )
+    assert accepted["ok"] is True
+    assert accepted["member"]["order_history_consent"] is False
+    assert accepted["member"]["personalization_consent"] is False
 
 
 def test_clear_session(svc):

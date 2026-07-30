@@ -144,3 +144,27 @@ def test_production_rate_limit_failure_is_fail_closed(monkeypatch) -> None:
     with pytest.raises(shared_infrastructure_service.SharedInfrastructureUnavailableError) as raised:
         shared_infrastructure_service.allow_rate_limit(TENANT, STORE, "login", limit=1, window_seconds=60)
     assert "secret redis endpoint" not in str(raised.value)
+
+
+def test_single_process_local_runtime_skips_unconfigured_shared_infrastructure(monkeypatch) -> None:
+    from services import shared_infrastructure_service
+
+    monkeypatch.setattr(shared_infrastructure_service.config, "APP_ENV", "development")
+    monkeypatch.setattr(shared_infrastructure_service.config, "get", lambda _key, default=None: default)
+
+    assert shared_infrastructure_service.readiness() == {
+        "status": "skipped",
+        "reason": "shared_infrastructure_not_configured",
+    }
+
+
+def test_multi_process_production_requires_shared_infrastructure(monkeypatch) -> None:
+    from services import shared_infrastructure_service
+
+    monkeypatch.setattr(shared_infrastructure_service.config, "APP_ENV", "production")
+    monkeypatch.setattr(shared_infrastructure_service.config, "get", lambda _key, default=None: default)
+
+    assert shared_infrastructure_service.readiness() == {
+        "status": "failed",
+        "reason": "shared_infrastructure_not_configured",
+    }

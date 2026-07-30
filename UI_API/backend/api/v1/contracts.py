@@ -86,6 +86,7 @@ class CommercialContextDTO(BaseModel):
 
 class MemberSummaryDTO(BaseModel):
     member_id: UUID
+    member_ref: str
     phone_masked: str
     nickname: str
     visit_count: int = Field(ge=0)
@@ -229,9 +230,20 @@ class RecommendationEffectivenessDTO(BaseModel):
     clicks: int = Field(ge=0)
     add_to_carts: int = Field(ge=0)
     purchases: int = Field(ge=0)
+    ignored: int = Field(ge=0)
     click_through_rate: float = Field(ge=0)
     add_to_cart_rate: float = Field(ge=0)
     purchase_rate: float = Field(ge=0)
+    ignore_rate: float = Field(ge=0)
+    purchase_rate_target: float = Field(ge=0, le=1)
+    ignore_rate_guardrail: float = Field(ge=0, le=1)
+    target_status: Literal[
+        "insufficient_data",
+        "on_target",
+        "below_purchase_target",
+        "high_ignore_rate",
+        "below_target_and_high_ignore",
+    ]
     attributed_revenue: int = Field(ge=0)
     attributed_discount: int = Field(ge=0)
     provisional_attributions: int = Field(ge=0)
@@ -341,6 +353,13 @@ class CampaignPreviewRequest(CampaignDraftRequest):
     campaign_id: str = Field(default="", max_length=120)
 
 
+class CampaignPublishRequest(CampaignDraftRequest):
+    """Publishing an existing campaign carries its id and version; a new one carries neither."""
+
+    campaign_id: str = Field(default="", max_length=120)
+    expected_version: int = Field(default=0, ge=0)
+
+
 class CampaignTransitionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -377,6 +396,8 @@ class RagDocumentActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int = Field(ge=1)
+    reason: str = Field(default="", max_length=500)
+    # Deprecated compatibility field. Routes always use the authenticated principal.
     actor: str = Field(default="admin", max_length=100)
 
 
@@ -386,6 +407,87 @@ class RagDocumentDTO(BaseModel):
     status: str
     checksum: str
     content_ref: str = ""
+
+
+RagKnowledgeCategory = Literal[
+    "store_and_hours",
+    "menu_and_products",
+    "promotions",
+    "payment_and_invoice",
+    "membership",
+    "order_and_pickup",
+    "delivery",
+    "nutrition_and_allergens",
+    "other",
+]
+RagContentType = Literal[
+    "knowledge_article",
+    "question_answer",
+    "policy_rule",
+    "operating_procedure",
+]
+RagRetrievalMethod = Literal["bm25", "dense", "hybrid_rrf", "hybrid_reranker"]
+
+
+class RagKnowledgeUpsertRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    category: RagKnowledgeCategory
+    content_type: RagContentType
+    title: str = Field(default="", max_length=160)
+    content: str = Field(min_length=1, max_length=200_000)
+    expected_row_revision: int | None = Field(default=None, ge=1)
+    override_near_duplicate: bool = False
+
+
+class RagKnowledgeActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_row_revision: int = Field(ge=1)
+
+
+class RagKnowledgePublishRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_ids: list[str] = Field(min_length=1, max_length=500)
+    retry_failures_only: bool = False
+
+
+class RagCsvImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    csv_text: str = Field(min_length=1, max_length=5_000_000)
+    override_near_duplicates: bool = False
+
+
+class RagKnowledgeTestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=2_000)
+    method: RagRetrievalMethod | None = None
+    top_k: Literal[3, 5, 10] | None = None
+    relevance_policy: Literal["lenient", "balanced", "strict"] | None = None
+
+
+class RagRetrievalConfigurationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: RagRetrievalMethod = "hybrid_rrf"
+    top_k: Literal[3, 5, 10] = 5
+    relevance_policy: Literal["lenient", "balanced", "strict"] = "balanced"
+    source_version: int | None = Field(default=None, ge=1)
+
+
+class RagTestCaseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    test_case_id: str = Field(default="", max_length=100)
+    question: str = Field(min_length=1, max_length=2_000)
+    expected_knowledge_ids: list[str] = Field(min_length=1, max_length=100)
+    enabled: bool = True
+
+
+RagKnowledgeDTO = dict
 
 
 class FleetCommandRequest(BaseModel):

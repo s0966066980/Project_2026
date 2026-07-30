@@ -1,9 +1,10 @@
-"""RAG Provider — switchable Dense, BM25, and Hybrid retrieval.
+"""RAG Provider — shared multi-method retrieval index.
 
 Strategies:
   - dense: fastembed + ChromaDB semantic similarity
   - bm25: rank-bm25 + jieba exact keyword retrieval
-  - hybrid: both rankings combined with Reciprocal Rank Fusion (k=60)
+  - hybrid_rrf: both rankings combined with Reciprocal Rank Fusion
+  - hybrid_reranker: RRF candidates reordered by a deterministic reranker preset
 
 安裝依賴：pip install fastembed chromadb rank-bm25 jieba
 切換：config RAG_STRATEGY；停用：config RAG_ENABLED = false
@@ -18,17 +19,24 @@ import uuid
 from pathlib import Path
 
 import config
+from models.commercial_scope import CommercialScope
 from services import rag_index_selection
 
 logger = logging.getLogger(__name__)
 
-RAG_STRATEGIES = ("dense", "bm25", "hybrid")
+RAG_STRATEGIES = ("dense", "bm25", "hybrid_rrf", "hybrid_reranker")
 
 
 def normalize_rag_strategy(value: object) -> str:
     """Return a supported retrieval strategy or reject an invalid explicit value."""
     normalized = str(value or "").strip().lower()
-    aliases = {"vector": "dense", "keyword": "bm25", "rrf": "hybrid"}
+    aliases = {
+        "vector": "dense",
+        "keyword": "bm25",
+        "rrf": "hybrid_rrf",
+        "hybrid": "hybrid_rrf",
+        "reranker": "hybrid_reranker",
+    }
     normalized = aliases.get(normalized, normalized)
     if normalized not in RAG_STRATEGIES:
         raise ValueError(f"unsupported RAG strategy: {normalized or '(empty)'}")
@@ -104,6 +112,13 @@ class RAGProvider:
         selected = set(selected_source_ids)
         orphaned_ids = []
         for doc_id, metadata in zip(result.get("ids", []), result.get("metadatas", [])):
+            # Studio knowledge is governed by its published-version pointer and
+            # must never be pruned by the retired filesystem source selection.
+            if str((metadata or {}).get("knowledge_item_id") or ""):
+                continue
+            if str((metadata or {}).get("source_type") or "") == "faq":
+                orphaned_ids.append(doc_id)
+                continue
             if selection_configured and doc_id not in selected:
                 orphaned_ids.append(doc_id)
                 continue
@@ -172,18 +187,27 @@ class RAGProvider:
     @staticmethod
     def _configured_strategy() -> str:
         try:
-            return normalize_rag_strategy(config.get("RAG_STRATEGY", "hybrid"))
+            return normalize_rag_strategy(config.get("RAG_STRATEGY", "hybrid_rrf"))
         except ValueError:
-            logger.warning("Invalid RAG_STRATEGY setting; falling back to hybrid")
-            return "hybrid"
+            logger.warning("Invalid RAG_STRATEGY setting; falling back to hybrid_rrf")
+            return "hybrid_rrf"
 
-    def _search_sync(self, text: str, top_k: int, strategy: str) -> list[dict]:
+    def _search_sync(
+        self,
+        text: str,
+        top_k: int,
+        strategy: str,
+        tenant_id: str = "",
+        store_id: str = "",
+    ) -> list[dict]:
         self._init()
         count = RAGProvider._collection.count()
         if count == 0:
             return []
 
-        fetch_k = top_k * 2 if strategy == "hybrid" else top_k
+        scoped = bool(tenant_id or store_id)
+        hybrid = strategy in {"hybrid_rrf", "hybrid_reranker"}
+        fetch_k = count if scoped else (top_k * 4 if hybrid else top_k)
         n = min(fetch_k, count)
         all_rows = RAGProvider._collection.get(include=["documents", "metadatas"])
         all_ids = list(all_rows.get("ids", []))
@@ -192,10 +216,33 @@ class RAGProvider:
             doc_id: dict(metadata or {})
             for doc_id, metadata in zip(all_ids, all_rows.get("metadatas", []))
         }
+        published_attempts: set[str] = set()
+        if scoped:
+            try:
+                from modules.knowledge_publication.runtime import published_attempt_ids
+
+                published_attempts = published_attempt_ids(
+                    tenant_id=tenant_id,
+                    store_id=store_id,
+                )
+            except Exception:
+                # New publication artifacts fail closed if durable visibility
+                # cannot be resolved; legacy documents have no attempt marker.
+                published_attempts = set()
+        allowed_ids = {
+            doc_id
+            for doc_id, metadata in metadata_map.items()
+            if (not tenant_id or str(metadata.get("tenant_id") or "") == tenant_id)
+            and (not store_id or str(metadata.get("store_id") or "") == store_id)
+            and (
+                not str(metadata.get("publication_attempt_id") or "")
+                or str(metadata.get("publication_attempt_id")) in published_attempts
+            )
+        }
 
         dense_ids: list[str] = []
         dense_scores: dict[str, float] = {}
-        if strategy in {"dense", "hybrid"}:
+        if strategy in {"dense", "hybrid_rrf", "hybrid_reranker"}:
             embedding = next(RAGProvider._model.embed([text])).tolist()
             dense_results = RAGProvider._collection.query(
                 query_embeddings=[embedding],
@@ -212,10 +259,11 @@ class RAGProvider:
                     dense_scores[doc_id] = max(0.0, 1.0 - float(distance))
                 except (TypeError, ValueError):
                     continue
+            dense_ids = [doc_id for doc_id in dense_ids if doc_id in allowed_ids]
 
         bm25_ids: list[str] = []
         bm25_scores: dict[str, float] = {}
-        if strategy in {"bm25", "hybrid"} and RAGProvider._bm25 is not None and RAGProvider._bm25_ids:
+        if strategy in {"bm25", "hybrid_rrf", "hybrid_reranker"} and RAGProvider._bm25 is not None and RAGProvider._bm25_ids:
             scores = RAGProvider._bm25.get_scores(self._tokenize(text))
             ranked = sorted(
                 range(len(RAGProvider._bm25_ids)),
@@ -227,14 +275,35 @@ class RAGProvider:
                 if score <= 0:
                     continue
                 doc_id = RAGProvider._bm25_ids[index]
+                if doc_id not in allowed_ids:
+                    continue
                 bm25_ids.append(doc_id)
                 bm25_scores[doc_id] = score
 
-        ranked_ids = {
-            "dense": dense_ids,
-            "bm25": bm25_ids,
-            "hybrid": self._rrf(dense_ids, bm25_ids),
-        }[strategy][:top_k]
+        if strategy == "dense":
+            ranked_ids = dense_ids
+        elif strategy == "bm25":
+            ranked_ids = bm25_ids
+        else:
+            ranked_ids = self._rrf(dense_ids, bm25_ids)
+            if strategy == "hybrid_reranker":
+                query_tokens = set(self._tokenize(text.casefold()))
+
+                def rerank_score(doc_id: str) -> tuple[float, float]:
+                    document_tokens = set(self._tokenize(str(doc_map.get(doc_id) or "").casefold()))
+                    lexical_overlap = (
+                        len(query_tokens & document_tokens) / max(1, len(query_tokens))
+                    )
+                    semantic = dense_scores.get(doc_id, 0.0)
+                    keyword = bm25_scores.get(doc_id, 0.0)
+                    normalized_keyword = keyword / (1.0 + keyword)
+                    return (
+                        0.45 * semantic + 0.35 * lexical_overlap + 0.20 * normalized_keyword,
+                        -ranked_ids.index(doc_id),
+                    )
+
+                ranked_ids = sorted(ranked_ids, key=rerank_score, reverse=True)
+        ranked_ids = ranked_ids[:top_k]
 
         results = []
         for rank, doc_id in enumerate(ranked_ids, start=1):
@@ -250,11 +319,21 @@ class RAGProvider:
                 score = dense_scores.get(doc_id)
             elif strategy == "bm25":
                 score = bm25_scores.get(doc_id)
-            else:
+            elif strategy == "hybrid_rrf":
                 score = sum(
                     1.0 / (60 + ids.index(doc_id) + 1)
                     for ids in (dense_ids, bm25_ids)
                     if doc_id in ids
+                )
+            else:
+                query_tokens = set(self._tokenize(text.casefold()))
+                document_tokens = set(self._tokenize(str(doc_map.get(doc_id) or "").casefold()))
+                overlap = len(query_tokens & document_tokens) / max(1, len(query_tokens))
+                keyword = bm25_scores.get(doc_id, 0.0)
+                score = (
+                    0.45 * dense_scores.get(doc_id, 0.0)
+                    + 0.35 * overlap
+                    + 0.20 * (keyword / (1.0 + keyword))
                 )
             results.append({
                 "rank": rank,
@@ -272,6 +351,8 @@ class RAGProvider:
         text: str,
         top_k: int | None = None,
         strategy: str | None = None,
+        tenant_id: str = "",
+        store_id: str = "",
     ) -> dict:
         """Search indexed documents for Admin previews and internal query composition.
 
@@ -285,16 +366,25 @@ class RAGProvider:
         if not query_text:
             return {"strategy": resolved_strategy, "results": [], "total": 0}
 
-        selection_configured, selected_source_ids = await asyncio.to_thread(rag_index_selection.read)
-        if selection_configured and not selected_source_ids:
-            return {"strategy": resolved_strategy, "results": [], "total": 0}
-
-        results = await asyncio.to_thread(self._search_sync, query_text, resolved_k, resolved_strategy)
+        results = await asyncio.to_thread(
+            self._search_sync,
+            query_text,
+            resolved_k,
+            resolved_strategy,
+            str(tenant_id or ""),
+            str(store_id or ""),
+        )
         return {"strategy": resolved_strategy, "results": results, "total": len(results)}
 
     # ── 正式查詢 ─────────────────────────────────────────────────
 
-    async def query(self, text: str, top_k: int | None = None) -> str:
+    async def query(
+        self,
+        text: str,
+        top_k: int | None = None,
+        *,
+        scope: CommercialScope | None = None,
+    ) -> str:
         """Use the configured strategy and return the existing LLM context contract."""
         if not config.get("RAG_ENABLED", False):
             return ""
@@ -302,7 +392,12 @@ class RAGProvider:
             return ""
 
         try:
-            payload = await self.search(text, top_k=top_k)
+            payload = await self.search(
+                text,
+                top_k=top_k,
+                tenant_id=str(scope.tenant_id) if scope else "",
+                store_id=str(scope.store_id) if scope else "",
+            )
             relevant = [str(row.get("content") or "") for row in payload["results"] if row.get("content")]
             if not relevant:
                 return ""

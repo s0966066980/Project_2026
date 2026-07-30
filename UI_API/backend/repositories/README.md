@@ -1,6 +1,6 @@
 # Backend Repositories
 
-`repositories/` 隔離 JSON、PostgreSQL 與 Redis I/O。它是 persistence adapter 集合，不是業務規則層。
+`repositories/` 隔離 PostgreSQL 與 Redis I/O。它是 persistence adapter 集合，不是業務規則層；尚待移除的 JSON 程式只屬 transition debt，不是可選 runtime adapter。
 
 ## Repository 分組
 
@@ -17,7 +17,7 @@
 
 ## Storage 現況
 
-- `development` / `test` 可使用 JSON compatibility data。
-- `staging` / `pilot` / `production` 必須設定 PostgreSQL，且禁止 DB failure 靜默 fallback 到 JSON。
+- 本機使用 PostgreSQL 18 `single` topology；SQLite 只供已有等價 adapter 的隔離測試。
+- `staging` / `pilot` / `production` 必須設定 PostgreSQL，且任何環境都禁止 DB failure 靜默 fallback 到 JSON。
 - Redis 提供 shared cache、rate limiting 與 lock，不是商業資料 Source of Truth。
 - Object bytes 由 local/S3 storage service 處理；PostgreSQL repository 保存 metadata，不把 binary 塞入資料表。

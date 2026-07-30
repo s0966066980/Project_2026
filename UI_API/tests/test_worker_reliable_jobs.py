@@ -52,6 +52,15 @@ def test_job_contract_rejects_secret_payload_and_unknown_type() -> None:
         )
 
 
+def test_job_contract_accepts_bounded_scalar_reference_lists() -> None:
+    from models.worker_jobs import JobValidationError, validate_job_payload_ref
+
+    payload = validate_job_payload_ref({"selected_source_ids": ["faq-a", "policy-b"]})
+    assert payload["selected_source_ids"] == ["faq-a", "policy-b"]
+    with pytest.raises(JobValidationError):
+        validate_job_payload_ref({"selected_source_ids": [["nested"]]})
+
+
 def test_enqueue_is_idempotent_and_does_not_block_on_handler() -> None:
     from models.worker_jobs import JobStatus
     from services import worker_service

@@ -81,6 +81,91 @@ def test_production_handlers_execute_real_side_effects() -> None:
     worker_service.clear_handlers()
 
 
+def test_rag_studio_index_handler_executes_publication_attempt(monkeypatch) -> None:
+    from services import worker_handlers, worker_service
+
+    calls = []
+
+    class PublicationModule:
+        def run_attempt(self, **kwargs):
+            calls.append(kwargs)
+            return {
+                "attempt_id": kwargs["attempt_id"],
+                "status": "published",
+                "phase": "complete",
+                "retryable": False,
+            }
+
+    monkeypatch.setattr(
+        worker_handlers.knowledge_publication_runtime,
+        "default_module",
+        lambda: PublicationModule(),
+    )
+    store = worker_service.InMemoryJobStore()
+    job = worker_service.enqueue_job(
+        tenant_id=TENANT,
+        store_id=STORE,
+        job_type="rag.studio.index",
+        payload_ref={"attempt_id": "attempt-breakfast-v2"},
+        idempotency_key="rag-studio-index",
+        store=store,
+    )
+
+    result = worker_handlers.handle_rag_studio_index(job)
+
+    assert result.success is True
+    assert result.side_effect_id == f"knowledge-publication:{STORE}:attempt-breakfast-v2"
+    assert result.result_ref == "attempt-breakfast-v2"
+    assert calls[0]["attempt_id"] == "attempt-breakfast-v2"
+    assert calls[0]["scope"].tenant_id == TENANT
+    assert calls[0]["scope"].store_id == STORE
+    assert calls[0]["retry_budget_exhausted"] is False
+
+
+def test_rag_studio_index_handler_delegates_retry_budget_to_publication_module(monkeypatch) -> None:
+    from services import worker_handlers, worker_service
+
+    store = worker_service.InMemoryJobStore()
+    job = worker_service.enqueue_job(
+        tenant_id=TENANT,
+        store_id=STORE,
+        job_type="rag.studio.index",
+        payload_ref={"attempt_id": "attempt-broken"},
+        idempotency_key="rag-studio-broken",
+        store=store,
+    )
+
+    calls = []
+
+    class PublicationModule:
+        def run_attempt(self, **kwargs):
+            calls.append(kwargs)
+            exhausted = kwargs["retry_budget_exhausted"]
+            return {
+                "attempt_id": kwargs["attempt_id"],
+                "status": "index_failed" if exhausted else "indexing",
+                "phase": "build",
+                "retryable": not exhausted,
+            }
+
+    monkeypatch.setattr(
+        worker_handlers.knowledge_publication_runtime,
+        "default_module",
+        lambda: PublicationModule(),
+    )
+    retry_result = worker_handlers.handle_rag_studio_index(job)
+    assert retry_result.success is False
+    assert retry_result.retryable is True
+    assert calls[0]["retry_budget_exhausted"] is False
+
+    job.attempt_count = job.max_attempts
+    terminal_result = worker_handlers.handle_rag_studio_index(job)
+    assert terminal_result.success is False
+    assert terminal_result.retryable is False
+    assert terminal_result.safe_error == "index_failed"
+    assert calls[1]["retry_budget_exhausted"] is True
+
+
 def test_outbox_not_published_until_sink_ack() -> None:
     from models.worker_jobs import OutboxDeliveryResult
     from services import worker_service
@@ -145,3 +230,13 @@ def test_run_worker_bootstrap_registers_required_handlers() -> None:
     from services.worker_handler_registry import default_registry
 
     default_registry().validate_required_handlers()
+
+def test_default_worker_store_uses_postgres_adapter_in_postgres_runtime(monkeypatch):
+    from repositories import postgres_utils, postgres_worker_store
+    from services import worker_service
+
+    sentinel = object()
+    monkeypatch.setattr(postgres_utils, "use_postgres", lambda: True)
+    monkeypatch.setattr(postgres_worker_store, "PostgresJobStore", lambda: sentinel)
+
+    assert worker_service.default_store() is sentinel

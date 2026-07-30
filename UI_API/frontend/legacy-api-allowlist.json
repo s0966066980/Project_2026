@@ -1,18 +1,5 @@
 {
   "version": 1,
   "description": "Explicit legacy /api/* fetch allowlist. New features must use shared/api/v1Client. Milestone 7B/7C freeze: only reduce this list.",
-  "entries": [
-    {
-      "file": "frontend/admin/admin.js",
-      "pattern": "fetch('/api/members",
-      "reason": "Legacy members list/detail/records; migrate to /api/v1/members",
-      "owner": "admin-members"
-    },
-    {
-      "file": "frontend/admin/admin.js",
-      "pattern": "fetch('/api/members/export",
-      "reason": "Legacy members export; migrate after v1 export write path",
-      "owner": "admin-members"
-    }
-  ]
+  "entries": []
 }

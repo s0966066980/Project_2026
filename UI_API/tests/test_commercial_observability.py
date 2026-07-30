@@ -69,7 +69,7 @@ def test_metric_registry_emits_required_commercial_signals() -> None:
 def test_readiness_requires_database_migrations_and_scope_but_not_ai(monkeypatch) -> None:
     from services import health_service
 
-    monkeypatch.setattr(health_service.postgres_utils, "storage_backend", lambda: "postgres")
+    monkeypatch.setattr(health_service.postgres_utils, "storage_backend", lambda: "postgresql")
     monkeypatch.setattr(health_service, "_database_readiness", lambda: {"status": "ok"})
     monkeypatch.setattr(health_service, "_migration_readiness", lambda: {"status": "ok"})
     monkeypatch.setattr(health_service, "_scope_readiness", lambda: {"status": "ok"})
@@ -104,7 +104,6 @@ def test_production_config_rejects_noncommercial_observability_baseline(monkeypa
 
     monkeypatch.setattr(config, "APP_ENV", "production")
     monkeypatch.setattr(config, "SECURITY_ENFORCED", True)
-    monkeypatch.setattr(config, "ENABLE_LEGACY_ADMIN_TOKEN", False)
     monkeypatch.setattr(config, "ENABLE_LEGACY_KIOSK_TOKEN", False)
     monkeypatch.setattr(config, "CORS_ORIGINS", ["https://pilot.example.com"])
     monkeypatch.setattr(config, "ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
@@ -112,15 +111,21 @@ def test_production_config_rejects_noncommercial_observability_baseline(monkeypa
     monkeypatch.setenv("DEFAULT_TENANT_ID", "00000000-0000-4000-8000-000000000001")
     monkeypatch.setenv("DEFAULT_STORE_ID", "00000000-0000-4000-8000-000000000002")
     monkeypatch.setenv("DEFAULT_DEVICE_ID", "00000000-0000-4000-8000-000000000003")
-    monkeypatch.setenv("MEMBER_STORAGE_BACKEND", "json")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("MEMBER_STORAGE_BACKEND", raising=False)
+    monkeypatch.setenv("DATABASE_BACKEND", "postgresql")
+    monkeypatch.setenv("DATABASE_TOPOLOGY", "ha")
+    # Keep the persistence profile structurally valid so commercial validation
+    # can report all observability violations in one pass.
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://runtime@db.example/project?sslmode=verify-full",
+    )
+    monkeypatch.setenv("DATABASE_URL_FILE", "")
     monkeypatch.setenv("STRUCTURED_LOGGING_ENABLED", "false")
     monkeypatch.setenv("LOG_RETENTION_DAYS", "0")
 
     with pytest.raises(RuntimeError) as exc:
         config.validate_startup_config()
     message = str(exc.value)
-    assert "MEMBER_STORAGE_BACKEND" in message
-    assert "DATABASE_URL" in message
     assert "STRUCTURED_LOGGING_ENABLED" in message
     assert "LOG_RETENTION_DAYS" in message

@@ -94,6 +94,74 @@ def test_retired_promotion_cleanup_migration_covers_all_durable_activity_stores(
         assert fragment in sql
 
 
+def test_rag_document_review_states_expand_the_existing_constraint() -> None:
+    migration = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0014_rag_document_review_states.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "rag_document_versions_status_check" in sql
+    assert "'approved'" in sql
+    assert "'rejected'" in sql
+    assert "DROP TABLE" not in sql.upper()
+
+
+def test_rag_knowledge_lifecycle_adds_background_index_states() -> None:
+    migration = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0015_rag_knowledge_lifecycle.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "rag_document_versions_status_check" in sql
+    assert "'indexing'" in sql
+    assert "'index_failed'" in sql
+    assert "DROP TABLE" not in sql.upper()
+
+
+def test_rag_intelligence_studio_reset_records_counts_without_content() -> None:
+    migration = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0016_rag_intelligence_studio.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS rag_reset_receipts" in sql
+    assert "CREATE TABLE IF NOT EXISTS rag_studio_states" in sql
+    assert "TRUNCATE TABLE" in sql
+    assert "rag_document_versions" in sql
+    assert "documents_count" in sql
+    assert "versions_count" in sql
+    assert "contains_content BOOLEAN NOT NULL DEFAULT FALSE" in sql
+    assert "raw_query" not in sql
+
+
+def test_rag_readiness_confirmation_retains_proof_without_raw_query() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "schemas"
+        / "migrations"
+        / "0021_rag_readiness_confirmation.sql"
+    )
+    sql = migration.read_text(encoding="utf-8").lower()
+
+    assert "create table if not exists rag_retrieval_checks" in sql
+    assert "index_identity" in sql
+    assert "configuration_version" in sql
+    assert "result_fingerprint" in sql
+    assert "confirmed_by" in sql
+    assert "raw_query" not in sql
+    assert "full_results" not in sql
+
+
+def test_checkout_pickup_number_is_store_scoped_and_durable() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "schemas"
+        / "migrations"
+        / "0022_checkout_pickup_number.sql"
+    )
+    sql = migration.read_text(encoding="utf-8").lower()
+
+    assert "create table if not exists checkout_pickup_sequences" in sql
+    assert "primary key (tenant_id, store_id)" in sql
+    assert "add column if not exists pickup_number" in sql
+
+
 def test_migration_manifest_rejects_noncanonical_filename(tmp_path: Path) -> None:
     from repositories import postgres_utils
 
@@ -210,7 +278,7 @@ def test_init_schema_locks_before_validation_and_skips_applied_migration(
             self.commits += 1
 
     connection = FakeConnection()
-    monkeypatch.setattr(postgres_utils, "connect", lambda: connection)
+    monkeypatch.setattr(postgres_utils, "migration_connect", lambda: connection)
     monkeypatch.setattr(postgres_utils, "migration_files", lambda: [migration])
     monkeypatch.setattr(postgres_utils, "_acquire_migration_lock", lambda _cursor: events.append("lock"))
     monkeypatch.setattr(postgres_utils, "_ensure_migration_table", lambda _cursor: events.append("ensure"))
@@ -270,6 +338,7 @@ def test_get_migration_plan_reports_pending_when_tracking_table_is_missing(
 def test_init_schema_applies_pending_migration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from repositories import postgres_utils
 
+    monkeypatch.delenv("DATABASE_RUNTIME_ROLE", raising=False)
     migration = _write_migration(tmp_path, "0001_initial.sql", "CREATE TABLE example (id INT);\n")
 
     class FakeCursor:
@@ -304,7 +373,7 @@ def test_init_schema_applies_pending_migration(monkeypatch: pytest.MonkeyPatch, 
 
     connection = FakeConnection()
     monkeypatch.setattr(postgres_utils, "migration_files", lambda: [migration])
-    monkeypatch.setattr(postgres_utils, "connect", lambda: connection)
+    monkeypatch.setattr(postgres_utils, "migration_connect", lambda: connection)
     monkeypatch.setattr(postgres_utils, "_acquire_migration_lock", lambda _cursor: None)
     monkeypatch.setattr(postgres_utils, "_ensure_migration_table", lambda _cursor: None)
     monkeypatch.setattr(postgres_utils, "_fetch_applied_migrations", lambda _cursor: {})
@@ -359,7 +428,7 @@ def test_status_outputs_invalid_plan_before_returning_failure(
         migrations=(),
         unexpected_applied_versions=("0001_missing_source",),
     )
-    monkeypatch.setattr(postgres_utils, "get_migration_plan", lambda: invalid_plan)
+    monkeypatch.setattr(manage_postgres_migrations.migrations, "inspect_schema", lambda: invalid_plan)
 
     exit_code = manage_postgres_migrations.main(["status"])
     captured = capsys.readouterr()
@@ -386,8 +455,9 @@ def test_cli_validate_and_apply_output_valid_plan(
             ),
         )
     )
-    monkeypatch.setattr(postgres_utils, "get_migration_plan", lambda: plan)
-    monkeypatch.setattr(postgres_utils, "apply_migrations", lambda: plan)
+    monkeypatch.setattr(manage_postgres_migrations.migrations, "inspect_schema", lambda: plan)
+    monkeypatch.setattr(manage_postgres_migrations.migrations, "require_schema_head", lambda: plan)
+    monkeypatch.setattr(manage_postgres_migrations.migrations, "migrate_to_head", lambda: plan)
 
     assert manage_postgres_migrations.main(["validate", "--require-clean"]) == 0
     assert '"valid": true' in capsys.readouterr().out
@@ -403,8 +473,8 @@ def test_cli_returns_failure_without_leaking_database_url(
     from repositories import postgres_utils
 
     monkeypatch.setattr(
-        postgres_utils,
-        "get_migration_plan",
+        manage_postgres_migrations.migrations,
+        "inspect_schema",
         lambda: (_ for _ in ()).throw(postgres_utils.PostgresUnavailableError("database unavailable")),
     )
 

@@ -57,6 +57,7 @@ export const ui = {
   voiceAssistOverlay: document.getElementById('voiceAssistOverlay'),
   voiceAssistOverlayTitle: document.getElementById('voiceAssistOverlayTitle'),
   voiceAssistOverlaySubtitle: document.getElementById('voiceAssistOverlaySubtitle'),
+  voiceAssistSendBtn: document.getElementById('voiceAssistSendBtn'),
   voiceAssistStopBtn: document.getElementById('voiceAssistStopBtn'),
   voiceAssistStopText: document.getElementById('voiceAssistStopText'),
   audio: document.getElementById('ttsAudio'),

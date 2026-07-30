@@ -120,12 +120,10 @@ export function createKioskMenuController({
       } catch {
         // 菜單仍可瀏覽，但價格投影失敗時不宣稱有優惠。
       }
-    } catch {
+    } catch (error) {
       hasLoadedRemoteMenu = false;
-      state.menuData = [
-        { id: 'MCD001', name: '測試大麥克', price: 100, category: '超值全餐', description: '後端未連線，這是預設測試資料。' },
-        { id: 'MCD002', name: '測試薯條', price: 60, category: '點心', description: '請確認 http://127.0.0.1:9000 已啟動。' },
-      ];
+      state.menuData = [];
+      throw error;
     } finally {
       menuLoadPromise = null;
     }

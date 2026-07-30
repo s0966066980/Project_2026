@@ -36,6 +36,7 @@ import {
   resolveKioskAppMode,
   saveKioskFeatures,
 } from './features/bootstrap/runtimePreferences.js';
+import { createDeviceIdentityController } from './features/bootstrap/deviceIdentity.js';
 
 const APP_MODE = resolveKioskAppMode(window.location);
 
@@ -47,7 +48,9 @@ export function isPosMode() { return isKioskMode(); }
 // Controller 狀態
 // =========================================================
 
-export const sessionId = buildKioskSessionId(window.location);
+export let sessionId = buildKioskSessionId(window.location);
+let entryFlow = null;
+let entryIdleTimer = null;
 let isSystemRunning = false;
 let orderCompleted = false;
 let sessionAiPushCartCount = 0;
@@ -97,11 +100,21 @@ function isDemoPublicMode() {
   return runtimeSettings.DEMO_PUBLIC_MODE === true || runtimeSettings.DEMO_PUBLIC_MODE === 'true';
 }
 
-async function loadRuntimeSettings() {
+async function loadRuntimeSettings(timeoutMs = 3000) {
   try {
-    const settings = isAdminMode() ? await api.getSettings() : await api.getPublicSettings();
+    const settingsRequest = isAdminMode() ? api.getSettings() : api.getPublicSettings();
+    const settings = await Promise.race([
+      settingsRequest,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('runtime settings timeout')), timeoutMs);
+      }),
+    ]);
     runtimeSettings = { ...runtimeSettings, ...settings };
-  } catch { }
+    return true;
+  } catch (error) {
+    console.warn('[Kiosk] 公開設定載入失敗，使用會員流程安全預設值。', error);
+    return false;
+  }
 }
 
 function restartLoops() {
@@ -537,7 +550,7 @@ export function showPushNotice(text) {
 // =========================================================
 
 const aiRecommendationController = (() => {
-  const RECOMMENDATION_REFRESH_DELAY_MS = 15_000;
+  const DEFAULT_REFRESH_DELAY_MS = 15_000;
   const RECOMMENDATION_RETRY_DELAY_MS   = 1_000;
   let recommendationTimer    = null;
   let isRecommendationRequestInFlight = false;
@@ -545,6 +558,28 @@ const aiRecommendationController = (() => {
   let currentRecommendationRecord = null;
   let currentCommercialImpressionId = '';
   let stopCommercialImpression = null;
+  // 本次點餐已展示過的品項。「換一個」若只排除當前這一項，按兩下就會轉回第一項。
+  const seenRecommendationIds = new Set();
+  // 預先取回的候選，讓「換一個」立刻換掉畫面而不必等待後端。
+  let prefetchedRecommendations = [];
+
+  function refreshDelayMs() {
+    const seconds = Number(runtimeSettings.AI_PUSH_REFRESH_SEC);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_REFRESH_DELAY_MS;
+  }
+
+  function excludeSeenEnabled() {
+    return runtimeSettings.AI_PUSH_EXCLUDE_SEEN !== false;
+  }
+
+  function prefetchEnabled() {
+    return runtimeSettings.AI_PUSH_PREFETCH !== false;
+  }
+
+  function excludedIdsForRequest(excludeCurrentItem) {
+    if (excludeSeenEnabled()) return [...seenRecommendationIds];
+    return excludeCurrentItem && currentRecommendationItem?.id ? [currentRecommendationItem.id] : [];
+  }
 
   // ── DOM shortcuts ──
   const $ = id => document.getElementById(id);
@@ -590,7 +625,10 @@ const aiRecommendationController = (() => {
       markCurrentRecommendationIgnored('replaced_by_new_ai_push');
     }
     currentRecommendationItem = displayItem;
-    if (item.id) state.sessionPushedIds.add(item.id);
+    if (item.id) {
+      state.sessionPushedIds.add(item.id);
+      seenRecommendationIds.add(item.id);
+    }
     currentRecommendationRecord = reportRecommendationEvent('recommendation_shown', displayItem, {
       surface: 'ai_push',
       source: recommendation.source || 'ai_push',
@@ -656,6 +694,16 @@ const aiRecommendationController = (() => {
     });
   }
 
+  // 三種備援文案刻意各自不同：畫面上看到哪一句，就知道走了哪一條路徑。
+  // local_default   = start() 的零延遲預載，尚未取得後端回應
+  // client_fallback = 後端有回應但品項不在本地菜單
+  // client_error    = 推播 API 失敗（離線、未授權、後端錯誤）
+  const LOCAL_PUSH_TEXT = {
+    local_default: name => `${name}是現在的熱門選擇，快來試試！`,
+    client_fallback: name => `${name}也很受歡迎，要不要加一份？`,
+    client_error: name => `${name}是店長推薦，不妨試試看。`,
+  };
+
   // 從菜單選預設推播（不呼叫 Ollama）
   function pickDefaultRecommendation() {
     const priority = ['超值全餐', '極選系列', '點心'];
@@ -677,41 +725,93 @@ const aiRecommendationController = (() => {
     return src[Math.floor(Math.random() * src.length)];
   }
 
+  /** 把後端回應轉成 renderRecommendation 需要的形狀。 */
+  function toRenderable(data) {
+    const id = data?.recommendation_id || '';
+    const item = id ? state.menuData.find(m => m.id === id) : null;
+    if (!item) return null;
+    return {
+      item,
+      pushText: data.push_text || LOCAL_PUSH_TEXT.client_fallback(item.name),
+      recommendation: {
+        ...(data.recommendation || {}),
+        decision_id: data.decision_id || '',
+        strategy_version: data.strategy_version || '',
+        fallback_status: data.fallback_status || '',
+        // 後端在 recommendation.model_status 帶出 authored_campaign / authored_base /
+        // description_fallback；此處僅在缺漏時補上頂層 status。
+        model_status: data.recommendation?.model_status || data.status || '',
+      },
+    };
+  }
+
+  async function requestRecommendation(excludeCurrentItem) {
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('exclude_ids', JSON.stringify(excludedIdsForRequest(excludeCurrentItem)));
+    formData.append('cart_ids', JSON.stringify(cartManager.getCartIds()));
+    return toRenderable(await api.requestAiPushRecommendation(formData));
+  }
+
+  /** 背景補一筆候選，讓下一次「換一個」不必等待網路。 */
+  async function prefetchNext() {
+    if (!prefetchEnabled() || prefetchedRecommendations.length || !isRecommendationEligible()) return;
+    try {
+      const next = await requestRecommendation(true);
+      // 預取期間畫面可能已經換過，重複的候選就沒有意義了。
+      if (next && !seenRecommendationIds.has(next.item.id)) prefetchedRecommendations.push(next);
+    } catch {
+      // 預取只是加速手段，失敗時維持原本的即時請求路徑即可。
+    }
+  }
+
   // excludeCurrentItem=false 時不排除目前項目（首次呼叫用）
   async function fetchRecommendation(excludeCurrentItem = true) {
     if (isRecommendationRequestInFlight || !isRecommendationEligible()) { if (!isRecommendationEligible()) hide(); return; }
+
+    // 已預取到候選就直接換上，使用者按下「換一個」不會看到等待。
+    const ready = excludeCurrentItem ? prefetchedRecommendations.shift() : null;
+    if (ready) {
+      renderRecommendation(ready.item, ready.pushText, ready.recommendation);
+      scheduleRecommendationRefresh(refreshDelayMs());
+      void prefetchNext();
+      return;
+    }
+
     isRecommendationRequestInFlight = true;
     if (!currentRecommendationItem) $('aiPushBar')?.classList.add('loading');
-
-    const formData = new FormData();
-    formData.append('session_id', sessionId);
-    formData.append('exclude_ids', JSON.stringify(excludeCurrentItem && currentRecommendationItem?.id ? [currentRecommendationItem.id] : []));
-    formData.append('cart_ids', JSON.stringify(cartManager.getCartIds()));
     try {
-      const data = await api.requestAiPushRecommendation(formData);
-      const id     = data?.recommendation_id || '';
-      const aiItem = id ? state.menuData.find(m => m.id === id) : null;
-      // AI 推薦有效且與目前不同 → 採用；否則本地隨機備選
-      const item = (aiItem && aiItem.id !== currentRecommendationItem?.id)
-        ? aiItem
-        : pickRandomRecommendation(excludeCurrentItem);
-      if (item) {
-        const recommendation = aiItem ? {
-          ...(data.recommendation || {}),
-          decision_id: data.decision_id || '',
-          strategy_version: data.strategy_version || '',
-          fallback_status: data.fallback_status || '',
-        } : { source: 'local_fallback', reasons: ['local_fallback'], fallback_status: 'client_fallback' };
-        renderRecommendation(item, (aiItem ? (data.push_text || '') : '') || `${item.name}是現在的熱門選擇，快來試試！`, recommendation);
+      const next = await requestRecommendation(excludeCurrentItem);
+      if (next) {
+        // 一律採用後端選出的品項與文案。即使與目前顯示的品項相同也要採用，
+        // 否則 start() 預載的本地預設會讓第一次的推薦詞整個被丟掉。
+        renderRecommendation(next.item, next.pushText, next.recommendation);
+      } else {
+        // 後端沒有給出菜單中的品項才用本地隨機備選，文案也必須換成本地文案。
+        console.warn('AI 推播回傳的品項不在本地菜單，改用本地備選。');
+        const fallback = pickRandomRecommendation(excludeCurrentItem);
+        if (fallback) {
+          renderRecommendation(fallback, LOCAL_PUSH_TEXT.client_fallback(fallback.name), {
+            source: 'local_fallback', reasons: ['local_fallback'], fallback_status: 'client_fallback',
+            model_status: 'client_fallback',
+          });
+        }
       }
-    } catch {
-      // Ollama 無法連線，使用本地隨機備選確保畫面更新
+    } catch (error) {
+      // 推播 API 失敗（離線、未授權），使用本地隨機備選確保畫面更新
+      console.warn('AI 推播 API 失敗，改用本地備選：', error);
       const fallback = pickRandomRecommendation(excludeCurrentItem);
-      if (fallback) renderRecommendation(fallback, `${fallback.name}是現在的熱門選擇，快來試試！`, { source: 'local_fallback', reasons: ['local_fallback'] });
+      if (fallback) {
+        renderRecommendation(fallback, LOCAL_PUSH_TEXT.client_error(fallback.name), {
+          source: 'local_fallback', reasons: ['local_fallback'], fallback_status: 'client_error',
+          model_status: 'client_error',
+        });
+      }
     } finally {
       isRecommendationRequestInFlight = false;
       $('aiPushBar')?.classList.remove('loading');
-      scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
+      scheduleRecommendationRefresh(refreshDelayMs());
+      void prefetchNext();
     }
   }
 
@@ -731,10 +831,14 @@ const aiRecommendationController = (() => {
   // ── 對外介面 ──
 
   function start() {
-    // ① 立即預載預設推播（零延遲，無需等待 Ollama）
+    // ① 立即預載預設推播（零延遲）
     const defaultRecommendation = pickDefaultRecommendation();
-    if (defaultRecommendation) renderRecommendation(defaultRecommendation, `${defaultRecommendation.name}是現在的熱門選擇，快來試試！`, { source: 'local_default', reasons: ['local_default'] });
-    // ② 背景呼叫 Ollama 生成真實推播文字（不排除預載項目，讓 AI 自由選擇）
+    if (defaultRecommendation) {
+      renderRecommendation(defaultRecommendation, LOCAL_PUSH_TEXT.local_default(defaultRecommendation.name), {
+        source: 'local_default', reasons: ['local_default'], model_status: 'local_default',
+      });
+    }
+    // ② 背景取回後端選品與其預寫推薦詞（不排除預載項目，讓引擎自由選擇）
     if (isRecommendationEligible()) fetchRecommendation(false);
     else scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
   }
@@ -745,6 +849,10 @@ const aiRecommendationController = (() => {
     markCurrentRecommendationIgnored('ai_push_stopped');
     currentRecommendationItem     = null;
     currentRecommendationRecord = null;
+    // 已看過的品項與預取候選都只屬於這一次點餐，結束時必須清掉，
+    // 否則下一位顧客會繼承上一位的排除清單而看不到大部分品項。
+    seenRecommendationIds.clear();
+    prefetchedRecommendations = [];
     stopCommercialImpression?.();
     stopCommercialImpression = null;
     hide();
@@ -778,10 +886,9 @@ const aiRecommendationController = (() => {
         variant_id: String(currentRecommendationItem.variant_id || ''),
       });
       showItemConfirmModal(currentRecommendationItem, 'ai_push');
-      scheduleRecommendationRefresh(RECOMMENDATION_REFRESH_DELAY_MS);
+      scheduleRecommendationRefresh(refreshDelayMs());
     });
     $('aiPushRefreshBtn')?.addEventListener('click', () => fetchRecommendation());
-    $('aiPushVoiceBtn')?.addEventListener('click', () => startAskRecording($('aiPushVoiceBtn')));
   });
 
   return { start, stop, hide, scheduleAfterCartClose };
@@ -964,7 +1071,11 @@ function applyKioskLanguage() {
   if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = kt('holdVoiceOrder');
   if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
   if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
-  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en' ? 'Hold to stop listening' : '按住關閉收音';
+  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en'
+    ? 'Pause for 1.5 seconds to send automatically'
+    : '說完後停頓 1.5 秒會自動送出';
+  if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.querySelector('span').textContent = kioskLang === 'en' ? 'Send now' : '立即送出';
+  if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.querySelector('span').textContent = kioskLang === 'en' ? 'Cancel' : '取消';
   if (ui.cartCountBadge) {
     const quantity = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
     ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(quantity));
@@ -1000,6 +1111,8 @@ function hideCartScreen() {
 
 function showPaymentScreen() {
   hideCartScreen();
+  // 付款畫面不再接受加購，進行中的語音回合在此收斂為「已取消」終局。
+  cancelActiveVoiceTurn();
   ui.kioskPaymentScreen?.classList.remove('hidden');
   ui.kioskPaymentScreen?.setAttribute('aria-hidden', 'false');
   setInteractionPage('payment_page', { source: 'checkout_button' });
@@ -1352,33 +1465,178 @@ function startPageDwellWatcher() {
 }
 
 async function ensureMediaTracks({ video = false, audio = false } = {}) {
-  try {
-    state.stream = await ensureMediaTracksCore(state.stream, ui, { video, audio });
-    return true;
-  } catch {
-    alert("無法取得需要的攝影機或麥克風權限。");
-    return false;
+  let audioReady = !audio;
+  let videoReady = !video;
+
+  if (audio) {
+    try {
+      state.stream = await ensureMediaTracksCore(state.stream, ui, { audio: true });
+      audioReady = Boolean(state.stream?.getAudioTracks().length);
+    } catch (error) {
+      console.warn('[Kiosk] 無法取得麥克風。', error);
+      alert(kioskLang === 'en'
+        ? 'Microphone permission is unavailable. Voice mode will remain disabled.'
+        : '無法取得麥克風權限，語音模式將暫時停用。');
+    }
   }
+
+  if (video) {
+    try {
+      state.stream = await ensureMediaTracksCore(state.stream, ui, { video: true });
+      videoReady = Boolean(state.stream?.getVideoTracks().length);
+    } catch (error) {
+      console.warn('[Kiosk] 相機不可用，語音模式將只使用麥克風。', error);
+    }
+  }
+
+  return { audioReady, videoReady };
 }
 
 // =========================================================
 // 啟動
 // =========================================================
-ui.startBtn.onclick = async () => {
-  if (isAdminMode()) return;
-  await loadRuntimeSettings();
-  if (getRuntimeSettings().MEMBER_ENABLED) {
-    ui.overlay.classList.add('hidden');  // 收起開始頁，露出會員選擇 overlay
-    showMemberChoice(() => { runPosStartup(); });
-  } else {
-    runPosStartup();
-  }
+let isStartTransitionPending = false;
+let isMenuStarting = false;
+
+function setStartButtonPending(pending) {
+  isStartTransitionPending = pending;
+  if (ui.startBtn) ui.startBtn.disabled = pending;
+  const label = document.getElementById('startBtnLabel');
+  if (label) label.textContent = pending
+    ? (kioskLang === 'en' ? 'Loading…' : '正在載入…')
+    : (kioskLang === 'en' ? 'Start Ordering' : '開始點餐');
+}
+
+// 入口啟動失敗與菜單初始化失敗共用同一個錯誤 overlay，用這個旗標區分重試語意。
+let entryErrorMode = '';
+
+const MENU_LOAD_ERROR_TEXT = {
+  menu: { title: '菜單暫時無法載入', message: '請確認網路連線後再試一次。' },
+  entry_start: { title: '暫時無法開始點餐', message: '請確認網路連線後再試一次；連線恢復後即可選擇點餐方式。' },
 };
 
+function hideMenuLoadError() {
+  const overlay = document.getElementById('menuLoadErrorOverlay');
+  overlay?.classList.add('hidden');
+  overlay?.setAttribute('aria-hidden', 'true');
+}
+
+function showMenuLoadError(mode = 'menu') {
+  entryErrorMode = mode;
+  const overlay = document.getElementById('menuLoadErrorOverlay');
+  overlay?.classList.remove('hidden');
+  overlay?.setAttribute('aria-hidden', 'false');
+  const text = MENU_LOAD_ERROR_TEXT[mode] || MENU_LOAD_ERROR_TEXT.menu;
+  const title = document.getElementById('menuLoadErrorTitle');
+  if (title) title.textContent = text.title;
+  const message = document.getElementById('menuLoadErrorMessage');
+  if (message) message.textContent = text.message;
+  const retry = document.getElementById('menuLoadRetry');
+  if (retry) {
+    retry.disabled = false;
+    retry.textContent = '重試';
+  }
+  // 入口尚未建立時沒有「點餐方式」可返回，隱藏該出口避免死路。
+  document.getElementById('menuLoadBack')?.classList.toggle('hidden', mode === 'entry_start');
+}
+
+async function beginEntryFlow() {
+  if (isAdminMode() || isStartTransitionPending) return;
+  setStartButtonPending(true);
+  try {
+    hideMenuLoadError();
+    const settingsLoaded = await loadRuntimeSettings(3000);
+    entryFlow = await api.startEntryFlow({
+      policy_version: String(getRuntimeSettings().ENTRY_POLICY_VERSION || 'runtime-v1'),
+      policy_loaded: settingsLoaded,
+      policy: { membership_enabled: !(settingsLoaded && getRuntimeSettings().MEMBER_ENABLED === false) },
+    });
+    if (entryFlow.ordering_session_id) sessionId = entryFlow.ordering_session_id;
+    armEntryIdleTimeout();
+    const inputDependentStates = new Set([
+      'member_lookup',
+      'registration_offered',
+      'member_lookup_degraded',
+      'member_registration',
+    ]);
+    if (inputDependentStates.has(entryFlow.state)) {
+      entryFlow = await api.commandEntryFlow(
+        entryFlow.entry_flow_id,
+        entryFlow.phase_revision,
+        'return_to_mode',
+        { safe_reason: 'browser_sensitive_input_unavailable' },
+      );
+    }
+    if (entryFlow.state === 'choosing_mode') {
+      ui.overlay.classList.add('hidden');  // 收起開始頁，露出會員選擇 overlay
+      showMemberChoice(() => { void runPosStartup(); }, { hooks: entryFlowHooks() });
+    } else if (entryFlow.state === 'menu_initialization_failed') {
+      ui.overlay.classList.add('hidden');
+      showMenuLoadError();
+    } else {
+      await runPosStartup();
+    }
+  } catch (error) {
+    // 入口流程建立失敗（後端錯誤、裝置範圍不足、網路中斷）必須是可見且可重試的，
+    // 否則顧客只會看到按鈕閃一下，等同沒有點餐方式可選。
+    console.error('[Kiosk] 點餐入口啟動失敗。', error);
+    entryFlow = null;
+    showMenuLoadError('entry_start');
+  } finally {
+    setStartButtonPending(false);
+  }
+}
+
+ui.startBtn.onclick = () => { void beginEntryFlow(); };
+
+async function advanceEntryFlow(command, payload = {}) {
+  if (!entryFlow) throw new Error('entry_flow_missing');
+  entryFlow = await api.commandEntryFlow(entryFlow.entry_flow_id, entryFlow.phase_revision, command, payload);
+  if (entryFlow.ordering_session_id) sessionId = entryFlow.ordering_session_id;
+  armEntryIdleTimeout();
+  return entryFlow;
+}
+
+function armEntryIdleTimeout() {
+  if (entryIdleTimer) clearTimeout(entryIdleTimer);
+  entryIdleTimer = null;
+  if (!entryFlow || ['menu_ready', 'abandoned'].includes(entryFlow.state)) return;
+  const timeoutMs = Number(getRuntimeSettings().ENTRY_FLOW_IDLE_TIMEOUT_MS || 120000);
+  entryIdleTimer = setTimeout(async () => {
+    try { await advanceEntryFlow('abandon', { safe_reason: 'idle_timeout' }); } catch { /* reload still clears sensitive memory */ }
+    location.reload();
+  }, Math.max(30000, timeoutMs));
+}
+
+function entryFlowHooks() {
+  return {
+    onMemberMode: () => advanceEntryFlow('choose_member'),
+    onMemberNotFound: () => advanceEntryFlow('member_not_found'),
+    onMemberUnavailable: () => advanceEntryFlow('member_unavailable'),
+    onMemberRetry: () => advanceEntryFlow('retry_member'),
+    onReturnToMode: () => advanceEntryFlow('return_to_mode'),
+    onRegistrationStarted: () => advanceEntryFlow('begin_registration'),
+    onMemberFound: async member => {
+      await advanceEntryFlow('member_found', { member_ref: member.member_id || '' });
+      if (member.phone) await api.memberLogin(sessionId, member.phone);
+    },
+    onRegistered: async member => {
+      await advanceEntryFlow('registration_completed', { member_ref: member.member_id || '' });
+      if (member.phone) await api.memberLogin(sessionId, member.phone);
+    },
+    onGuest: () => advanceEntryFlow('choose_guest'),
+  };
+}
+
 async function runPosStartup() {
+  if (isMenuStarting) return false;
+  isMenuStarting = true;
+  hideMenuLoadError();
   try {
     resetVoiceEmotionRound();
     const f = getFeatures();
+    await loadMenu();
+    if (entryFlow?.state === 'initializing_menu') await advanceEntryFlow('menu_initialized');
     const needAudio = Boolean(f.voiceAssist);
     const needVideo = Boolean(
       f.voiceAssist
@@ -1386,8 +1644,8 @@ async function runPosStartup() {
       && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE,
     );
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
-    if (!mediaReady && needAudio) console.warn('Media permission unavailable; Kiosk flow continues without rolling buffer.');
-    await loadMenu();
+    if (!mediaReady.audioReady && needAudio) console.warn('Microphone unavailable; Kiosk flow continues without voice assistance.');
+    if (!mediaReady.videoReady && needVideo) console.warn('Camera unavailable; voice assistance continues without emotion video.');
     promoBannerController.load();
     cartPromoBannerController.load();
     applyFeaturesToKiosk();
@@ -1404,18 +1662,55 @@ async function runPosStartup() {
       f.voiceAssist
       && getRuntimeSettings().EMOTION_LLAMA_ENABLED
       && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE
-      && state.stream
+      && mediaReady.videoReady
+      && state.stream?.getVideoTracks().length
     ) {
       const bufferSec = Number(getRuntimeSettings().EMOTION_LLAMA_CLIP_SEC) || 2.0;
       startRollingBuffer(state.stream, bufferSec);
     }
-  } catch { alert("無法存取攝影機與麥克風。"); }
-  startPassiveListener();
+    startPassiveListener();
+    return true;
+  } catch (error) {
+    if (entryFlow?.state === 'initializing_menu') {
+      await advanceEntryFlow('menu_failed', { safe_reason: String(error?.message || 'menu_initialization_failed') }).catch(() => {});
+    }
+    console.error('[Kiosk] 菜單初始化失敗。', error);
+    isSystemRunning = false;
+    showMenuLoadError();
+    return false;
+  } finally {
+    isMenuStarting = false;
+  }
 }
 
+document.getElementById('menuLoadRetry')?.addEventListener('click', () => {
+  const retry = document.getElementById('menuLoadRetry');
+  if (retry) {
+    retry.disabled = true;
+    retry.textContent = '重新載入中…';
+  }
+  void (async () => {
+    if (entryErrorMode === 'entry_start') {
+      hideMenuLoadError();
+      await beginEntryFlow();
+      return;
+    }
+    if (entryFlow?.state === 'menu_initialization_failed') await advanceEntryFlow('retry_menu');
+    await runPosStartup();
+  })();
+});
+
+document.getElementById('menuLoadBack')?.addEventListener('click', () => {
+  hideMenuLoadError();
+  void (async () => {
+    if (entryFlow?.state === 'menu_initialization_failed') await advanceEntryFlow('return_to_mode');
+    showMemberChoice(() => { void runPosStartup(); }, { preserveInput: true, hooks: entryFlowHooks() });
+  })();
+});
+
 // 閒置偵測：任何觸控 / 點擊都重設計時（全域，只需註冊一次）
-document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); }, { passive: true });
-document.addEventListener('touchstart',  () => { lastInteractionAt = Date.now(); }, { passive: true });
+document.addEventListener('pointerdown', () => { lastInteractionAt = Date.now(); armEntryIdleTimeout(); }, { passive: true });
+document.addEventListener('touchstart',  () => { lastInteractionAt = Date.now(); armEntryIdleTimeout(); }, { passive: true });
 
 ui.startBtn?.addEventListener('pointerdown', () => {
   ui.overlay?.classList.add('startup-pressing');
@@ -1433,6 +1728,7 @@ document.getElementById('startupLangBtn')?.addEventListener('click', () => {
 
 import {
   isVoiceAssistantActive,
+  cancelActiveVoiceTurn,
   closeVoiceBubble,
   hideVoiceAssistOverlay,
   resetVoiceEmotionRound,
@@ -1445,6 +1741,7 @@ window.addEventListener('beforeunload', () => {
     if (state.askRecorder?.state === 'recording') state.askRecorder.stop();
   } catch { }
   if (pageDwellTimer) clearInterval(pageDwellTimer);
+  if (entryIdleTimer) clearTimeout(entryIdleTimer);
   aiRecommendationController.stop();
 });
 
@@ -1454,17 +1751,12 @@ window.addEventListener('beforeunload', () => {
 // =========================================================
 let selectedFulfillment = 'takeout';
 let selectedPayment = 'credit-card';
+let activeCheckoutQuote = null;
+let checkoutIdempotencyKey = '';
 
-function getOrderNumber() {
-  const numeric = Array.from(sessionId).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 900;
-  return `#A${String(numeric + 100).padStart(3, '0')}`;
-}
-
-function getOrderTotals() {
-  const subtotal = cartManager.getCartTotal();
-  const serviceFee = 0;
-  return { subtotal, serviceFee, total: subtotal + serviceFee };
-}
+// 取餐號由伺服器在訂單建立時配號（confirmed_orders.pickup_number），
+// 報價階段並不存在，因此確認頁不得自行編造號碼。
+const PENDING_ORDER_NUMBER_LABEL = '付款完成後產生';
 
 function updateChoiceGroup(selector, selectedValue) {
   document.querySelectorAll(selector).forEach(button => {
@@ -1476,15 +1768,19 @@ function updateChoiceGroup(selector, selectedValue) {
   });
 }
 
-function renderOrderConfirm() {
-  const items = cartManager.getCartItems();
+function renderOrderConfirm(quote = activeCheckoutQuote) {
+  const items = Array.isArray(quote?.pricing?.cart_items) ? quote.pricing.cart_items : [];
   const prepMinutes = Math.max(0, ...items.map(item => Number(item.prep_time_minutes || item.prep_minutes || 0)));
-  const totals = getOrderTotals();
+  const totals = {
+    subtotal: Number(quote?.pricing?.subtotal || 0),
+    serviceFee: Number(quote?.pricing?.fee_total || 0),
+    total: Number(quote?.pricing?.total || 0),
+  };
 
   if (ui.confirmSubtotalPrice) ui.confirmSubtotalPrice.textContent = `$${totals.subtotal}`;
   if (ui.confirmServiceFee) ui.confirmServiceFee.textContent = `$${totals.serviceFee}`;
   if (ui.confirmTotalPrice) ui.confirmTotalPrice.textContent = `$${totals.total}`;
-  if (ui.confirmOrderNumber) ui.confirmOrderNumber.textContent = getOrderNumber();
+  if (ui.confirmOrderNumber) ui.confirmOrderNumber.textContent = PENDING_ORDER_NUMBER_LABEL;
   if (ui.confirmPrepTime) ui.confirmPrepTime.textContent = `約 ${prepMinutes || 5} 分鐘`;
   if (ui.confirmPayBtn) ui.confirmPayBtn.disabled = !items.length;
 
@@ -1519,19 +1815,85 @@ function renderOrderConfirm() {
   }).join('');
 }
 
+// 伺服器建立的訂單才帶有權威的取餐號與定價快照；kiosk 一律沿用，不自行重算。
+function confirmedOrderResult(order) {
+  return {
+    orderNumber: order?.pickup_number || 0,
+    sessionId: order?.session_id || sessionId,
+    pricing: order?.pricing || null,
+  };
+}
+
+function showConfirmationPendingNotice() {
+  const overlay = document.getElementById('confirmationPendingOverlay');
+  overlay?.classList.remove('hidden');
+  overlay?.setAttribute('aria-hidden', 'false');
+  const assist = document.getElementById('confirmationPendingAssist');
+  if (assist) assist.disabled = false;
+}
+
+function hideConfirmationPendingNotice() {
+  const overlay = document.getElementById('confirmationPendingOverlay');
+  overlay?.classList.add('hidden');
+  overlay?.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('confirmationPendingAssist')?.addEventListener('click', event => {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  trackInteractionEvent({
+    page_id: 'payment_page',
+    event_type: 'payment_staff_requested',
+    button_id: 'confirmationPendingAssist',
+    metadata: { reason: 'confirmation_outcome_unknown' },
+  });
+});
+
+// Confirmation Outcome Unknown：以同一個 quote_id 與 idempotency key 持續查詢，
+// 直到找到訂單或收到權威拒絕為止。不確定不等於失敗，因此期間顯示的是進行中狀態。
+const CONFIRMATION_RESOLVE_TIMEOUT_MS = 60000;
+const CONFIRMATION_POLL_MAX_DELAY_MS = 3000;
+
+async function resolveUnknownConfirmation(quoteId, idempotencyKey) {
+  showConfirmationPendingNotice();
+  const deadline = Date.now() + CONFIRMATION_RESOLVE_TIMEOUT_MS;
+  let delay = 300;
+  try {
+    while (Date.now() < deadline) {
+      const outcome = await api.getCheckoutOutcome(quoteId, idempotencyKey).catch(() => null);
+      if (outcome?.order) {
+        hideConfirmationPendingNotice();
+        return confirmedOrderResult(outcome.order);
+      }
+      // 權威拒絕（報價過期、品項不可供應）是確定的結果，立即結束不確定狀態。
+      if (outcome?.type && outcome.type !== 'confirmed' && outcome.type !== 'unknown') {
+        hideConfirmationPendingNotice();
+        throw new Error(outcome.type);
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, CONFIRMATION_POLL_MAX_DELAY_MS);
+    }
+  } catch (error) {
+    hideConfirmationPendingNotice();
+    throw error;
+  }
+  // 逾時仍未確定：維持等待畫面，交給服務人員處理，絕不呈現為結帳失敗或誘導再次付款。
+  const title = document.getElementById('confirmationPendingTitle');
+  if (title) title.textContent = '仍在確認訂單，請稍候';
+  const unresolved = new Error('仍在確認訂單狀態，請洽服務人員協助，請勿重複付款。');
+  unresolved.code = 'confirmation_outcome_unknown';
+  throw unresolved;
+}
+
 async function writeCheckoutLog(cartIds = []) {
-  const formData = new FormData();
-  formData.append('session_id', sessionId);
-  formData.append('pushed_ids', JSON.stringify(Array.from(state.sessionPushedIds)));
-  formData.append('cart_ids', JSON.stringify(cartIds));
-  formData.append('cart_items', JSON.stringify(cartManager.getCartItems()));
-  formData.append('ai_push_cart_count', String(sessionAiPushCartCount));
-  formData.append('cart_sources', JSON.stringify(state.sessionCartSources));
-  formData.append('cart_total', String(cartManager.getCartTotal()));
+  const quote = activeCheckoutQuote || await prepareAuthoritativeCheckout();
+  const quoteId = String(quote.quote_id || '');
+  const idempotencyKey = checkoutIdempotencyKey || `checkout:${sessionId}:${quoteId}`;
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const res = await api.submitCheckout(formData, ctrl.signal);
+    const res = await api.confirmCheckout(quoteId, idempotencyKey, ctrl.signal);
     if (!res?.ok) {
       const payload = await res?.json().catch(() => ({}));
       const detail = payload?.detail;
@@ -1541,8 +1903,12 @@ async function writeCheckoutLog(cartIds = []) {
       throw new Error(message);
     }
     const data = await res.json().catch(() => ({}));
-    return { orderNumber: data.order_number ?? 0, sessionId: data.session_id || sessionId };
+    if (data.type !== 'confirmed') throw new Error(data.type || 'confirmation_rejected');
+    return confirmedOrderResult(data.order);
   } catch (error) {
+    if (quoteId && (error?.name === 'AbortError' || error instanceof TypeError)) {
+      return await resolveUnknownConfirmation(quoteId, idempotencyKey);
+    }
     trackInteractionEvent({
       event_type: 'payment_failed',
       button_id: 'confirmPayBtn',
@@ -1553,6 +1919,14 @@ async function writeCheckoutLog(cartIds = []) {
   } finally {
     clearTimeout(tid);
   }
+}
+
+async function prepareAuthoritativeCheckout() {
+  await api.syncCart(sessionId, cartManager.getCartItems());
+  activeCheckoutQuote = await api.prepareCheckout(sessionId);
+  checkoutIdempotencyKey = `checkout:${sessionId}:${activeCheckoutQuote.quote_id}`;
+  renderOrderConfirm(activeCheckoutQuote);
+  return activeCheckoutQuote;
 }
 
 function saveAbandonedOrder(reason) {
@@ -1627,7 +2001,11 @@ function showCompletionOverlay(orderData = {}) {
       });
     }
 
-    const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    // 金額一律沿用伺服器的訂單定價快照（含費用與促銷），不得由購物車重算，
+    // 否則完成畫面會與顧客確認過的 Checkout Quote 不一致。
+    const total = Number.isFinite(Number(orderData.pricing?.total))
+      ? Number(orderData.pricing.total)
+      : cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const totalEl = overlay.querySelector('[data-total]');
     if (totalEl) totalEl.textContent = `$${total}`;
 
@@ -1655,6 +2033,12 @@ async function finishOrder(cartIds, button, loadingText) {
   try {
     orderData = (await writeCheckoutLog(cartIds)) || {};
   } catch (error) {
+    if (error?.code === 'confirmation_outcome_unknown') {
+      // 結果仍不確定：等待畫面保持可見，付款按鈕維持停用，避免顧客重複付款。
+      if (button) button.innerHTML = originalHTML;
+      showPushNotice(error.message);
+      return;
+    }
     orderCompleted = false;
     setConfirmButtonsDisabled(false);
     updateVoiceAssistVisibility();
@@ -1665,8 +2049,11 @@ async function finishOrder(cartIds, button, loadingText) {
 
   if (button) button.innerHTML = originalHTML;
 
-  // Collect cart items snapshot for the completion screen
-  const rawItems = cartManager.getCartItems ? cartManager.getCartItems() : [];
+  // 完成畫面優先使用伺服器訂單的定價快照；只有在快照缺漏時才退回本地購物車內容。
+  const quotedItems = Array.isArray(orderData.pricing?.cart_items) ? orderData.pricing.cart_items : [];
+  const rawItems = quotedItems.length
+    ? quotedItems
+    : (cartManager.getCartItems ? cartManager.getCartItems() : []);
   orderData.cartItems = rawItems.map(item => ({
     name: item.name || item.id || '',
     quantity:  Number(item.qty || item.quantity || 1),
@@ -1688,9 +2075,18 @@ function closeOrderConfirmModal() {
   if (!orderCompleted) setInteractionPage('menu_page', { source: 'close_order_confirm' });
 }
 
-ui.checkoutBtn.onclick = () => {
+ui.checkoutBtn.onclick = async () => {
   if (!cartManager.getCartIds().length) return;
-  openOrderConfirmModal();
+  ui.checkoutBtn.disabled = true;
+  try {
+    await prepareAuthoritativeCheckout();
+    openOrderConfirmModal();
+  } catch (error) {
+    showPushNotice(`無法準備結帳：${error?.message || '請稍後再試'}`);
+    return;
+  } finally {
+    ui.checkoutBtn.disabled = false;
+  }
   trackInteractionEvent({
     page_id: 'payment_page',
     event_type: 'enter_payment_page',
@@ -1708,7 +2104,6 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   if (orderCompleted) return;
   saveAbandonedOrder('home_button');
   isSystemRunning = false;
-  orderCompleted = false;
   totalClickCount = 0;
   clearKioskFloatingUI();
   hideChoiceHesitationModal();
@@ -2238,12 +2633,23 @@ Object.assign(window, {
   reportInteractionEvent,
 });
 
-if (isAdminMode()) {
-  switchMainView('admin');
-  initRealtimeClients();
-} else {
+let kioskRuntimeInitialized = false;
+
+async function initializeAuthenticatedKiosk() {
+  if (kioskRuntimeInitialized) return;
+  kioskRuntimeInitialized = true;
   applyKioskLanguage();
   cartManager.renderCart();
   applyFeaturesToKiosk();
   initRealtimeClients();
+}
+
+if (isAdminMode()) {
+  switchMainView('admin');
+  initRealtimeClients();
+} else {
+  createDeviceIdentityController({
+    apiBaseUrl: api.API_BASE,
+    onAuthenticated: initializeAuthenticatedKiosk,
+  }).bind();
 }

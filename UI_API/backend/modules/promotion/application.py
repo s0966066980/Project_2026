@@ -235,6 +235,8 @@ CAMPAIGN_TRANSITIONS = {
     "ended": {"archived", "draft"},
     "archived": set(),
 }
+CAMPAIGN_EDITABLE_STATUSES = {"draft", "review", "paused", "ended"}
+CAMPAIGN_PUBLISHABLE_STATUSES = {"draft", "review"}
 ALLOWED_PLACEMENTS = {
     "menu_card",
     "item_detail",
@@ -275,6 +277,8 @@ def preview_campaign(
     schedule = dict(raw.get("schedule") or {})
     starts_at = str(schedule.get("starts_at") or "").strip()
     ends_at = str(schedule.get("ends_at") or "").strip()
+    if not starts_at:
+        errors.append({"path": "schedule.starts_at", "code": "required", "message": "請輸入活動開始時間。"})
     if starts_at and ends_at and starts_at > ends_at:
         errors.append({"path": "schedule.ends_at", "code": "before_start", "message": "結束時間必須晚於開始時間。"})
     placements = tuple(dict.fromkeys(str(value or "").strip() for value in raw.get("placements") or [] if str(value or "").strip()))
@@ -389,16 +393,87 @@ def revise_campaign_draft(
         raise LookupError("campaign_not_found")
     if current.status == "archived":
         raise CampaignStateError("archived_campaign_is_immutable")
-    if current.status != "draft" and "draft" not in CAMPAIGN_TRANSITIONS.get(current.status, set()):
+    if current.status not in CAMPAIGN_EDITABLE_STATUSES:
         raise CampaignStateError("campaign_must_be_paused_or_ended_before_edit")
     preview = preview_campaign(payload, scope, repository=repo, exclude_campaign_id=campaign_id, catalog_items=catalog_items)
     if not preview.valid:
         raise ValueError(preview.field_errors)
+    # Revising content never moves the campaign through its lifecycle; a paused campaign stays
+    # paused so that saving edits can never take a campaign off air or put one on air.
     canonical = dict(payload)
-    canonical.update({"campaign_id": campaign_id, "status": "draft", "version": expected_version + 1, "updated_by": actor_id})
-    snapshot = repo.append_version(scope, campaign_id, canonical, "draft", expected_version=expected_version, actor_id=actor_id)
+    canonical.update({"campaign_id": campaign_id, "status": current.status, "version": expected_version + 1, "updated_by": actor_id})
+    snapshot = repo.append_version(scope, campaign_id, canonical, current.status, expected_version=expected_version, actor_id=actor_id)
     repo.audit(scope, actor_id=actor_id, action="campaign_draft_revised", snapshot=snapshot)
     return snapshot
+
+
+def publish_campaign(
+    payload: dict,
+    scope,
+    *,
+    campaign_id: str = "",
+    expected_version: int = 0,
+    actor_id: str,
+    repository=None,
+    catalog_items: list[dict] | None = None,
+    now: datetime | None = None,
+) -> CampaignSnapshot:
+    """Validate, store and put a campaign on air in one call.
+
+    The whole chain runs here so a caller never has to hold or replay intermediate versions.
+    Optimistic concurrency stays strict: `expected_version` is the version the operator's form
+    was based on, and a mismatch fails closed rather than overwriting somebody else's edit.
+    """
+    repo = _campaign_repository(repository)
+    campaign_id = str(campaign_id or "").strip()
+    if campaign_id:
+        current = repo.get(scope, campaign_id)
+        if current is None:
+            raise LookupError("campaign_not_found")
+        if current.status not in CAMPAIGN_PUBLISHABLE_STATUSES:
+            raise CampaignStateError("campaign_is_already_published")
+        content_status = current.status
+    else:
+        campaign_id = f"cmp_{uuid4().hex}"
+        expected_version = 0
+        content_status = "draft"
+
+    preview = preview_campaign(
+        payload, scope, repository=repo, exclude_campaign_id=campaign_id, catalog_items=catalog_items
+    )
+    if not preview.valid:
+        raise ValueError(preview.field_errors)
+
+    canonical = dict(payload)
+    canonical.update({
+        "campaign_id": campaign_id,
+        "status": content_status,
+        "version": expected_version + 1,
+        "updated_by": actor_id,
+    })
+    snapshot = repo.append_version(
+        scope, campaign_id, canonical, content_status, expected_version=expected_version, actor_id=actor_id
+    )
+    repo.audit(scope, actor_id=actor_id, action="campaign_publish_requested", snapshot=snapshot)
+
+    if snapshot.status == "draft":
+        snapshot = transition_campaign(
+            campaign_id, "review", scope, expected_version=snapshot.version, actor_id=actor_id, repository=repo
+        )
+    target = _publication_target(dict(payload.get("schedule") or {}), now=now)
+    return transition_campaign(
+        campaign_id, target, scope, expected_version=snapshot.version, actor_id=actor_id, repository=repo
+    )
+
+
+def _publication_target(schedule: dict, *, now: datetime | None = None) -> str:
+    """A campaign starting later is scheduled; one already due goes on air immediately."""
+    timezone = ZoneInfo(DEFAULT_TIMEZONE)
+    starts_at = _datetime(schedule.get("starts_at"), timezone=timezone)
+    reference = now or datetime.now(timezone)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone)
+    return "scheduled" if starts_at and starts_at > reference else "active"
 
 
 def transition_campaign(

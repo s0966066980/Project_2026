@@ -31,7 +31,6 @@ def list_orders_scoped(
     direction = "ASC" if sort_order == "asc" else "DESC"
     safe_offset = max(0, int(offset))
     safe_limit = max(1, min(int(limit), 100))
-    postgres_utils.init_schema()
     where = "tenant_id = %s AND store_id = %s"
     params: list[object] = [scope.tenant_id, scope.store_id]
     if normalized_status:
@@ -107,7 +106,6 @@ def upsert_order_touch_attributions_scoped(
 ) -> int:
     if not rows or not postgres_utils.use_postgres():
         return 0
-    postgres_utils.init_schema()
     count = 0
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         for row in rows:
@@ -153,7 +151,6 @@ def list_order_touch_attributions_scoped(
 ) -> list[dict]:
     if not postgres_utils.use_postgres():
         return []
-    postgres_utils.init_schema()
     where = "tenant_id = %s AND store_id = %s"
     params: list[object] = [scope.tenant_id, scope.store_id]
     if since:
@@ -193,7 +190,6 @@ def create_checkout_order_scoped(
     order_id = uuid4()
     outbox_id = uuid4()
     correlation = observability_service.correlation_context()
-    postgres_utils.init_schema()
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
