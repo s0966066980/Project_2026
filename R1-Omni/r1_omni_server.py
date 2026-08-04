@@ -1,13 +1,13 @@
 """
-R1-Omni /predict 伺服器 —— 與 Emotion-LLaMA 相同的 HTTP 合約。
+ R1-Omni /predict 伺服器。
 
 合約（與 UI_API/backend/services/emotion_service.py 的 _call_http 對齊）：
   POST /predict  {video_path, question, skip_quality_check, media_mode}
        → {"result": <字串>}
   result 內容：
     成功  → JSON 字串 {"facial","body","vocal","emotion","intensity","description"}
-    錯誤  → "[EMOTION_LLAMA_ERROR] ..."     ← 協定標記，沿用 Emotion-LLaMA 前綴
-    跳過  → "[EMOTION_LLAMA_SKIP] ..."
+    錯誤  → "[R1_OMNI_ERROR] ..."
+    跳過  → "[R1_OMNI_SKIP] ..."
 
 R1-Omni 原生輸出 <think>…</think><answer>情緒</answer>：
   <answer> → emotion，<think> → description。
@@ -144,16 +144,16 @@ def process_video_question(
 ) -> str:
     """核心推論：回傳給下游的 result 字串。"""
     if not video_path or not os.path.exists(video_path):
-        return f"[EMOTION_LLAMA_ERROR] video_not_found: {video_path}"
+        return f"[R1_OMNI_ERROR] video_not_found: {video_path}"
     if not is_allowed_video_path(video_path):
-        return f"[EMOTION_LLAMA_ERROR] path_not_allowed: {video_path}"
+        return f"[R1_OMNI_ERROR] path_not_allowed: {video_path}"
 
     load_model()
     instruct = question.strip() if (question and question.strip()) else DEFAULT_INSTRUCT
     start_ts = time.time()
     normalized_mode = str(media_mode or "video_audio").strip().lower()
     if normalized_mode not in {"video_audio", "audio_only"}:
-        return f"[EMOTION_LLAMA_ERROR] unsupported_media_mode: {normalized_mode}"
+        return f"[R1_OMNI_ERROR] unsupported_media_mode: {normalized_mode}"
     # 影音輸入先正規化再交給 decord；audio-only 不建立空白影像包裝。
     safe_path, cleanup_path = (
         (video_path, None)
@@ -183,7 +183,7 @@ def process_video_question(
         return json.dumps(structured, ensure_ascii=False)
     except Exception as e:
         print(f"❌ R1-Omni 推論失敗: {e}")
-        return f"[EMOTION_LLAMA_ERROR] inference_failed: {e}"
+        return f"[R1_OMNI_ERROR] inference_failed: {e}"
     finally:
         if cleanup_path:
             try:

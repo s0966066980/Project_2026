@@ -259,7 +259,10 @@ async def generate_three(
     context = await recommendation_context_service.build_context(
         session_id,
         cart_ids=cart_ids,
-        exclude_ids=await _scope_controls(items, copy_rows, set()),
+        # Push Scope controls the passive push bar only.  The explicit assistance surface
+        # should recommend any currently eligible menu item; cart and availability exclusions
+        # are still applied by the shared recommendation context.
+        exclude_ids=[],
         surface="assist_recommend",
         menu_items=items,
         scope=scope,

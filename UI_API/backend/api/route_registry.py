@@ -20,7 +20,7 @@ from routes import (
     push_copy_routes,
     realtime_routes,
     recommendation_event_routes,
-    test_routes,
+    diagnostic_routes,
     v1_routes,
     voice_routes,
 )
@@ -44,8 +44,8 @@ def _demo_routes_enabled() -> bool:
     return _production_safe_flag("ENABLE_DEMO_ROUTES", True)
 
 
-def _test_routes_enabled() -> bool:
-    return _production_safe_flag("ENABLE_TEST_ROUTES", True)
+def _diagnostic_routes_enabled() -> bool:
+    return _production_safe_flag("ENABLE_DIAGNOSTIC_ROUTES", True)
 
 
 def _debug_routes_enabled() -> bool:
@@ -71,7 +71,7 @@ ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("public", member_routes),
     RouteRegistration("public", ordering_entry_routes),
     RouteRegistration("dev", demo_routes, _demo_routes_enabled),
-    RouteRegistration("dev", test_routes, _test_routes_enabled),
+    RouteRegistration("dev", diagnostic_routes, _diagnostic_routes_enabled),
     RouteRegistration("dev", debug_routes, _debug_routes_enabled),
 )
 

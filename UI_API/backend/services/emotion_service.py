@@ -30,22 +30,10 @@ EVENT_TYPE_LABELS = {
 VOICE_EVENT_TYPES = frozenset({"voice_mode_started", "voice_mode_ended"})
 
 PROVIDER_LABELS = {
-    "emotion_llama": "Emotion-LLaMA",
     "r1_omni": "R1-Omni",
-    "text_llm": "文字情緒分析模型",
 }
+R1_OMNI_PROVIDER = "r1_omni"
 
-TEXT_EMOTION_LABELS = frozenset({
-    "neutral", "happy", "sad", "angry", "frustrated", "anxious",
-    "confused", "surprised", "disgust", "fearful", "excited", "bored",
-})
-TEXT_EMOTION_ALIASES = {
-    "joy": "happy",
-    "fear": "fearful",
-    "frustration": "frustrated",
-    "anxiety": "anxious",
-}
-TEXT_INTENSITIES = frozenset({"low", "medium", "high"})
 DIAGNOSTIC_EMOTION_ALIASES = {
     "neutral": "neutral",
     "happy": "happy",
@@ -62,10 +50,6 @@ DIAGNOSTIC_EMOTION_ALIASES = {
     "angry": "angry",
     "anger": "angry",
 }
-
-
-def _provider() -> str:
-    return config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama"
 
 
 _voice_cache: dict[tuple[str, str], dict] = {}
@@ -125,7 +109,7 @@ def _safe_evidence_failure_message(provider: str, safe_error: str) -> str:
 
 
 def is_enabled() -> bool:
-    return bool(config.get("EMOTION_LLAMA_ENABLED", False))
+    return bool(config.get("EMOTION_ENABLED", False))
 
 
 def get_voice_emotion_cache(session_id: str, emotion_round_id: str = "") -> dict | None:
@@ -184,8 +168,8 @@ async def analyze_event(
     safe_pair_id = str(comparison_pair_id or "")[:160]
     safe_variant = str(analysis_variant or "")[:32]
 
-    skip_qc = not bool(config.get("EMOTION_LLAMA_QUALITY_CHECK", True))
-    prompt_template = config.get("EMOTION_LLAMA_PROMPT", "")
+    skip_qc = not bool(config.get("EMOTION_QUALITY_CHECK", True))
+    prompt_template = config.get("EMOTION_PROMPT", "")
     question = _build_ordering_emotion_question(prompt_template, speech_text)
 
     try:
@@ -197,9 +181,8 @@ async def analyze_event(
                 session_ref=session_id,
                 event_type=event_type,
                 speech_text=speech_text or "",
-                timeout_seconds=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120) or 120),
+                timeout_seconds=float(config.get("EMOTION_TIMEOUT_SEC", 120) or 120),
                 skip_quality_check=skip_qc,
-                provider_preference=_provider(),
                 prompt_version="emotion_event-v2",
                 scope_safe_metadata={
                     "surface": "voice_assistant" if update_voice_session else "admin_emotion_test",
@@ -213,9 +196,9 @@ async def analyze_event(
             enabled=True,
         )
     except Exception as e:
-        print(f"⚠️ {PROVIDER_LABELS.get(_provider(), _provider())} analyze_event 失敗: {e}")
+        print(f"⚠️ R1-Omni analyze_event 失敗: {e}")
         evidence = MultimodalEvidence(
-            provider=_provider(),
+            provider="r1_omni",
             model_version="unknown",
             timestamp=datetime.now().isoformat(),
             confidence=None,
@@ -282,10 +265,10 @@ async def analyze_event(
         "observed_at_ms": safe_observed_at_ms,
         "comparison_pair_id": safe_pair_id,
         "analysis_variant": safe_variant,
-        "provider": evidence.provider or _provider(),
+        "provider": evidence.provider or R1_OMNI_PROVIDER,
         "event_type": event_type,
         "event_type_label": EVENT_TYPE_LABELS.get(event_type, event_type),
-        "clip_sec": float(config.get("EMOTION_LLAMA_CLIP_SEC", 2.0)),
+        "clip_sec": float(config.get("EMOTION_CLIP_SEC", 2.0)),
         "quality_skipped": quality_skipped,
         "emotion": result.get("emotion", ""),
         "intensity": result.get("intensity", ""),
@@ -304,7 +287,7 @@ async def analyze_event(
         "prompt_character_count": len(question),
         "status": status,
         "failure_message": (
-            _safe_evidence_failure_message(evidence.provider or _provider(), evidence.safe_error)
+            _safe_evidence_failure_message(evidence.provider or R1_OMNI_PROVIDER, evidence.safe_error)
             if status == "error"
             else ""
         ),
@@ -599,9 +582,9 @@ def build_assistance_summary(logs: list[dict] | None = None) -> dict:
 def _require_diagnostic_capability(capability: str) -> dict:
     status = multimodal_evidence_gateway.configured_provider_status()
     if status.get("status") != "ready" or not status.get("model_loaded"):
-        raise RuntimeError("selected_emotion_provider_not_ready")
+        raise RuntimeError("r1_omni_not_ready")
     if capability not in set(status.get("capabilities") or []):
-        raise RuntimeError(f"selected_emotion_provider_missing_{capability}")
+        raise RuntimeError(f"r1_omni_missing_{capability}")
     return status
 
 
@@ -624,10 +607,9 @@ async def _collect_diagnostic_evidence(media_path: str, *, media_mode: str, even
             question=question,
             session_ref="admin_emotion_diagnostic",
             event_type=event_type,
-            timeout_seconds=float(config.get("EMOTION_LLAMA_TIMEOUT_SEC", 120) or 120),
+            timeout_seconds=float(config.get("EMOTION_TIMEOUT_SEC", 120) or 120),
             max_retries=0,
             skip_quality_check=False,
-            provider_preference=_provider(),
             prompt_version="emotion_diagnostic-v1",
             scope_safe_metadata={"surface": "admin_diagnostic", "input_mode": media_mode},
         ),
@@ -691,15 +673,18 @@ def _diagnostic_entry(
         "event_id": uuid.uuid4().hex,
         "timestamp": evidence.timestamp or datetime.now().isoformat(),
         "session_id": str(session_id or "admin_emotion_diagnostic")[:80],
-        "provider": evidence.provider or _provider(),
+        "provider": evidence.provider or R1_OMNI_PROVIDER,
         "analysis_source": "emotion_model_live_media",
-        "analysis_source_label": PROVIDER_LABELS.get(evidence.provider or _provider(), evidence.provider or _provider()),
+        "analysis_source_label": PROVIDER_LABELS.get(
+            evidence.provider or R1_OMNI_PROVIDER,
+            evidence.provider or R1_OMNI_PROVIDER,
+        ),
         "event_type": event_type,
         "event_type_label": EVENT_TYPE_LABELS[event_type],
         "input_mode": input_mode,
         "transcript_status": transcript_status,
         "transcript_character_count": transcript_character_count,
-        "clip_sec": float(config.get("EMOTION_LLAMA_CLIP_SEC", 2.0)),
+        "clip_sec": float(config.get("EMOTION_CLIP_SEC", 2.0)),
         "quality_skipped": evidence.quality == "skipped",
         "emotion": emotion,
         "intensity": intensity,

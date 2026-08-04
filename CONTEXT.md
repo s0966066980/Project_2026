@@ -72,16 +72,16 @@ _Avoid_: Saved provider, Enabled flag, Successful save
 The secret authorising one provider, held only in the environment and named by its variable. It is never accepted, stored, versioned, returned, or broadcast by the settings surface, which reports only whether it is present. Rotating one is a deployment action, not a settings change; its Traditional Chinese display term is 「提供者憑證」.
 _Avoid_: Settings field, Admin-entered key, Masked value in settings
 
-**Emotion Runtime Profile**:
-The process-local selection of the one emotion provider started alongside UI API. The Emotion-LLaMA startup profile selects Emotion-LLaMA and the R1-Omni startup profile selects R1-Omni without persisting that choice into shared settings; its Traditional Chinese display term is 「情緒模型執行設定檔」.
-_Avoid_: Last-used emotion provider, Port-based auto-selection, Shared persisted provider
+**R1-Omni Emotion Runtime**:
+The sole local emotion-inference runtime used by the store. When it is unavailable, affected emotion diagnostics are disabled explicitly and no alternate emotion model is selected; its Traditional Chinese display term is 「R1-Omni 情緒執行環境」.
+_Avoid_: Emotion Runtime Profile, Alternate emotion runtime, Emotion provider selector, Automatic provider fallback
 
 **Emotion Provider Readiness**:
-Runtime evidence that the provider selected by the Emotion Runtime Profile has loaded its model, identifies itself as that provider, and declares the media or audio input capabilities required by the requested Admin or Voice flow. A Text-to-Speech Emotion Simulation additionally requires its configured TTS provider to be ready. An open network port alone is not readiness. A failed handshake disables the affected emotion diagnostics with an explicit reason but does not prevent UI API, ordering, or checkout from starting, and never selects a different provider; its Traditional Chinese display term is 「情緒模型就緒狀態」.
+Runtime evidence that the [[R1-Omni Emotion Runtime]] has loaded its model, identifies itself, and declares the media or audio input capabilities required by the requested Admin or Voice flow. A Text-to-Speech Emotion Simulation additionally requires its configured TTS provider to be ready. An open network port alone is not readiness. A failed handshake disables the affected emotion diagnostics with an explicit reason but does not prevent UI API, ordering, or checkout from starting; its Traditional Chinese display term is 「情緒模型就緒狀態」.
 _Avoid_: Port open, Configured provider name, Process alive
 
 **Emotion Model Observation**:
-The authoritative structured result produced by the provider selected by the Emotion Runtime Profile for one evidence capture. It identifies the provider and model version, evidence mode and capture identity, transcript presence, emotion and intensity, facial and vocal evidence summaries when available, description, provider-native confidence when supplied, and latency. It never exposes model chain-of-thought, and missing confidence is reported as not provided rather than invented; its Traditional Chinese display term is 「情緒模型觀測」.
+The authoritative structured result produced by the [[R1-Omni Emotion Runtime]] for one evidence capture. It identifies the model version, evidence mode and capture identity, transcript presence, emotion and intensity, facial and vocal evidence summaries when available, description, model-native confidence when supplied, and latency. It never exposes model chain-of-thought, and missing confidence is reported as not provided rather than invented; its Traditional Chinese display term is 「情緒模型觀測」.
 _Avoid_: Generic LLM answer, Emotion explanation, Fused model result, Raw model reasoning
 
 **Emotion Diagnostic Acceptance Set**:
@@ -195,11 +195,11 @@ The runtime condition in which the configured local voice LLM has been loaded be
 _Avoid_: First-customer warm-up, Permanent GPU assumption, STT warm state
 
 **Live Admin Emotion Test**:
-An isolated Admin diagnostic that models one real customer observation through a single adaptive capture flow against the provider selected by the current Emotion Runtime Profile. Media is the primary evidence. With no detected speech it submits a two-second media observation; when speech is detected it automatically transcribes only the audio from that same capture and supplies the aligned transcript as supporting evidence. If speech is detected but transcription fails, the same media observation still proceeds and records `transcript_unavailable` rather than accepting replacement text. The Admin cannot select or change the provider, manually supply a transcript, or choose A/B evidence schemes; its Traditional Chinese display term is 「管理端即時情緒測試」.
+An isolated Admin diagnostic that models one real customer observation through a single adaptive capture flow against the [[R1-Omni Emotion Runtime]]. Media is the primary evidence. With no detected speech it submits a two-second media observation; when speech is detected it automatically transcribes only the audio from that same capture and supplies the aligned transcript as supporting evidence. If speech is detected but transcription fails, the same media observation still proceeds and records `transcript_unavailable` rather than accepting replacement text. The Admin cannot select or change the emotion runtime, manually supply a transcript, or choose A/B evidence schemes; its Traditional Chinese display term is 「管理端即時情緒測試」.
 _Avoid_: Emotion provider selector, Manual transcript, Scheme A/B selector, Production profile setting, Kiosk intervention
 
 **Text-to-Speech Emotion Simulation**:
-An Admin diagnostic that converts operator-entered simulated customer speech into synthetic audio through the configured TTS provider, then supplies that audio—not the source text—to the emotion provider selected by the current Emotion Runtime Profile. Every input uses one fixed neutral voice, speaking rate, volume, and prosody so the diagnostic primarily probes emotion inference from spoken semantic content rather than a TTS-selected emotion. It produces a simple Emotion Model Observation and tests the audio emotion-analysis path without image or live-capture evidence; its Traditional Chinese display term is 「文字模擬情緒測試」.
+An Admin diagnostic that converts operator-entered simulated customer speech into synthetic audio through the configured TTS provider, then supplies that audio—not the source text—to the [[R1-Omni Emotion Runtime]]. Every input uses one fixed neutral voice, speaking rate, volume, and prosody so the diagnostic primarily probes emotion inference from spoken semantic content rather than a TTS-selected emotion. It produces a simple Emotion Model Observation and tests the audio emotion-analysis path without image or live-capture evidence; its Traditional Chinese display term is 「文字模擬情緒測試」.
 _Avoid_: Direct text classification, Emotional TTS preset, Live image test, Generic LLM prompt, Independent text assistant
 
 **Validated Audio-Only Emotion Capability**:
@@ -217,7 +217,7 @@ _Avoid_: Fixed two-second speech clip, Concurrent polling, Frame-only inference,
 ## Campaign Language
 
 **Campaign**:
-One store-scoped promotional offer authored in Admin, carrying its own objective, audience, schedule, customer-facing placements, and exactly one promotion rule. Every change to it produces a new append-only version, and its identity survives every lifecycle change; its Traditional Chinese display term is 「活動」.
+One store-scoped promotional offer authored in Admin, carrying its own objective, audience, schedule, customer-facing placements, and exactly one promotion rule. Every change to it produces a new append-only version, and its identity survives every lifecycle change. Customer-facing activity visibility comes only from a Campaign whose lifecycle status is active or scheduled; compatibility promotion projections are not independent activities. Its Traditional Chinese display term is 「活動」.
 _Avoid_: Promotion record, Banner, Discount code, Legacy promotion row
 
 **Campaign Content**:
@@ -253,6 +253,10 @@ _Avoid_: Serve-time rewrite, Model failure fallback, Verified offer copy
 **Push Scope**:
 The store's choice of which menu items are *eligible* for the push bar: all items, selected categories, current new items, or the most frequently carted items. It is a filter and not a ranking — whichever items survive it are still ordered by the recommendation engine, with availability, ignore-feedback and offer weighting unchanged; its Traditional Chinese display term is 「推播範圍」.
 _Avoid_: Recommendation strategy, Sort order, Per-item priority
+
+**Assistance Recommendation**:
+An explicit customer request from the Kiosk assistance window for up to three currently eligible menu items. It uses the shared recommendation engine and still excludes items already in the cart or unavailable now, but it is not restricted by [[Push Scope]], which governs only the passive push bar; its Traditional Chinese display term is 「協助推薦」.
+_Avoid_: Push-scope recommendation, Promotion-only recommendation, Guaranteed recommendation
 
 **New Item Window**:
 The dated period during which a menu item counts as new for [[Push Scope]]. An operator ticks the item and sets an end date, after which it stops counting without anyone having to untick it; its Traditional Chinese display term is 「新品檔期」.

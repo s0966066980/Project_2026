@@ -1,4 +1,4 @@
-"""Emotion-LLaMA 路由。"""
+"""R1-Omni emotion diagnostic routes."""
 
 import asyncio
 import os
@@ -52,7 +52,7 @@ def create_router(deps: dict) -> APIRouter:
         speech_text: str = Form(""),
         media: UploadFile = File(...),
     ):
-        """事件驅動分析：截片送 Emotion-LLaMA，結果寫 log。"""
+        """事件驅動分析：截片送 R1-Omni，結果寫 log。"""
         require_kiosk_token(request)
         check_rate_limit(request, "emotion_analyze", limit=30, key=session_id)
         temp_path = None
@@ -60,7 +60,7 @@ def create_router(deps: dict) -> APIRouter:
             safe_speech_text = (
                 speech_text.strip()[:500]
                 if event_type == "voice_mode_ended"
-                and config.get("EMOTION_LLAMA_INCLUDE_STT", True)
+                and config.get("EMOTION_INCLUDE_STT", True)
                 else ""
             )
             temp_path = await _save_upload_temp(media)
@@ -85,7 +85,7 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.get("/intervention_logs")
     async def get_intervention_logs(request: Request, limit: int = 200):
-        """Admin 統計：取得 Emotion-LLaMA 分析紀錄。"""
+        """Admin 統計：取得 R1-Omni 分析紀錄。"""
         authorize_admin_request(request, "operations.read")
         logs = await asyncio.to_thread(emotion_log_repository.get_logs, limit)
         return {"status": "success", "logs": logs, "total": len(logs)}

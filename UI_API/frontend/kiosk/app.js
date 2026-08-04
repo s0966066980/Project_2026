@@ -1616,8 +1616,8 @@ async function runPosStartup() {
     const needAudio = Boolean(f.voiceAssist);
     const needVideo = Boolean(
       f.voiceAssist
-      && getRuntimeSettings().EMOTION_LLAMA_ENABLED
-      && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE,
+      && getRuntimeSettings().EMOTION_ENABLED
+      && getRuntimeSettings().EMOTION_EVENT_VOICE,
     );
     const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
     if (!mediaReady.audioReady && needAudio) console.warn('Microphone unavailable; Kiosk flow continues without voice assistance.');
@@ -1636,12 +1636,12 @@ async function runPosStartup() {
     if (f.voiceAssist) setupAskRecorder();
     if (
       f.voiceAssist
-      && getRuntimeSettings().EMOTION_LLAMA_ENABLED
-      && getRuntimeSettings().EMOTION_LLAMA_EVENT_VOICE
+      && getRuntimeSettings().EMOTION_ENABLED
+      && getRuntimeSettings().EMOTION_EVENT_VOICE
       && mediaReady.videoReady
       && state.stream?.getVideoTracks().length
     ) {
-      const bufferSec = Number(getRuntimeSettings().EMOTION_LLAMA_CLIP_SEC) || 2.0;
+      const bufferSec = Number(getRuntimeSettings().EMOTION_CLIP_SEC) || 2.0;
       startRollingBuffer(state.stream, bufferSec);
     }
     startPassiveListener();

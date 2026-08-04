@@ -58,15 +58,14 @@ class SettingsUpdateRequest(BaseModel):
     TTS_VOICE: str | None = Field(default=None, min_length=1, max_length=120)
 
     # ── 情緒診斷 ─────────────────────────────────────────────
-    EMOTION_PROVIDER: Literal["emotion_llama", "r1_omni"] | None = None
-    EMOTION_LLAMA_ENABLED: bool | None = None
-    EMOTION_LLAMA_CLIP_SEC: float | None = Field(default=None, ge=0.5, le=30)
-    EMOTION_LLAMA_QUALITY_CHECK: bool | None = None
-    EMOTION_LLAMA_AFFECT_VOICE: bool | None = None
-    EMOTION_LLAMA_EVENT_VOICE: bool | None = None
-    EMOTION_LLAMA_INCLUDE_STT: bool | None = None
-    EMOTION_LLAMA_ANALYSIS_MODE: Literal["media_only", "media_plus_stt", "paired"] | None = None
-    EMOTION_LLAMA_PROMPT: str | None = Field(default=None, max_length=20_000)
+    EMOTION_ENABLED: bool | None = None
+    EMOTION_CLIP_SEC: float | None = Field(default=None, ge=0.5, le=30)
+    EMOTION_QUALITY_CHECK: bool | None = None
+    EMOTION_AFFECT_VOICE: bool | None = None
+    EMOTION_EVENT_VOICE: bool | None = None
+    EMOTION_INCLUDE_STT: bool | None = None
+    EMOTION_ANALYSIS_MODE: Literal["media_only", "media_plus_stt", "paired"] | None = None
+    EMOTION_PROMPT: str | None = Field(default=None, max_length=20_000)
     EMOTION_ASSISTANCE_MODE: Literal["off", "shadow", "active"] | None = None
     EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD: float | None = Field(default=None, ge=0, le=1)
     EMOTION_ASSISTANCE_ROLLOUT_PERCENT: int | None = Field(default=None, ge=0, le=100)

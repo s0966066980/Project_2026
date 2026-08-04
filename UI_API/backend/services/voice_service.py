@@ -124,7 +124,7 @@ async def _analyze_current_voice_emotion_pair(
     """Analyze one completed turn for later-turn assistance and observability."""
     if (
         not emotion_service.is_enabled()
-        or config.get("EMOTION_LLAMA_EVENT_VOICE", True) is False
+        or config.get("EMOTION_EVENT_VOICE", True) is False
     ):
         return None
 
@@ -142,10 +142,10 @@ async def _analyze_current_voice_emotion_pair(
         "cache_voice_observation": True,
     }
     try:
-        mode = str(config.get("EMOTION_LLAMA_ANALYSIS_MODE", "media_plus_stt") or "")
+        mode = str(config.get("EMOTION_ANALYSIS_MODE", "media_plus_stt") or "")
         if mode not in {"media_only", "media_plus_stt", "paired"}:
             mode = "media_plus_stt"
-        if not speech_text or config.get("EMOTION_LLAMA_INCLUDE_STT", True) is False:
+        if not speech_text or config.get("EMOTION_INCLUDE_STT", True) is False:
             mode = "media_only"
 
         if mode == "media_only":
@@ -196,7 +196,7 @@ def _schedule_voice_emotion_observation(
     """
     if (
         not emotion_service.is_enabled()
-        or config.get("EMOTION_LLAMA_EVENT_VOICE", True) is False
+        or config.get("EMOTION_EVENT_VOICE", True) is False
     ):
         return None
 
@@ -288,7 +288,7 @@ def _build_emotion_context(
 def _emotion_assistance_decision(session_id: str, evidence: dict | None) -> dict:
     mode = str(config.get("EMOTION_ASSISTANCE_MODE", "shadow") or "shadow")
     # Legacy switch remains a compatibility kill switch for active prompt changes.
-    if mode == "active" and not config.get("EMOTION_LLAMA_AFFECT_VOICE", False):
+    if mode == "active" and not config.get("EMOTION_AFFECT_VOICE", False):
         mode = "shadow"
     return decide_assistance(
         evidence,
@@ -611,7 +611,7 @@ async def handle_voice(
         user_speech=user_text,
         ai_response=ai_response,
         emotion_reference=emotion_reference,
-        affect_voice_enabled=bool(config.get("EMOTION_LLAMA_AFFECT_VOICE", False)),
+        affect_voice_enabled=bool(config.get("EMOTION_AFFECT_VOICE", False)),
         assistance_decision=_emotion_assistance_decision(session_id, emotion_reference),
     )
 
@@ -867,7 +867,7 @@ async def handle_voice_stream(
         user_speech=user_text,
         ai_response=ai_response_final,
         emotion_reference=emotion_reference,
-        affect_voice_enabled=bool(config.get("EMOTION_LLAMA_AFFECT_VOICE", False)),
+        affect_voice_enabled=bool(config.get("EMOTION_AFFECT_VOICE", False)),
         assistance_decision=_emotion_assistance_decision(session_id, emotion_reference),
     )
 

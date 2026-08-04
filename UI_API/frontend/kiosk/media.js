@@ -50,7 +50,7 @@ export function createVoiceRecorder(stream) {
     : new MediaRecorder(stream, audioRecorderOptions());
 }
 
-// ── Rolling Buffer（Emotion-LLaMA 事件截片用）────────────────────────
+// ── Rolling Buffer（R1-Omni 事件截片用）────────────────────────
 // WebM 格式說明：MediaRecorder 第一個 chunk 是含 EBML 標頭的 init segment，
 // 後續 chunks 是無法獨立解碼的 continuation fragments。
 // 截片時必須永遠在最前面補上 init segment，否則 ffmpeg 會報 EBML header parsing failed。

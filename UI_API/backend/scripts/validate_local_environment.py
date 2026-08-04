@@ -94,7 +94,7 @@ def apply_profile(name: str) -> dict[str, str]:
         "DATABASE_URL_FILE": _env("DATABASE_URL_FILE"),
         "REDIS_URL": _env("REDIS_URL"),
         "ENABLE_DEMO_ROUTES": "true" if name == "local-dev" else "false",
-        "ENABLE_TEST_ROUTES": "true" if name in {"local-dev", "test", "ci"} else "false",
+        "ENABLE_DIAGNOSTIC_ROUTES": "true" if name in {"local-dev", "test", "ci"} else "false",
         "ENABLE_DEBUG_ROUTES": "false",
         "APP_PROFILE": name,
         "PAYMENT_BACKEND": _env("PAYMENT_BACKEND", "manual"),

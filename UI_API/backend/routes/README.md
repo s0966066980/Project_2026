@@ -13,7 +13,7 @@
 - RAG/promotion：`rag_routes.py` 提供 status、documents、reviews、alerts、rebuild/validate 與 structured promotions。
 - Realtime：`realtime_routes.py` 提供 `/ws/{client_type}/{session_id}`，驗證 origin 與 Admin/Device/legacy token。
 - Typed v1：`v1_routes.py` 提供 `/api/v1` 統一 response/error envelope、Admin RBAC 與 typed DTO。
-- Dev-only：`demo_routes.py`、`test_routes.py`、`debug_routes.py`；商用環境預設關閉。
+- Dev-only：`demo_routes.py`、`diagnostic_routes.py`、`debug_routes.py`；商用環境預設關閉。
 
 ## `/api/v1` 現況
 

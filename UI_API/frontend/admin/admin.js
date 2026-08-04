@@ -473,7 +473,7 @@ const emotionInfluenceAdmin = createEmotionInfluenceAdmin({
   escapeHtml: escHtml,
   emotionLabel: zhEmotion,
   intensityLabel: zhIntensity,
-  providerLabel: value => EMOTION_PROVIDER_LABELS[value] || String(value || '情緒分析模型'),
+  providerLabel: value => EMOTION_RUNTIME_LABELS[value] || String(value || 'R1-Omni'),
 });
 let latestEmotionRoundId = '';
 
@@ -512,29 +512,28 @@ function bindEmotionTabs() {
   });
 }
 
-// ── Emotion-LLaMA settings ──
+// ── R1-Omni emotion settings ──
 
 async function loadEmotionSettings() {
   try {
     const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    setVal('inp-emotion-provider',            s.EMOTION_PROVIDER || 'emotion_llama');
-    g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_LLAMA_ENABLED);
-    setVal('inp-emotion-clip-sec',            s.EMOTION_LLAMA_CLIP_SEC       ?? 2.0);
-    g('inp-emotion-quality-check').checked  = s.EMOTION_LLAMA_QUALITY_CHECK !== false;
-    g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_LLAMA_AFFECT_VOICE);
+    g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_ENABLED);
+    setVal('inp-emotion-clip-sec',            s.EMOTION_CLIP_SEC       ?? 2.0);
+    g('inp-emotion-quality-check').checked  = s.EMOTION_QUALITY_CHECK !== false;
+    g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_AFFECT_VOICE);
     const assistanceMode = s.EMOTION_ASSISTANCE_MODE || 'shadow';
     setVal('inp-emotion-assistance-mode', assistanceMode);
     setVal('inp-emotion-confidence-threshold', s.EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD ?? 0.7);
     setVal('inp-emotion-rollout-percent', s.EMOTION_ASSISTANCE_ROLLOUT_PERCENT ?? 0);
     g('inp-emotion-affect-voice').checked = assistanceMode === 'active';
-    g('inp-emotion-event-voice').checked    = s.EMOTION_LLAMA_EVENT_VOICE !== false;
-    const analysisMode = s.EMOTION_LLAMA_ANALYSIS_MODE
-      || (s.EMOTION_LLAMA_INCLUDE_STT === false ? 'media_only' : 'media_plus_stt');
+    g('inp-emotion-event-voice').checked    = s.EMOTION_EVENT_VOICE !== false;
+    const analysisMode = s.EMOTION_ANALYSIS_MODE
+      || (s.EMOTION_INCLUDE_STT === false ? 'media_only' : 'media_plus_stt');
     setVal('inp-emotion-analysis-mode', analysisMode);
     g('inp-emotion-include-stt').checked = analysisMode !== 'media_only';
-    setVal('inp-emotion-prompt',              s.EMOTION_LLAMA_PROMPT || '');
+    setVal('inp-emotion-prompt',              s.EMOTION_PROMPT || '');
     updateEmotionPromptCounter();
   } catch (e) {
     console.error('loadEmotionSettings failed', e);
@@ -560,19 +559,18 @@ async function saveEmotionSettings() {
     const analysisMode = val('inp-emotion-analysis-mode') || 'media_plus_stt';
     const assistanceMode = val('inp-emotion-assistance-mode') || 'shadow';
     const body = {
-      EMOTION_PROVIDER:             val('inp-emotion-provider') || 'emotion_llama',
-      EMOTION_LLAMA_ENABLED:        g('inp-emotion-enabled').checked,
-      EMOTION_LLAMA_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
-      EMOTION_LLAMA_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
-      EMOTION_LLAMA_AFFECT_VOICE:   assistanceMode === 'active',
+      EMOTION_ENABLED:        g('inp-emotion-enabled').checked,
+      EMOTION_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
+      EMOTION_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
+      EMOTION_AFFECT_VOICE:   assistanceMode === 'active',
       EMOTION_ASSISTANCE_MODE:      assistanceMode,
       EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD: Math.min(1, Math.max(0,
         parseFloat(val('inp-emotion-confidence-threshold') || '0.7'))),
       EMOTION_ASSISTANCE_ROLLOUT_PERCENT: parseInt(val('inp-emotion-rollout-percent') || '0', 10),
-      EMOTION_LLAMA_EVENT_VOICE:    g('inp-emotion-event-voice').checked,
-      EMOTION_LLAMA_ANALYSIS_MODE:  analysisMode,
-      EMOTION_LLAMA_INCLUDE_STT:    analysisMode !== 'media_only',
-      EMOTION_LLAMA_PROMPT:         val('inp-emotion-prompt'),
+      EMOTION_EVENT_VOICE:    g('inp-emotion-event-voice').checked,
+      EMOTION_ANALYSIS_MODE:  analysisMode,
+      EMOTION_INCLUDE_STT:    analysisMode !== 'media_only',
+      EMOTION_PROMPT:         val('inp-emotion-prompt'),
     };
     const res = await fetch(`${API}/api/settings`, {
       method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
@@ -604,7 +602,7 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// Emotion-LLaMA 結構化欄位英→繁對照（emotion / intensity 為有限列舉）
+// R1-Omni 結構化欄位英→繁對照（emotion / intensity 為有限列舉）
 const EMOTION_ZH = {
   neutral: '中性', happy: '開心', sad: '難過', angry: '生氣',
   frustrated: '沮喪', anxious: '焦慮', confused: '困惑', surprise: '驚訝', surprised: '驚訝',
@@ -612,7 +610,7 @@ const EMOTION_ZH = {
 };
 const INTENSITY_ZH = { low: '低', medium: '中', high: '高' };
 // 情緒分析模型代碼 → 顯示名稱
-const EMOTION_PROVIDER_LABELS = { emotion_llama: 'Emotion-LLaMA', r1_omni: 'R1-Omni', text_llm: '文字情緒分析模型' };
+const EMOTION_RUNTIME_LABELS = { r1_omni: 'R1-Omni' };
 
 function zhEmotion(v) {
   if (!v) return '';
@@ -649,7 +647,7 @@ async function loadEmotionTestCapabilities() {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     emotionTestCapabilities = data;
     const provider = data.provider || {};
-    const label = EMOTION_PROVIDER_LABELS[provider.provider] || provider.provider || '情緒模型';
+    const label = EMOTION_RUNTIME_LABELS[provider.provider] || provider.provider || 'R1-Omni';
     const capabilities = Array.isArray(provider.capabilities) ? provider.capabilities : [];
     const ready = data.enabled && provider.status === 'ready' && provider.model_loaded === true && capabilities.includes('video_audio');
     if (pill) {
@@ -770,7 +768,7 @@ function renderEmotionVideoResult(data, batchLatencyMs = 0) {
   const rows = [data];
   result.classList.add('is-single');
   result.innerHTML = rows.map(row => {
-    const provider = EMOTION_PROVIDER_LABELS[row.provider] || row.provider || '情緒分析模型';
+    const provider = EMOTION_RUNTIME_LABELS[row.provider] || row.provider || 'R1-Omni';
     const model = row.model_version && row.model_version !== 'unknown' ? `${provider} · ${row.model_version}` : provider;
     const emotion = zhEmotion(row.emotion) || '—';
     const intensity = zhIntensity(row.intensity);
@@ -932,7 +930,7 @@ async function loadEmotionLogs() {
       const time  = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
       // 優先使用後端已計算的 event_type_label，避免前後端 label 不同步
       const evt   = escHtml(r.event_type_label || r.event_type || '—');
-      const prov  = r.provider ? escHtml(EMOTION_PROVIDER_LABELS[r.provider] || r.provider) : '—';
+      const prov  = r.provider ? escHtml(EMOTION_RUNTIME_LABELS[r.provider] || r.provider) : '—';
 
       let emoCell, facialCell, vocalCell, descCell;
       if (r.quality_skipped) {
@@ -1063,7 +1061,7 @@ async function analyzeEmotionCustomer() {
 }
 
 async function clearEmotionLogs() {
-  if (!confirm('確定清除所有 Emotion-LLaMA 分析紀錄？')) return;
+  if (!confirm('確定清除所有 R1-Omni 分析紀錄？')) return;
   try {
     const res = await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1079,7 +1077,7 @@ async function loadVoicePromptDefault() {
   const ta = g('test-inp-system-prompt');
   if (!ta || ta.value.trim()) return;   // 使用者已手動填寫則不覆蓋
   try {
-    const res = await fetch(`${API}/api/test/voice_prompt`, { headers: adminHeaders() });
+    const res = await fetch(`${API}/api/diagnostics/voice_prompt`, { headers: adminHeaders() });
     if (!res.ok) return;
     const data = await res.json();
     if (data.prompt) ta.value = data.prompt;
@@ -1265,7 +1263,7 @@ async function sendTestMsg() {
   const systemPrompt = val('test-inp-system-prompt') || '';
 
   try {
-    const res = await fetch(`${API}/api/test/ask`, {
+    const res = await fetch(`${API}/api/diagnostics/ask`, {
       method: 'POST',
       headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, model, system_prompt: systemPrompt, messages: [..._testMessages] }),

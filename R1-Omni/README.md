@@ -1,6 +1,6 @@
 # R1-Omni 多模態情緒服務
 
-`R1-Omni/` 是 Project_2026 的可選多模態情緒分析執行單元，透過 `r1_omni_server.py` 提供 UI_API 可使用的 HTTP 推論能力。
+`R1-Omni/` 是 Project_2026 唯一的多模態情緒分析執行單元，透過 `r1_omni_server.py` 提供 UI_API 可使用的 HTTP 推論能力。
 
 此服務是可選 local provider，不是 checkout 必要條件。
 
@@ -9,7 +9,6 @@
 - 載入本機 R1-Omni 模型權重。
 - 接收影片/多模態推論請求。
 - 回傳可正規化的情緒分析結果。
-- 作為 Emotion-LLaMA 的替代 Provider。
 
 不負責：
 
@@ -70,7 +69,7 @@ UI_API 會將 `result` 正規化為 facial、body、vocal、emotion、intensity 
 
 ## 整合與商用規則
 
-- UI_API 透過 Emotion Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
+- UI_API 透過 Multimodal Evidence Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
 - 目前 local pilot 以獨立本機 process 部署；其他部署型態需另行設計與驗證。
 - 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
 - 模型不可用時，核心點餐流程應可降級。

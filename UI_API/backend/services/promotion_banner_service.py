@@ -6,7 +6,7 @@ from typing import Any
 
 from models.commercial_scope import CommercialScope
 from modules.promotion import PromotionContext, evaluate_promotion
-from repositories import promotion_repository
+from repositories import campaign_repository, promotion_repository
 
 VALID_TARGET_TYPES = {"category", "item", "recommendation", "none"}
 VALID_THEMES = {"gold", "red", "dark", "simple"}
@@ -124,12 +124,23 @@ def get_active_pos_banners(
         selected_surface = "pos_home_banner"
     current_time = now or datetime.now(timezone.utc)
     rows = []
+    # Campaigns are the Admin-authored source of truth.  promotion_records is a
+    # compatibility projection used by older pricing paths; an orphaned active
+    # row must never become customer-visible just because it was left behind.
+    active_campaign_ids = {
+        str(snapshot.campaign_id)
+        for snapshot in campaign_repository.default_campaign_repository.list(scope)
+        if str(snapshot.status) in {"active", "scheduled"}
+    }
     promotion_rows = (
         promotion_repository.list_promotions_scoped(scope)
         if scope
         else promotion_repository.list_promotions()
     )
     for row in promotion_rows:
+        promotion_id = _text(row.get("id") or row.get("offer_id") or row.get("source_id"), 90)
+        if promotion_id not in active_campaign_ids:
+            continue
         if not _is_active_banner(row, current_time, surface=selected_surface, scope=scope):
             continue
         item = _banner_item(row)

@@ -171,8 +171,8 @@ def validate_startup_config() -> None:
     if not ALLOW_UNSAFE_PRODUCTION_ROUTES:
         if _env_bool("ENABLE_DEMO_ROUTES", False):
             errors.append(f"ENABLE_DEMO_ROUTES must be false in {label}")
-        if _env_bool("ENABLE_TEST_ROUTES", False):
-            errors.append(f"ENABLE_TEST_ROUTES must be false in {label}")
+        if _env_bool("ENABLE_DIAGNOSTIC_ROUTES", False):
+            errors.append(f"ENABLE_DIAGNOSTIC_ROUTES must be false in {label}")
         if _env_bool("ENABLE_DEBUG_ROUTES", False):
             errors.append(f"ENABLE_DEBUG_ROUTES must be false in {label}")
     if errors:
@@ -205,7 +205,6 @@ CREDENTIAL_SETTING_KEYS = frozenset({
     "STT_API_KEY",
     "TTS_API_KEY",
 })
-EMOTION_LLAMA_GRADIO_URL = os.getenv("EMOTION_LLAMA_GRADIO_URL", "http://127.0.0.1:7889")
 R1_OMNI_GRADIO_URL = os.getenv("R1_OMNI_GRADIO_URL", "http://127.0.0.1:7890")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
 ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
@@ -278,7 +277,7 @@ DEFAULT_SETTINGS = {
     "NIM_CUSTOM_VOICE_MODELS": [],
     "ENABLE_DEBUG_ROUTES": False,
     "ENABLE_DEMO_ROUTES": _env_bool("ENABLE_DEMO_ROUTES", not is_production()),
-    "ENABLE_TEST_ROUTES": _env_bool("ENABLE_TEST_ROUTES", not is_production()),
+    "ENABLE_DIAGNOSTIC_ROUTES": _env_bool("ENABLE_DIAGNOSTIC_ROUTES", not is_production()),
     "MAX_UPLOAD_BYTES": MAX_UPLOAD_BYTES,
     "RATE_LIMIT_ENABLED": _env_bool("RATE_LIMIT_ENABLED", True),
     "RATE_LIMIT_DEFAULT_PER_MINUTE": int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "120")),
@@ -378,20 +377,19 @@ DEFAULT_SETTINGS = {
     "TTS_API_URL": "https://api.openai.com",
     "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
     # ── 情緒分析 ─────────────────────────────────────────────
-    "EMOTION_PROVIDER": "emotion_llama",    # "emotion_llama"（:7889）| "r1_omni"（:7890）
-    "EMOTION_LLAMA_ENABLED": False,
-    "EMOTION_LLAMA_CLIP_SEC": 2.0,
-    "EMOTION_LLAMA_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
-    "EMOTION_LLAMA_QUALITY_CHECK": True,
-    "EMOTION_LLAMA_AFFECT_VOICE": False,
+    "EMOTION_ENABLED": False,
+    "EMOTION_CLIP_SEC": 2.0,
+    "EMOTION_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
+    "EMOTION_QUALITY_CHECK": True,
+    "EMOTION_AFFECT_VOICE": False,
     "EMOTION_ASSISTANCE_MODE": "shadow",     # disabled | shadow | active
     "EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD": 0.70,
     "EMOTION_ASSISTANCE_ROLLOUT_PERCENT": 0,  # active mode deterministic 0/5/25/50/100 rollout
-    "EMOTION_LLAMA_EVENT_VOICE": True,       # 語音模式開始／結束皆在背景觸發分析
-    "EMOTION_LLAMA_INCLUDE_STT": True,        # 語音結束分析同時提供 STT 逐字稿與影音
-    "EMOTION_LLAMA_ANALYSIS_MODE": "media_plus_stt",  # media_only | media_plus_stt | paired
-    "EMOTION_LLAMA_PROMPT": _prompts.EMOTION_LLAMA_PROMPT,
-    "EMOTION_LLAMA_PROMPT_MAX_CHARS": 800,
+    "EMOTION_EVENT_VOICE": True,       # 語音模式開始／結束皆在背景觸發分析
+    "EMOTION_INCLUDE_STT": True,        # 語音結束分析同時提供 STT 逐字稿與影音
+    "EMOTION_ANALYSIS_MODE": "media_plus_stt",  # media_only | media_plus_stt | paired
+    "EMOTION_PROMPT": _prompts.EMOTION_PROMPT,
+    "EMOTION_PROMPT_MAX_CHARS": 800,
     # ── 互動障礙偵測閾值 ──────────────────────
     "BARRIER_DWELL_TIMEOUT_SEC": 40,        # 選單頁停留超過此秒數視為 menu_hesitation
     "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
@@ -416,11 +414,11 @@ DEFAULT_SETTINGS = {
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
-    "EMOTION_LLAMA_ENABLED",
-    "EMOTION_LLAMA_CLIP_SEC",
-    "EMOTION_LLAMA_EVENT_VOICE",        # Kiosk 需要：控制語音模式開始／結束的背景分析
-    "EMOTION_LLAMA_INCLUDE_STT",         # Kiosk 需要：STT 完成後啟動影音＋逐字稿分析
-    "EMOTION_LLAMA_ANALYSIS_MODE",
+    "EMOTION_ENABLED",
+    "EMOTION_CLIP_SEC",
+    "EMOTION_EVENT_VOICE",        # Kiosk 需要：控制語音模式開始／結束的背景分析
+    "EMOTION_INCLUDE_STT",         # Kiosk 需要：STT 完成後啟動影音＋逐字稿分析
+    "EMOTION_ANALYSIS_MODE",
     "AI_PUSH_REFRESH_SEC",
     # Kiosk 決定「換一個」行為時需要，故列為公開投影。
     "AI_PUSH_EXCLUDE_SEEN",
@@ -529,7 +527,7 @@ def _apply_security_env_overrides(settings: dict) -> None:
         "RATE_LIMIT_ENABLED",
         "ENABLE_DEBUG_ROUTES",
         "ENABLE_DEMO_ROUTES",
-        "ENABLE_TEST_ROUTES",
+        "ENABLE_DIAGNOSTIC_ROUTES",
     ):
         env_value = str(os.getenv(env_key, "")).lower()
         if env_value in ("1", "true", "yes", "on"):
@@ -542,7 +540,7 @@ def _apply_security_env_overrides(settings: dict) -> None:
     if is_production() and not ALLOW_UNSAFE_PRODUCTION_ROUTES:
         settings["ENABLE_DEBUG_ROUTES"] = False
         settings["ENABLE_DEMO_ROUTES"] = False
-        settings["ENABLE_TEST_ROUTES"] = False
+        settings["ENABLE_DIAGNOSTIC_ROUTES"] = False
 
 def _finalize_settings(settings: dict) -> dict:
     """Apply env-derived overrides shared by every settings source (JSON file or Postgres)."""
@@ -562,9 +560,6 @@ def _finalize_settings(settings: dict) -> dict:
                     pass
             else:
                 settings[env_key] = env_value
-    emotion_provider = str(os.getenv("EMOTION_PROVIDER", "") or "").strip().lower()
-    if emotion_provider in {"emotion_llama", "r1_omni"}:
-        settings["EMOTION_PROVIDER"] = emotion_provider
     dual_write_env = str(os.getenv("ENABLE_MEMBER_DUAL_WRITE", "")).lower()
     if dual_write_env in ("1", "true", "yes", "on"):
         settings["ENABLE_MEMBER_DUAL_WRITE"] = True
@@ -696,8 +691,8 @@ def load_public_settings():
 def with_effective_emotion_prompt(settings: dict | None) -> dict:
     """Expose the prompt actually used at runtime in the Admin editor."""
     effective = dict(settings or {})
-    if not str(effective.get("EMOTION_LLAMA_PROMPT") or "").strip():
-        effective["EMOTION_LLAMA_PROMPT"] = DEFAULT_SETTINGS["EMOTION_LLAMA_PROMPT"]
+    if not str(effective.get("EMOTION_PROMPT") or "").strip():
+        effective["EMOTION_PROMPT"] = DEFAULT_SETTINGS["EMOTION_PROMPT"]
     return effective
 
 def save_settings(new_settings):
@@ -734,11 +729,11 @@ def get(key, default=None):
         "REDIS_URL": REDIS_URL,
         "SHARED_RATE_LIMIT_ENABLED": SHARED_RATE_LIMIT_ENABLED,
     }
-    emotion_enabled_env = str(os.getenv("EMOTION_LLAMA_ENABLED", "")).strip().lower()
+    emotion_enabled_env = str(os.getenv("EMOTION_ENABLED", "")).strip().lower()
     if emotion_enabled_env in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
-        # Emotion Runtime Profile is process-local. A startup profile must not
-        # be overridden by a stale value persisted in shared UI settings.
-        runtime_values["EMOTION_LLAMA_ENABLED"] = emotion_enabled_env in {"1", "true", "yes", "on"}
+        # Emotion enablement is process-local. A startup script must not be
+        # overridden by a stale value persisted in shared UI settings.
+        runtime_values["EMOTION_ENABLED"] = emotion_enabled_env in {"1", "true", "yes", "on"}
     if key in runtime_values:
         return runtime_values[key] if runtime_values[key] not in (None, "") else default
     value = load_settings().get(key)

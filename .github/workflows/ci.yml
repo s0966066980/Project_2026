@@ -28,11 +28,10 @@ jobs:
         working-directory: UI_API
     env:
       APP_ENV: test
-      MEMBER_STORAGE_BACKEND: json
       DATABASE_URL: ""
       SECURITY_ENFORCED: "false"
       ENABLE_DEMO_ROUTES: "false"
-      ENABLE_TEST_ROUTES: "false"
+      ENABLE_DIAGNOSTIC_ROUTES: "false"
       ENABLE_DEBUG_ROUTES: "false"
       ENABLE_NGROK: "false"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -349,5 +348,4 @@ jobs:
 
       - name: Validate launch scripts
         run: |
-          bash -n scripts/start_emotion_llama.sh
           bash -n scripts/start_r1_omni.sh

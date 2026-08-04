@@ -12,7 +12,6 @@ def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
     voice_model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
     stt_provider = config.get("STT_PROVIDER", "faster_whisper")
     tts_provider = config.get("TTS_PROVIDER", "edge")
-    emotion_provider = str(config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama")
     emotion_ready = configured_provider_status()
     emotion_stat = "✅ 開啟" if emotion_ready.get("status") == "ready" else "❌ 未開啟"
 
@@ -22,7 +21,7 @@ def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
     print(f"   🎙️  語音 LLM     : {voice_model}")
     print(f"   👂 STT          : {stt_provider}")
     print(f"   🔊 TTS          : {tts_provider}")
-    print(f"   👁️  情緒模型     : {emotion_provider} {emotion_stat}")
+    print(f"   👁️  情緒模型     : R1-Omni {emotion_stat}")
     print()
     print(f"🖥️ Kiosk local URL: http://{local_host}:{pos_port}/kiosk")
     print(f"🛠️ Admin local URL: http://{local_host}:{admin_port}/admin")

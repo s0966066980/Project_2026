@@ -1,6 +1,6 @@
 # Project_2026 — Smart Ordering Kiosk
 
-Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用位於 `UI_API/`，提供 Kiosk、Admin、會員、推薦、RAG、語音、情緒分析與結帳流程；`Emotion-LLaMA/`、`R1-Omni/` 為可選模型服務，不應阻擋核心點餐與結帳。
+Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用位於 `UI_API/`，提供 Kiosk、Admin、會員、推薦、RAG、語音、R1-Omni 情緒分析與結帳流程；R1-Omni 為唯一情緒模型服務，不應阻擋核心點餐與結帳。
 
 目前部署階段是 **local pilot / NOT_READY**；Payment 與 POS 只有 manual adapter，尚未通過 production certification。
 
@@ -12,7 +12,7 @@ Project_2026 是單店本地端 / LAN 的智慧自助點餐系統。主要應用
 - **Admin**：登入與權限、設定、會員、供應狀態、活動、推薦事件、RAG、健康檢查。
 - **Backend**：FastAPI、HTTP / WebSocket、Admin/Device identity、RBAC、健康檢查、結構化 logging，以及由 Runtime Persistence Profile 管理的 PostgreSQL 路徑。
 - **資料與非同步工作**：21 個 forward PostgreSQL migrations、隔離的 SQLite 測試 adapter、Redis shared rate-limit/cache/lock、可靠 worker、transactional outbox、local/S3 object-storage contract；JSON 不是 runtime persistence adapter。
-- **AI**：Ollama（本機）、NVIDIA NIM（雲端）、Emotion-LLaMA、R1-Omni、STT / TTS；AI provider 必須保持可替換，失敗時不得破壞核心交易流程。
+- **AI**：Ollama（本機）、NVIDIA NIM（雲端）、R1-Omni、STT / TTS；外部 AI 呼叫集中於 adapter，失敗時不得破壞核心交易流程。
 
 ## 專案結構
 
@@ -40,8 +40,7 @@ Project_2026/
 │   ├── menu_data/                  # 菜單資料
 │   ├── rag_documents/              # RAG 原始文件
 │   └── learning_data/              # Local runtime data
-├── Emotion-LLaMA/                  # 可選情緒模型服務
-├── R1-Omni/                        # 可選多模態模型服務
+├── R1-Omni/                        # 唯一多模態情緒模型服務
 ├── scripts/                        # 本機模型與 UI_API 啟動腳本
 ├── config/profiles/                # local-pilot 環境範例
 └── tools/                          # Demo、維運或一次性工具；非 production path
@@ -139,7 +138,7 @@ cd UI_API
 ENABLE_NGROK=false python main.py
 ```
 
-建議使用 `bash scripts/start_emotion_llama.sh` 或 `bash scripts/start_r1_omni.sh`；兩個腳本都會明確啟用 `emotion_ui`，並在啟動前檢查 `faster_whisper`、`fastembed` 與 `edge_tts`。不要使用環境不明的 shell Python 或專案 `.venv` 啟動 UI_API。
+建議使用 `bash scripts/start_r1_omni.sh`；腳本會明確啟用 `emotion_ui`，並在啟動前檢查 `faster_whisper`、`fastembed` 與 `edge_tts`。不要使用環境不明的 shell Python 或專案 `.venv` 啟動 UI_API。
 
 預設網址：
 
@@ -151,14 +150,6 @@ Ready: http://127.0.0.1:8000/ready
 ```
 
 `main.py` 會在 `APP_PORT` 與 `ADMIN_PORT` 啟動相同 FastAPI app；若兩者相同只會啟動一次。local pilot 的環境設定範例位於 `config/profiles/local-pilot.env.example`。
-
-### 搭配 Emotion-LLaMA
-
-```bash
-UI_PY="$(command -v python)" \
-LLAMA_PY="/path/to/emotion-llama-python" \
-bash scripts/start_emotion_llama.sh
-```
 
 ### 搭配 R1-Omni
 

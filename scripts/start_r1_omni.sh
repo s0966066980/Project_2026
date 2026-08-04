@@ -3,7 +3,7 @@
 # 一鍵啟動：情緒模型 = R1-Omni
 #
 # 會依序拉起（已在跑的不重啟）：
-#   1. 把後台 EMOTION_PROVIDER 設成 r1_omni
+#   1. 啟用固定的 R1-Omni 情緒 runtime
 #   2. Ollama serve                         :11434
 #   3. R1-Omni /predict server              :7890
 #   4. Reliable worker（RAG 發布 / outbox）
@@ -81,9 +81,8 @@ wait_for_port() {  # wait_for_port <port> <名稱> <秒數>
 }
 
 # ── 1. 本次程序選擇 r1_omni（不寫入共用設定）─────────────────
-export EMOTION_PROVIDER="r1_omni"
-export EMOTION_LLAMA_ENABLED="true"
-echo "⚙️  本次程序 EMOTION_PROVIDER = $EMOTION_PROVIDER"
+export EMOTION_ENABLED="true"
+echo "⚙️  本次程序情緒 runtime = R1-Omni"
 
 if [[ "$ALLOW_EXISTING_UI_API" != "true" ]] && { port_open "$APP_PORT" || port_open "$ADMIN_PORT"; }; then
   echo "❌ ${APP_PORT}/${ADMIN_PORT} 已有舊 UI API 程序，無法保證前後端契約與情緒模型設定一致。"

@@ -17,7 +17,6 @@ class MultimodalEvidenceRequest:
     timeout_seconds: float = 20.0
     max_retries: int = 0
     skip_quality_check: bool = False
-    provider_preference: str = ""  # emotion_llama | r1_omni | auto
     prompt_version: str = "multimodal-v1"
     # Scope-safe metadata only (no PII / raw media paths in logs)
     scope_safe_metadata: dict[str, Any] = field(default_factory=dict)

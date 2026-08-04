@@ -125,7 +125,7 @@ def _write_pilot_environment(
         "ADMIN_MANAGER_LOGIN_IDENTITY": admin_login,
         "ENABLE_LEGACY_KIOSK_TOKEN": "false",
         "ENABLE_DEMO_ROUTES": "false",
-        "ENABLE_TEST_ROUTES": "false",
+        "ENABLE_DIAGNOSTIC_ROUTES": "false",
         "ENABLE_DEBUG_ROUTES": "false",
         "ALLOW_UNSAFE_PRODUCTION_ROUTES": "false",
         "ENABLE_NGROK": "false",

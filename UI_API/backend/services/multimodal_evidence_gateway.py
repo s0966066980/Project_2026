@@ -1,4 +1,4 @@
-"""Multimodal evidence gateway — Emotion-LLaMA / R1-Omni isolation."""
+"""Multimodal evidence gateway — R1-Omni isolation."""
 
 from __future__ import annotations
 
@@ -27,13 +27,9 @@ def _metric(provider: str, status: str) -> None:
 
 
 def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
-    """Return a safe readiness view for the currently selected local provider."""
-    provider = str(config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama").strip().lower()
-    base_url = (
-        str(config.R1_OMNI_GRADIO_URL)
-        if provider == "r1_omni"
-        else str(config.EMOTION_LLAMA_GRADIO_URL)
-    )
+    """Return a safe readiness view for the fixed R1-Omni runtime."""
+    provider = "r1_omni"
+    base_url = str(config.R1_OMNI_GRADIO_URL)
     started = time.perf_counter()
     try:
         response = httpx.get(base_url.rstrip("/") + "/health", timeout=max(0.1, timeout_seconds))
@@ -53,7 +49,7 @@ def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
         }
         if not ready:
-            result["message"] = f"{provider} 服務可連線，但模型尚未載入完成。"
+            result["message"] = "R1-Omni 服務可連線，但模型尚未載入完成。"
         return result
     except Exception:
         return {
@@ -62,7 +58,7 @@ def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
             "model_loaded": False,
             "capabilities": [],
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-            "message": f"{provider} 本機服務未就緒，請使用對應啟動腳本重新啟動。",
+            "message": "R1-Omni 本機服務未就緒，請使用 scripts/start_r1_omni.sh 重新啟動。",
         }
 
 
@@ -83,18 +79,7 @@ class NullEvidenceAdapter:
             safe_metadata={"reason": "null_adapter"},
             safe_error="",
             has_evidence=False,
-        )
-
-
-class EmotionLlamaAdapter:
-    name = "emotion_llama"
-
-    def analyze(self, request: MultimodalEvidenceRequest) -> MultimodalEvidence:
-        return _http_provider_analyze(
-            provider=self.name,
-            url=str(config.EMOTION_LLAMA_GRADIO_URL),
-            request=request,
-            model_version=str(config.get("EMOTION_LLAMA_MODEL_VERSION", "emotion-llama")),
+            status="disabled",
         )
 
 
@@ -117,7 +102,7 @@ def _http_provider_analyze(
     request: MultimodalEvidenceRequest,
     model_version: str,
 ) -> MultimodalEvidence:
-    """Call the production Emotion-LLaMA / R1-Omni `/predict` contract.
+    """Call the production R1-Omni `/predict` contract.
 
     Only adapters may perform provider HTTP. Application services must use
     `collect_evidence` instead of calling provider URLs directly.
@@ -173,7 +158,7 @@ def _http_provider_analyze(
                 text = str(payload.get("description") or text)
         except Exception:
             pass
-    if text.startswith("[EMOTION_LLAMA_SKIP]"):
+    if text.startswith("[R1_OMNI_SKIP]"):
         return MultimodalEvidence(
             provider=provider,
             model_version=model_version,
@@ -187,7 +172,7 @@ def _http_provider_analyze(
             has_evidence=False,
             status="skipped",
         )
-    if text.startswith("[EMOTION_LLAMA_ERROR]"):
+    if text.startswith("[R1_OMNI_ERROR]"):
         return MultimodalEvidence(
             provider=provider,
             model_version=model_version,
@@ -236,17 +221,9 @@ def _http_provider_analyze(
 
 def default_adapters() -> dict[str, MultimodalEvidencePort]:
     return {
-        "emotion_llama": EmotionLlamaAdapter(),
         "r1_omni": R1OmniAdapter(),
         "null": NullEvidenceAdapter(),
     }
-
-
-def _resolve_provider(preference: str) -> str:
-    preferred = (preference or config.get("EMOTION_PROVIDER", "emotion_llama") or "emotion_llama").strip()
-    if preferred in {"emotion_llama", "r1_omni", "null"}:
-        return preferred
-    return "emotion_llama"
 
 
 def collect_evidence(
@@ -259,20 +236,14 @@ def collect_evidence(
 
     registry = dict(adapters or default_adapters())
     if enabled is None:
-        enabled = bool(config.get("EMOTION_LLAMA_ENABLED", False))
+        enabled = bool(config.get("EMOTION_ENABLED", False))
     if not enabled:
         evidence = registry["null"].analyze(request)
         _metric("null", "disabled")
         return evidence
 
-    provider_name = _resolve_provider(request.provider_preference)
+    provider_name = "r1_omni"
     adapter = registry.get(provider_name)
-    if adapter is None:
-        for candidate in ("emotion_llama", "r1_omni", "null"):
-            if candidate in registry:
-                adapter = registry[candidate]
-                provider_name = candidate
-                break
     if adapter is None:
         adapter = NullEvidenceAdapter()
         provider_name = "null"
