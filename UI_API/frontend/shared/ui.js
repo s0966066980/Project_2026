@@ -66,7 +66,6 @@ export const ui = {
   aiPushBar: document.getElementById('aiPushBar'),
   voiceBubble: document.getElementById('voiceReplyBubble'),
   voiceDialogueGrid: document.getElementById('voiceDialogueGrid'),
-  voiceLangBadge: document.getElementById('voiceLangBadge'),
 };
 
 ui.posView = ui.kioskView;

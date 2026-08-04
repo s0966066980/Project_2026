@@ -18,7 +18,7 @@ class ScriptedSTT:
         self.calls += 1
         if self.error:
             raise self.error
-        return {"text": "我要一份薯條", "language": "zh"}
+        return {"text": "我要一份薯條"}
 
 
 class ScriptedAssistant:
@@ -26,7 +26,7 @@ class ScriptedAssistant:
         self.calls = 0
         self.error = None
 
-    def assist(self, *, transcript, language, candidates, operation_key):
+    def assist(self, *, transcript, candidates, operation_key):
         self.calls += 1
         if self.error:
             raise self.error
@@ -51,7 +51,7 @@ class ScriptedTTS:
         self.calls = 0
         self.error = None
 
-    def synthesize(self, *, text, language, operation_key):
+    def synthesize(self, *, text, operation_key):
         self.calls += 1
         if self.error:
             raise self.error

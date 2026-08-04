@@ -38,7 +38,7 @@ def _percentile(values: list[float], percentile: float) -> float:
 async def _sample_audio() -> dict[str, bytes]:
     provider = get_tts()
     return {
-        category: await provider.synthesize(text, "zh")
+        category: await provider.synthesize(text)
         for category, text in UTTERANCES.items()
     }
 

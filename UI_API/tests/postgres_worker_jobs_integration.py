@@ -22,7 +22,7 @@ def test_worker_jobs_and_outbox_delivery_on_postgres(monkeypatch: pytest.MonkeyP
     from models.worker_jobs import JobStatus
     from repositories import checkout_order_repository, postgres_utils, worker_job_repository
     from services import observability_service
-    from services.checkout_service import checkout_request_fingerprint
+    from repositories.checkout_order_repository import checkout_request_fingerprint
 
     base_url = postgres_utils.database_url()
     schema = "worker_jobs_integration"

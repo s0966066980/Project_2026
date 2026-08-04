@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 
 from models.commercial_scope import CommercialScope
+from services import observability_service
+
+_logger = logging.getLogger(observability_service.LOGGER_NAME)
 
 
 class CheckoutError(RuntimeError):
@@ -71,5 +75,13 @@ class CheckoutConfirmationModule:
                 self._store.mark_outbox_published(event_id=event["event_id"])
                 completed.append(event["event_id"])
             except Exception:
+                # A failed event stays unpublished and is retried on the next dispatch, but that
+                # retry is invisible without a log line: nothing else surfaces why a customer's
+                # order never reached their member history.
+                _logger.exception(
+                    "checkout_outbox_dispatch_failed",
+                    extra={"event_id": event.get("event_id"), "event_type": event.get("event_type")},
+                )
+                observability_service.increment_metric("checkout_outbox_dispatch_failed_total")
                 failed.append(event["event_id"])
         return {"published_event_ids": completed, "failed_event_ids": failed}

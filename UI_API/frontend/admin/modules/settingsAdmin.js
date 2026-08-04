@@ -14,8 +14,8 @@ const TAB_KEYS = {
   push: ['AI_PUSH_SCOPE_MODE', 'AI_PUSH_SCOPE_CATEGORIES', 'AI_PUSH_REFRESH_SEC',
     'AI_PUSH_EXCLUDE_SEEN', 'AI_PUSH_PREFETCH', 'AI_PUSH_TEXT_MIN', 'AI_PUSH_TEXT_MAX'],
   voice: ['STT_PROVIDER', 'STT_MODEL', 'STT_API_URL', 'TTS_PROVIDER', 'EDGE_TTS_VOICE',
-    'EDGE_TTS_VOICE_EN', 'TTS_API_URL', 'TTS_VOICE'],
-  prompt: ['VOICE_ASSIST_SYSTEM_PROMPT', 'VOICE_ASSIST_SYSTEM_PROMPT_EN', 'AI_PUSH_SYSTEM_PROMPT',
+    'TTS_API_URL', 'TTS_VOICE'],
+  prompt: ['VOICE_ASSIST_SYSTEM_PROMPT', 'AI_PUSH_SYSTEM_PROMPT',
     'PASSIVE_VOICE_KEYWORDS', 'PASSIVE_VOICE_ALIASES'],
   goal: ['RECOMMENDATION_PURCHASE_RATE_TARGET', 'RECOMMENDATION_IGNORE_RATE_GUARDRAIL'],
 };
@@ -186,6 +186,23 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     }
   }
 
+  /**
+   * The diagnostic panel offers the same catalog plus a trailing 「自訂…」 sentinel. A model
+   * typed behind that sentinel is a one-shot Diagnostic Provider Override — it is deliberately
+   * not added to customVoiceModels, so trying a model never writes to the settings document.
+   * @param {string} currentValue
+   */
+  function populateDiagnosticNimSelect(currentValue) {
+    const select = getElement('test-inp-nim-model');
+    if (!select) return;
+    populateNimSelect('test-inp-nim-model', nimVoiceCatalog, customVoiceModels, currentValue);
+    const custom = document.createElement('option');
+    custom.value = '__custom__';
+    custom.textContent = '自訂…';
+    select.appendChild(custom);
+    getElement('test-inp-nim-model-custom')?.setAttribute('hidden', '');
+  }
+
   /** @param {'text'|'voice'} kind */
   function addCustomNimModel(kind) {
     const isVoice = kind === 'voice';
@@ -198,6 +215,9 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     if (!list.includes(raw)) list.push(raw);
     setValue(inputId, '');
     populateNimSelect(selectId, catalog, list, raw);
+    // The diagnostic dropdown reads the same voice list, so a model added here has to appear
+    // there immediately — otherwise it stays invisible to diagnostics until the next reload.
+    if (isVoice) populateDiagnosticNimSelect(value('test-inp-nim-model') || raw);
     markDirty('ai', true);
   }
 
@@ -231,6 +251,9 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       nimVoiceCatalog = Array.isArray(readiness.nim_voice_model_catalog) ? readiness.nim_voice_model_catalog : nimVoiceCatalog;
       populateNimSelect('inp-nim-model', nimTextCatalog, customTextModels, value('inp-nim-model') || loaded.NIM_MODEL_NAME || '');
       populateNimSelect('inp-nim-voice-model', nimVoiceCatalog, customVoiceModels, value('inp-nim-voice-model') || loaded.NIM_VOICE_MODEL || '');
+      // 模型診斷送的是語音模式提示詞，因此沿用語音那一份 NIM 目錄與已儲存的語音模型，
+      // 讓「診斷測的」與「顧客實際會用的」是同一個模型，不必憑記憶重打型號。
+      populateDiagnosticNimSelect(value('test-inp-nim-model') || loaded.NIM_VOICE_MODEL || '');
     } catch {
       renderReady('llmLocalReady', [pill('warn', '無法取得就緒狀態')]);
       renderReady('llmCloudReady', []);
@@ -746,12 +769,13 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     customVoiceModels = Array.isArray(settings.NIM_CUSTOM_VOICE_MODELS) ? [...settings.NIM_CUSTOM_VOICE_MODELS] : [];
     populateNimSelect('inp-nim-model', nimTextCatalog, customTextModels, settings.NIM_MODEL_NAME || '');
     populateNimSelect('inp-nim-voice-model', nimVoiceCatalog, customVoiceModels, settings.NIM_VOICE_MODEL || '');
+    populateDiagnosticNimSelect(settings.NIM_VOICE_MODEL || '');
+    setValue('test-inp-nim-model-custom', '');
     setValue('inp-nim-model-custom', '');
     setValue('inp-nim-voice-model-custom', '');
     setValue('inp-temperature', settings.OLLAMA_TEMPERATURE ?? 0.8);
     setValue('inp-num-predict', settings.OLLAMA_NUM_PREDICT ?? 2048);
     setValue('inp-voice-prompt-zh', settings.VOICE_ASSIST_SYSTEM_PROMPT || '');
-    setValue('inp-voice-prompt-en', settings.VOICE_ASSIST_SYSTEM_PROMPT_EN || '');
     setValue('inp-push-prompt', settings.AI_PUSH_SYSTEM_PROMPT || DEFAULT_PUSH_PROMPT);
     setValue('inp-push-text-min', settings.AI_PUSH_TEXT_MIN ?? 18);
     setValue('inp-push-text-max', settings.AI_PUSH_TEXT_MAX ?? 34);
@@ -768,7 +792,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     setValue('inp-stt-api-url', settings.STT_API_URL || '');
     setValue('inp-tts-provider', settings.TTS_PROVIDER || 'edge');
     setValue('inp-tts-voice-zh', settings.EDGE_TTS_VOICE || 'zh-TW-HsiaoChenNeural');
-    setValue('inp-tts-voice-en', settings.EDGE_TTS_VOICE_EN || 'en-US-JennyNeural');
     setValue('inp-tts-api-url', settings.TTS_API_URL || '');
     setValue('inp-tts-voice', settings.TTS_VOICE || 'alloy');
     setValue('inp-passive-keywords', (Array.isArray(settings.PASSIVE_VOICE_KEYWORDS) ? settings.PASSIVE_VOICE_KEYWORDS : []).join('\n'));
@@ -817,7 +840,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
         STT_API_URL: value('inp-stt-api-url'),
         TTS_PROVIDER: value('inp-tts-provider') || 'edge',
         EDGE_TTS_VOICE: value('inp-tts-voice-zh') || 'zh-TW-HsiaoChenNeural',
-        EDGE_TTS_VOICE_EN: value('inp-tts-voice-en') || 'en-US-JennyNeural',
         TTS_API_URL: value('inp-tts-api-url'),
         TTS_VOICE: value('inp-tts-voice') || 'alloy',
       };
@@ -826,7 +848,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       const push = value('inp-push-prompt');
       return {
         VOICE_ASSIST_SYSTEM_PROMPT: value('inp-voice-prompt-zh'),
-        VOICE_ASSIST_SYSTEM_PROMPT_EN: value('inp-voice-prompt-en'),
         AI_PUSH_SYSTEM_PROMPT: push === DEFAULT_PUSH_PROMPT ? '' : push,
         PASSIVE_VOICE_KEYWORDS: value('inp-passive-keywords').split('\n').map(line => line.trim()).filter(Boolean),
         PASSIVE_VOICE_ALIASES: parseAliasText(value('inp-passive-aliases')),
@@ -986,7 +1007,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
   function updateTtsFields() {
     const provider = value('inp-tts-provider');
     getElement('row-tts-edge-zh')?.classList.toggle('hidden', provider !== 'edge');
-    getElement('row-tts-edge-en')?.classList.toggle('hidden', provider !== 'edge');
     getElement('row-tts-api')?.classList.toggle('hidden', provider !== 'openai_compatible');
     getElement('row-tts-voice')?.classList.toggle('hidden', provider !== 'openai_compatible');
   }

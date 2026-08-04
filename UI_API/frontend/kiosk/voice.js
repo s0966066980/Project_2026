@@ -9,13 +9,12 @@ import { getRequiredRuntimeDependency } from './runtime.js';
 import { startVoiceActivityMonitor } from './voiceActivity.js';
 import { createVoiceOrderDraftController } from './voiceOrderDraft.js';
 import { createVoiceTurnProtocolState, consumeVoiceTurnEvent, assertVoiceTurnStreamEnded } from './voiceTurnProtocol.js';
+import { kioskText } from './constants/kiosk.js';
 
-function kt(key) { return getRequiredRuntimeDependency('kt')(key); }
 function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
 function isKioskActive() { return getRequiredRuntimeDependency('isKioskActive')(); }
 function getFeatures() { return getRequiredRuntimeDependency('getFeatures')(); }
 function getRuntimeSettings() { return getRequiredRuntimeDependency('getRuntimeSettings')(); }
-function getKioskLang() { return getRequiredRuntimeDependency('getKioskLang')(); }
 function trackInteractionEvent(event) { return getRequiredRuntimeDependency('trackInteractionEvent')(event); }
 function showPushNotice(text) { return getRequiredRuntimeDependency('showPushNotice')(text); }
 function clearAllPushCards() { return getRequiredRuntimeDependency('clearAllPushCards')(); }
@@ -93,7 +92,7 @@ const voiceOrderDraftController = createVoiceOrderDraftController({
       event_type: 'cart_edit', button_id: 'askBtn', cart_edit_count: appliedOrders.length,
       metadata: { source: 'voice_assist_confirmed', items: appliedOrders },
     });
-    showPushNotice(kt('addedToCart').replace('{items}', appliedOrders.join('、')));
+    showPushNotice(kioskText('addedToCart').replace('{items}', appliedOrders.join('、')));
   },
   onCancelled() {
     trackInteractionEvent({
@@ -186,16 +185,10 @@ export function closeVoiceBubble(stopAudio = true) {
 function showVoiceBubble(data) {
   if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
   hideVoiceAssistOverlay();
-  const lang = data.detected_lang || 'zh';
-  const dialogue = data.dialogue || {
-    zh: { user_text: lang === 'zh' ? data.user_text : '', ai_response: lang === 'zh' ? data.ai_response : '' },
-    en: { user_text: lang === 'en' ? data.user_text : '', ai_response: lang === 'en' ? data.ai_response : '' }
-  };
-  const d = dialogue[lang] || { user_text: data.user_text || '', ai_response: data.ai_response || '' };
-  const userText = String(d.user_text || data.user_text || '').trim();
-  const answerText = String(d.ai_response || data.ai_response || '-').trim();
+  const userText = String(data.user_text || '').trim();
+  const answerText = String(data.ai_response || '-').trim();
   const playbackWarning = ['degraded', 'unavailable'].includes(data.playback_status)
-    ? (data.playback_message || kt('voicePlaybackUnavailable'))
+    ? (data.playback_message || kioskText('voicePlaybackUnavailable'))
     : '';
   ui.voiceDialogueGrid.innerHTML = `
     ${userText ? `
@@ -212,7 +205,6 @@ function showVoiceBubble(data) {
         <i class="fas fa-triangle-exclamation"></i>
         <div>${escapeHTML(playbackWarning)}</div>
       </div>` : ''}`;
-  if (ui.voiceLangBadge) ui.voiceLangBadge.textContent = lang === 'en' ? kt('enOutput') : kt('zhOutput');
   ui.voiceBubble.classList.remove('hidden');
   ui.voiceBubble.setAttribute('aria-hidden', 'false');
   const timerBar = document.getElementById('voiceReplyTimerBar');
@@ -228,16 +220,10 @@ function showVoiceBubble(data) {
   state.voiceBubbleTimer = setTimeout(() => closeVoiceBubble(false), 12000);
 }
 
-function showVoiceAssistMessage(message, lang = getKioskLang()) {
-  const detected = lang === 'en' ? 'en' : 'zh';
+function showVoiceAssistMessage(message) {
   showVoiceBubble({
-    detected_lang: detected,
     user_text: '',
     ai_response: message,
-    dialogue: {
-      zh: { user_text: '', ai_response: detected === 'zh' ? message : '' },
-      en: { user_text: '', ai_response: detected === 'en' ? message : '' },
-    }
   });
 }
 
@@ -247,16 +233,16 @@ function showVoiceAssistOverlay(state = 'listening') {
   ui.voiceAssistOverlay.classList.remove('hidden');
   ui.voiceAssistOverlay.classList.toggle('thinking', !listening);
   ui.voiceAssistOverlay.setAttribute('aria-hidden', 'false');
-  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = getKioskLang() === 'en' ? 'Voice Mode' : '語音模式';
+  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = '語音模式';
   if (ui.voiceAssistOverlaySubtitle) {
     ui.voiceAssistOverlaySubtitle.textContent = listening
-      ? (getKioskLang() === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求')
-      : (getKioskLang() === 'en' ? 'Processing your voice...' : '正在處理您的語音...');
+      ? '我正在聽，請說出您的需求'
+      : '正在處理您的語音...';
   }
   if (ui.voiceAssistStopText) {
     ui.voiceAssistStopText.textContent = listening
-      ? (getKioskLang() === 'en' ? 'Pause for 1.5 seconds to send automatically' : '說完後停頓 1.5 秒會自動送出')
-      : (getKioskLang() === 'en' ? 'Processing...' : '處理中...');
+      ? '說完後停頓 1.5 秒會自動送出'
+      : '處理中...';
   }
   if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.disabled = !listening;
   if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.disabled = !listening;
@@ -301,7 +287,7 @@ export function setupAskRecorder() {
         button_id: 'voiceAssistBtn',
         metadata: { reason: stopIntent, duration_ms: durationMs },
       });
-      if (stopIntent === 'no_speech') showVoiceAssistMessage(kt('voiceNoSpeech'));
+      if (stopIntent === 'no_speech') showVoiceAssistMessage(kioskText('voiceNoSpeech'));
       activeVoiceTurn = null;
       resumePassiveListener();
       return;
@@ -316,7 +302,7 @@ export function setupAskRecorder() {
         button_id: 'voiceAssistBtn',
         metadata: { reason: 'audio_too_short', duration_ms: durationMs, bytes: blob.size }
       });
-      showVoiceAssistMessage(kt('voiceTooShort'));
+      showVoiceAssistMessage(kioskText('voiceTooShort'));
       return;
     }
     trackInteractionEvent({
@@ -327,7 +313,6 @@ export function setupAskRecorder() {
     const formData = new FormData();
     formData.append('session_id', getRequiredRuntimeDependency('sessionId'));
     formData.append('media', blob, 'voice_ask.webm');
-    formData.append('multi_lang', String(getFeatures().multiLang));
     formData.append('emotion_round_id', voiceTurn?.roundId || currentVoiceEmotionRoundId());
     formData.append('voice_turn_id', voiceTurn?.turnId || '');
     formData.append('voice_turn_index', String(voiceTurn?.turnIndex || 0));
@@ -395,7 +380,7 @@ export function setupAskRecorder() {
             event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn',
             metadata: { reason: 'assistant_error', message: data.message || '' },
           });
-          showVoiceAssistMessage(data.ai_response || data.message || kt('voiceOrderFailed'), data.detected_lang || getKioskLang());
+          showVoiceAssistMessage(data.ai_response || data.message || kioskText('voiceOrderFailed'));
           return;
         }
         trackInteractionEvent({
@@ -410,10 +395,7 @@ export function setupAskRecorder() {
         const displayData = orderDraft && !String(data.ai_response || '').trim()
           ? {
               ...data,
-              ai_response: data.detected_lang === 'en'
-                ? 'Please select the items you want and confirm them on screen.'
-                : '已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。',
-              dialogue: undefined,
+              ai_response: '已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。',
             }
           : data;
         showVoiceBubble(displayData);
@@ -427,7 +409,7 @@ export function setupAskRecorder() {
         streamFailed = true;
         hideVoiceAssistOverlay();
         trackInteractionEvent({ event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn', metadata: { reason: 'api_error' } });
-        showVoiceAssistMessage(kt('voiceOrderFailed'));
+        showVoiceAssistMessage(kioskText('voiceOrderFailed'));
       },
     }).catch(error => {
       // streamVoiceAssistantResponse 在呼叫 onError 後仍會 rethrow；
@@ -446,11 +428,11 @@ export function setupAskRecorder() {
           button_id: 'voiceAssistBtn',
           metadata: { reason: 'voice_turn_protocol_violation', detail: String(violation.message || '') },
         });
-        showVoiceAssistMessage(kt('voiceOrderFailed'));
+        showVoiceAssistMessage(kioskText('voiceOrderFailed'));
       }
     }
     const doneButtonText = document.getElementById('voiceAssistBtnText');
-    if (doneButtonText) doneButtonText.textContent = kt('holdVoiceOrder');
+    if (doneButtonText) doneButtonText.textContent = kioskText('holdVoiceOrder');
     hideVoiceAssistOverlay();
     } finally {
       activeVoiceTurn = null;
@@ -462,12 +444,12 @@ export function setupAskRecorder() {
 
 export function startAskRecording(sourceBtn) {
   if (voiceOrderDraftController.hasPending()) {
-    showVoiceAssistMessage(getKioskLang() === 'en' ? 'Confirm or cancel the current draft first.' : '請先確認或取消目前的餐點草稿。');
+    showVoiceAssistMessage('請先確認或取消目前的餐點草稿。');
     return;
   }
   if (!state.askRecorder) setupAskRecorder();
   if (!state.askRecorder || state.askRecorder.state !== 'inactive' || state.isVoiceProcessing) {
-    showVoiceAssistMessage(kt('voiceMicNotReady'));
+    showVoiceAssistMessage(kioskText('voiceMicNotReady'));
     return;
   }
   if (state.askRecorder && state.askRecorder.state === 'inactive') {
@@ -487,7 +469,7 @@ export function startAskRecording(sourceBtn) {
     document.getElementById('voiceAssistBtn')?.classList.add('recording');
     showVoiceAssistOverlay('listening');
     const startButtonText = document.getElementById('voiceAssistBtnText');
-    if (startButtonText) startButtonText.textContent = kt('listeningAsk');
+    if (startButtonText) startButtonText.textContent = kioskText('listeningAsk');
     try {
       voiceActivityMonitor = startVoiceActivityMonitor(state.stream, (decision) => {
         finishAskRecording(decision === 'no_speech' ? 'no_speech' : 'silence_detected');
@@ -522,7 +504,7 @@ function finishAskRecording(intent = 'manual_submit') {
     state.askRecorder.stop();
     document.getElementById('voiceAssistBtn')?.classList.remove('recording');
     const buttonText = document.getElementById('voiceAssistBtnText');
-    if (buttonText) buttonText.textContent = kt('holdVoiceOrder');
+    if (buttonText) buttonText.textContent = kioskText('holdVoiceOrder');
     if (intent === 'cancel' || intent === 'no_speech') hideVoiceAssistOverlay();
     else showVoiceAssistOverlay('thinking');
   }

@@ -33,14 +33,13 @@ describe('Kiosk bootstrap preferences', () => {
   it('persists versioned preferences and preserves explicit choices', () => {
     const storage = new MemoryStorage();
     saveKioskFeatures(storage, { voiceAssist: false });
-    expect(loadKioskFeatures(storage, false)).toEqual({ voiceAssist: false, recommend: true, multiLang: true });
+    expect(loadKioskFeatures(storage, false)).toEqual({ voiceAssist: false, recommend: true });
     storage.setItem('kiosk_feat', '{invalid');
     expect(loadKioskFeatures(storage, false)).toMatchObject({ voiceAssist: true, recommend: true });
     storage.clear();
     expect(loadKioskFeatures(storage, true)).toMatchObject({
       voiceAssist: true,
       recommend: true,
-      multiLang: true,
     });
   });
 });

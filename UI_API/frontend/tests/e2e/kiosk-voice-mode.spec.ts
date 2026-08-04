@@ -22,7 +22,6 @@ test('語音模式可取消、手動送出，並保留 TTS 降級後的文字結
     localStorage.setItem('kiosk_feat', JSON.stringify({
       voiceAssist: true,
       recommend: false,
-      multiLang: true,
     }));
   });
 
@@ -48,13 +47,12 @@ test('語音模式可取消、手動送出，並保留 TTS 降級後的文字結
       body: [
         voiceEvent(voiceTurnId, 1, 'accepted'),
         voiceEvent(voiceTurnId, 2, 'transcribing'),
-        voiceEvent(voiceTurnId, 3, 'transcript', { user_text: userText, detected_lang: 'zh' }),
+        voiceEvent(voiceTurnId, 3, 'transcript', { user_text: userText }),
         voiceEvent(voiceTurnId, 4, 'assistant_result', { ai_response: aiResponse, order_draft: null, mentioned_ids: [] }),
         voiceEvent(voiceTurnId, 5, 'completed', {
           status: 'success',
           user_text: userText,
           ai_response: aiResponse,
-          detected_lang: 'zh',
           order_draft: null,
           mentioned_ids: [],
           playback_status: 'degraded',
@@ -92,7 +90,7 @@ test('語音餐點先進入未勾選草稿，確認後才加入購物車', async
   await context.grantPermissions(['microphone'], { origin: 'http://127.0.0.1:9080' });
   await page.addInitScript(() => {
     localStorage.setItem('kiosk_feat_version', 'voice-emotion-20260721');
-    localStorage.setItem('kiosk_feat', JSON.stringify({ voiceAssist: true, recommend: false, multiLang: true }));
+    localStorage.setItem('kiosk_feat', JSON.stringify({ voiceAssist: true, recommend: false }));
   });
   const menu = [
     { id: 'MCD001', name: '大麥克', price: 79, category: '漢堡', description: '雙層牛肉漢堡' },
@@ -120,13 +118,12 @@ test('語音餐點先進入未勾選草稿，確認後才加入購物車', async
       body: [
         voiceEvent(voiceTurnId, 1, 'accepted'),
         voiceEvent(voiceTurnId, 2, 'transcribing'),
-        voiceEvent(voiceTurnId, 3, 'transcript', { user_text: userText, detected_lang: 'zh' }),
+        voiceEvent(voiceTurnId, 3, 'transcript', { user_text: userText }),
         voiceEvent(voiceTurnId, 4, 'assistant_result', { ai_response: aiResponse, order_draft: orderDraft, mentioned_ids: ['MCD001'] }),
         voiceEvent(voiceTurnId, 5, 'completed', {
           status: 'success',
           user_text: userText,
           ai_response: aiResponse,
-          detected_lang: 'zh',
           order_draft: orderDraft,
           mentioned_ids: ['MCD001'],
           playback_status: 'degraded',

@@ -15,6 +15,20 @@ class CheckoutIdempotencyConflictError(ValueError):
     """An idempotency key was reused for a different safe request fingerprint."""
 
 
+def checkout_request_fingerprint(session_id: str, priced_cart: dict) -> str:
+    """Hash the canonical server-priced request without retaining raw identifiers."""
+
+    import json
+
+    canonical = json.dumps(
+        {"session_id": str(session_id or ""), "pricing": priced_cart},
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def list_orders_scoped(
     scope: CommercialScope,
     *,

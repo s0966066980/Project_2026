@@ -56,16 +56,14 @@ def test_non_order_question_does_not_open_order_draft():
 def test_progressive_voice_text_never_claims_cart_was_changed():
     from services.voice_service import _safe_progressive_voice_text
 
-    assert _safe_progressive_voice_text("好的，已為您加入大麥克一份。", "zh") == (
+    assert _safe_progressive_voice_text("好的，已為您加入大麥克一份。") == (
         "已整理您提到的餐點，請在畫面上勾選並確認。"
     )
-    assert _safe_progressive_voice_text("好的，為您加入一份大麥克。", "zh") == (
+    assert _safe_progressive_voice_text("好的，為您加入一份大麥克。") == (
         "已整理您提到的餐點，請在畫面上勾選並確認。"
     )
-    assert _safe_progressive_voice_text("I added a Big Mac.", "en") == (
-        "I found the items you mentioned. Please select and confirm them on screen."
-    )
-    assert _safe_progressive_voice_text("大麥克單價是 79 元。", "zh") == "大麥克單價是 79 元。"
+    assert _safe_progressive_voice_text("I added a Big Mac.") == "已整理您提到的餐點，請在畫面上勾選並確認。"
+    assert _safe_progressive_voice_text("大麥克單價是 79 元。") == "大麥克單價是 79 元。"
 
 
 def test_emotion_observation_is_scheduled_without_blocking(tmp_path, monkeypatch):
@@ -193,7 +191,6 @@ def test_durable_voice_assistant_bounds_generation_and_mentioned_items(monkeypat
     assistant = runtime.ProductionAssistant()
     result = assistant.assist(
         transcript="請問會員有什麼優惠？",
-        language="zh",
         candidates=[
             {"item_id": f"MCD{index:03d}", "name": f"品項{index}", "price": index, "available": True}
             for index in range(1, 139)

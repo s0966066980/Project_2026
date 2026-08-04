@@ -62,7 +62,7 @@ def test_pricing_returns_historical_snapshot_and_ignores_client_totals(monkeypat
 
 
 def test_checkout_request_fingerprint_is_deterministic_and_excludes_pii() -> None:
-    from services.checkout_service import checkout_request_fingerprint
+    from repositories.checkout_order_repository import checkout_request_fingerprint
 
     first = checkout_request_fingerprint(
         "session-a",

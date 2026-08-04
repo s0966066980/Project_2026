@@ -4,7 +4,6 @@ const FEATURE_SCHEMA_VERSION = 'voice-emotion-20260721';
 const FEATURE_DEFAULTS = Object.freeze({
   voiceAssist: true,
   recommend: true,
-  multiLang: true,
 });
 const FEATURE_KEYS = Object.freeze(Object.keys(FEATURE_DEFAULTS));
 

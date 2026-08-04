@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from services import test_service
 from utils.auth_utils import require_permission
@@ -21,7 +21,18 @@ def create_router(deps: dict) -> APIRouter:
 
     @router.post("/api/test/ask")
     async def test_ask(body: dict = Body(...), _=Depends(require_permission("system.debug"))):
-        provider = str(body.get("provider", "ollama"))
+        # A diagnostic has no sensible default provider — naming the half of the chain to
+        # exercise is the entire point of the request, so an absent or unknown provider is a
+        # caller error rather than something to quietly resolve into the local runtime.
+        provider = str(body.get("provider", ""))
+        if provider not in test_service.SUPPORTED_TEST_PROVIDERS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"不支援的提供者：{provider!r}；"
+                    f"可用的提供者為 {sorted(test_service.SUPPORTED_TEST_PROVIDERS)}。"
+                ),
+            )
         model = str(body.get("model", ""))
         system_prompt = str(body.get("system_prompt", "") or "")
         # messages = [{role, content}, ...] 完整對話歷史（含本輪）

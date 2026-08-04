@@ -10,10 +10,6 @@
  * @property {number} [featuredLimit]
  */
 
-/**
- * @typedef {{ [key: string]: string | Record<string, string> | undefined, filters?: Record<string, string> }} KioskLanguageText
- */
-
 /** @type {KioskGroup[]} */
 export const KIOSK_GROUPS = [
   { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
@@ -28,9 +24,8 @@ export const KIOSK_GROUPS = [
   { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
 ];
 
-/** @type {Record<string, KioskLanguageText>} */
+/** @type {{ [key: string]: string | Record<string, string> | undefined, filters?: Record<string, string> }} */
 export const KIOSK_TEXT = {
-  zh: {
     chooseCategory: '請選擇餐點類別',
     chooseCategorySub: '選擇分類後開始點餐',
     addHint: '點選加號加入購物車',
@@ -49,7 +44,6 @@ export const KIOSK_TEXT = {
     cancelOrder: '取消整單訂單',
     paymentTitle: '請選擇付款方式',
     menuFallback: '目前沒有選擇任何餐點。',
-    langButton: '中文',
     total: '總計',
     subtotal: '小計',
     secureCheckout: '安全交易 · 安心結帳',
@@ -64,8 +58,6 @@ export const KIOSK_TEXT = {
     listeningOrder: '聆聽語音協助中...',
     aiThinking: 'AI 思考中...',
     recognizingOrder: '辨識餐點中...',
-    languageZh: '繁體中文',
-    languageEn: 'English',
     priority: '優先級',
     customer: '顧客',
     addedToCart: '已加入購物車：{items}',
@@ -76,8 +68,6 @@ export const KIOSK_TEXT = {
     voiceNoSpeech: '8 秒內沒有聽到語音，請點一下再說一次。',
     voicePlaybackUnavailable: '文字結果已保留，但語音播放暫時不可用。',
     voiceMicNotReady: '麥克風尚未準備完成，請確認瀏覽器麥克風權限。',
-    zhOutput: '繁體中文輸出',
-    enOutput: 'English output',
     checkoutProcessing: '結帳中...',
     counterPayCreating: '建立櫃檯付款單...',
     counterPayDone: '請至櫃檯付款',
@@ -87,98 +77,30 @@ export const KIOSK_TEXT = {
       '雞肉系列': '雞肉系列',
       '魚肉系列': '魚肉系列',
       '點心飲料': '點心飲料',
-    },
-  },
-  en: {
-    chooseCategory: 'Choose a Category',
-    chooseCategorySub: 'Select a category to start ordering',
-    addHint: 'Tap plus to add to cart',
-    searchFilter: 'Search<br>Filter',
-    home: 'Home',
-    emptyCategory: 'No items in this category',
-    addToCart: 'Add to Cart',
-    checkoutGo: 'Checkout',
-    continueOrder: 'Continue Ordering',
-    clearCart: 'Clear Cart',
-    yourCart: 'Your Cart',
-    fastPayKicker: 'Card, credit card, QR payment',
-    fastPayTitle: 'Quick Checkout Here',
-    counterPay: 'Pay at Counter',
-    backCart: 'Back to Cart',
-    cancelOrder: 'Cancel Order',
-    paymentTitle: 'Choose Payment Method',
-    menuFallback: 'No items selected.',
-    langButton: 'EN',
-    total: 'Total',
-    subtotal: 'Subtotal',
-    secureCheckout: 'Secure Checkout',
-    checkoutDone: 'Order Complete!',
-    thankYou: 'Thank you',
-    cartCount: '{count} items',
-    cartEmptyTitle: 'Your cart is empty',
-    cartEmptySub: 'Choose your favorite meal to begin.',
-    holdVoiceOrder: 'Voice Mode',
-    voiceAskHint: 'Enable voice assistance for ordering and AI questions',
-    listeningAsk: 'Listening...',
-    listeningOrder: 'Listening for voice assist...',
-    aiThinking: 'AI is thinking...',
-    recognizingOrder: 'Recognizing order...',
-    languageZh: 'Traditional Chinese',
-    languageEn: 'English',
-    priority: 'Priority',
-    customer: 'Customer',
-    addedToCart: 'Added to cart: {items}',
-    noVoiceOrderItem: 'No matching menu item was found.',
-    networkFailed: 'Network failed. Please try again later.',
-    voiceOrderFailed: 'Voice assistance failed. Please try again later.',
-    voiceTooShort: 'I did not hear a complete request. Please try again.',
-    voiceNoSpeech: 'No speech was detected within 8 seconds. Tap to try again.',
-    voicePlaybackUnavailable: 'The text result is available, but voice playback is temporarily unavailable.',
-    voiceMicNotReady: 'The microphone is not ready. Please check browser microphone permission.',
-    zhOutput: 'Traditional Chinese output',
-    enOutput: 'English output',
-    checkoutProcessing: 'Checking out...',
-    counterPayCreating: 'Creating counter payment...',
-    counterPayDone: 'Please pay at the counter',
-    filters: {
-      '全部': 'All',
-      '牛肉系列': 'Beef',
-      '雞肉系列': 'Chicken',
-      '魚肉系列': 'Fish',
-      '安格斯系列': 'Angus',
-      '早餐系列': 'Breakfast',
-      '點心飲料': 'Snacks & Drinks',
-    },
   },
 };
 
 /**
- * @param {string} lang
  * @param {string} key
  * @returns {string}
  */
-export function kioskText(lang, key) {
-  const localizedValue = KIOSK_TEXT[lang]?.[key];
-  const fallbackValue = KIOSK_TEXT.zh?.[key];
-  return typeof localizedValue === 'string'
-    ? localizedValue
-    : (typeof fallbackValue === 'string' ? fallbackValue : key);
+export function kioskText(key) {
+  const value = KIOSK_TEXT[key];
+  return typeof value === 'string' ? value : key;
 }
 
 /**
- * @param {string} lang
  * @param {string} filter
  * @returns {string}
  */
-export function kioskFilterLabel(lang, filter) {
-  return KIOSK_TEXT[lang]?.filters?.[filter] || filter;
+export function kioskFilterLabel(filter) {
+  return KIOSK_TEXT.filters?.[filter] || filter;
 }
 
 /**
- * @param {string} lang
  * @param {KioskGroup} group
  * @returns {string}
  */
-export function kioskGroupLabel(lang, group) {
-  return lang === 'en' ? (group.labelEn || group.label) : group.label;
+export function kioskGroupLabel(group) {
+  return group.label;
 }

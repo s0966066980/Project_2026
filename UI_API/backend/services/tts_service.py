@@ -23,14 +23,14 @@ class TTSProvider(ABC):
     audio_format: str = "wav"
 
     @abstractmethod
-    async def synthesize(self, text: str, lang: str = "zh") -> bytes:
+    async def synthesize(self, text: str) -> bytes:
         """文字 → 音訊 bytes"""
 
-    async def synthesize_base64(self, text: str, lang: str = "zh") -> str:
+    async def synthesize_base64(self, text: str) -> str:
         """文字 → base64 字串（供 HTTP 傳輸）"""
         if not text:
             return ""
-        audio = await self.synthesize(text, lang)
+        audio = await self.synthesize(text)
         return base64.b64encode(audio).decode("utf-8") if audio else ""
 
 
@@ -42,14 +42,10 @@ class EdgeTTSProvider(TTSProvider):
     """
     audio_format = "mp3"
 
-    async def synthesize(self, text: str, lang: str = "zh") -> bytes:
+    async def synthesize(self, text: str) -> bytes:
         import edge_tts
 
-        voice = (
-            config.get("EDGE_TTS_VOICE_EN", "en-US-JennyNeural")
-            if lang == "en"
-            else config.get("EDGE_TTS_VOICE", "zh-TW-HsiaoChenNeural")
-        )
+        voice = config.get("EDGE_TTS_VOICE", "zh-TW-HsiaoChenNeural")
         communicate = edge_tts.Communicate(text, voice)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
             tmp = f.name
@@ -74,7 +70,7 @@ class MeloTTSProvider(TTSProvider):
             print("載入 MeloTTS (ZH, CPU)...")
             MeloTTSProvider._model = TTS(language="ZH", device="cpu")
 
-    async def synthesize(self, text: str, lang: str = "zh") -> bytes:
+    async def synthesize(self, text: str) -> bytes:
         self._init()
 
         def _run() -> bytes:
@@ -103,7 +99,7 @@ class OpenAICompatibleTTS(TTSProvider):
     """
     audio_format = "mp3"
 
-    async def synthesize(self, text: str, lang: str = "zh") -> bytes:
+    async def synthesize(self, text: str) -> bytes:
         import httpx
 
         url = config.get("TTS_API_URL", "https://api.openai.com").rstrip("/")

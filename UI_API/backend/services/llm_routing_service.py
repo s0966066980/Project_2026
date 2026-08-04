@@ -85,12 +85,7 @@ def _probe(provider: str, model: str) -> dict:
         max_tokens=16,
         max_retries=0,
     ))
-    detail = {
-        "missing_credential": "缺少 API 金鑰，未送出請求。",
-        "provider_timeout": "請求逾時。",
-        "invalid_provider_payload": "回應格式無法解析。",
-        "response_truncated": "回應在寫完前就達到長度上限。推理型模型的思考過程也會佔用額度，請改用非推理型模型。",
-    }.get(result.safe_error, result.safe_error)
+    detail = llm_gateway_service.describe_safe_error(result.safe_error)
     return {
         "provider": provider,
         "model": result.model or model,

@@ -66,8 +66,6 @@ let isPassivePaused = false;
 let isPassiveRequestInFlight = false;
 const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
 const PASSIVE_CHUNK_MS = 5000;
-let kioskLang = localStorage.getItem('kiosk_lang') === 'en' ? 'en' : 'zh';
-export function getKioskLang() { return kioskLang; }
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -89,9 +87,6 @@ function resetRecommendationTracking() {
   state.sessionRecommendationEvents.clear();
 }
 
-export function kt(key) {
-  return kioskText(kioskLang, key);
-}
 let fullSettings = {};
 let runtimeSettings = {};
 export function getRuntimeSettings() { return runtimeSettings; }
@@ -340,7 +335,7 @@ function handlePromotionCta(promotion = {}) {
   }
 }
 
-export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: handleCartChange, t: kt, lang: () => kioskLang, getVisual: getMenuVisual });
+export const cartManager = createCartManager({ ui, escapeHTML, findMenuItems, onCartChange: handleCartChange, t: kioskText, getVisual: getMenuVisual });
 
 const kioskMenuController = createKioskMenuController({
   api,
@@ -350,10 +345,9 @@ const kioskMenuController = createKioskMenuController({
   getMenuVisual,
   formatItemPrice,
   groups: KIOSK_GROUPS,
-  getLanguage: () => kioskLang,
-  translate: kt,
-  translateFilter: (filter) => kioskFilterLabel(kioskLang, filter),
-  translateGroup: (group) => kioskGroupLabel(kioskLang, group),
+  translate: kioskText,
+  translateFilter: kioskFilterLabel,
+  translateGroup: kioskGroupLabel,
   showItemConfirmModal,
   updateKioskCartSummary,
   getSessionId: () => sessionId,
@@ -442,7 +436,6 @@ configureKioskRuntime({
   cartManager,
   clearAllPushCards,
   getFeatures,
-  getKioskLang,
   getRuntimeSettings,
   isAdminMode,
   isKioskActive,
@@ -450,7 +443,7 @@ configureKioskRuntime({
   isPosActive,
   isPosMode,
   itemMatchesSubFilter,
-  kt,
+  kioskText,
   sessionId,
   showPushNotice,
   trackInteractionEvent,
@@ -655,7 +648,7 @@ const aiRecommendationController = (() => {
 
     if (nameElement) nameElement.textContent = item.name || '';
     const priceElement = $('aiPushItemPrice');
-    if (priceElement) priceElement.textContent = formatItemPrice(displayItem, kioskLang);
+    if (priceElement) priceElement.textContent = formatItemPrice(displayItem);
     if (textElement) textElement.textContent = pushText || `${item.name || '這份餐點'}現在很適合來一份！`;
 
     if (imageElement) {
@@ -1025,70 +1018,57 @@ function updateKioskCartSummary() {
     ui.checkoutBtn.disabled = quantity <= 0 || quote.status !== 'ready';
     const label = ui.checkoutBtn.querySelector('span');
     if (label) label.textContent = quote.status === 'ready'
-      ? `${kt('checkoutGo')} $${total}`
+      ? `${kioskText('checkoutGo')} $${total}`
       : totalLabel;
   }
 }
 
-function applyKioskLanguage() {
-  const startupLangText = document.querySelector('#startupLangBtn span');
-  if (startupLangText) startupLangText.textContent = kt('langButton');
+function applyKioskText() {
   const startBtnLabel = document.getElementById('startBtnLabel');
-  if (startBtnLabel) startBtnLabel.textContent = kioskLang === 'en' ? 'Start Order' : '開始點餐';
+  if (startBtnLabel) startBtnLabel.textContent = '開始點餐';
   if (ui.kioskHomeBtn) {
     const span = ui.kioskHomeBtn.querySelector('span');
-    if (span) span.textContent = kt('home');
+    if (span) span.textContent = kioskText('home');
   }
-  if (ui.continueOrderBtn) ui.continueOrderBtn.textContent = kt('continueOrder');
-  if (ui.clearCartBtn) ui.clearCartBtn.innerHTML = `<i class="fas fa-trash-alt"></i> ${escapeHTML(kt('clearCart'))}`;
+  if (ui.continueOrderBtn) ui.continueOrderBtn.textContent = kioskText('continueOrder');
+  if (ui.clearCartBtn) ui.clearCartBtn.innerHTML = `<i class="fas fa-trash-alt"></i> ${escapeHTML(kioskText('clearCart'))}`;
   const cartHeading = document.querySelector('.cart-shell.kiosk-cart-open h3') || document.querySelector('.cart-shell h3');
-  if (cartHeading) cartHeading.textContent = kt('yourCart');
+  if (cartHeading) cartHeading.textContent = kioskText('yourCart');
   const checkoutLabel = ui.checkoutBtn?.querySelector('span');
-  if (checkoutLabel) checkoutLabel.textContent = `${kt('checkoutGo')} ${ui.totalPrice?.textContent || '$0'}`;
+  if (checkoutLabel) checkoutLabel.textContent = `${kioskText('checkoutGo')} ${ui.totalPrice?.textContent || '$0'}`;
   const fastPayKicker = document.querySelector('.kiosk-payment-kicker');
-  if (fastPayKicker) fastPayKicker.textContent = kt('fastPayKicker');
+  if (fastPayKicker) fastPayKicker.textContent = kioskText('fastPayKicker');
   const fastPayTitle = ui.kioskFastPayBtn?.querySelector('strong');
-  if (fastPayTitle) fastPayTitle.textContent = kt('fastPayTitle');
-  if (ui.kioskCounterPayBtn) ui.kioskCounterPayBtn.textContent = kt('counterPay');
-  if (ui.kioskPaymentBackBtn) ui.kioskPaymentBackBtn.textContent = kt('backCart');
-  if (ui.kioskCancelOrderBtn) ui.kioskCancelOrderBtn.textContent = kt('cancelOrder');
+  if (fastPayTitle) fastPayTitle.textContent = kioskText('fastPayTitle');
+  if (ui.kioskCounterPayBtn) ui.kioskCounterPayBtn.textContent = kioskText('counterPay');
+  if (ui.kioskPaymentBackBtn) ui.kioskPaymentBackBtn.textContent = kioskText('backCart');
+  if (ui.kioskCancelOrderBtn) ui.kioskCancelOrderBtn.textContent = kioskText('cancelOrder');
   const paymentTitle = document.querySelector('.kiosk-payment-inner h1');
-  if (paymentTitle) paymentTitle.textContent = kt('paymentTitle');
+  if (paymentTitle) paymentTitle.textContent = kioskText('paymentTitle');
   const totalLabels = document.querySelectorAll('.cart-card .font-semibold.text-lg, .order-summary-total .grand span');
-  totalLabels.forEach(element => { element.textContent = kt('total'); });
+  totalLabels.forEach(element => { element.textContent = kioskText('total'); });
   const subtotalLabel = document.querySelector('.order-summary-total div:first-child span');
-  if (subtotalLabel) subtotalLabel.textContent = kt('subtotal');
+  if (subtotalLabel) subtotalLabel.textContent = kioskText('subtotal');
   const secureNotes = document.querySelectorAll('.order-secure-note, .cart-card.p-7 > p');
   secureNotes.forEach(element => {
     const icon = element.querySelector('i')?.outerHTML || '';
-    element.innerHTML = `${icon}${escapeHTML(kt('secureCheckout'))}`;
+    element.innerHTML = `${icon}${escapeHTML(kioskText('secureCheckout'))}`;
   });
   const checkoutDoneTitle = document.querySelector('#checkoutOverlay h1');
-  if (checkoutDoneTitle) checkoutDoneTitle.textContent = kt('checkoutDone');
+  if (checkoutDoneTitle) checkoutDoneTitle.textContent = kioskText('checkoutDone');
   const checkoutDoneSub = document.querySelector('#checkoutOverlay p');
-  if (checkoutDoneSub) checkoutDoneSub.textContent = kt('thankYou');
+  if (checkoutDoneSub) checkoutDoneSub.textContent = kioskText('thankYou');
   const voiceAssistantLanguageText = document.getElementById('voiceAssistBtnText');
-  if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = kt('holdVoiceOrder');
-  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = kioskLang === 'en' ? 'Voice Mode' : '語音模式';
-  if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = kioskLang === 'en' ? 'I am listening. Please say what you need.' : '我正在聽，請說出您的需求';
-  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = kioskLang === 'en'
-    ? 'Pause for 1.5 seconds to send automatically'
-    : '說完後停頓 1.5 秒會自動送出';
-  if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.querySelector('span').textContent = kioskLang === 'en' ? 'Send now' : '立即送出';
-  if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.querySelector('span').textContent = kioskLang === 'en' ? 'Cancel' : '取消';
+  if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = kioskText('holdVoiceOrder');
+  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = '語音模式';
+  if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = '我正在聽，請說出您的需求';
+  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = '說完後停頓 1.5 秒會自動送出';
+  if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.querySelector('span').textContent = '立即送出';
+  if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.querySelector('span').textContent = '取消';
   if (ui.cartCountBadge) {
     const quantity = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
-    ui.cartCountBadge.textContent = kt('cartCount').replace('{count}', String(quantity));
+    ui.cartCountBadge.textContent = kioskText('cartCount').replace('{count}', String(quantity));
   }
-}
-
-function setKioskLanguage(lang) {
-  kioskLang = lang === 'en' ? 'en' : 'zh';
-  localStorage.setItem('kiosk_lang', kioskLang);
-  applyKioskLanguage();
-  renderMenu();
-  cartManager.renderCart();
-  updateKioskCartSummary();
 }
 
 function showCartScreen() {
@@ -1474,9 +1454,7 @@ async function ensureMediaTracks({ video = false, audio = false } = {}) {
       audioReady = Boolean(state.stream?.getAudioTracks().length);
     } catch (error) {
       console.warn('[Kiosk] 無法取得麥克風。', error);
-      alert(kioskLang === 'en'
-        ? 'Microphone permission is unavailable. Voice mode will remain disabled.'
-        : '無法取得麥克風權限，語音模式將暫時停用。');
+      alert('無法取得麥克風權限，語音模式將暫時停用。');
     }
   }
 
@@ -1502,9 +1480,7 @@ function setStartButtonPending(pending) {
   isStartTransitionPending = pending;
   if (ui.startBtn) ui.startBtn.disabled = pending;
   const label = document.getElementById('startBtnLabel');
-  if (label) label.textContent = pending
-    ? (kioskLang === 'en' ? 'Loading…' : '正在載入…')
-    : (kioskLang === 'en' ? 'Start Ordering' : '開始點餐');
+  if (label) label.textContent = pending ? '正在載入…' : '開始點餐';
 }
 
 // 入口啟動失敗與菜單初始化失敗共用同一個錯誤 overlay，用這個旗標區分重試語意。
@@ -1721,11 +1697,6 @@ ui.startBtn?.addEventListener('pointerdown', () => {
   });
 });
 
-document.getElementById('startupLangBtn')?.addEventListener('click', () => {
-  setKioskLanguage(kioskLang === 'zh' ? 'en' : 'zh');
-});
-
-
 import {
   isVoiceAssistantActive,
   cancelActiveVoiceTurn,
@@ -1789,7 +1760,7 @@ function renderOrderConfirm(quote = activeCheckoutQuote) {
     ui.confirmOrderList.innerHTML = `
       <div class="order-empty">
         <i class="fas fa-shopping-bag"></i>
-        <p>${escapeHTML(kt('menuFallback'))}</p>
+        <p>${escapeHTML(kioskText('menuFallback'))}</p>
       </div>`;
     return;
   }
@@ -2206,7 +2177,7 @@ ui.kioskCounterPayBtn?.addEventListener('click', () => {
     button_id: 'kioskCounterPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.kioskCounterPayBtn, kt('counterPayCreating'));
+  finishOrder(cartIds, ui.kioskCounterPayBtn, kioskText('counterPayCreating'));
 });
 
 function leaveOrderConfirm(buttonId) {
@@ -2248,7 +2219,7 @@ ui.confirmPayBtn?.addEventListener('click', () => {
     button_id: 'confirmPayBtn',
     metadata: { payment: selectedPayment, fulfillment: selectedFulfillment, cart_ids: cartIds }
   });
-  finishOrder(cartIds, ui.confirmPayBtn, kt('checkoutProcessing'));
+  finishOrder(cartIds, ui.confirmPayBtn, kioskText('checkoutProcessing'));
 });
 
 
@@ -2399,7 +2370,7 @@ function buildAssistItemCard(item) {
 
   const priceSpan = document.createElement('span');
   priceSpan.className = 'assist-item-price';
-  priceSpan.textContent = formatItemPrice(item, kioskLang);
+  priceSpan.textContent = formatItemPrice(item);
 
   infoDiv.append(nameSpan, pushP, priceSpan);
 
@@ -2481,7 +2452,7 @@ document.getElementById('cancelGuideCounter')?.addEventListener('click', () => {
   totalClickCount = 0;
   const cartIds = cartManager.getCartIds();
   if (!cartIds.length) return;
-  finishOrder(cartIds, null, kt('counterPayCreating'));
+  finishOrder(cartIds, null, kioskText('counterPayCreating'));
 });
 
 document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', () => {
@@ -2638,7 +2609,7 @@ let kioskRuntimeInitialized = false;
 async function initializeAuthenticatedKiosk() {
   if (kioskRuntimeInitialized) return;
   kioskRuntimeInitialized = true;
-  applyKioskLanguage();
+  applyKioskText();
   cartManager.renderCart();
   applyFeaturesToKiosk();
   initRealtimeClients();

@@ -7,7 +7,7 @@ from modules.cart import CartModule, PostgresCartStore, SQLiteCartStore
 from modules.runtime_persistence.runtime import sqlite_database_path
 
 import config
-from models.commercial_scope import CommercialScope
+from models.commercial_scope import LEGACY_DEFAULT_DEVICE_ID, CommercialScope
 from repositories import menu_repository, postgres_utils
 from services import checkout_pricing_service, member_service
 
@@ -92,7 +92,14 @@ def dispatch_outbox(*, limit: int = 100) -> dict:
         # event pending and can never change the already-confirmed Order.
         if event["event_type"] != "OrderConfirmed":
             return
-        scope = CommercialScope(UUID(event["tenant_id"]), UUID(event["store_id"]))
+        # member_orders.origin_device_id is NOT NULL; events queued before this field existed
+        # carry none, so they fall back to the legacy default device rather than fail forever.
+        device_id = str(event["payload"].get("device_id") or "").strip()
+        scope = CommercialScope(
+            UUID(event["tenant_id"]),
+            UUID(event["store_id"]),
+            UUID(device_id) if device_id else LEGACY_DEFAULT_DEVICE_ID,
+        )
         outcome = module.outcome(
             scope=scope,
             quote_id=event["payload"]["quote_id"],

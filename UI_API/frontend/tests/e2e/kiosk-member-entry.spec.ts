@@ -6,7 +6,6 @@ async function disableOptionalKioskFeatures(page: import('@playwright/test').Pag
     localStorage.setItem('kiosk_feat', JSON.stringify({
       voiceAssist: false,
       recommend: false,
-      multiLang: true,
     }));
   });
 }

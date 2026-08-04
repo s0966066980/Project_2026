@@ -1,9 +1,20 @@
-import requests
-import time
+"""Admin LLM Test: send one diagnostic prompt to a named half of the provider chain.
 
-import ai_services
+The provider and model named here are a Diagnostic Provider Override — a one-shot parameter
+for this request only. Nothing is persisted, and the store's Text Model Routing Policy is
+untouched, which is why the gateway adapters are called directly rather than through
+llm_gateway_service.generate()'s policy-driven chain.
+"""
+
+import requests
+
 import config
 import database
+from models.llm import LLMAdapterResult, LLMRequest
+from services import llm_gateway_service, llm_routing_service
+
+# The provider chain has exactly two halves; a diagnostic prompt may name either one.
+SUPPORTED_TEST_PROVIDERS = frozenset({"ollama", llm_routing_service.CLOUD_PROVIDER})
 
 
 def list_ollama_models() -> list[str]:
@@ -37,6 +48,38 @@ def _get_default_voice_prompt() -> str:
     return config.get("VOICE_ASSIST_SYSTEM_PROMPT", "")
 
 
+def _override_model(provider: str, model: str) -> str:
+    """Resolve the model this diagnostic will actually run, so the reported model cannot
+    disagree with the one that answered."""
+
+    if model:
+        return model
+    return llm_routing_service.model_for(provider, voice=True)
+
+
+def _flatten(result: LLMAdapterResult) -> dict:
+    """Render one adapter result in the flat shape the Admin diagnostic chat already reads."""
+
+    meta = {
+        "provider": result.provider,
+        "model": result.model,
+        "latency_ms": int(result.latency_ms),
+    }
+    if result.safe_error:
+        message = llm_gateway_service.describe_safe_error(result.safe_error)
+        # A diagnostic exists to show what the provider actually said; when the reply arrived
+        # but could not be parsed, the raw body is the finding, not noise to be swallowed.
+        body = str(result.content or "").strip()
+        if body:
+            message = f"{message}\n模型原始回覆：{body[:1000]}"
+        return {"error": message, "text": "", **meta}
+
+    payload = dict(result.parsed or {})
+    payload.setdefault("text", result.content)
+    payload.update(meta)
+    return payload
+
+
 def ask_voice_style(
     provider: str,
     model: str,
@@ -45,48 +88,28 @@ def ask_voice_style(
     history: list[dict],
 ) -> dict:
     """模擬語音模式：注入菜單白名單，強制 JSON 輸出，解析 ai_response / cart_actions。"""
-    sp = system_prompt or _get_default_voice_prompt()
-    user_prompt = _build_voice_user_prompt(user_text, history)
+    adapter = llm_gateway_service.default_adapters().get(provider)
+    if adapter is None:
+        return {
+            "error": f"沒有「{provider}」這個提供者的連線實作。",
+            "text": "",
+            "provider": provider,
+            "model": model,
+            "latency_ms": 0,
+        }
 
-    t0 = time.time()
-    if provider == "nvidia_nim":
-        raw = _ask_nvidia_nim_text(sp, user_prompt, model)
-    else:
-        raw = ai_services.ask_ollama(sp, user_prompt, model_name=model)
-
-    latency_ms = int((time.time() - t0) * 1000)
-    raw["latency_ms"] = raw.get("latency_ms", latency_ms)
-    raw["provider"] = raw.get("provider") or provider
-    raw["model"] = raw.get("model") or model or config.get("VOICE_ASSIST_MODEL", config.get("MODEL_NAME", ""))
-    return raw
-
-
-def _ask_nvidia_nim_text(system_prompt: str, user_prompt: str, model: str) -> dict:
-    default_model = "meta/llama-3.1-8b-instruct"
-    base_url = str(config.NVIDIA_API_BASE_URL or "https://integrate.api.nvidia.com/v1").rstrip("/")
-    api_key = config.NVIDIA_API_KEY
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    payload = {
-        "model": model or default_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    }
-    try:
-        t0 = time.time()
-        res = requests.post(f"{base_url}/chat/completions", json=payload, headers=headers, timeout=60)
-        res.raise_for_status()
-        text = res.json()["choices"][0]["message"]["content"]
-        parsed = ai_services.parse_llm_json(text, "TEST_NVIDIA_NIM")
-        if isinstance(parsed, dict) and "error" not in parsed:
-            parsed["latency_ms"] = int((time.time() - t0) * 1000)
-            parsed["provider"] = "nvidia_nim"
-            parsed["model"] = model or default_model
-            return parsed
-        return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
-                "provider": "nvidia_nim", "model": model or default_model}
-    except Exception as e:
-        return {"error": str(e), "text": "", "latency_ms": 0}
+    resolved_model = _override_model(provider, model)
+    result = adapter.generate(LLMRequest(
+        task="voice_assist",
+        system_prompt=system_prompt or _get_default_voice_prompt(),
+        user_prompt=_build_voice_user_prompt(user_text, history),
+        model_name=resolved_model,
+        expect_json=True,
+        response_tag="ADMIN_LLM_DIAGNOSTIC",
+        prompt_version="admin-diagnostic-v1",
+        timeout_seconds=60.0,
+        # A diagnostic reports the first attempt verbatim; a silent retry would hide the
+        # intermittent failure the operator is here to see.
+        max_retries=0,
+    ))
+    return _flatten(result)

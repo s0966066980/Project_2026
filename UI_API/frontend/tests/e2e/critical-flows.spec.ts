@@ -15,7 +15,6 @@ async function openKioskPaymentScreen(page: import('@playwright/test').Page) {
     localStorage.setItem('kiosk_feat', JSON.stringify({
       voiceAssist: false,
       recommend: false,
-      multiLang: true,
     }));
   });
   await page.route('**/api/public_settings', route => route.fulfill({
@@ -62,7 +61,6 @@ test('Kiosk preserves start, menu, cart and checkout navigation contracts', asyn
     localStorage.setItem('kiosk_feat', JSON.stringify({
       voiceAssist: false,
       recommend: false,
-      multiLang: true,
     }));
   });
   await page.route('**/api/public_settings', route => route.fulfill({

@@ -47,7 +47,7 @@ class ProductionMenu:
 
 class ProductionAssistant:
     def assist(
-        self, *, transcript: str, language: str, candidates: list[dict[str, Any]], operation_key: str
+        self, *, transcript: str, candidates: list[dict[str, Any]], operation_key: str
     ) -> dict[str, Any]:
         compact = [
             {
@@ -63,7 +63,7 @@ class ProductionAssistant:
             "ai_response must be concise (at most 60 Chinese characters or 35 English words). "
             "mentioned_ids must contain at most five available menu ids explicitly named by the customer or ai_response. "
             "cart_actions may only contain available menu ids and never means the cart was changed.\n"
-            f"language={language}\ncustomer={transcript}\nmenu={json.dumps(compact, ensure_ascii=False)}"
+            f"customer={transcript}\nmenu={json.dumps(compact, ensure_ascii=False)}"
         )
         try:
             response = llm_gateway_service.generate(
@@ -96,12 +96,10 @@ class ProductionAssistant:
         text = str(parsed.get("ai_response") or "").strip()
         if lines:
             text = (
-                "Please review and confirm the draft on screen."
-                if language == "en"
-                else "已整理您提到的餐點，請在畫面上確認。"
+                "已整理您提到的餐點，請在畫面上確認。"
             )
         if not text:
-            text = "I can help with the menu." if language == "en" else "我可以協助您了解菜單。"
+            text = "我可以協助您了解菜單。"
         candidate_by_id = {str(row["item_id"]): row for row in candidates}
         mentioned_ids = []
         searchable_text = f"{transcript}\n{text}".casefold()
@@ -124,10 +122,10 @@ class ProductionAssistant:
 
 
 class ProductionTTS:
-    def synthesize(self, *, text: str, language: str, operation_key: str) -> dict[str, Any]:
+    def synthesize(self, *, text: str, operation_key: str) -> dict[str, Any]:
         provider = get_tts()
         try:
-            audio = asyncio.run(provider.synthesize(text, language))
+            audio = asyncio.run(provider.synthesize(text))
         except (TimeoutError, ConnectionError) as exc:
             raise TransientVoiceTurnError(str(exc)) from exc
         return {

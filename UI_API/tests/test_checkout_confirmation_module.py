@@ -85,6 +85,27 @@ def test_post_commit_consumer_failure_never_obscures_confirmed_order(tmp_path):
     )
 
 
+def test_outbox_event_carries_the_confirming_devices_id(tmp_path):
+    """member_orders.origin_device_id is NOT NULL with a FK to devices; the outbox consumer
+    runs later, outside the confirming request, so the device has to travel with the event or
+    every order silently fails to reach the member's history."""
+    device_id = uuid4()
+    scope = CommercialScope(uuid4(), uuid4(), device_id)
+    path = tmp_path / "ordering.sqlite3"
+    cart = CartModule(SQLiteCartStore(path))
+    checkout = CheckoutConfirmationModule(
+        store=SQLiteCheckoutStore(path), cart=cart, pricing=Pricing(), fulfillment=Fulfillment()
+    )
+    cart.replace(scope=scope, session_id="s1", expected_revision=0, lines=[{"item_id": "x", "quantity": 1}])
+    quote = checkout.prepare(scope=scope, session_id="s1")
+    checkout.confirm(scope=scope, quote_id=quote["quote_id"], idempotency_key="key")
+
+    captured = []
+    checkout.dispatch_outbox(consumer=captured.append)
+
+    assert captured[0]["payload"]["device_id"] == str(device_id)
+
+
 def test_pickup_number_is_monotonic_per_store_and_scoped_by_store(tmp_path):
     scope, cart, checkout, _ = setup(tmp_path)
     other_store_scope = CommercialScope(scope.tenant_id, uuid4())

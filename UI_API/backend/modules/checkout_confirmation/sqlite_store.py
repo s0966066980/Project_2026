@@ -187,6 +187,10 @@ class SQLiteCheckoutStore:
                         "pickup_number": pickup_number,
                         "quote_id": quote_id,
                         "session_id": q["session_id"],
+                        # member_orders.origin_device_id is NOT NULL with a FK to devices; the
+                        # outbox consumer runs outside the request that confirmed this order, so
+                        # the device that took it has to travel with the event.
+                        "device_id": str(scope.device_id) if scope.device_id else "",
                     }
                     c.execute(
                         "INSERT INTO checkout_outbox VALUES(?,?,?,'OrderConfirmed',?,?,?,NULL)",

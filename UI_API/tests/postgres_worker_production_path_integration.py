@@ -23,7 +23,7 @@ def test_postgres_worker_executes_handler_before_success(monkeypatch: pytest.Mon
     from repositories import checkout_order_repository, postgres_utils, worker_job_repository
     from repositories.postgres_worker_store import PostgresJobStore
     from services import worker_handlers, worker_service
-    from services.checkout_service import checkout_request_fingerprint
+    from repositories.checkout_order_repository import checkout_request_fingerprint
     from services.outbox_delivery_router import configure_default_outbox_router
 
     base_url = postgres_utils.database_url()

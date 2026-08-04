@@ -421,7 +421,6 @@ def _build_voice_order_draft(
 async def _build_voice_context(
     session_id: str,
     user_text: str,
-    detected_lang: str,
     scope: CommercialScope | None = None,
     emotion_round_id: str = "",
     emotion_reference: dict | None | object = _EMOTION_REFERENCE_UNSET,
@@ -429,7 +428,7 @@ async def _build_voice_context(
     """組合語音 LLM 的 system_prompt 與 user_prompt。
 
     handle_voice 與 handle_voice_stream 共用此邏輯：
-    載入菜單與對話歷史、選定中／英 system prompt、注入情緒／RAG／熱門 context。
+    載入菜單與對話歷史、使用繁體中文 system prompt、注入情緒／RAG／熱門 context。
     回傳 (system_prompt, user_prompt, menu_items)。
     """
     (menu_items, _full_menu_context), history = await asyncio.gather(
@@ -438,9 +437,7 @@ async def _build_voice_context(
     )
     history_context = _format_history(history)
 
-    system_prompt = config.get(
-        "VOICE_ASSIST_SYSTEM_PROMPT_EN" if detected_lang == "en" else "VOICE_ASSIST_SYSTEM_PROMPT"
-    )
+    system_prompt = config.get("VOICE_ASSIST_SYSTEM_PROMPT")
     system_prompt += (
         "\n購物車安全規則：cart_actions 只代表要呈現在確認視窗的候選草稿，"
         "不得宣稱已加入購物車或已完成下單；請告知顧客必須在畫面上勾選並確認。"
@@ -508,7 +505,6 @@ async def handle_voice(
     session_id: str,
     audio_path: str,
     ollama_semaphore,
-    multi_lang: bool = True,
     scope: CommercialScope | None = None,
     emotion_round_id: str = "",
     voice_turn_id: str = "",
@@ -523,18 +519,16 @@ async def handle_voice(
             "status": "error",
             "message": f"STT 失敗: {e}",
             "user_text": "", "ai_response": "", "audio_base64": "",
-            "audio_format": "", "cart_actions": [], "order_draft": None, "detected_lang": "zh",
+            "audio_format": "", "cart_actions": [], "order_draft": None,
         }
 
     user_text = (stt_result.get("text") or "").strip()
-    detected_lang = stt_result.get("language", "zh") if multi_lang else "zh"
-
     if not user_text:
         return {
             "status": "error",
             "message": "無法辨識語音內容",
             "user_text": "", "ai_response": "", "audio_base64": "",
-            "audio_format": "", "cart_actions": [], "order_draft": None, "detected_lang": detected_lang,
+            "audio_format": "", "cart_actions": [], "order_draft": None,
         }
 
     # ── 2. Ollama LLM ─────────────────────────────────────────────
@@ -548,7 +542,7 @@ async def handle_voice(
         voice_turn_index=voice_turn_index,
     )
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang, scope, emotion_round_id, emotion_reference
+        session_id, user_text, scope, emotion_round_id, emotion_reference
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -573,11 +567,7 @@ async def handle_voice(
         result = {}
 
     if not isinstance(result, dict) or not result.get("ai_response"):
-        ai_response = (
-            "I can help with menu questions or add items to your cart."
-            if detected_lang == "en"
-            else "我可以協助您了解菜單或加入餐點。"
-        )
+        ai_response = "我可以協助您了解菜單或加入餐點。"
         proposed_actions = []
     else:
         ai_response = str(result.get("ai_response") or "").strip()
@@ -587,11 +577,7 @@ async def handle_voice(
             user_text, menu_items,
         )
         if proposed_actions:
-            ai_response = (
-                "Please review the items on screen, select what you want, and confirm."
-                if detected_lang == "en"
-                else "已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。"
-            )
+            ai_response = "已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。"
         if not ai_response:
             ai_response = "已整理您提到的餐點，請在畫面上勾選確認。" if proposed_actions else "我可以協助您了解菜單或選擇餐點。"
 
@@ -603,7 +589,7 @@ async def handle_voice(
         session_id=session_id,
         user_speech=user_text,
         ai_response=ai_response,
-        language=detected_lang,
+        language="zh",
         mentioned_ids=_mentioned,
         cart_actions=proposed_actions,
     )
@@ -611,7 +597,7 @@ async def handle_voice(
     # ── 3. TTS ────────────────────────────────────────────────────
     tts = get_tts()
     try:
-        audio_base64 = await tts.synthesize_base64(ai_response, detected_lang)
+        audio_base64 = await tts.synthesize_base64(ai_response)
     except Exception as e:
         print(f"⚠️ TTS 失敗: {e}")
         audio_base64 = ""
@@ -641,7 +627,6 @@ async def handle_voice(
         # committed only through explicit confirmation of order_draft in the kiosk.
         "cart_actions": [],
         "order_draft": order_draft,
-        "detected_lang": detected_lang,
     }
 
 
@@ -652,17 +637,12 @@ _SOFT_ENDS  = frozenset("，；\n")
 _SOFT_MIN   = 15          # 軟斷點最小字數
 
 
-def _safe_progressive_voice_text(text: str, detected_lang: str) -> str:
+def _safe_progressive_voice_text(text: str) -> str:
     """Prevent streamed model prose from claiming a draft already changed the cart."""
     normalized = str(text or "").strip()
-    unsafe_zh = re.search(r"(?:加入|放入|下單)", normalized)
-    unsafe_en = re.search(r"\b(?:added|placed|ordered|put)\b", normalized, re.IGNORECASE)
-    if unsafe_zh or unsafe_en:
-        return (
-            "I found the items you mentioned. Please select and confirm them on screen."
-            if detected_lang == "en"
-            else "已整理您提到的餐點，請在畫面上勾選並確認。"
-        )
+    unsafe_claim = re.search(r"(?:加入|放入|下單|\b(?:add|added|order(?:ed)?|placed)\b)", normalized, re.IGNORECASE)
+    if unsafe_claim:
+        return "已整理您提到的餐點，請在畫面上勾選並確認。"
     return normalized
 
 
@@ -670,7 +650,6 @@ async def handle_voice_stream(
     session_id: str,
     audio_path: str,
     ollama_semaphore,
-    multi_lang: bool = True,
     scope: CommercialScope | None = None,
     emotion_round_id: str = "",
     voice_turn_id: str = "",
@@ -679,10 +658,10 @@ async def handle_voice_stream(
     """
     串流版：STT → LLM 串流 → 逐句 TTS。
     每個 chunk 為 NDJSON 行（後接 \\n）：
-      {"type":"transcript","user_text":...,"detected_lang":...}
+      {"type":"transcript","user_text":...}
       {"type":"assistant_text","ai_response":...}
       {"type":"audio","data":"<base64>","format":"<wav|mp3>"}
-      {"type":"done","status":"success","user_text":...,"ai_response":...,"cart_actions":...,"detected_lang":...}
+      {"type":"done","status":"success","user_text":...,"ai_response":...,"cart_actions":...}
     """
     tts = get_tts()
     stt = get_stt()
@@ -696,8 +675,6 @@ async def handle_voice_stream(
         return
 
     user_text    = (stt_result.get("text") or "").strip()
-    detected_lang = stt_result.get("language", "zh") if multi_lang else "zh"
-
     if not user_text:
         err = _json.dumps({"type": "done", "status": "error", "message": "無法辨識語音內容"})
         yield (err + "\n").encode()
@@ -706,7 +683,6 @@ async def handle_voice_stream(
     transcript = _json.dumps({
         "type": "transcript",
         "user_text": user_text,
-        "detected_lang": detected_lang,
     }, ensure_ascii=False)
     yield (transcript + "\n").encode()
 
@@ -721,7 +697,7 @@ async def handle_voice_stream(
         voice_turn_index=voice_turn_index,
     )
     system_prompt, user_prompt, menu_items = await _build_voice_context(
-        session_id, user_text, detected_lang, scope, emotion_round_id, emotion_reference
+        session_id, user_text, scope, emotion_round_id, emotion_reference
     )
 
     model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")
@@ -788,7 +764,7 @@ async def handle_voice_stream(
 
             if flush_at >= 0:
                 sentence = _safe_progressive_voice_text(
-                    sent_buf[:flush_at + 1], detected_lang
+                    sent_buf[:flush_at + 1]
                 )
                 sent_buf = sent_buf[flush_at + 1:]
                 if sentence:
@@ -796,12 +772,11 @@ async def handle_voice_stream(
                         "type": "assistant_text",
                         "ai_response": (ai_response_final + sentence).strip(),
                         "user_text": user_text,
-                        "detected_lang": detected_lang,
                     }, ensure_ascii=False)
                     ai_response_final = (ai_response_final + sentence).strip()
                     yield (text_chunk + "\n").encode()
                     try:
-                        audio_bytes = await tts.synthesize(sentence, detected_lang)
+                        audio_bytes = await tts.synthesize(sentence)
                         if not audio_bytes:
                             raise RuntimeError("TTS returned empty audio")
                         b64 = base64.b64encode(audio_bytes).decode()
@@ -817,18 +792,17 @@ async def handle_voice_stream(
                         print(f"⚠️ 串流 TTS 失敗: {e}")
 
     # 剩餘 buffer flush
-    remainder = _safe_progressive_voice_text(sent_buf, detected_lang)
+    remainder = _safe_progressive_voice_text(sent_buf)
     if remainder:
         ai_response_final = (ai_response_final + remainder).strip()
         text_chunk = _json.dumps({
             "type": "assistant_text",
             "ai_response": ai_response_final,
             "user_text": user_text,
-            "detected_lang": detected_lang,
         }, ensure_ascii=False)
         yield (text_chunk + "\n").encode()
         try:
-            audio_bytes = await tts.synthesize(remainder, detected_lang)
+            audio_bytes = await tts.synthesize(remainder)
             if not audio_bytes:
                 raise RuntimeError("TTS returned empty audio")
             b64 = base64.b64encode(audio_bytes).decode()
@@ -852,11 +826,7 @@ async def handle_voice_stream(
         user_text, menu_items,
     )
     if proposed_actions:
-        ai_response_final = (
-            "Please review the items on screen, select what you want, and confirm."
-            if detected_lang == "en"
-            else "已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。"
-        )
+        ai_response_final = "已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。"
     mentioned_ids = result.get("mentioned_ids") or []
     order_draft = _build_voice_order_draft(user_text, proposed_actions, menu_items)
 
@@ -864,7 +834,7 @@ async def handle_voice_stream(
     # ai_response。若先前尚未產生音訊，最後再嘗試一次完整答案。
     if ai_response_final and not audio_emitted and not tts_failed:
         try:
-            audio_bytes = await tts.synthesize(ai_response_final, detected_lang)
+            audio_bytes = await tts.synthesize(ai_response_final)
             if not audio_bytes:
                 raise RuntimeError("TTS returned empty audio")
             b64 = base64.b64encode(audio_bytes).decode()
@@ -885,7 +855,7 @@ async def handle_voice_stream(
         session_id=session_id,
         user_speech=user_text,
         ai_response=ai_response_final,
-        language=detected_lang,
+        language="zh",
         mentioned_ids=mentioned_ids,
         cart_actions=proposed_actions,
     )
@@ -909,7 +879,6 @@ async def handle_voice_stream(
         "cart_actions": [],
         "order_draft": order_draft,
         "mentioned_ids": mentioned_ids,
-        "detected_lang": detected_lang,
         "playback_status": "available" if audio_emitted else "degraded",
         "playback_message": "" if audio_emitted else "文字結果已保留，但語音播放暫時不可用。",
     }, ensure_ascii=False)

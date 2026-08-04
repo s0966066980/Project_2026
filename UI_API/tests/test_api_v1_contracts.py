@@ -170,6 +170,13 @@ def test_v1_cart_quote_uses_authoritative_prices(monkeypatch) -> None:
     client = _client(monkeypatch)
     schema = client.get("/openapi.json").json()
     assert schema["paths"]["/api/v1/cart/quote"]["post"]["operationId"] == "v1_quote_cart"
+    # 結帳改讀 store-scoped 菜單主檔（ADR-0018），因此要 patch 這條路徑；
+    # patch 舊的 get_menu 會失效並讓這個單元測試真的去查資料庫。
+    monkeypatch.setattr(
+        checkout_pricing_service.menu_repository,
+        "get_menu_scoped",
+        lambda scope=None, **_kwargs: [{"id": "meal", "name": "套餐", "category": "主餐", "price": 120}],
+    )
     monkeypatch.setattr(
         checkout_pricing_service.menu_repository,
         "get_menu",

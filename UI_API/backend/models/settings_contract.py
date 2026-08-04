@@ -30,7 +30,6 @@ class SettingsUpdateRequest(BaseModel):
 
     # ── 系統指令與關鍵詞 ──────────────────────────────────────
     VOICE_ASSIST_SYSTEM_PROMPT: str | None = Field(default=None, max_length=20_000)
-    VOICE_ASSIST_SYSTEM_PROMPT_EN: str | None = Field(default=None, max_length=20_000)
     AI_PUSH_SYSTEM_PROMPT: str | None = Field(default=None, max_length=20_000)
     AI_PUSH_TEXT_MIN: int | None = Field(default=None, ge=1, le=200)
     AI_PUSH_TEXT_MAX: int | None = Field(default=None, ge=1, le=200)
@@ -51,11 +50,9 @@ class SettingsUpdateRequest(BaseModel):
     # ── 語音輸入輸出 ─────────────────────────────────────────
     STT_PROVIDER: Literal["faster_whisper", "openai_compatible"] | None = None
     STT_MODEL: str | None = Field(default=None, min_length=1, max_length=120)
-    STT_LANGUAGE: str | None = Field(default=None, max_length=20)
     STT_API_URL: str | None = Field(default=None, max_length=500)
     TTS_PROVIDER: Literal["edge", "melo", "openai_compatible"] | None = None
     EDGE_TTS_VOICE: str | None = Field(default=None, min_length=1, max_length=120)
-    EDGE_TTS_VOICE_EN: str | None = Field(default=None, min_length=1, max_length=120)
     TTS_API_URL: str | None = Field(default=None, max_length=500)
     TTS_MODEL: str | None = Field(default=None, min_length=1, max_length=120)
     TTS_VOICE: str | None = Field(default=None, min_length=1, max_length=120)

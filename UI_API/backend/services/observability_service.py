@@ -58,6 +58,7 @@ REQUIRED_METRICS = (
     "outbox_oldest_age",
     "promotion_shadow_comparisons_total",
     "promotion_shadow_unexpected_mismatches_total",
+    "checkout_outbox_dispatch_failed_total",
 )
 _METRICS: dict[str, dict[str, float]] = {name: defaultdict(float) for name in REQUIRED_METRICS}
 _PHONE_PATTERN = re.compile(r"(?<!\d)09\d{8}(?!\d)")

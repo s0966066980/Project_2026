@@ -1,5 +1,3 @@
-export type LanguageCode = "zh" | "en" | string;
-
 export interface MenuItem {
   id: string;
   name?: string;
@@ -96,14 +94,12 @@ export interface VoiceStreamAudioChunk {
 export interface VoiceStreamTranscriptChunk {
   type: "transcript";
   user_text: string;
-  detected_lang?: string;
 }
 
 export interface VoiceStreamAssistantTextChunk {
   type: "assistant_text";
   ai_response: string;
   user_text?: string;
-  detected_lang?: string;
 }
 
 export interface VoiceStreamDoneChunk {
@@ -128,7 +124,6 @@ export interface VoiceTurnEventPayload {
   message?: string;
   user_text?: string;
   ai_response?: string;
-  detected_lang?: string;
   audio_base64?: string;
   audio_format?: string;
   playback_status?: string;
@@ -194,7 +189,6 @@ export interface KioskRuntime {
   cartManager?: CartManager;
   clearAllPushCards?: () => void;
   getFeatures?: () => Record<string, unknown>;
-  getKioskLang?: () => LanguageCode;
   getRuntimeSettings?: () => Record<string, unknown>;
   isAdminMode?: () => boolean;
   isKioskActive?: () => boolean;
@@ -202,7 +196,7 @@ export interface KioskRuntime {
   isPosActive?: () => boolean;
   isPosMode?: () => boolean;
   itemMatchesSubFilter?: (item: MenuItem, filter: string) => boolean;
-  kt?: (key: string) => string;
+  kioskText?: (key: string) => string;
   sessionId?: string;
   showPushNotice?: (text: string) => void;
   trackInteractionEvent?: (event: InteractionEventPayload) => void | Promise<unknown>;
@@ -223,7 +217,6 @@ export interface CartManagerOptions {
   findMenuItems: (ids?: string[]) => MenuItem[];
   onCartChange?: (items: CartItem[], reason?: "cart_change" | "quote_applied" | "quote_pending" | "quote_failed") => void;
   t?: (key: string) => string;
-  lang?: () => LanguageCode;
   getVisual?: (item: MenuItem) => MenuVisual;
 }
 

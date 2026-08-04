@@ -1154,23 +1154,42 @@ function populateModelSelect(selectId, models, currentValue) {
 
 // ── 測試頁：提供者切換 ──
 
+// Diagnostic Provider Override: the half of the provider chain this one prompt will exercise.
+// Held here rather than read back out of the DOM, so moving the diagnostic panel to another
+// page cannot silently strand the lookup and send every prompt to the local runtime.
+let _testProvider = 'ollama';
+
 function onTestProviderChange(btn) {
-  const provider = btn.dataset.provider;
+  _testProvider = btn.dataset.provider;
   btn.closest('.provider-tabs').querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   ['ollama', 'nvidia_nim'].forEach(p => {
-    g(`test-fields-${p}`)?.classList.toggle('hidden', p !== provider);
+    g(`test-fields-${p}`)?.classList.toggle('hidden', p !== _testProvider);
   });
 }
 
 function getTestProvider() {
-  return g('page-test')?.querySelector('.provider-tab.active')?.dataset.provider || 'ollama';
+  return _testProvider;
+}
+
+// Sentinel option that swaps the NIM catalog dropdown for a free-text model id. The typed id
+// is a Diagnostic Provider Override: it is sent with this one prompt and never persisted, so
+// a model can be tried without first committing it to the settings document.
+const TEST_NIM_CUSTOM_MODEL = '__custom__';
+
+function onTestNimModelChange() {
+  const custom = g('test-inp-nim-model-custom');
+  if (!custom) return;
+  custom.hidden = val('test-inp-nim-model') !== TEST_NIM_CUSTOM_MODEL;
+  if (!custom.hidden) custom.focus();
 }
 
 function getTestModel() {
   const p = getTestProvider();
-  if (p === 'nvidia_nim') return val('test-inp-nim-model') || 'meta/llama-3.1-8b-instruct';
-  return val('test-inp-model') || (_ollamaModels[0] || '');
+  if (p !== 'nvidia_nim') return val('test-inp-model') || (_ollamaModels[0] || '');
+  const chosen = val('test-inp-nim-model');
+  if (chosen === TEST_NIM_CUSTOM_MODEL) return val('test-inp-nim-model-custom');
+  return chosen || 'meta/llama-3.1-8b-instruct';
 }
 
 // ── 測試頁：對話 ──
@@ -1221,6 +1240,15 @@ async function sendTestMsg() {
   const text = (inputEl?.value || '').trim();
   if (!text) return;
 
+  // Sending with an empty custom id would fall back to the configured model server-side, so the
+  // reply would come from a model the operator did not ask for — the one thing a diagnostic
+  // must never do. Refuse instead, and keep their prompt in the box.
+  if (getTestProvider() === 'nvidia_nim' && !getTestModel()) {
+    _appendBubble('ai', '❌ 請先輸入要測試的 NIM 模型 ID。');
+    g('test-inp-nim-model-custom')?.focus();
+    return;
+  }
+
   const sendBtn = g('test-send-btn');
   if (sendBtn) sendBtn.disabled = true;
   inputEl.value = '';
@@ -1244,7 +1272,13 @@ async function sendTestMsg() {
     });
     loadingBubble?.remove();
     if (!res.ok) {
-      _appendBubble('ai', `❌ ${llmTestErrorMessage(res.status)}`);
+      // 400 is the diagnostic rejecting the request parameters; its detail names which one,
+      // and the fixed copy ("請稍後再試") would be actively wrong advice for it.
+      let detail = '';
+      if (res.status === 400) {
+        detail = String((await res.json().catch(() => ({})))?.detail || '');
+      }
+      _appendBubble('ai', `❌ ${detail || llmTestErrorMessage(res.status)}`);
       return;
     }
 
@@ -1331,6 +1365,7 @@ window.clearEmotionLogs           = clearEmotionLogs;
 window.labelEmotionEvent          = labelEmotionEvent;
 window.updateEmotionPromptCounter = updateEmotionPromptCounter;
 window.onTestProviderChange = onTestProviderChange;
+window.onTestNimModelChange = onTestNimModelChange;
 window.sendTestMsg   = sendTestMsg;
 window.clearTestChat = clearTestChat;
 window.switchTestView = switchTestView;

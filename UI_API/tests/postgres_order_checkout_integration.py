@@ -56,7 +56,7 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
     from models.order import InvalidOrderTransitionError, OrderStatus
     from repositories import checkout_order_repository, postgres_utils
     from services import observability_service
-    from services.checkout_service import checkout_request_fingerprint
+    from repositories.checkout_order_repository import checkout_request_fingerprint
 
     base_url = postgres_utils.database_url()
     schema = "order_checkout_integration"
@@ -218,3 +218,88 @@ def test_order_checkout_is_atomic_idempotent_and_scoped(monkeypatch: pytest.Monk
         )
 
     postgres_utils.validate_migration_plan(postgres_utils.get_migration_plan(), require_clean=True)
+
+
+def test_checkout_outbox_relogin_exposes_member_order_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise the production confirmation/outbox consumer across a fresh login."""
+    import psycopg
+
+    from models.commercial_scope import LEGACY_DEFAULT_SCOPE
+    from modules.cart import CartModule, PostgresCartStore
+    from modules.checkout_confirmation import CheckoutConfirmationModule
+    from modules.checkout_confirmation import runtime as checkout_runtime
+    from modules.checkout_confirmation.postgres_store import PostgresCheckoutStore
+    from repositories import postgres_utils
+    from services import member_service
+
+    base_url = postgres_utils.database_url()
+    schema = "member_history_checkout_integration"
+    with psycopg.connect(base_url, autocommit=True) as conn:
+        try:
+            conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+            conn.execute(f'CREATE SCHEMA "{schema}"')
+        except psycopg.errors.InsufficientPrivilege:
+            pytest.skip("PostgreSQL integration role cannot create an isolated schema")
+    scoped_url = _schema_url(base_url, schema)
+    migrations = postgres_utils.migration_files()
+    monkeypatch.setattr(postgres_utils, "database_url", lambda: scoped_url)
+    monkeypatch.setattr(postgres_utils, "storage_backend", lambda: "postgresql")
+    monkeypatch.setattr(postgres_utils, "migration_files", lambda: migrations)
+    postgres_utils.init_schema()
+    member_service._session_member.clear()
+
+    phone = "0912345678"
+    session_id = "checkout-history-session"
+    registered = member_service.register(session_id, phone, "歷史測試會員", scope=LEGACY_DEFAULT_SCOPE)
+    assert registered["ok"] is True
+
+    cart = CartModule(PostgresCartStore())
+    cart.replace(
+        scope=LEGACY_DEFAULT_SCOPE,
+        session_id=session_id,
+        expected_revision=0,
+        lines=[{"item_id": "meal", "quantity": 2, "options": []}],
+    )
+
+    class Pricing:
+        @staticmethod
+        def price(*, scope, session_id, lines):
+            return {"subtotal": 220, "option_total": 0, "discount_total": 0, "tax_total": 0, "total": 220}
+
+    class Fulfillment:
+        @staticmethod
+        def validate(*, scope, lines):
+            return []
+
+    checkout = CheckoutConfirmationModule(
+        store=PostgresCheckoutStore(),
+        cart=cart,
+        pricing=Pricing(),
+        fulfillment=Fulfillment(),
+    )
+    quote = checkout.prepare(scope=LEGACY_DEFAULT_SCOPE, session_id=session_id)
+    confirmed = checkout.confirm(
+        scope=LEGACY_DEFAULT_SCOPE,
+        quote_id=quote["quote_id"],
+        idempotency_key="history-confirmation",
+    )
+    assert confirmed["type"] == "confirmed"
+
+    monkeypatch.setattr(checkout_runtime, "default_module", lambda: checkout)
+    dispatched = checkout_runtime.dispatch_outbox()
+    assert len(dispatched["published_event_ids"]) == 1
+    assert dispatched["failed_event_ids"] == []
+
+    relogin = member_service.login("relogin-session", phone, scope=LEGACY_DEFAULT_SCOPE)
+    assert relogin["found"] is True
+    history = relogin["member"]["history"]
+    assert len(history) == 1
+    assert history[0]["total"] == 220
+    assert history[0]["items"] == [{"id": "meal", "name": "meal", "price": 0, "count": 2}]
+
+    with psycopg.connect(scoped_url) as conn:
+        row = conn.execute(
+            "SELECT origin_device_id, published_at FROM checkout_outbox WHERE event_type = 'OrderConfirmed'"
+        ).fetchone()
+        assert row[0] == LEGACY_DEFAULT_SCOPE.device_id
+        assert row[1] is not None

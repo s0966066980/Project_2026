@@ -28,9 +28,8 @@
  * }} ui
  * @property {(value: unknown) => string} escapeHTML
  * @property {(item: MenuItem) => { image: string, emoji: string }} getMenuVisual
- * @property {(item: MenuItem, lang?: string) => string} formatItemPrice
+ * @property {(item: MenuItem) => string} formatItemPrice
  * @property {KioskGroup[]} groups
- * @property {() => string} getLanguage
  * @property {(key: string) => string} translate
  * @property {(filter: string) => string} translateFilter
  * @property {(group: KioskGroup) => string} translateGroup
@@ -54,7 +53,6 @@ export function createKioskMenuController({
   getMenuVisual,
   formatItemPrice,
   groups,
-  getLanguage,
   translate,
   translateFilter,
   translateGroup,
@@ -267,7 +265,7 @@ export function createKioskMenuController({
       const row = document.createElement('div');
       row.id = `menu-${item.id}`;
       row.className = 'kiosk-menu-row';
-      const currentPrice = formatItemPrice(item, getLanguage());
+      const currentPrice = formatItemPrice(item);
       const basePrice = Number(item.base_price || item.original_price || 0);
       const effectivePrice = Number(item.effective_price || item.price || 0);
       const originalPrice = !item.price_conditional && basePrice > effectivePrice

@@ -1,12 +1,11 @@
 // @ts-check
 
-/** @typedef {import('../types.d.ts').LanguageCode} LanguageCode */
 /** @typedef {import('../types.d.ts').MenuItem} MenuItem */
 /** @typedef {import('../types.d.ts').MenuVisual} MenuVisual */
 
 // =========================================================
 // 菜單品項視覺呈現：分類圖示／emoji／圖片路徑 + 價格格式化。
-// 純函式，無模組狀態（語言由呼叫端以參數傳入）。
+// 純函式，無模組狀態；Kiosk 固定使用繁體中文。
 // =========================================================
 
 export const STORE_PRICE_FALLBACK = 100;
@@ -59,10 +58,9 @@ export function getMenuVisual(item) {
 
 /**
  * @param {MenuItem} item
- * @param {LanguageCode} [lang]
  * @returns {string}
  */
-export function formatItemPrice(item, lang = 'zh') {
+export function formatItemPrice(item) {
   return `$${resolveItemPrice(item)}`;
 }
 

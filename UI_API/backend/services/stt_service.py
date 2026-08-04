@@ -14,7 +14,7 @@ import config
 class STTProvider(ABC):
     @abstractmethod
     async def transcribe(self, audio_path: str) -> dict:
-        """音訊檔 → {"text": str, "language": "zh"|"en"}"""
+        """音訊檔 → {"text": str}；語音輸入固定以繁體中文辨識。"""
 
 
 # ── FasterWhisper 本地實作 ────────────────────────────────────────
@@ -58,7 +58,7 @@ class FasterWhisperSTT(STTProvider):
 
     async def transcribe(self, audio_path: str, initial_prompt: str | None = None) -> dict:
         self._init()
-        language = config.get("STT_LANGUAGE", "zh") or None
+        language = "zh"
         prompt = initial_prompt if initial_prompt is not None else config.get("STT_INITIAL_PROMPT", "")
 
         def _run():
@@ -71,11 +71,7 @@ class FasterWhisperSTT(STTProvider):
                     vad_parameters={"min_silence_duration_ms": 300},
                 )
             text = "".join(seg.text for seg in segments).strip()
-            lang = info.language or "zh"
-            return {
-                "text": text,
-                "language": "zh" if lang.startswith("zh") else "en",
-            }
+            return {"text": text}
 
         return await asyncio.to_thread(_run)
 
@@ -94,7 +90,7 @@ class OpenAICompatibleSTT(STTProvider):
 
         url = config.get("STT_API_URL", "https://api.openai.com").rstrip("/")
         api_key = config.STT_API_KEY or "none"
-        language = config.get("STT_LANGUAGE", "zh")
+        language = "zh"
         model = config.get("STT_MODEL", "whisper-1")
 
         async with httpx.AsyncClient(timeout=float(config.get("STT_HTTP_TIMEOUT_SEC", 30))) as client:
@@ -108,10 +104,7 @@ class OpenAICompatibleSTT(STTProvider):
             r.raise_for_status()
 
         data = r.json()
-        return {
-            "text": (data.get("text") or "").strip(),
-            "language": language or "zh",
-        }
+        return {"text": (data.get("text") or "").strip()}
 
 
 # ── Factory ───────────────────────────────────────────────────────

@@ -2155,10 +2155,6 @@ tbody tr:hover td { background: #f8fafd; }
             <label class="setting-label" for="inp-tts-voice-zh">中文語音</label>
             <div class="setting-field"><input id="inp-tts-voice-zh" class="setting-input" type="text" placeholder="zh-TW-HsiaoChenNeural"><div class="setting-error" data-error-for="EDGE_TTS_VOICE"></div></div>
           </div>
-          <div class="setting-row" id="row-tts-edge-en">
-            <label class="setting-label" for="inp-tts-voice-en">英文語音</label>
-            <div class="setting-field"><input id="inp-tts-voice-en" class="setting-input" type="text" placeholder="en-US-JennyNeural"><div class="setting-error" data-error-for="EDGE_TTS_VOICE_EN"></div></div>
-          </div>
           <div class="setting-row hidden" id="row-tts-api">
             <label class="setting-label" for="inp-tts-api-url">服務連線位址</label>
             <div class="setting-field">
@@ -2188,10 +2184,6 @@ tbody tr:hover td { background: #f8fafd; }
           <div style="margin-bottom:12px">
             <label for="inp-voice-prompt-zh" style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">中文指令內容（空白時使用系統預設）</label>
             <textarea id="inp-voice-prompt-zh" rows="8" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設指令"></textarea>
-          </div>
-          <div>
-            <label for="inp-voice-prompt-en" style="font-size:12px;font-weight:600;color:#3b4a6b;display:block;margin-bottom:6px">英文指令內容（空白時使用系統預設）</label>
-            <textarea id="inp-voice-prompt-en" rows="6" class="setting-input" style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%" placeholder="留空使用內建預設英文指令"></textarea>
           </div>
         </section>
 
@@ -2337,7 +2329,10 @@ tbody tr:hover td { background: #f8fafd; }
           <div class="provider-note"><i class="fas fa-info-circle"></i>存取金鑰與服務位址由 .env 中的 NVIDIA_API_KEY / NVIDIA_API_BASE_URL 提供。</div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
             <label class="setting-label" style="width:auto">模型</label>
-            <input id="test-inp-nim-model" class="setting-input" type="text" placeholder="meta/llama-3.1-8b-instruct" style="width:100%">
+            <select id="test-inp-nim-model" class="setting-input" style="width:100%" onchange="onTestNimModelChange()"></select>
+            <input id="test-inp-nim-model-custom" class="setting-input" type="text" hidden
+              placeholder="輸入 NIM 模型 ID，例如 nvidia/llama-3.1-nemotron-nano-8b-v1" style="width:100%">
+            <p class="provider-note">清單沿用「AI 模型」分頁的 NIM 語音模型目錄。選「自訂…」可測目錄外的型號，只用於本次診斷，不會寫入設定。</p>
           </div>
         </div>
         </div>

@@ -12,7 +12,7 @@ import { resolveItemPrice } from './menuVisuals.js';
  * @param {CartManagerOptions} options
  * @returns {CartManager}
  */
-export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, lang = () => 'zh', getVisual }) {
+export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange, t, getVisual }) {
   /** @type {Record<string, CartItem>} */
   const cart = {};
   /** @type {{ status: "idle" | "pending" | "ready" | "failed", total: number | null, version: string }} */

@@ -38,7 +38,6 @@ def voice_stack(tmp_path, monkeypatch):
             "RAG_ENABLED": False,
             "EMOTION_LLAMA_AFFECT_VOICE": False,
             "VOICE_ASSIST_SYSTEM_PROMPT": "system",
-            "VOICE_ASSIST_SYSTEM_PROMPT_EN": "system_en",
             "VOICE_HISTORY_MAX_TURNS": 4,
             "AI_PUSH_PRIORITY_CATS": [],
         }
@@ -56,7 +55,7 @@ def test_voice_context_includes_member_preference_section(voice_stack):
     member["orders"] = [{"cart_ids": ["MCD001", "MCD012"], "order_status": "completed"}]
     member_service.member_repository.upsert_member(member)
 
-    _, prompt, _ = asyncio.run(voice_service._build_voice_context("s1", "有什麼推薦", "zh"))
+    _, prompt, _ = asyncio.run(voice_service._build_voice_context("s1", "有什麼推薦"))
     assert "會員偏好摘要" in prompt
     assert "會員常點 ID" in prompt
     assert "MCD001｜大麥克套餐｜超值全餐｜常點 4 次" in prompt
@@ -70,14 +69,14 @@ def test_voice_context_includes_member_preference_section(voice_stack):
 
 def test_voice_context_omits_member_section_for_guest(voice_stack):
     voice_service, _ = voice_stack
-    _, prompt, _ = asyncio.run(voice_service._build_voice_context("guest", "有什麼推薦", "zh"))
+    _, prompt, _ = asyncio.run(voice_service._build_voice_context("guest", "有什麼推薦"))
     assert "會員偏好摘要" not in prompt
 
 
 def test_voice_context_includes_rag_guard_for_promotion_question(voice_stack):
     voice_service, _ = voice_stack
 
-    _, prompt, _ = asyncio.run(voice_service._build_voice_context("guest", "今天有什麼優惠", "zh"))
+    _, prompt, _ = asyncio.run(voice_service._build_voice_context("guest", "今天有什麼優惠"))
 
     assert "RAG 回答防編造規則" in prompt
     assert "目前沒有可對該受眾確認的已驗證活動" in prompt

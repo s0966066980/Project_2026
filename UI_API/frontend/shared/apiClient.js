@@ -57,7 +57,6 @@ function parseVoiceStreamChunk(value) {
     return {
       type: 'transcript',
       user_text: value.user_text,
-      ...(typeof value.detected_lang === 'string' ? { detected_lang: value.detected_lang } : {}),
     };
   }
   if (value.type === 'assistant_text' && typeof value.ai_response === 'string') {
@@ -65,7 +64,6 @@ function parseVoiceStreamChunk(value) {
       type: 'assistant_text',
       ai_response: value.ai_response,
       ...(typeof value.user_text === 'string' ? { user_text: value.user_text } : {}),
-      ...(typeof value.detected_lang === 'string' ? { detected_lang: value.detected_lang } : {}),
     };
   }
   if (value.type === 'done') {

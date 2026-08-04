@@ -62,7 +62,7 @@ export function renderChoiceHesitationItem(item) {
   const imageEl = document.getElementById('choiceHesitationImage');
   const fallbackEl = document.getElementById('choiceHesitationFallback');
   if (nameEl) nameEl.textContent = item.name || '推薦餐點';
-  if (priceEl) priceEl.textContent = formatItemPrice(item, getRequiredRuntimeDependency('getKioskLang')());
+  if (priceEl) priceEl.textContent = formatItemPrice(item);
   if (reasonEl) reasonEl.textContent = item.description || '先試試這份熱門餐點。';
   if (fallbackEl) {
     fallbackEl.textContent = visual.emoji || '🍔';

@@ -49,8 +49,12 @@ The store's persisted choice of how text-model requests use the local and cloud 
 _Avoid_: AI provider toggle, Model picker, Per-feature model choice, Streaming-only exception
 
 **Cloud Text Provider**:
-NVIDIA NIM, the one external service filling the cloud half of the chain. It is fixed rather than chosen — there is no provider selection left in the settings surface, only whether the Text Model Routing Policy admits cloud at all — and it is only reached when the policy does, with configuring cloud never implying it can serve; its Traditional Chinese display term is 「雲端文字提供者」.
-_Avoid_: Provider tab, Provider dropdown, Gemini, OpenAI-compatible endpoint, Configured-means-working
+NVIDIA NIM, the one external service filling the cloud half of the chain. It is fixed rather than chosen — no persisted setting selects a provider, only whether the [[Text Model Routing Policy]] admits cloud at all — and it is only reached when the policy does, with configuring cloud never implying it can serve. Naming it for a single [[Diagnostic Provider Override]] is not selecting it, because that names nothing that outlives the request; its Traditional Chinese display term is 「雲端文字提供者」.
+_Avoid_: Persisted provider field, Provider setting, Gemini, OpenAI-compatible endpoint, Configured-means-working
+
+**Diagnostic Provider Override**:
+The provider and model a manager holding [[Manager LLM Debug Access]] names for one diagnostic prompt. It is never persisted, never consulted by customer traffic, and never changes the [[Text Model Routing Policy]] for any other caller — it exists so that one half of the chain can be exercised in isolation, which is the only way to tell an unready half apart from a policy that never reaches it. It must name a half that exists: an absent or unrecognised provider is refused rather than resolved into the local runtime, because a diagnostic that quietly answers from somewhere else reports the opposite of what happened; its Traditional Chinese display term is 「診斷提供者覆寫」.
+_Avoid_: Provider setting, Per-caller model choice, Default provider, Fallback to local
 
 **NIM Model Catalog**:
 The developer-maintained, hardcoded set of NVIDIA NIM model IDs Admin offers in the model dropdown for each of `NIM_MODEL_NAME` and `NIM_VOICE_MODEL` — a separate, smaller catalog for the voice half. Admin cannot switch the Cloud Text Provider itself through this catalog, only which model that provider runs; its Traditional Chinese display term is 「NIM 模型目錄」.
@@ -149,6 +153,10 @@ The Kiosk state after submitting Confirm Checkout when transport failure prevent
 _Avoid_: Checkout failed, Retry with new key, Duplicate order
 
 ## Voice Ordering Language
+
+**Fixed Voice Language Policy**:
+The Kiosk UI, speech recognition, voice-assistant text, and synthesized speech use Traditional Chinese only. Voice turns do not expose a language selector, detect a response language, or carry an English prompt/voice setting; its Traditional Chinese display term is 「固定語音語言政策」.
+_Avoid_: Voice language switching, automatic response-language detection, English voice reply
 
 **Voice Turn**:
 A single customer voice interaction with a stable `voice_turn_id` scoped to its store and ordering session. It begins when the customer taps the voice control, listens without requiring the control to be held, and submits automatically after detected speech followed by 1.5 seconds of silence. It ends as no recognizable speech when speech has not begun within 8 seconds and may record for at most 30 seconds. While listening, visible 「立即送出」 and 「取消」 controls remain available as manual recovery paths. Every Voice Turn reaches exactly one visible terminal outcome: completed, cancelled, no recognizable speech, permission unavailable, recording failure, transcription failure, assistant failure, or playback degradation. Retrying the same `voice_turn_id` resumes or replays that Voice Turn and never creates a second assistant execution, Voice Order Draft, or Voice Emotion Observation request; its Traditional Chinese display term is 「語音回合」.

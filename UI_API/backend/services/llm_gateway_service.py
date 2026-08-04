@@ -39,6 +39,23 @@ _GATEWAY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 
 # Task-level structured output contracts (required keys). Values are further
 # validated by the calling application service (menu whitelist, length, etc.).
+# Traditional Chinese rendering of the safe_error codes adapters emit. Shared by every Admin
+# surface that shows a provider failure — connectivity tests and the diagnostic prompt tool —
+# so the same failure never reads differently depending on which surface reported it.
+SAFE_ERROR_MESSAGES: dict[str, str] = {
+    "missing_credential": "缺少 API 金鑰，未送出請求。",
+    "provider_timeout": "請求逾時。",
+    "invalid_provider_payload": "回應格式無法解析。",
+    "response_truncated": "回應在寫完前就達到長度上限。推理型模型的思考過程也會佔用額度，請改用非推理型模型。",
+}
+
+
+def describe_safe_error(code: str) -> str:
+    """Render a safe_error code for an operator. Unknown codes pass through unchanged."""
+
+    return SAFE_ERROR_MESSAGES.get(code, code)
+
+
 TASK_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
     # Authored in Admin, not generated per request — the gateway only sees this task when an
     # operator presses 產生推薦詞, never on a Kiosk push.

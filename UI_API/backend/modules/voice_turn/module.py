@@ -45,7 +45,6 @@ class Assistant(Protocol):
         self,
         *,
         transcript: str,
-        language: str,
         candidates: list[dict[str, Any]],
         operation_key: str,
     ) -> dict[str, Any]: ...
@@ -56,7 +55,7 @@ class Menu(Protocol):
 
 
 class TTS(Protocol):
-    def synthesize(self, *, text: str, language: str, operation_key: str) -> dict[str, Any]: ...
+    def synthesize(self, *, text: str, operation_key: str) -> dict[str, Any]: ...
 
 
 class Effects(Protocol):
@@ -162,15 +161,14 @@ class VoiceTurnModule:
                     status="transcription_failed",
                     reason=str(exc),
                 )
-            language = str(transcript.get("language") or "zh")
             turn = self._store.transition(
                 scope=scope,
                 voice_turn_id=voice_turn_id,
                 expected={"transcribing"},
                 status="assisting",
-                updates={"transcript": text, "language": language},
+                updates={"transcript": text, "language": "zh"},
                 event_type="transcript",
-                payload={"user_text": text, "detected_lang": language},
+                payload={"user_text": text},
             )
             self._effects.schedule_observation(
                 voice_turn_id=voice_turn_id,
@@ -188,7 +186,6 @@ class VoiceTurnModule:
                 )
                 assisted = self._assistant.assist(
                     transcript=turn["transcript"],
-                    language=turn["language"],
                     candidates=candidates,
                     operation_key=f"{voice_turn_id}:assist",
                 )
@@ -241,7 +238,6 @@ class VoiceTurnModule:
             try:
                 audio = self._tts.synthesize(
                     text=turn["assistant_text"],
-                    language=turn["language"],
                     operation_key=f"{voice_turn_id}:synthesize",
                 )
             except TransientVoiceTurnError as exc:
@@ -271,7 +267,6 @@ class VoiceTurnModule:
                     "playback_message": playback_message,
                     "user_text": turn["transcript"],
                     "ai_response": turn["assistant_text"],
-                    "detected_lang": turn["language"],
                     "order_draft": turn["order_draft"],
                     "mentioned_ids": turn["mentioned_ids"],
                     "audio_base64": str(audio.get("audio_ref") or ""),
@@ -325,7 +320,6 @@ class VoiceTurnModule:
             "retryable": False,
             "user_text": turn["transcript"],
             "assistant_text": turn["assistant_text"],
-            "language": turn["language"],
             "order_draft": turn["order_draft"],
             "mentioned_ids": turn["mentioned_ids"],
             "playback_status": turn["playback_status"],

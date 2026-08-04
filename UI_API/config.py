@@ -346,7 +346,6 @@ DEFAULT_SETTINGS = {
     "VOICE_LLM_PREWARM_ENABLED": True,
     "VOICE_HISTORY_MAX_TURNS": 4,           # 注入 LLM 的對話歷史輪數
     "VOICE_ASSIST_SYSTEM_PROMPT": _prompts.VOICE_ASSIST_SYSTEM_PROMPT,
-    "VOICE_ASSIST_SYSTEM_PROMPT_EN": _prompts.VOICE_ASSIST_SYSTEM_PROMPT_EN,
     "AI_PUSH_SYSTEM_PROMPT": _prompts.AI_PUSH_SYSTEM_PROMPT,
     # ── AI 推播 / 前端行為 ────────────────────
     "AI_PUSH_TEXT_MIN": 18,                 # 推薦詞最少字數（Admin 產生推薦詞時遵守）
@@ -367,14 +366,12 @@ DEFAULT_SETTINGS = {
     # ── STT ───────────────────────────────────
     "STT_PROVIDER": "faster_whisper",       # "faster_whisper" | "openai_compatible"
     "STT_MODEL": "small",                   # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
-    "STT_LANGUAGE": "zh",                   # "" = 自動偵測
     "STT_INITIAL_PROMPT": "麥當勞點餐，繁體中文，常見品項：大麥克、薯條、麥克雞塊、可樂、套餐、咖啡、拿鐵",
     "STT_API_URL": "https://api.openai.com",
     "STT_HTTP_TIMEOUT_SEC": 30,             # HTTP STT API 請求 timeout（秒）
     # ── TTS ───────────────────────────────────
     "TTS_PROVIDER": "edge",                 # "edge" | "melo" | "openai_compatible"
     "EDGE_TTS_VOICE": "zh-TW-HsiaoChenNeural",
-    "EDGE_TTS_VOICE_EN": "en-US-JennyNeural",
     "TTS_SPEED": 1.0,                       # MeloTTS 語速
     "TTS_MODEL": "tts-1",                   # openai_compatible 模型名稱
     "TTS_VOICE": "alloy",                   # openai_compatible 聲音
