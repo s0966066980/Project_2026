@@ -1129,6 +1129,160 @@ tbody tr:hover td { background: #f8fafd; }
   .llm-test-section { grid-template-columns:1fr; min-height:auto; }
   .test-right { min-height:520px; }
 }
+/* ── 模型診斷：單一頁面滾動、區塊自然增高 ── */
+.settings-panel[data-settings-panel="diagnostic"] {
+  padding: 24px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-intro {
+  margin-bottom: 24px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-intro .setting-group-body {
+  padding: 16px 18px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .llm-test-section {
+  grid-template-columns: minmax(320px, .82fr) minmax(520px, 1.18fr);
+  gap: 24px;
+  min-height: 0;
+  align-items: start;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-left {
+  gap: 20px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .llm-test-settings-card {
+  height: auto;
+  padding: 24px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .llm-test-settings-card .card-title {
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .provider-tabs {
+  flex: none;
+  min-height: 48px;
+  margin-bottom: 20px !important;
+}
+.settings-panel[data-settings-panel="diagnostic"] .provider-tab {
+  min-height: 46px;
+  font-size: 13px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-provider-fields {
+  height: auto;
+  overflow: visible;
+  padding: 0;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-provider-fields .setting-row {
+  margin-bottom: 0;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-provider-fields .setting-label,
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-prompt-label {
+  width: auto;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 750;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-provider-fields .setting-input,
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-prompt {
+  min-height: 46px;
+  font-size: 13px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .provider-note {
+  margin-top: 10px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-prompt {
+  display: block;
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.65;
+  font-family: inherit;
+}
+.settings-panel[data-settings-panel="diagnostic"] .llm-test-settings-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #edf0f7;
+}
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-conversation-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e3e9f3;
+  border-radius: 16px;
+  box-shadow: 0 1px 6px rgba(26,34,51,.07);
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-right {
+  min-width: 0;
+  overflow: visible;
+}
+.settings-panel[data-settings-panel="diagnostic"] .diagnostic-conversation-card > div:first-child {
+  margin-bottom: 16px !important;
+}
+.settings-panel[data-settings-panel="diagnostic"] .test-view-tab {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .chat-window {
+  flex: none !important;
+  min-height: 420px;
+  overflow: visible;
+  padding: 18px;
+  border-color: #dfe6f2;
+}
+.settings-panel[data-settings-panel="diagnostic"] .raw-json {
+  flex: none !important;
+  min-height: 420px;
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.settings-panel[data-settings-panel="diagnostic"] .chat-input-row {
+  align-items: flex-end;
+  margin-top: 18px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .chat-input {
+  min-height: 48px !important;
+  max-height: none !important;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+.settings-panel[data-settings-panel="diagnostic"] .send-btn {
+  min-height: 48px;
+  padding: 12px 20px;
+}
+@media (max-width:1120px) {
+  .settings-panel[data-settings-panel="diagnostic"] .llm-test-section {
+    grid-template-columns: 1fr;
+  }
+  .settings-panel[data-settings-panel="diagnostic"] .diagnostic-conversation-card {
+    min-height: 0;
+  }
+}
+@media (max-width:640px) {
+  .settings-panel[data-settings-panel="diagnostic"] {
+    padding: 16px;
+  }
+  .settings-panel[data-settings-panel="diagnostic"] .llm-test-settings-card,
+  .settings-panel[data-settings-panel="diagnostic"] .diagnostic-conversation-card {
+    padding: 18px;
+    border-radius: 12px;
+  }
+  .settings-panel[data-settings-panel="diagnostic"] .chat-window,
+  .settings-panel[data-settings-panel="diagnostic"] .raw-json {
+    min-height: 320px;
+  }
+  .settings-panel[data-settings-panel="diagnostic"] .chat-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .settings-panel[data-settings-panel="diagnostic"] .send-btn {
+    justify-content: center;
+  }
+}
 /* ── 設定頁：AI API section ── */
 .api-provider-section { display:flex; flex-direction:column; gap:0; }
 .member-clear-btn, .member-delete-btn { border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700;
@@ -2288,16 +2442,16 @@ tbody tr:hover td { background: #f8fafd; }
 
       <!-- ══════════ 模型診斷（原「測試」頁） ══════════ -->
       <div class="settings-panel" data-settings-panel="diagnostic" hidden>
-        <div class="setting-group" style="margin-bottom:12px">
-          <div class="setting-group-body" style="padding:11px 13px">
+        <div class="setting-group diagnostic-intro">
+          <div class="setting-group-body">
             <div class="setting-help" style="margin:0">送出一則真實提示詞給選定的模型，用來驗證模型名稱、金鑰與系統指令的實際效果。此處不會改動任何設定。</div>
           </div>
         </div>
-    <section class="llm-test-section" aria-labelledby="llm-test-title">
+    <section class="llm-test-section diagnostic-layout" aria-labelledby="llm-test-title">
 
     <!-- 左欄：設定 -->
     <div class="test-left">
-      <div class="card llm-test-settings-card">
+      <div class="card llm-test-settings-card diagnostic-settings-card">
         <div class="card-title" id="llm-test-title"><i class="fas fa-cog"></i> LLM 測試設定</div>
 
         <div class="section-title" style="margin-bottom:8px">提供者</div>
@@ -2314,7 +2468,7 @@ tbody tr:hover td { background: #f8fafd; }
         <!-- Ollama 欄位 -->
         <div id="test-fields-ollama">
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <label class="setting-label" style="width:auto">模型</label>
+            <label class="setting-label" for="test-inp-model">模型</label>
             <div class="model-select-wrap" style="width:100%">
               <select id="test-inp-model" class="setting-input" style="width:100%">
                 <option value="">載入中…</option>
@@ -2328,10 +2482,10 @@ tbody tr:hover td { background: #f8fafd; }
         <div id="test-fields-nvidia_nim" class="hidden">
           <div class="provider-note"><i class="fas fa-info-circle"></i>存取金鑰與服務位址由 .env 中的 NVIDIA_API_KEY / NVIDIA_API_BASE_URL 提供。</div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <label class="setting-label" style="width:auto">模型</label>
-            <select id="test-inp-nim-model" class="setting-input" style="width:100%" onchange="onTestNimModelChange()"></select>
+            <label class="setting-label" for="test-inp-nim-model">模型</label>
+            <select id="test-inp-nim-model" class="setting-input" onchange="onTestNimModelChange()"></select>
             <input id="test-inp-nim-model-custom" class="setting-input" type="text" hidden
-              placeholder="輸入 NIM 模型 ID，例如 nvidia/llama-3.1-nemotron-nano-8b-v1" style="width:100%">
+              placeholder="輸入 NIM 模型 ID，例如 nvidia/llama-3.1-nemotron-nano-8b-v1">
             <p class="provider-note">清單沿用「AI 模型」分頁的 NIM 語音模型目錄。選「自訂…」可測目錄外的型號，只用於本次診斷，不會寫入設定。</p>
           </div>
         </div>
@@ -2339,9 +2493,8 @@ tbody tr:hover td { background: #f8fafd; }
 
         <hr style="border:none;border-top:1px solid #edf0f7;margin:12px 0">
 
-        <div class="section-title" style="margin-bottom:8px">系統指令內容（留空時使用預設）</div>
-        <textarea id="test-inp-system-prompt" class="setting-input" rows="4"
-          style="resize:vertical;font-size:12px;line-height:1.6;font-family:monospace;width:100%"
+        <div class="section-title diagnostic-prompt-label">系統指令內容（留空時使用預設）</div>
+        <textarea id="test-inp-system-prompt" class="setting-input diagnostic-prompt" rows="6"
           placeholder="載入中… 會自動帶入目前的語音系統指令，可直接修改測試。"></textarea>
 
       <div class="llm-test-settings-actions">
@@ -2356,7 +2509,7 @@ tbody tr:hover td { background: #f8fafd; }
     </div>
 
     <!-- 右欄：對話 -->
-    <div class="test-right">
+    <div class="test-right diagnostic-conversation-card">
 
       <!-- 頂部工具列 -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
@@ -2374,7 +2527,7 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
 
       <!-- 對話視窗 -->
-      <div id="test-chat-view" class="chat-window" style="flex:1">
+      <div id="test-chat-view" class="chat-window">
         <div class="chat-bubble ai">
           <span class="bubble-label">AI 助理</span>
           <div class="bubble-text">你好！輸入問題測試 AI 回答，例如：<br>「有什麼推薦套餐？」<br>「大麥克多少錢？」</div>
@@ -2382,12 +2535,12 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
 
       <!-- 原始回應視窗 -->
-      <pre id="test-json-view" class="raw-json hidden" style="flex:1">// 送出訊息後，原始回應會顯示在這裡</pre>
+      <pre id="test-json-view" class="raw-json hidden">// 送出訊息後，原始回應會顯示在這裡</pre>
 
       <!-- 輸入列 -->
-      <div class="chat-input-row" style="flex-shrink:0">
+      <div class="chat-input-row">
         <textarea id="test-input" class="chat-input" rows="1"
-          placeholder="輸入測試問題，Enter 送出（Shift+Enter 換行）…" style="min-height:42px;max-height:120px"></textarea>
+          placeholder="輸入測試問題，Enter 送出（Shift+Enter 換行）…"></textarea>
         <button class="send-btn" id="test-send-btn" onclick="sendTestMsg()" type="button">
           <i class="fas fa-paper-plane"></i> 送出
         </button>

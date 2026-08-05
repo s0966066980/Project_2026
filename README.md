@@ -105,6 +105,131 @@ Identity 已移至 `backend/modules/identity`，但既有 route 仍可經 `servi
 - 新 API 呼叫應集中至 client，不新增散落的 `fetch()`；既有 legacy `/api/*` 與 typed `/api/v1/*` 需漸進收斂，不做 Big Bang rewrite。
 - 價格、promotion eligibility、訂單狀態、會員 scope、付款結果與權限判斷以 server 為準。
 
+## Docker 可攜式部署
+
+完整的建置、權重下載、模型快取、CPU／GPU 啟動與驗證流程請見 [docker/README.md](docker/README.md)。
+
+在已準備好 R1-Omni 本地權重的 Debian/Ubuntu 主機，首次部署可直接執行 `bash docker/scripts/setup.sh`；GPU 主機使用 `bash docker/scripts/setup.sh --gpu`。腳本會安裝 Docker/Compose、建立 `.env`、建置並啟動服務，但不會下載模型權重。
+
+此版本可在支援 Docker Compose 的 Linux、macOS 與 Windows（Docker Desktop）執行。核心點餐系統使用可攜式 CPU 映像；大型語言模型、R1-Omni、語音與 RAG 則由 AI Compose overlay 完整封裝。實際可使用的模型大小仍取決於裝置的 CPU 架構、RAM／VRAM 與磁碟空間。
+
+Docker stack 只使用專案根目錄的 `.env`；手動執行 Compose 時一律加上
+`--env-file .env`。`UI_API/.env` 是原生 `emotion_ui` 啟動用的另一個設定檔，
+不要拿來替代 Docker 的 `.env`。
+
+### 快速啟動
+
+只在本機使用時，可直接啟動：
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml up --build -d --wait
+```
+
+若要自訂連接埠、資料庫密碼或管理員密碼，先建立環境檔：
+
+```bash
+cp docker/.env.example .env
+```
+
+修改 `.env` 內兩個密碼後再啟動。預設只綁定 `127.0.0.1`；需要讓同一個可信任 LAN 的其他裝置連線時，才將 `BIND_ADDRESS` 改成 `0.0.0.0`，並務必使用高強度密碼。
+
+啟動後使用同一個連接埠：
+
+```text
+Kiosk: http://127.0.0.1:8000/kiosk
+Admin: http://127.0.0.1:8000/admin
+Live:  http://127.0.0.1:8000/live
+Ready: http://127.0.0.1:8000/ready
+```
+
+部署包含：
+
+- `postgres`：PostgreSQL 18，資料保存在 Docker named volume。
+- `migrate`：啟動時執行 forward migrations，成功後結束。
+- `app`：FastAPI、Kiosk 與 Admin。
+- `worker`：可靠背景工作與 outbox 處理程序。
+
+常用維運指令：
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml ps
+docker compose --env-file .env -f docker/compose.yaml logs -f app worker
+docker compose --env-file .env -f docker/compose.yaml down
+```
+
+`docker compose down` 會保留資料；只有明確執行 `docker compose down --volumes` 才會刪除 PostgreSQL 與應用資料。
+
+### 完整 AI 版本
+
+完整版本包含 Ollama 大型語言模型、R1-Omni 多模態情緒服務、faster-whisper 語音辨識、Edge TTS、ChromaDB／FastEmbed RAG，以及共享的模型與媒體 volumes。Compose **不會自動下載 Ollama 或 R1-Omni 權重**；模型由使用者準備，容器只負責載入。
+
+第一次使用依序執行：
+
+```bash
+cp docker/.env.example .env
+```
+
+1. 將 R1-Omni 所需的 Hugging Face repositories 下載至 `.env` 的 `R1_MODELS_PATH`。預設目錄必須是：
+
+```text
+R1-Omni/models/
+├── R1-Omni-0.5B/              # StarJiaxing/R1-Omni-0.5B
+├── bert-base-uncased/          # google-bert/bert-base-uncased
+├── siglip-base-patch16-224/    # google/siglip-base-patch16-224
+└── whisper-large-v3/           # openai/whisper-large-v3
+```
+
+下載工具不限，但必須保留每個 repository 的完整檔案結構；不要把權重放進 image。Compose 會將這個目錄唯讀掛載到 `/models`，缺檔時 R1-Omni 會直接列出缺少的路徑。
+
+2. 只啟動 Ollama，然後手動下載 `.env` 中選擇的模型：
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml up -d ollama
+docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml exec ollama ollama pull qwen3.5:4b
+```
+
+若你修改了 `OLLAMA_MODEL`，第二個指令也要使用相同名稱。模型會保留在 `ollama_models` named volume；後續 `docker compose down` 不會刪除它。
+
+3. 啟動完整 CPU stack：
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml up --build -d --wait
+```
+
+有 NVIDIA GPU 的 Linux 主機應先安裝 NVIDIA driver；Debian/Ubuntu 可直接使用 `bash docker/scripts/setup.sh --gpu` 自動安裝並設定 NVIDIA Container Toolkit。手動使用 Compose 時，需先完成 toolkit 設定，再於第 3 步加上 GPU overlay：
+
+```bash
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  up --build -d --wait
+```
+
+4. 驗證服務與已安裝的 Ollama 模型：
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml ps
+docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml exec ollama ollama list
+curl -fsS http://127.0.0.1:7890/health
+curl -fsS http://127.0.0.1:8000/ready
+```
+
+預設 Ollama 模型為 `qwen3.5:4b`，可在 `.env` 用 `OLLAMA_MODEL` 調整。faster-whisper 與 FastEmbed 仍使用 `ai_cache` named volume；第一次實際啟用相關功能時，由其 runtime 管理快取。CPU 模式主要用於相容性與功能驗證，R1-Omni 和大型模型在 CPU 上可能很慢。Edge TTS 需要網路。服務預設只綁定 loopback；若要從其他可信任裝置存取，才將 `BIND_ADDRESS=0.0.0.0`。
+
+### Docker 驗證
+
+以下腳本會建置 runtime/test 映像、執行完整容器測試、建立全新的暫存 PostgreSQL、套用 migrations、啟動所有服務，並驗證 readiness、Kiosk 與 Admin；完成後會清除專用測試容器與 volumes：
+
+```bash
+docker/scripts/test.sh
+docker/scripts/test-ai.sh
+```
+
+第一個腳本驗證核心 stack 與 PostgreSQL migrations；第二個腳本只建置完整 AI 映像並驗證 Compose 設定及語音、RAG、R1-Omni runtime imports，**不下載或載入模型權重**。權重與 GPU 實機推論由使用者依上方流程另外驗證。
+
+此 Compose 預設為可攜式 development/local 模式，Payment 與 POS 仍是 manual adapter，不代表 production certification。
+
 ## 安裝
 
 ### Backend

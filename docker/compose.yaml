@@ -1,0 +1,133 @@
+name: project-2026
+
+x-app-environment: &app-environment
+  APP_ENV: development
+  APP_HOST: 0.0.0.0
+  APP_PORT: "8000"
+  ADMIN_PORT: "8000"
+  ENABLE_NGROK: "false"
+  SECURITY_ENFORCED: "false"
+  DATABASE_BACKEND: postgresql
+  DATABASE_TOPOLOGY: single
+  DATABASE_URL: postgresql://project_2026:${POSTGRES_PASSWORD:-project-2026-local}@postgres:5432/project_2026
+  MIGRATION_DATABASE_URL: postgresql://project_2026:${POSTGRES_PASSWORD:-project-2026-local}@postgres:5432/project_2026
+  RUNTIME_DATA_ROOT: /var/lib/project-2026
+  DEFAULT_TENANT_ID: 00000000-0000-4000-8000-000000000001
+  DEFAULT_STORE_ID: 00000000-0000-4000-8000-000000000002
+  DEFAULT_DEVICE_ID: 00000000-0000-4000-8000-000000000003
+  ADMIN_LOCAL_MANAGER_AUTH_ENABLED: "true"
+  ADMIN_MANAGER_LOGIN_IDENTITY: ${ADMIN_MANAGER_LOGIN_IDENTITY:-admin}
+  ADMIN_MANAGER_PASSWORD: ${ADMIN_MANAGER_PASSWORD:-project-2026-local-admin}
+  ENABLE_LEGACY_KIOSK_TOKEN: "false"
+  ENABLE_DEMO_ROUTES: "false"
+  ENABLE_DIAGNOSTIC_ROUTES: "false"
+  ENABLE_DEBUG_ROUTES: "false"
+  EMOTION_ENABLED: "false"
+  SHARED_RATE_LIMIT_ENABLED: "false"
+  STRUCTURED_LOGGING_ENABLED: "true"
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/api/generate}
+  R1_OMNI_GRADIO_URL: ${R1_OMNI_GRADIO_URL:-http://host.docker.internal:7890}
+  NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+  NVIDIA_API_BASE_URL: ${NVIDIA_API_BASE_URL:-https://integrate.api.nvidia.com/v1}
+
+x-app-image: &app-image
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    target: runtime
+  image: project-2026:local
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: project_2026
+      POSTGRES_USER: project_2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-project-2026-local}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U project_2026 -d project_2026"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  migrate:
+    <<: *app-image
+    restart: "no"
+    command: ["python", "backend/scripts/manage_runtime_persistence.py", "migrate"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - app_data:/var/lib/project-2026
+
+  app:
+    <<: *app-image
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    volumes:
+      - app_data:/var/lib/project-2026
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4); payload = json.load(response); raise SystemExit(0 if response.status == 200 and payload.get('ready') else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: *app-image
+    restart: unless-stopped
+    command: ["python", "backend/scripts/run_worker.py", "--poll-seconds", "2"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - app_data:/var/lib/project-2026
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from pathlib import Path; raise SystemExit(0 if b'run_worker.py' in Path('/proc/1/cmdline').read_bytes() else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    image: project-2026:test
+    command: ["pytest", "-q"]
+    environment:
+      APP_ENV: test
+      DATABASE_BACKEND: sqlite
+      DATABASE_URL: ""
+      ENABLE_NGROK: "false"
+      ENABLE_DIAGNOSTIC_ROUTES: "false"
+      RUNTIME_DATA_ROOT: /tmp/project-2026-test-runtime
+
+volumes:
+  postgres_data:
+  app_data:

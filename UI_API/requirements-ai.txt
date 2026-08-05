@@ -1,0 +1,7 @@
+# Optional in-container AI capabilities for the full Docker deployment.
+chromadb
+edge-tts
+fastembed
+faster-whisper
+jieba
+rank-bm25

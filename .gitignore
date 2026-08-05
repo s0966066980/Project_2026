@@ -5,6 +5,7 @@ CLAUDE.md
 .env
 .env.*
 !.env.example
+!docker/.env.example
 
 # Python cache and build artifacts
 __pycache__/

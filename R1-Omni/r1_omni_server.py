@@ -26,6 +26,7 @@ import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 # 模型皆為本地檔，強制離線避免連 HF（與 inference.py 一致）
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
@@ -35,8 +36,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(HERE)                 # 讓 humanomni 套件可被 import、相對模型路徑可用
 sys.path.insert(0, HERE)
 
-MODEL_PATH = os.path.join(HERE, "models", "R1-Omni-0.5B")
-BERT_PATH = os.path.join(HERE, "models", "bert-base-uncased")
+MODEL_ROOT = Path(os.getenv("R1_OMNI_MODEL_ROOT", os.path.join(HERE, "models"))).expanduser().resolve()
+MODEL_SOURCE_PATH = MODEL_ROOT / os.getenv("R1_OMNI_MODEL_DIR", "R1-Omni-0.5B")
+BERT_PATH = MODEL_ROOT / os.getenv("R1_OMNI_BERT_DIR", "bert-base-uncased")
+VISION_PATH = MODEL_ROOT / os.getenv("R1_OMNI_VISION_DIR", "siglip-base-patch16-224")
+AUDIO_PATH = MODEL_ROOT / os.getenv("R1_OMNI_AUDIO_DIR", "whisper-large-v3")
 
 # R1-Omni 訓練時使用的標準指令；POS 未帶 question 時的後備
 DEFAULT_INSTRUCT = (
@@ -49,22 +53,77 @@ _model = None
 _processor = None
 _tokenizer = None
 _bert_tokenizer = None
+_runtime_model_dir = None
+_runtime_device = "not_loaded"
 _infer_lock = threading.Lock()   # 單 GPU 模型，序列化推論
+
+
+def _portable_model_path() -> str:
+    """Create a config-only view whose tower paths are valid on this machine/container."""
+
+    global _runtime_model_dir
+    if _runtime_model_dir:
+        return _runtime_model_dir
+    required_files = (
+        MODEL_SOURCE_PATH / "config.json",
+        MODEL_SOURCE_PATH / "model.safetensors",
+        BERT_PATH / "vocab.txt",
+        VISION_PATH / "config.json",
+        VISION_PATH / "model.safetensors",
+        AUDIO_PATH / "config.json",
+        AUDIO_PATH / "model.safetensors",
+    )
+    missing = [str(path) for path in required_files if not path.is_file()]
+    if missing:
+        raise RuntimeError("R1-Omni model files are missing: " + ", ".join(missing))
+    source_config = MODEL_SOURCE_PATH / "config.json"
+
+    runtime_dir = Path(tempfile.mkdtemp(prefix="r1-omni-model-"))
+    for source in MODEL_SOURCE_PATH.iterdir():
+        if source.name == "config.json":
+            continue
+        destination = runtime_dir / source.name
+        destination.symlink_to(source, target_is_directory=source.is_dir())
+    model_config = json.loads(source_config.read_text(encoding="utf-8"))
+    model_config["mm_bert_model"] = str(BERT_PATH)
+    model_config["mm_vision_tower"] = str(VISION_PATH)
+    model_config["mm_audio_tower"] = str(AUDIO_PATH)
+    (runtime_dir / "config.json").write_text(
+        json.dumps(model_config, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _runtime_model_dir = str(runtime_dir)
+    return _runtime_model_dir
+
+
+def _selected_device() -> str:
+    requested = str(os.getenv("R1_OMNI_DEVICE", "auto") or "auto").strip().lower()
+    if requested not in {"auto", "cuda", "cpu"}:
+        raise RuntimeError("R1_OMNI_DEVICE must be auto, cuda, or cpu")
+    import torch
+
+    if requested == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("R1_OMNI_DEVICE=cuda but CUDA is not available in the container")
+    if requested == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    return requested
 
 
 def load_model() -> None:
     """懶加載：第一次呼叫（或啟動預載）時載入模型。"""
-    global _model, _processor, _tokenizer, _bert_tokenizer
+    global _model, _processor, _tokenizer, _bert_tokenizer, _runtime_device
     if _model is not None:
         return
     from humanomni import model_init
     from humanomni.utils import disable_torch_init
     from transformers import BertTokenizer
 
-    print(f"🔄 載入 R1-Omni 模型: {MODEL_PATH}")
+    runtime_model_path = _portable_model_path()
+    _runtime_device = _selected_device()
+    print(f"🔄 載入 R1-Omni 模型: {MODEL_SOURCE_PATH} ({_runtime_device})")
     disable_torch_init()
-    _bert_tokenizer = BertTokenizer.from_pretrained(BERT_PATH)
-    _model, _processor, _tokenizer = model_init(MODEL_PATH)
+    _bert_tokenizer = BertTokenizer.from_pretrained(str(BERT_PATH))
+    _model, _processor, _tokenizer = model_init(runtime_model_path, device=_runtime_device)
     print("✅ R1-Omni 模型載入完成")
 
 
@@ -218,6 +277,7 @@ if __name__ == "__main__":
         return {
             "status": "ok",
             "model_loaded": _model is not None,
+            "device": _runtime_device,
             "capabilities": ["audio_only", "video_audio"],
         }
 
@@ -233,6 +293,9 @@ if __name__ == "__main__":
 
     args = parse_args()
     print(f"🔧 R1-Omni 推論伺服器  port={args.port}")
-    print("🔄 預先載入 R1-Omni 模型…")
-    load_model()
+    if str(os.getenv("R1_OMNI_PRELOAD", "true") or "true").strip().lower() in {"1", "true", "yes", "on"}:
+        print("🔄 預先載入 R1-Omni 模型…")
+        load_model()
+    else:
+        print("ℹ️ R1-Omni 延遲載入已啟用，第一次推論時載入模型。")
     uvicorn.run(api, host=args.host, port=args.port)

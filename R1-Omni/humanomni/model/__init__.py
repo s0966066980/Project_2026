@@ -58,7 +58,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             bnb_4bit_quant_type='nf4'
         )
     else:
-        kwargs['torch_dtype'] = torch.float16
+        kwargs['torch_dtype'] = torch.float32 if device == "cpu" else torch.float16
 
     if use_flash_attn:
         kwargs['attn_implementation'] = 'flash_attention_2'
@@ -83,7 +83,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         vision_tower = model.get_vision_tower()
         if not vision_tower.is_loaded:
             vision_tower.load_model()
-        vision_tower.to(device=device, dtype=torch.float16)
+        vision_tower.to(device=device, dtype=torch.float32 if device == "cpu" else torch.float16)
         # NOTE: HuanOmni adopts the same processor for processing image and video.
 
         processor = vision_tower.image_processor
@@ -97,7 +97,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         audio_tower = model.get_audio_tower()
         if not audio_tower.is_loaded:
             audio_tower.load_model()
-        audio_tower.to(device=device, dtype=torch.float16)
+        audio_tower.to(device=device, dtype=torch.float32 if device == "cpu" else torch.float16)
 
         audio_processor = audio_tower.audio_processor
         return tokenizer, model, processor, context_len, audio_processor

@@ -1,0 +1,23 @@
+# Inference-only R1-Omni dependencies. Training packages such as DeepSpeed,
+# datasets and TRL deliberately stay out of the serving image.
+accelerate>=1.2.1,<2
+decord==0.6.0
+einops>=0.8.0,<1
+fastapi>=0.115,<1
+filelock
+h5py
+imageio
+imageio-ffmpeg
+moviepy==1.0.3
+numpy<2
+# OpenCV 4.12+ requires NumPy 2 on Python 3.10. R1-Omni requires NumPy 1.x.
+opencv-python-headless==4.11.0.86
+packaging>=23
+pillow
+requests
+safetensors>=0.3.3
+sentencepiece>=0.1.99
+timm>=1.0,<2
+tokenizers>=0.21,<0.22
+transformers @ git+https://github.com/huggingface/transformers.git@336dc69d63d56f232a183a3e7f52790429b871ef
+uvicorn

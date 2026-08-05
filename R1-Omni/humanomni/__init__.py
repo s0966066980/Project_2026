@@ -51,11 +51,13 @@ def mm_infer(image_or_video, instruct, model, tokenizer, audio=None, modal='vide
     Returns:
         str: response of the model.
     """
+    runtime_device = next(model.parameters()).device
+    runtime_dtype = next(model.parameters()).dtype
     question_prompt = None
     if question is not None:
         question = [question]
         question_prompt = bert_tokeni(question, return_tensors='pt', padding=True, truncation=True,add_special_tokens=True)
-        question_prompt = {key: value.to('cuda') for key, value in question_prompt.items()}
+        question_prompt = {key: value.to(runtime_device) for key, value in question_prompt.items()}
 
     if modal == 'image':
         modal_token = DEFAULT_IMAGE_TOKEN
@@ -74,7 +76,7 @@ def mm_infer(image_or_video, instruct, model, tokenizer, audio=None, modal='vide
     # 1. vision preprocess (load & transform image or video).
 
     if modal == 'text' or modal == 'audio':
-        tensor = [(torch.zeros(32, 3, 384, 384).cuda().half(), "video")]
+        tensor = [(torch.zeros(32, 3, 384, 384, device=runtime_device, dtype=runtime_dtype), "video")]
     else:
         if "video" in modal:
             vi_modal = "video"
@@ -84,17 +86,19 @@ def mm_infer(image_or_video, instruct, model, tokenizer, audio=None, modal='vide
         if isinstance(image_or_video, transformers.image_processing_base.BatchFeature):
             # 处理 BatchFeature 中的所有 tensor
             processed_data = transformers.image_processing_base.BatchFeature({
-                'pixel_values_videos': image_or_video['pixel_values_videos'][0].half().cuda(),
-                'video_grid_thw': image_or_video['video_grid_thw'][0].cuda()
+                'pixel_values_videos': image_or_video['pixel_values_videos'][0].to(
+                    device=runtime_device, dtype=runtime_dtype
+                ),
+                'video_grid_thw': image_or_video['video_grid_thw'][0].to(runtime_device)
             })
         else:
             # 处理普通 tensor
-            processed_data = image_or_video.half().cuda()
+            processed_data = image_or_video.to(device=runtime_device, dtype=runtime_dtype)
         tensor = [(processed_data, vi_modal)]
 
     
     if audio is not None:
-        audio = audio.half().cuda()
+        audio = audio.to(device=runtime_device, dtype=runtime_dtype)
 
     # 2. text preprocess (tag process & generate prompt).
     if isinstance(instruct, str):
@@ -125,8 +129,10 @@ def mm_infer(image_or_video, instruct, model, tokenizer, audio=None, modal='vide
     if model.config.mm_use_x_start_end:
         prompt = prompt.replace("<video>", "<vi_start><video><vi_end>").replace("<image>", "<im_start><image><im_end>").replace("<audio>", "<au_start><audio><au_end>")
 
-    input_ids = tokenizer_multimodal_token(prompt, tokenizer, modal_token, return_tensors='pt').unsqueeze(0).long().cuda()
-    attention_masks = input_ids.ne(tokenizer.pad_token_id).long().cuda()
+    input_ids = tokenizer_multimodal_token(
+        prompt, tokenizer, modal_token, return_tensors='pt'
+    ).unsqueeze(0).long().to(runtime_device)
+    attention_masks = input_ids.ne(tokenizer.pad_token_id).long().to(runtime_device)
 
     # 3. generate response according to visual signals and prompts. 
     keywords = [tokenizer.eos_token]

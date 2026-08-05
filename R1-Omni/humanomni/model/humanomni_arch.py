@@ -28,7 +28,16 @@ from humanomni.mm_utils import frame_sample
 from transformers import BertModel, BertTokenizer
 import h5py
 import torch.distributed as dist
-import ipdb
+
+
+def resolve_bert_model_path(config):
+    """Resolve the BERT directory from the model config or local HF defaults."""
+
+    configured_path = getattr(config, "mm_bert_model", None)
+    if configured_path:
+        return str(configured_path)
+    return os.getenv("R1_OMNI_BERT_PATH", "bert-base-uncased")
+
 
 class SFDynamicCompressor(nn.Module):
     def __init__(self, model_args, vision_tower):
@@ -80,7 +89,7 @@ class HumanOmniMetaModel:
 
         # Comment out this part of the code during training to avoid repeated initialization.
         num_branches = 3
-        bert_model = "/home/oliver/Project_2026/R1-Omni/models/bert-base-uncased"
+        bert_model = resolve_bert_model_path(config)
         self.bert_model =  BertModel.from_pretrained(bert_model)
         self.bert_tokenizer = BertTokenizer.from_pretrained(bert_model)
         modules = [nn.Linear(self.bert_model.config.hidden_size, 3584)]
@@ -167,9 +176,9 @@ class HumanOmniMetaModel:
             self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'), strict=True)
 
    
-     #  self.feature_compressor = SFDynamicCompressor(model_args, vision_tower)
+        #  self.feature_compressor = SFDynamicCompressor(model_args, vision_tower)
         num_branches = 3
-        bert_model = "/home/oliver/Project_2026/R1-Omni/models/bert-base-uncased"
+        bert_model = resolve_bert_model_path(self.config)
         self.bert_model =  BertModel.from_pretrained(bert_model)
         self.bert_tokenizer = BertTokenizer.from_pretrained(bert_model)
         # self.bert_gate = nn.Linear(self.bert_model.config.hidden_size, num_branches)

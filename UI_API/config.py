@@ -542,6 +542,33 @@ def _apply_security_env_overrides(settings: dict) -> None:
         settings["ENABLE_DEMO_ROUTES"] = False
         settings["ENABLE_DIAGNOSTIC_ROUTES"] = False
 
+
+def _apply_ai_env_overrides(settings: dict) -> None:
+    """Allow immutable container deployments to select their AI runtime by env."""
+
+    for env_key in (
+        "MODEL_NAME",
+        "VOICE_ASSIST_MODEL",
+        "STT_PROVIDER",
+        "STT_MODEL",
+        "TTS_PROVIDER",
+        "TTS_MODEL",
+        "TTS_VOICE",
+        "EDGE_TTS_VOICE",
+        "RAG_EMBEDDING_MODEL",
+        "RAG_STRATEGY",
+    ):
+        env_value = str(os.getenv(env_key, "") or "").strip()
+        if env_value:
+            settings[env_key] = env_value
+
+    for env_key in ("RAG_ENABLED", "VOICE_LLM_PREWARM_ENABLED"):
+        env_value = str(os.getenv(env_key, "") or "").strip().lower()
+        if env_value in {"1", "true", "yes", "on"}:
+            settings[env_key] = True
+        elif env_value in {"0", "false", "no", "off"}:
+            settings[env_key] = False
+
 def _finalize_settings(settings: dict) -> dict:
     """Apply env-derived overrides shared by every settings source (JSON file or Postgres)."""
 
@@ -566,6 +593,7 @@ def _finalize_settings(settings: dict) -> dict:
     elif dual_write_env in ("0", "false", "no", "off"):
         settings["ENABLE_MEMBER_DUAL_WRITE"] = False
     _apply_security_env_overrides(settings)
+    _apply_ai_env_overrides(settings)
     return settings
 
 

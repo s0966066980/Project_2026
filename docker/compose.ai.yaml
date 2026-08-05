@@ -1,0 +1,99 @@
+# Full in-container AI stack. Use together with compose.yaml.
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ai-runtime
+    image: project-2026:ai
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_API_URL: http://ollama:11434/api/generate
+      MODEL_NAME: ${OLLAMA_MODEL:-qwen3.5:4b}
+      VOICE_ASSIST_MODEL: ${OLLAMA_MODEL:-qwen3.5:4b}
+      VOICE_LLM_PREWARM_ENABLED: "true"
+      # The Admin AI settings page reads the authenticated /api/ollama/models
+      # diagnostic endpoint to populate the local-model selectors.
+      ENABLE_DIAGNOSTIC_ROUTES: "true"
+      RAG_ENABLED: "true"
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-BAAI/bge-small-zh-v1.5}
+      RAG_STRATEGY: ${RAG_STRATEGY:-hybrid}
+      STT_PROVIDER: faster_whisper
+      STT_MODEL: ${STT_MODEL:-small}
+      TTS_PROVIDER: edge
+      EDGE_TTS_VOICE: ${EDGE_TTS_VOICE:-zh-TW-HsiaoChenNeural}
+      EMOTION_ENABLED: "true"
+      R1_OMNI_GRADIO_URL: http://r1-omni:7890
+      TMPDIR: /tmp/project-2026-media
+      HF_HOME: /home/project2026/.cache/huggingface
+    volumes:
+      - app_data:/var/lib/project-2026
+      - ai_cache:/home/project2026/.cache
+      - shared_media:/tmp/project-2026-media
+    healthcheck:
+      start_period: 10m
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ai-runtime
+    image: project-2026:ai
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_API_URL: http://ollama:11434/api/generate
+      MODEL_NAME: ${OLLAMA_MODEL:-qwen3.5:4b}
+      RAG_ENABLED: "true"
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-BAAI/bge-small-zh-v1.5}
+      STT_PROVIDER: faster_whisper
+      STT_MODEL: ${STT_MODEL:-small}
+      TTS_PROVIDER: edge
+      EMOTION_ENABLED: "true"
+      R1_OMNI_GRADIO_URL: http://r1-omni:7890
+      TMPDIR: /tmp/project-2026-media
+      HF_HOME: /home/project2026/.cache/huggingface
+    volumes:
+      - app_data:/var/lib/project-2026
+      - ai_cache:/home/project2026/.cache
+      - shared_media:/tmp/project-2026-media
+
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  r1-omni:
+    build:
+      context: ..
+      dockerfile: docker/R1-Omni.Dockerfile
+      target: cpu
+    image: project-2026-r1-omni:cpu
+    restart: unless-stopped
+    environment:
+      R1_OMNI_DEVICE: cpu
+      R1_OMNI_PRELOAD: "true"
+      R1_OMNI_MODEL_ROOT: /models
+      R1_OMNI_ALLOWED_VIDEO_DIR: /tmp/project-2026-media
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - ${R1_MODELS_PATH:-../R1-Omni/models}:/models:ro
+      - shared_media:/tmp/project-2026-media
+    ports:
+      - "127.0.0.1:${R1_OMNI_PORT:-7890}:7890"
+    shm_size: 2gb
+    healthcheck:
+      start_period: 20m
+
+volumes:
+  ai_cache:
+  ollama_models:
+  shared_media:

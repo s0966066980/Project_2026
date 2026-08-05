@@ -1,0 +1,10 @@
+# Never copy local credentials or dotenv files into application images.
+.env
+.env.*
+UI_API/.env
+UI_API/deploy/edge/.env.edge
+
+# Keep examples available for documentation and setup tooling.
+!.env.example
+!docker/.env.example
+!UI_API/deploy/edge/.env.edge.example
