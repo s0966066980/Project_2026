@@ -3,16 +3,15 @@
 #
 # This script installs Docker/Compose on Debian or Ubuntu when needed, creates
 # a local .env, validates the host-provided R1-Omni weights, builds the images,
-# and starts the complete AI stack. It intentionally never downloads model
-# weights; Ollama, STT, and RAG model downloads are printed as follow-up
-# commands after the stack is running.
+# and starts the complete AI stack. R1-Omni weights remain host-provided, while
+# the configured Ollama model is pulled automatically before the app starts.
 set -Eeuo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOCKER_DIR="$REPO/docker"
 cd "$REPO"
 
-GPU=false
+GPU=true
 INSTALL_DEPS=true
 SKIP_R1_CHECK=false
 
@@ -22,12 +21,14 @@ usage() {
   bash docker/scripts/setup.sh [選項]
 
 選項：
-  --gpu              安裝/設定 NVIDIA Container Toolkit 並使用 GPU overlay
+  --cpu              使用 CPU AI stack（預設使用 NVIDIA GPU）
+  --gpu              明確使用 NVIDIA GPU（相容舊指令；目前為預設）
   --no-install       不安裝主機套件，只檢查現有 Docker/Compose
   --skip-r1-check    不檢查 R1-Omni 本地權重（權重缺少時 R1 服務不會健康）
   -h, --help         顯示說明
 
-腳本不會下載任何模型權重。R1-Omni 必須先放在 .env 的 R1_MODELS_PATH。
+腳本會自動準備 .env 指定的 Ollama 模型。R1-Omni 權重不會自動下載，
+必須先放在 .env 的 R1_MODELS_PATH。
 EOF
 }
 
@@ -38,6 +39,7 @@ die() {
 
 for arg in "$@"; do
   case "$arg" in
+    --cpu) GPU=false ;;
     --gpu) GPU=true ;;
     --no-install) INSTALL_DEPS=false ;;
     --skip-r1-check) SKIP_R1_CHECK=true ;;
@@ -69,20 +71,20 @@ install_host_packages() {
     die "目前腳本的自動安裝只支援 Debian/Ubuntu（找不到 apt-get）。請先安裝 Docker Engine 與 Compose v2。"
   fi
 
-  echo "[1/7] 安裝主機工具（curl、git、openssl、ss）..."
+  echo "[1/8] 安裝主機工具（curl、git、openssl、ss）..."
   run_root apt-get update
   run_root apt-get install -y ca-certificates curl git openssl iproute2
 
   if ! command -v docker >/dev/null 2>&1; then
-    echo "[2/7] 安裝 Docker Engine 與 Compose plugin..."
+    echo "[2/8] 安裝 Docker Engine 與 Compose plugin..."
     # Docker 官方 convenience installer also installs the v2 compose plugin.
     curl -fsSL https://get.docker.com | run_root sh
   else
-    echo "[2/7] Docker 已存在，略過 Engine 安裝。"
+    echo "[2/8] Docker 已存在，略過 Engine 安裝。"
   fi
 
   if ! docker compose version >/dev/null 2>&1; then
-    echo "[2/7] 安裝 Docker Compose v2 plugin..."
+    echo "[2/8] 安裝 Docker Compose v2 plugin..."
     run_root apt-get install -y docker-compose-plugin || true
   fi
 }
@@ -94,7 +96,13 @@ command -v docker >/dev/null 2>&1 || die "找不到 docker。請安裝 Docker En
 install_nvidia_toolkit() {
   [[ "$GPU" == true ]] || return
 
-  command -v nvidia-smi >/dev/null 2>&1 || die "找不到 nvidia-smi。請先安裝 NVIDIA driver。"
+  command -v nvidia-smi >/dev/null 2>&1 \
+    || die "預設安裝使用 GPU，但找不到 nvidia-smi。請先安裝 NVIDIA driver，或使用 --cpu。"
+
+  if run_root docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"nvidia"'; then
+    echo "[GPU] Docker NVIDIA runtime 已設定。"
+    return
+  fi
 
   if ! command -v nvidia-ctk >/dev/null 2>&1; then
     [[ "$INSTALL_DEPS" == true ]] || die "找不到 nvidia-ctk。請移除 --no-install，讓腳本安裝 NVIDIA Container Toolkit。"
@@ -161,7 +169,7 @@ env_set() {
   fi
 }
 
-echo "[3/7] 建立環境設定..."
+echo "[3/8] 建立環境設定..."
 created_env=false
 generated_admin_password=""
 if [[ ! -f .env ]]; then
@@ -193,10 +201,19 @@ port_in_use() {
   ss -H -ltn 2>/dev/null | awk -v port=":${port}" '$4 == port || $4 ~ port "$"' | grep -q .
 }
 
-echo "[4/7] 檢查主機連接埠與 R1-Omni 權重..."
+compose_service_owns_port() {
+  local service="$1" port="$2" container_id
+  container_id="$(dc ps -q "$service" 2>/dev/null || true)"
+  [[ -n "$container_id" ]] || return 1
+  "${DOCKER[@]}" inspect \
+    --format '{{range $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostPort}}{{end}}{{end}}' \
+    "$container_id" 2>/dev/null | grep -qx "$port"
+}
+
+echo "[4/8] 檢查主機連接埠與 R1-Omni 權重..."
 ollama_port="$(env_get OLLAMA_PORT || true)"
 ollama_port="${ollama_port:-11434}"
-if port_in_use "$ollama_port"; then
+if port_in_use "$ollama_port" && ! compose_service_owns_port ollama "$ollama_port"; then
   if [[ "$ollama_port" == 11434 ]]; then
     new_port=11435
     while port_in_use "$new_port"; do
@@ -247,17 +264,26 @@ else
   echo "略過 R1-Omni 權重檢查。"
 fi
 
-echo "[5/7] 驗證 Compose 設定..."
+echo "[5/8] 驗證 Compose 設定..."
 dc config --quiet
 
-echo "[6/7] 建置 image（不下載模型權重）..."
+echo "[6/8] 建置 image（R1 權重不會打包進 image）..."
 dc build app worker r1-omni
-
-echo "[7/7] 啟動完整 AI stack..."
-dc up -d --wait
 
 model_name="$(env_get OLLAMA_MODEL || true)"
 model_name="${model_name:-qwen3.5:4b}"
+app_port="$(env_get APP_PORT || true)"
+app_port="${app_port:-8000}"
+r1_omni_port="$(env_get R1_OMNI_PORT || true)"
+r1_omni_port="${r1_omni_port:-7890}"
+
+echo "[7/8] 啟動 Ollama 並準備模型 ${model_name}..."
+dc up -d --wait ollama
+dc exec -T ollama ollama pull "$model_name"
+
+echo "[8/8] 啟動完整 AI stack..."
+dc up -d --wait
+
 echo
 echo "完成。服務狀態："
 dc ps
@@ -269,12 +295,11 @@ if [[ -n "$generated_admin_password" ]]; then
 fi
 echo
 echo "R1-Omni：使用主機本地權重，未下載任何 R1 權重。"
+echo "Ollama 模型：${model_name}（已準備完成）"
+echo "Kiosk：http://127.0.0.1:${app_port}/kiosk"
+echo "Admin：http://127.0.0.1:${app_port}/admin"
+echo "R1-Omni：http://127.0.0.1:${r1_omni_port}"
 echo "Ollama 對外網址：http://127.0.0.1:${ollama_port}"
-echo
-echo "接下來手動下載 Ollama 模型（需要時執行）："
-echo "  dc() { ${DOCKER[*]} compose ${COMPOSE_FILES[*]}; }"
-echo "  ${DOCKER[*]} compose ${COMPOSE_FILES[*]} exec ollama ollama pull ${model_name}"
-echo "  ${DOCKER[*]} compose ${COMPOSE_FILES[*]} exec ollama ollama list"
 echo
 echo "日後啟動：${DOCKER[*]} compose ${COMPOSE_FILES[*]} up -d --wait"
 echo "停止但保留資料：${DOCKER[*]} compose ${COMPOSE_FILES[*]} down"

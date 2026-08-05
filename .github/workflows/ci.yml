@@ -348,4 +348,6 @@ jobs:
 
       - name: Validate launch scripts
         run: |
-          bash -n scripts/start_r1_omni.sh
+          bash -n docker/scripts/setup.sh
+          sh -n docker/scripts/test.sh
+          sh -n docker/scripts/test-ai.sh

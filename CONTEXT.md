@@ -4,6 +4,38 @@ This context describes the customer-ordering and store-operations concepts share
 
 ## Runtime Language
 
+**Business Capability Module**:
+A project-owned business slice that groups related use cases behind one independently testable interface for Kiosk, Admin, and other modules. It remains deployment-neutral: a module is not a page, endpoint, or microservice, and its Traditional Chinese display term is 「業務能力模組」.
+_Avoid_: Feature endpoint, Admin module, Kiosk module, One-button service, Microservice
+
+**Module Data Authority**:
+The rule that each authoritative business record has exactly one Business Capability Module permitted to change it, even when all modules share one PostgreSQL instance. Other modules consume that data through the owner's interface, event, or read model, and its Traditional Chinese display term is 「模組資料權威」.
+_Avoid_: Shared repository ownership, Cross-module write, Shared table mutation, Database-per-feature
+
+**Capability HTTP API**:
+The versioned external contract through which Kiosk, Admin, and out-of-process callers use a Business Capability Module. It translates transport concerns into the module's interface and is never used as a loopback transport between modules in the same application process; its Traditional Chinese display term is 「能力 HTTP API」.
+_Avoid_: Internal localhost call, Repository endpoint, Page-specific backend, Unversioned route
+
+**Authoritative Capability Contract**:
+The one current Capability HTTP API and Capability Interface owned by a Business Capability Module. A legacy route may temporarily adapt to it during measured migration but never retains separate business rules or remains as an indefinite parallel contract; its Traditional Chinese display term is 「能力權威契約」.
+_Avoid_: Permanent dual API, Legacy business logic, Frontend-specific contract, Unmeasured compatibility route
+
+**Capability Interface**:
+The sole in-process contract a Business Capability Module exposes to another module, hiding its repositories and implementation. Synchronous collaboration uses this interface while durable asynchronous consequences use events and the outbox; its Traditional Chinese display term is 「能力介面」.
+_Avoid_: Direct repository import, Cross-module SQL, Internal HTTP API, Global service access
+
+**Capability Criticality**:
+The declared operational class of a Business Capability Module: Core capabilities fail closed when their invariants cannot be protected, Operational capabilities follow an explicit fallback, and Optional capabilities degrade independently without stopping core ordering. Its Traditional Chinese display term is 「能力關鍵性」.
+_Avoid_: Global health flag, Every-feature optional, Silent fallback, Process-alive status
+
+**Independent Product Frontend**:
+Either the Admin or Kiosk browser application, independently built and tested with ownership of its own UI/UX, state, features, styles, and bootstrap. The two applications never import each other and may share only stateless generated contracts, design tokens, primitives, and transports; its Traditional Chinese display term is 「獨立產品前端」.
+_Avoid_: Runtime Admin mode, Shared feature state, Cross-product import, One frontend with two routes
+
+**Module Independence Gate**:
+The evidence threshold at which a Business Capability Module owns its contracts, data mutations, permissions, tests, failure behavior, and callers with no remaining legacy business path. Moving files or adding endpoints alone never passes it, and its Traditional Chinese display term is 「模組獨立閘門」.
+_Avoid_: Folder migration complete, Endpoint exists, Legacy adapter active, Unit tests only
+
 **Runtime Persistence Profile**:
 The single configuration and evidence interface that selects the relational database adapter, database topology, guarded runtime data root, credentials, connection behavior, schema state, and deployment readiness. Domains own transaction intent while this module owns connection and pool mechanics; its Traditional Chinese display term is 「執行期持久化設定檔」.
 _Avoid_: Member storage backend, Database port switch, JSON fallback
@@ -15,6 +47,22 @@ _Avoid_: Production database, HA cluster, Managed PostgreSQL
 **Local Pilot Readiness**:
 The evidence-backed state in which the Local Single-Host PostgreSQL Runtime has passed every required runtime, contract, customer-transaction, intelligent-capability, and operational-recovery gate for controlled use in one store. It is invalidated when a changed dependency makes an affected gate's evidence stale, and it is not evidence of production high availability; its Traditional Chinese display term is 「本機試營運就緒狀態」.
 _Avoid_: Process alive, Local Development Runtime, Production readiness, Configured-only readiness
+
+**Pilot Release Candidate**:
+A versioned build proposed for a supported, single-store closed Pilot but not yet admitted for use. It becomes a Pilot release only after current evidence establishes Local Pilot Readiness for that exact build and environment, and its Traditional Chinese display term is 「試營運候選版本」.
+_Avoid_: Demo build, Latest main, Production release, Untested image
+
+**Pilot Release Artifact**:
+The exact set of CI-built, digest-pinned container images admitted by a Pilot Release Candidate. Building replacement images on the Pilot host creates a different artifact and invalidates that candidate's evidence; host-provided model weights are verified separately, and its Traditional Chinese display term is 「試營運發布成品」.
+_Avoid_: Local image tag, On-host build, Latest image, Git checkout
+
+**Pilot Readiness Gate**:
+An ordered admission boundary passed only by current evidence for the same Pilot Release Artifact and target environment. Closing implementation issues or assigning a completion percentage does not pass a gate, and its Traditional Chinese display term is 「試營運就緒閘門」.
+_Avoid_: Project phase, Priority bucket, Checklist completion, Subjective percentage
+
+**Pilot Recovery Objective**:
+The accepted recovery bound for the closed single-store Pilot: authoritative data may be restored to no more than one hour before a failure, and critical ordering operations must return within four hours. It requires observed restore evidence from a backup copy separated from the primary runtime, and its Traditional Chinese display term is 「試營運復原目標」.
+_Avoid_: Volume persistence, Backup command succeeded, Daily-only backup, Production disaster recovery
 
 **HA PostgreSQL Runtime**:
 The future production topology of one primary, one synchronous standby, and one asynchronous standby on three cloud VMs in three availability zones. Its readiness requires observed PostgreSQL replication evidence; a configured topology label alone is insufficient. Cloud provisioning and failover are outside the Local Single-Host PostgreSQL Runtime; its Traditional Chinese display term is 「高可用 PostgreSQL 執行環境」.
@@ -28,6 +76,10 @@ _Avoid_: Repository data folder, Shared writable directory, Home directory
 The non-commercial development boundary used by this workspace. Kiosk requests may use the development device principal without a provisioned device credential, while Admin manager capabilities still require a password-authenticated manager session. It is not evidence that the system is ready for a secured pilot or production deployment; its Traditional Chinese display term is 「本機開發展示環境」.
 _Avoid_: Secured pilot, Production runtime, Public deployment
 
+**Shared Infrastructure Degradation**:
+The Pilot operating state in which customer ordering remains available with bounded process-local protection while Redis-backed cache and rate-limit coordination are unavailable, but operations requiring a distributed lock are refused. The state must be visible as degraded and trigger operator attention, and its Traditional Chinese display term is 「共享基礎設施降級狀態」.
+_Avoid_: Redis optional, Full service outage, Silent fail-open, Lock fallback
+
 **Staff Mode**:
 The default Admin surface presented without a password to a store device that holds a valid Kiosk device credential. It carries only [[Catalog Availability]] changes and scoped recommendation-effectiveness capability, and never [[Store Menu Item]] authoring (create, edit, image upload, or retirement), member records, campaigns, operational health, knowledge governance, emotion diagnostics, runtime settings, or diagnostics. A device credential is never a substitute for manager capability; its Traditional Chinese display term is 「員工模式」.
 _Avoid_: Anonymous Admin, Unauthenticated Admin, Manager session, Kiosk customer surface, Catalog editor
@@ -40,9 +92,13 @@ _Avoid_: Admin login gate, Staff Mode, Device credential
 The Admin-only capability for listing configured models and running diagnostic prompts. It requires a password-authenticated manager session with `system.debug`; staff mode must not expose or execute it. This is distinct from customer-facing AI assistance, which follows the Kiosk request boundary; its Traditional Chinese display term is 「主管 LLM 測試權限」.
 _Avoid_: Staff LLM access, Customer AI permission, Public model test
 
-**UI API Python Runtime**:
-The single supported local Python environment for the Kiosk, Admin, API, voice, and RAG services: the Conda environment named `emotion_ui`. Startup scripts, documentation, dependency checks, tests, and maintenance commands activate or explicitly execute within this environment rather than relying on an ambient shell Python or a project `.venv`; its Traditional Chinese display term is 「UI API Python 執行環境」.
-_Avoid_: Ambient Python, Project .venv, Per-feature UI environments
+**Containerized Application Runtime**:
+The sole supported execution boundary for development, verification, and single-store pilot operation. Completion and release-readiness evidence must come from this boundary; host-native Python or Conda execution is outside the Project runtime contract, and its Traditional Chinese display term is 「容器化應用執行環境」.
+_Avoid_: UI API Python Runtime, Conda runtime, Ambient Python, Dual-runtime acceptance
+
+**Pilot Configuration Authority**:
+The one host-external, privately permissioned configuration and secret source used by the Containerized Application Runtime during a Pilot. Repository environment files belong only to development and are never consulted to establish Pilot readiness, and its Traditional Chinese display term is 「試營運設定權威來源」.
+_Avoid_: Repository .env, Layered environment fallback, Developer machine defaults, Committed secret
 
 **Text Model Routing Policy**:
 The store's persisted choice of how text-model requests use the local and cloud halves of the provider chain: local-first, cloud-first, local-only, or cloud-only. It is one setting governing every text-model caller — voice assistance, emotion extraction, and Admin-side authoring of [[AI Push Copy]] — and local-only is the only value under which no customer utterance leaves the store. Serving push copy is not a caller, because it is looked up rather than generated. It is not a provider name and not a per-caller choice; its Traditional Chinese display term is 「文字模型選路策略」.
@@ -147,6 +203,10 @@ _Avoid_: Checkout log, Payment success, Completion telemetry
 **Payment Pending**:
 The state of a confirmed Order whose payment still requires provider or counter completion. Manual payment remains Payment Pending until an explicit payment result marks it Paid or Failed; its Traditional Chinese display term is 「待付款」.
 _Avoid_: Paid, Order confirmation failure, Assumed counter payment
+
+**Pilot Payment Boundary**:
+The first closed Pilot ends its automated transaction at Order Confirmation and hands a Payment Pending order to the staffed counter for manual collection. It is real ordering operation but is not evidence of electronic-payment readiness, and its Traditional Chinese display term is 「試營運付款邊界」.
+_Avoid_: Payment success, Integrated payment, Demo-only order, Automatic paid state
 
 **Confirmation Outcome Unknown**:
 The Kiosk state after submitting Confirm Checkout when transport failure prevents it from knowing whether the Order was created. The Kiosk preserves the Checkout Quote and idempotency key and queries or retries with that same identity until it finds the Order or receives an authoritative rejection; it never treats uncertainty as failure or starts a second confirmation. Its Traditional Chinese display term is 「訂單確認結果未知」.

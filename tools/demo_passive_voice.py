@@ -3,9 +3,7 @@
 - 瀏覽器 MediaRecorder 錄音 → WebSocket → 本地 Whisper STT → 關鍵詞比對
 - 支援即時切換 Whisper 模型大小
 
-執行方式（在專案根目錄下）：
-    conda activate emotion_ui
-    python tools/demo_passive_voice.py
+執行方式：見 tools/README.md 的臨時 Docker container 指令。
 """
 import json
 import os

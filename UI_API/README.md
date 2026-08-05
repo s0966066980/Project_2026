@@ -34,7 +34,8 @@ UI_API/
 ├── rag_documents/             # 可審核與重建的 RAG 原始來源
 ├── learning_data/             # local runtime compatibility data
 ├── tests/                     # Backend/architecture/integration tests
-└── requirements.txt           # 完整 local runtime dependencies
+├── requirements-docker.txt    # Container core runtime dependencies
+└── requirements-ai.txt        # Container AI runtime dependencies
 ```
 
 ## 執行路徑
@@ -49,46 +50,43 @@ main.py → app_factory.create_app()
 
 `main.py` 的本機 server 可讓同一 app 綁定 `APP_PORT` 與 `ADMIN_PORT`。`/live` 只表示 process 存活；`/ready` 會回報 dependency readiness。AI/STT/TTS/RAG 在 lifespan 背景初始化，失敗只降級相關能力。
 
-可靠工作另以 process 啟動：
+可靠工作由 Compose 的獨立 `worker` service 啟動：
 
 ```bash
-cd UI_API
-python backend/scripts/run_worker.py --help
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  logs -f worker
 ```
 
 ## 啟動
 
-核心應用：
+Project runtime 只支援 Docker。從 Repository 根目錄一鍵啟動 GPU stack：
 
 ```bash
-cd UI_API
-source /home/oliver/anaconda3/etc/profile.d/conda.sh
-conda activate emotion_ui
-ENABLE_NGROK=false python main.py
+bash docker/scripts/setup.sh
 ```
 
-local pilot 設定先從 Repository 根目錄的 `config/profiles/local-pilot.env.example` 建立部署擁有的環境檔，再執行：
+CPU 相容模式：
 
 ```bash
-cd UI_API
-python backend/scripts/validate_local_environment.py --profile local-pilot
+bash docker/scripts/setup.sh --cpu
 ```
 
-目前資料庫目標是本機單一主機，不是 HA：
+setup 會建立根目錄 `.env`、建置 app/worker/R1 images、準備 Ollama 模型、執行 migrations 並等待完整 stack 健康。UI_API source 會被複製進 image；修改程式後需重新 build：
 
 ```bash
-cd UI_API
-uv run python backend/scripts/prepare_local_persistence.py --refresh-database-urls
-docker compose -f deploy/postgres/compose.yaml up -d
-uv run python backend/scripts/manage_runtime_persistence.py migrate
-uv run python backend/scripts/manage_runtime_persistence.py status
-uv run python backend/scripts/manage_runtime_persistence.py write-probe
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  up --build -d --wait
 ```
 
-`RUNTIME_DATA_ROOT` 下的 PostgreSQL、備份、物件、RAG 索引、SQLite、日誌、匯入匯出與暫存目錄互不重疊且預設為 `0700`。PostgreSQL 容器只掛載 `postgres/pgdata` 與 `postgres/wal-archive`。完整存取矩陣與未來三 VM／三可用區契約見 [ADR 0010](../docs/adr/0010-adopt-local-single-host-postgresql-runtime.md)。
-容器對主機只綁定 `127.0.0.1:55432`，避免干擾主機既有的 5432 PostgreSQL；容器內仍使用標準 5432。
+目前 development Compose 使用 named volumes 保存 PostgreSQL、app data、Ollama models 與 AI cache。`docker compose down` 會保留資料；`down --volumes` 會刪除它們。
 
-模型整合啟動方式見 [Repository README](../README.md#本機啟動)。
+完整安裝、R1 權重位置與 CPU/GPU 操作見 [Repository README](../README.md#一鍵安裝與啟動) 與 [Docker README](../docker/README.md)。Pilot 的外部設定、備份與安全 profile 仍屬後續 readiness gate。
 
 ## 邊界與限制
 

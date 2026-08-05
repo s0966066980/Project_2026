@@ -24,7 +24,7 @@ export default defineConfig({
     },
   }],
   webServer: {
-    command: 'cd .. && env -u MEMBER_STORAGE_BACKEND -u DATABASE_PORT APP_ENV=test DATABASE_BACKEND=sqlite DATABASE_TOPOLOGY=single DATABASE_URL= RUNTIME_DATA_ROOT="${PLAYWRIGHT_RUNTIME_DATA_ROOT:-${TMPDIR:-/tmp}/project-2026-playwright-${PPID}}" "${PYTHON_BIN:-/home/oliver/anaconda3/envs/emotion_ui/bin/python}" -m uvicorn main:app --host 127.0.0.1 --port 9080',
+    command: 'cd .. && env -u MEMBER_STORAGE_BACKEND -u DATABASE_PORT APP_ENV=test DATABASE_BACKEND=sqlite DATABASE_TOPOLOGY=single DATABASE_URL= RUNTIME_DATA_ROOT="${PLAYWRIGHT_RUNTIME_DATA_ROOT:-${TMPDIR:-/tmp}/project-2026-playwright-${PPID}}" "${PYTHON_BIN:-python}" -m uvicorn main:app --host 127.0.0.1 --port 9080',
     url: 'http://127.0.0.1:9080/live',
     reuseExistingServer: true,
     timeout: 30_000,
