@@ -194,15 +194,16 @@ curl -fsS http://127.0.0.1:7890/health
 ```text
 Project_2026/
 ├── docker/                 # Dockerfiles、Compose 與一鍵 setup
-├── UI_API/                 # FastAPI、Kiosk、Admin、worker 與 tests
+├── UI_API/                 # 能力後端、獨立 Admin/Kiosk、worker 與 tests
 ├── R1-Omni/                # 情緒模型服務；權重位於 models/ 且不入 Git
-├── config/profiles/        # 後續 Pilot profile 基礎
+├── config/profiles/        # 待由 Docker Pilot external config 取代的過渡設定
 ├── docs/adr/               # 架構決策紀錄
 ├── CONTEXT.md              # 專案 domain glossary
+├── Project_2026_Project_Completeness_Roadmap.md
 └── tools/                  # 非 production 的一次性工具
 ```
 
-更完整的 Docker 操作說明見 [docker/README.md](docker/README.md)，核心應用邊界見 [UI_API/README.md](UI_API/README.md)，R1 權重與服務合約見 [R1-Omni/README.md](R1-Omni/README.md)。
+更完整的 Docker 操作說明見 [docker/README.md](docker/README.md)，核心應用邊界見 [UI_API/README.md](UI_API/README.md)，能力遷移與清理流程見 [Project Roadmap](Project_2026_Project_Completeness_Roadmap.md)，R1 權重與服務合約見 [R1-Omni/README.md](R1-Omni/README.md)。
 
 ## 目前限制
 

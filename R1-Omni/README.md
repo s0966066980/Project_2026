@@ -84,4 +84,4 @@ UI_API 會將 `result` 正規化為 facial、body、vocal、emotion、intensity 
 - 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
 - 影像、影片、音訊與情緒結果遵守最小收集、明確用途與保留政策。
 
-目前 UI_API provider/gateway 邊界見 [Backend Services](../UI_API/backend/services/README.md)。
+目前 UI_API provider/gateway 與 capability 邊界見 [UI_API 核心應用](../UI_API/README.md#架構方向)。
