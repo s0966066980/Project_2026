@@ -129,24 +129,48 @@ The secret authorising one provider, held only in the environment and named by i
 _Avoid_: Settings field, Admin-entered key, Masked value in settings
 
 **R1-Omni Emotion Runtime**:
-The sole local emotion-inference runtime used by the store. When it is unavailable, affected emotion diagnostics are disabled explicitly and no alternate emotion model is selected; its Traditional Chinese display term is 「R1-Omni 情緒執行環境」.
-_Avoid_: Emotion Runtime Profile, Alternate emotion runtime, Emotion provider selector, Automatic provider fallback
+The currently installed default local emotion-inference runtime and one compatible [[Emotion Model Profile]]. It remains selected until an administrator explicitly selects another installed compatible profile; no runtime failure triggers automatic model switching, and its Traditional Chinese display term is 「R1-Omni 情緒執行環境」.
+_Avoid_: Generic text model, Automatic provider fallback, Unvalidated emotion adapter
 
-**Emotion Provider Readiness**:
-Runtime evidence that the [[R1-Omni Emotion Runtime]] has loaded its model, identifies itself, and declares the media or audio input capabilities required by the requested Admin or Voice flow. A Text-to-Speech Emotion Simulation additionally requires its configured TTS provider to be ready. An open network port alone is not readiness. A failed handshake disables the affected emotion diagnostics with an explicit reason but does not prevent UI API, ordering, or checkout from starting; its Traditional Chinese display term is 「情緒模型就緒狀態」.
-_Avoid_: Port open, Configured provider name, Process alive
+**Emotion Model Profile**:
+An installed emotion adapter and model version that satisfies the project's structured emotion and media-capability contracts and may be selected in Admin. Free-form text models and unvalidated providers are never selectable; its Traditional Chinese display term is 「情緒模型設定檔」.
+_Avoid_: Arbitrary model ID, Ollama text model, Provider URL, Automatic fallback target
+
+**Emotion Model Readiness**:
+Runtime evidence that the selected [[Emotion Model Profile]] has loaded its model, identifies its adapter and version, and declares the media or audio capabilities required by the requested Admin or Voice flow. An open network port alone is not readiness. A failed handshake disables the affected emotion diagnostics with an explicit reason but does not prevent UI API, ordering, or checkout from starting; its Traditional Chinese display term is 「情緒模型就緒狀態」.
+_Avoid_: Port open, Saved model name, Process alive
+
+**Customer Emotion Analysis Mode**:
+The one mutually exclusive store setting that governs customer emotion capture: Off captures nothing, Periodic Ordering captures one bounded media clip after another only after the previous analysis finishes until ordering ends, and Voice Only analyzes only media aligned to a Voice Turn. Modes never run together or accumulate concurrent inference work; its Traditional Chinese display term is 「顧客情緒分析模式」.
+_Avoid_: Multiple trigger checkboxes, Continuous full-session recording, Concurrent analysis queue, Automatic mode fallback
+
+**Ordering Emotion Capture Boundary**:
+The lifecycle boundary for Periodic Ordering emotion capture. It begins only after the customer enters the menu and ends on Order Confirmation, ordering cancellation, ordering-session inactivity timeout, or Kiosk reset. At the boundary the system starts no new capture, discards media whose capture has not completed, and allows an already submitted inference to finish and record its correlated result without starting another clip; its Traditional Chinese display term is 「點餐情緒擷取邊界」.
+_Avoid_: Browser-page lifetime, Full-session recording, Cancelled submitted inference, Post-order capture
+
+**Periodic Emotion Clip Duration**:
+The configurable media duration for each Periodic Ordering capture, from two to thirty seconds with a five-second default. It applies only to captures that begin after a setting change and never truncates an observation already in progress; its Traditional Chinese display term is 「週期情緒片段時長」.
+_Avoid_: Voice Turn duration, Analysis interval, Mid-capture setting change, Fixed five-second rule
 
 **Emotion Model Observation**:
-The authoritative structured result produced by the [[R1-Omni Emotion Runtime]] for one evidence capture. It identifies the model version, evidence mode and capture identity, transcript presence, emotion and intensity, facial and vocal evidence summaries when available, description, model-native confidence when supplied, and latency. It never exposes model chain-of-thought, and missing confidence is reported as not provided rather than invented; its Traditional Chinese display term is 「情緒模型觀測」.
+The authoritative structured result produced by the selected [[Emotion Model Profile]] for one evidence capture. It identifies the adapter and model version, evidence mode and capture identity, transcript presence, one [[Operational Emotion Classification]], facial and vocal evidence summaries when available, description, model-native confidence when supplied, and latency. It never exposes model chain-of-thought, and missing confidence is reported as not provided rather than invented; its Traditional Chinese display term is 「情緒模型觀測」.
 _Avoid_: Generic LLM answer, Emotion explanation, Fused model result, Raw model reasoning
 
+**Operational Emotion Classification**:
+The normalized emotion and intensity pair accepted by project APIs and persistence. Emotion is exactly Neutral, Happy, Angry, Frustrated, Anxious, Confused, or Undetermined; intensity is exactly Low, Medium, High, or Undetermined. Provider-specific labels and free text must be mapped before acceptance, and anything that cannot be mapped reliably becomes Undetermined while supporting detail remains in the overall description; its Traditional Chinese display term is 「營運情緒分類」.
+_Avoid_: Free-form emotion label, Invented intensity, Silent fallback, Provider-specific enum
+
+**Customer Emotion Advisory**:
+A staff-facing reference composed from Emotion Model Observations that may help customer service understand an ordering interaction. It never changes voice responses, recommendations, prices, ordering decisions, or any other customer flow automatically; its Traditional Chinese display term is 「顧客情緒參考」.
+_Avoid_: Active intervention, Automated personalization, Pricing signal, Customer-facing diagnosis
+
 **Emotion Diagnostic Acceptance Set**:
-A fixed, balanced, non-customer collection of labeled audio-only and live-media samples used to verify the selected provider against the operational emotion labels Neutral, Happy, Frustrated, Anxious, Confused, and Angry. It is acceptance evidence rather than training material, and its Traditional Chinese display term is 「情緒診斷驗收集」.
+A fixed, balanced, non-customer collection of labeled audio-only and live-media samples used to verify the selected provider against the non-Undetermined values of [[Operational Emotion Classification]]. It is acceptance evidence rather than training material, and its Traditional Chinese display term is 「情緒診斷驗收集」.
 _Avoid_: Customer recording archive, Training corpus, Provider health check, Free-form emotion labels
 
-**Admin Emotion Diagnostic Record**:
-A store-scoped durable record retained for 30 days to audit an Admin emotion diagnostic. It contains the structured Emotion Model Observation, provider and model version, evidence mode, capture identity or irreversible fingerprint, timestamps, readiness identity, and latency. When Emotion Observation Explanation succeeds, the exact customer-emotion summary and staff response recommendation shown in Admin are retained with the configured LLM and prompt versions. Raw image, video, audio, and transcript content are excluded and discarded after inference; its Traditional Chinese display term is 「管理端情緒診斷紀錄」.
-_Avoid_: Raw media archive, Transcript history, Training corpus, Permanent diagnostic log
+**Emotion Analysis Record**:
+A store-scoped structured result retained for 30 days from Periodic Ordering, Voice Only, or a Live Admin Emotion Test. Its visible and retained analysis fields are time, event, model, emotion, intensity, facial evidence, vocal evidence, and overall description; only opaque record identity and store scope may accompany them for isolation and deletion. An inference submitted but ending in failure still creates one record with Undetermined emotion and intensity, Not Observed facial and vocal evidence, and a safe failure description without internal exception details. Raw image, video, audio, and transcript content are discarded after inference, and the record is permanently deleted when its retention period expires. Emotion and intensity remain separate data fields even when the UI combines them into one cell; its Traditional Chinese display term is 「情緒分析紀錄」.
+_Avoid_: Raw media archive, Transcript history, Permanent diagnostic log, Effectiveness evidence, Intervention outcome
 
 ## Store Catalog Language
 
@@ -180,6 +204,14 @@ _Avoid_: Separate startup login, Automatic guest ordering
 The immutable, versioned store policy snapshot that controls entry choices for one Ordering Entry Flow. Ordinary policy changes affect new flows only; emergency ordering availability is a separate gate. Its Traditional Chinese display term is 「點餐入口政策」.
 _Avoid_: Runtime settings blob, Mid-flow UI switch, Store availability
 
+**Guest Ordering Choice**:
+The single customer choice to begin ordering without member identity. Every 「直接點餐」 and 「略過，直接點餐」 action within the Ordering Entry Flow has exactly this meaning and enters the same guest path; its Traditional Chinese display term is 「訪客點餐選擇」.
+_Avoid_: Registration cancellation, Offline menu entry, Separate skip path, Anonymous member
+
+**Guest Ordering Start Failure**:
+The recoverable state after the system cannot establish the guest ordering session requested by a Guest Ordering Choice. The customer remains in the entry flow with a visible explanation and retry action; no offline or incomplete menu is opened, and its Traditional Chinese display term is 「訪客點餐啟動失敗」.
+_Avoid_: Silent button failure, Automatic offline ordering, Abandoned entry flow, Permanent failure
+
 **Member Login Service Failure**:
 A technical failure while checking a customer's phone number. It keeps the customer on the login screen and offers 「重試」 and 「訪客點餐」; it is distinct from a successful lookup that confirms the phone number is not registered and must never open registration automatically.
 _Avoid_: Member not found, Automatic registration
@@ -200,6 +232,10 @@ _Avoid_: Client cart total, Order, Payment receipt
 The successful creation of an Order from a valid Checkout Quote after atomic fulfillment validation. It proves that the order was accepted, not that payment was collected; its Traditional Chinese display term is 「訂單確認」.
 _Avoid_: Checkout log, Payment success, Completion telemetry
 
+**Confirmed Order Value**:
+The sum of server-authoritative totals for Orders successfully created by Order Confirmation within a reporting period. It is an accepted-order amount rather than collected revenue and must remain labeled 「已確認訂單金額」 until trustworthy Paid outcomes exist.
+_Avoid_: Revenue, Collected sales, Client cart total, Attributed revenue
+
 **Payment Pending**:
 The state of a confirmed Order whose payment still requires provider or counter completion. Manual payment remains Payment Pending until an explicit payment result marks it Paid or Failed; its Traditional Chinese display term is 「待付款」.
 _Avoid_: Paid, Order confirmation failure, Assumed counter payment
@@ -219,27 +255,27 @@ The Kiosk UI, speech recognition, voice-assistant text, and synthesized speech u
 _Avoid_: Voice language switching, automatic response-language detection, English voice reply
 
 **Voice Turn**:
-A single customer voice interaction with a stable `voice_turn_id` scoped to its store and ordering session. It begins when the customer taps the voice control, listens without requiring the control to be held, and submits automatically after detected speech followed by 1.5 seconds of silence. It ends as no recognizable speech when speech has not begun within 8 seconds and may record for at most 30 seconds. While listening, visible 「立即送出」 and 「取消」 controls remain available as manual recovery paths. Every Voice Turn reaches exactly one visible terminal outcome: completed, cancelled, no recognizable speech, permission unavailable, recording failure, transcription failure, assistant failure, or playback degradation. Retrying the same `voice_turn_id` resumes or replays that Voice Turn and never creates a second assistant execution, Voice Order Draft, or Voice Emotion Observation request; its Traditional Chinese display term is 「語音回合」.
+A single customer voice interaction with a stable `voice_turn_id` scoped to its store and ordering session. It begins when the customer taps the voice control, listens without requiring the control to be held, and submits automatically after detected speech followed by 1.5 seconds of silence. It ends as no recognizable speech when speech has not begun within 8 seconds and may record for at most 30 seconds. While listening, visible 「立即送出」 and 「取消」 controls remain available as manual recovery paths. Every Voice Turn reaches exactly one visible terminal outcome: completed, cancelled, no recognizable speech, permission unavailable, recording failure, transcription failure, assistant failure, or playback failure. Completion requires text-to-speech to produce playable audio for the assistant reply; retaining generated text after a playback failure is recovery evidence and never converts the turn into success. Whether that audio reached the customer is confirmed by TTS service availability and on-site verification rather than a per-turn playback report, so a recorded completion means speech was produced and delivered rather than heard. Retrying the same `voice_turn_id` resumes or replays that Voice Turn and never creates a second assistant execution, Voice Order Draft, or Voice Emotion Observation request; its Traditional Chinese display term is 「語音回合」.
 _Avoid_: Hold-to-talk, Indefinite recording, Voice session
 
 **Voice Media Degradation**:
-The fallback boundary that keeps a Voice Turn available with microphone input alone when camera permission, capture, or emotion-video analysis is unavailable. Camera-derived emotion is optional enrichment and must never block recording, transcription, assistant execution, or ordering; its Traditional Chinese display term is 「語音媒體降級」.
+The fallback boundary that keeps a Voice Turn available with microphone input alone when camera permission, capture, or emotion-video analysis is unavailable. Camera-derived emotion is optional enrichment and must never block recording, transcription, assistant execution, synthesized-speech playback, or ordering. Until the selected [[Emotion Model Profile]] has [[Validated Audio-Only Emotion Capability]], a microphone-only Voice Turn records an explicit skipped emotion outcome rather than invoking audio-only emotion inference; its Traditional Chinese display term is 「語音媒體降級」.
 _Avoid_: Camera-required voice, Combined camera-and-microphone failure
 
 **Voice Emotion Observation**:
 An asynchronous optional enrichment derived from a completed Voice Turn. It never delays or changes the Voice Turn that produced it; once complete, it may inform a later Voice Turn under the assistance policy or remain operational evidence. Its Traditional Chinese display term is 「語音情緒觀測」.
 _Avoid_: Synchronous voice prerequisite, Current-turn emotion gate, Customer emotion diagnosis
 
-**Voice Playback Degradation**:
-A terminal Voice Turn outcome in which transcription and assistant execution succeeded but synthesized-audio playback did not. The kiosk preserves and displays the text response and any Voice Order Draft, and explicitly reports that voice playback is temporarily unavailable; its Traditional Chinese display term is 「語音播放降級」.
-_Avoid_: Assistant failure, Silent playback failure, Discarded text response
+**Voice Playback Failure**:
+An unsuccessful terminal Voice Turn outcome in which transcription and assistant execution succeeded but text-to-speech produced no playable audio after bounded retry. The kiosk preserves generated text and any Voice Order Draft only as recovery evidence, reports the failure explicitly, and never counts the turn as completed. A browser that cannot play audio that was produced and delivered shows the customer the same explicit failure but does not rewrite the recorded outcome; its Traditional Chinese display term is 「語音播放失敗」.
+_Avoid_: Successful degraded turn, Silent playback failure, Discarded recovery text
 
 **Voice Response Wait**:
 The customer-perceived interval from the customer's last detected speech to the first perceivable assistant response, whether visible text or audible speech. Its P95 target is at most three seconds and optional enrichment such as camera emotion analysis is outside this critical interval; its Traditional Chinese display term is 「語音回覆等待」.
 _Avoid_: Full-response duration, API response-header latency, Emotion-analysis completion time
 
 **Progressive Voice Response**:
-A Voice Turn response that displays validated assistant text as soon as it becomes available and begins synthesized speech afterward without withholding the text. Text is the first response surface; audio remains a following enhancement and may degrade independently. Its Traditional Chinese display term is 「漸進式語音回覆」.
+A Voice Turn response that displays validated assistant text as soon as it becomes available and begins synthesized speech afterward without withholding the text. Text is the first response surface, but the turn reaches completion only after synthesized speech plays successfully; its Traditional Chinese display term is 「漸進式語音回覆」.
 _Avoid_: Processing placeholder, Audio-gated text, Unvalidated JSON fragment
 
 **Voice Menu Candidate Set**:
@@ -250,29 +286,33 @@ _Avoid_: Full menu prompt, Unvalidated LLM menu, RAG knowledge result
 A non-transactional set of proposed menu items and quantities produced from a Voice Turn. The kiosk displays every confidently matched item in a dedicated confirmation modal, initially unchecked, and displays ambiguous mentions separately with two or three unselected similar items. The customer may adjust quantities, select related recommendations, and choose which draft items to include. No item enters the cart until the customer presses 「確認加入購物車」; only checked items are added, cancellation leaves the cart unchanged, and only one Voice Order Draft may await confirmation before another Voice Turn begins. Its Traditional Chinese display term is 「語音點餐草稿」.
 _Avoid_: Voice cart action, Automatic add to cart, Confirmed order
 
+**Voice Interaction Evidence**:
+A store-scoped, de-identified individual record retained for 30 days solely for Daily Optimization Simulation and authorized manual review. It contains observation time, STT text after irreversible personal-data masking, the complete LLM answer, RAG-hit outcome, voice outcome or safe failure type, and retry or correction outcome, plus only opaque record identity and store scope required for isolation, audited access, and deletion. It contains no raw audio, member or device identity, session identifier, order or payment details, or individual emotion observation; evidence that cannot be safely de-identified is discarded before persistence. It is encrypted at rest, never used as model-training data, and is permanently removed with derived indexes and backups at TTL expiry. Its Traditional Chinese display term is 「語音互動證據」.
+_Avoid_: Raw transcript with personal data, Voice session history, Customer profile, Order analytics, Training corpus
+
 **Voice Model Warm State**:
 The runtime condition in which the configured local voice LLM has been loaded before the kiosk accepts Voice Turns and is kept resident for the configured interval. Model loading belongs to service readiness rather than the first customer's Voice Response Wait; its Traditional Chinese display term is 「語音模型預熱狀態」.
 _Avoid_: First-customer warm-up, Permanent GPU assumption, STT warm state
 
 **Live Admin Emotion Test**:
-An isolated Admin diagnostic that models one real customer observation through a single adaptive capture flow against the [[R1-Omni Emotion Runtime]]. Media is the primary evidence. With no detected speech it submits a two-second media observation; when speech is detected it automatically transcribes only the audio from that same capture and supplies the aligned transcript as supporting evidence. If speech is detected but transcription fails, the same media observation still proceeds and records `transcript_unavailable` rather than accepting replacement text. The Admin cannot select or change the emotion runtime, manually supply a transcript, or choose A/B evidence schemes; its Traditional Chinese display term is 「管理端即時情緒測試」.
-_Avoid_: Emotion provider selector, Manual transcript, Scheme A/B selector, Production profile setting, Kiosk intervention
+An isolated Admin diagnostic that records exactly one audiovisual clip for the selected [[Live Emotion Diagnostic Duration]], then analyzes it with the selected [[Emotion Model Profile]] and one [[Live Emotion Diagnostic Prompt]]. It runs once per explicit test action, discards raw media after inference, and never changes Kiosk production settings; its Traditional Chinese display term is 「管理端即時情緒測試」.
+_Avoid_: Automatic test loop, Production capture, Persisted raw media, Kiosk intervention
 
-**Text-to-Speech Emotion Simulation**:
-An Admin diagnostic that converts operator-entered simulated customer speech into synthetic audio through the configured TTS provider, then supplies that audio—not the source text—to the [[R1-Omni Emotion Runtime]]. Every input uses one fixed neutral voice, speaking rate, volume, and prosody so the diagnostic primarily probes emotion inference from spoken semantic content rather than a TTS-selected emotion. It produces a simple Emotion Model Observation and tests the audio emotion-analysis path without image or live-capture evidence; its Traditional Chinese display term is 「文字模擬情緒測試」.
-_Avoid_: Direct text classification, Emotional TTS preset, Live image test, Generic LLM prompt, Independent text assistant
+**Live Emotion Diagnostic Prompt**:
+The editable prompt for one Live Admin Emotion Test, initialized from a server-owned default and discarded after that test. It never changes the prompt used by Kiosk customer analysis and may be restored to its default before execution; its Traditional Chinese display term is 「即時情緒診斷 Prompt」.
+_Avoid_: Production emotion prompt, Persisted setting, Customer-analysis override, Prompt history
+
+**Live Emotion Diagnostic Duration**:
+The recording duration for one Live Admin Emotion Test, selected from two to thirty seconds with a five-second default. It is independent of [[Periodic Emotion Clip Duration]] and never starts another capture automatically; its Traditional Chinese display term is 「即時情緒診斷時長」.
+_Avoid_: Production clip duration, Adaptive speech window, Automatic cadence, Unlimited recording
 
 **Validated Audio-Only Emotion Capability**:
-A provider capability declared only after its explicit audio-only inference contract passes controlled comparisons covering the same semantic content with differing prosody and differing semantic content with the same neutral prosody. Text-to-Speech Emotion Simulation remains disabled for a provider until this capability is validated; wrapping synthetic audio in a blank video does not qualify. Its Traditional Chinese display term is 「已驗證純音訊情緒能力」.
+A provider capability declared only after its explicit audio-only inference contract passes controlled comparisons covering the same semantic content with differing prosody and differing semantic content with the same neutral prosody. Before validation, audio-only inference may exist only as an isolated Admin experiment and must not run in Kiosk customer flows; wrapping synthetic audio in a blank video or advertising `audio_only` in a health response does not qualify. Its Traditional Chinese display term is 「已驗證純音訊情緒能力」.
 _Avoid_: Assumed Whisper capability, Blank-video wrapper, Port readiness, Experimental result presented as reliable
 
 **Emotion Observation Explanation**:
 An Admin-facing second-stage summary and staff response recommendation generated by the configured default LLM from only the authoritative emotion classification and provider-authored textual analysis in one Emotion Model Observation. The LLM does not receive raw media or transcript content, must preserve the provider's emotion classification, and may not independently reclassify or override it. The UI displays the source model observation separately from this downstream advice. If the configured LLM fails or times out, the successful model observation remains valid and visible while advice is marked unavailable; the system does not switch LLMs. Its Traditional Chinese display term is 「情緒觀測解說」.
 _Avoid_: Primary emotion classification, Raw media prompt, Transcript prompt, Hidden emotion override, Model observation merged with advice
-
-**Live Emotion Test Cadence**:
-The Admin test loop that permits only one observation batch in flight and captures an adaptive evidence window. With no detected speech it completes a two-second media-only capture; once speech begins it keeps the same media and audio capture through 1.5 seconds of silence, up to ten seconds, so the provider can receive a temporally aligned transcript as supporting evidence. After a batch finishes, it analyzes the newest available capture without accumulating stale GPU work; its Traditional Chinese display term is 「即時情緒測試週期」.
-_Avoid_: Fixed two-second speech clip, Concurrent polling, Frame-only inference, Unbounded analysis queue
 
 ## Campaign Language
 
@@ -318,11 +358,23 @@ _Avoid_: Recommendation strategy, Sort order, Per-item priority
 An explicit customer request from the Kiosk assistance window for up to three currently eligible menu items. It uses the shared recommendation engine and still excludes items already in the cart or unavailable now, but it is not restricted by [[Push Scope]], which governs only the passive push bar; its Traditional Chinese display term is 「協助推薦」.
 _Avoid_: Push-scope recommendation, Promotion-only recommendation, Guaranteed recommendation
 
+**Passive Recommendation Continuity**:
+The customer-facing guarantee that an active Kiosk menu with at least one eligible item always retains a valid passive recommendation, using the latest valid recommendation or a local eligible fallback when a fresh result is unavailable. It may be hidden only while voice assistance, the cart, or payment occupies the customer flow and returns immediately afterward; its Traditional Chinese display term is 「被動推薦連續性」.
+_Avoid_: Paused recommendation, Empty recommendation, API-dependent recommendation, Permanent hide after interruption
+
 **New Item Window**:
 The dated period during which a menu item counts as new for [[Push Scope]]. An operator ticks the item and sets an end date, after which it stops counting without anyone having to untick it; its Traditional Chinese display term is 「新品檔期」.
 _Avoid_: Permanent new flag, Menu import date, Campaign schedule
 
 ## RAG Governance Language
+
+**Essential RAG Operations Surface**:
+The complete Admin scope for store retrieval: manage Knowledge Items, publish one Retrieval Method, and run an ad hoc RAG call that displays its result and failure. Evaluation programs, test-case governance, readiness evidence, comparison workflows, import history, alerts, and historical configuration management are outside this surface; its Traditional Chinese display term is 「RAG 核心操作介面」.
+_Avoid_: RAG Studio, Evaluation console, Readiness workflow, Multi-knowledge-base manager
+
+**RAG Legacy Purge**:
+The one-time permanent removal, without backup, of pre-pilot data and artifacts owned only by RAG features excluded from the Essential RAG Operations Surface. Current Knowledge Items, the Published index, the active Retrieval Configuration, and work required to publish them remain authoritative; its Traditional Chinese display term is 「RAG 舊功能永久清除」.
+_Avoid_: Archive, Soft delete, Hidden legacy UI, Reversible retirement
 
 **RAG Readiness Workflow**:
 An Admin-facing read model that composes, without taking ownership of, Store Knowledge Base publication, Published Retrieval Configuration, and Retrieval Check evidence into the ordered steps Author → Publish and Index → Configure → Test and Confirm. It reports complete, active, blocked, pending, or locked for each step and offers a recovery action when a durable Publication Attempt has lost its reliable worker job; its Traditional Chinese display term is 「RAG 就緒流程」.
@@ -480,3 +532,95 @@ _Avoid_: Online hit rate, Evaluation Run
 **RAG Readiness**:
 The minimum operational state for customer-facing retrieval: Published knowledge, a Published Retrieval Configuration, a healthy index, and one administrator-confirmed ad hoc retrieval result. It does not require Evaluation Readiness; its Traditional Chinese display term is 「RAG 就緒狀態」.
 _Avoid_: Evaluation Readiness, Recommendation eligibility
+
+## Project Intelligence Language
+
+**Project Core Brain**:
+An Admin capability that produces one [[Project Analysis Snapshot]] and answers questions about it from a bounded [[Project Read-Only Evidence Scope]]. Its first release can inspect and explain but cannot edit files, run arbitrary commands, mutate Git, change runtime configuration, or operate business data. Any future document or non-core feature creation is a separately authorized workflow rather than an extension of read access; its Traditional Chinese display term is 「專案核心大腦」.
+_Avoid_: Autonomous coding agent, Shell console, Secret scanner, Business-data assistant, Unbounded repository agent
+
+**Project Read-Only Evidence Scope**:
+The complete allowlist available to the first Project Core Brain release: Git-tracked source code, tests, documentation and non-secret configuration inside the repository; CodeGraph or equivalent code-architecture facts; Git status and diffs; Docker container and capability-API readiness; and test results produced by an explicit administrator action. `.env` files, secrets, credentials, customer database records, raw media, home-directory content, project-external paths, and arbitrary shell execution are excluded; its Traditional Chinese display term is 「專案唯讀證據範圍」.
+_Avoid_: Filesystem-wide scan, Environment dump, Database query console, Implicit test execution, Arbitrary command output
+
+**Project Analysis Snapshot**:
+An immutable, administrator-triggered analysis of the current Project Read-Only Evidence Scope. Its retained report records observation time, Git revision, Project Analyst Profile, healthy, warning, and blocked findings, and a source reference for every claim. Only the latest successful report is retained per project; a successful rescan atomically replaces and permanently deletes the previous report, while a failed rescan preserves the previous report marked stale with a safe failure reason. Sanitized model input, CLI event streams, and reasoning are discarded after report creation, and follow-up conversation exists only in the current browser session. Its Traditional Chinese display term is 「專案分析快照」.
+_Avoid_: Live project state, Report history, Persisted source bundle, Persisted chat, Uncited model answer
+
+**Project Analyst Sidecar**:
+The dedicated non-root Docker service that runs one allowlisted Codex, Claude, or Grok analysis adapter against a sanitized Project Analysis Snapshot and returns the project's common structured result. It is separate from the App and Worker images, receives automation-specific credentials through Docker secrets, has no Docker socket, home-directory, `.env`, database, raw-media, or whole-repository mount, and cannot mutate project or runtime state; its Traditional Chinese display term is 「專案分析 Sidecar」.
+_Avoid_: CLI installed in App container, Personal login mount, Docker socket agent, Repository bind mount, Arbitrary command runner
+
+**Project Analyst Profile**:
+A server-discovered Codex, Claude, or Grok adapter identity consisting of its pinned CLI version range, selected model, automation credential readiness, non-interactive capability, enforced read-only and tool restrictions, and common JSON Schema conformance. Only ready profiles appear as selectable in Admin. One profile may be configured as the default and explicitly overridden for a run; an unavailable selected profile blocks that analysis with a reason and never triggers automatic profile switching. Its Traditional Chinese display term is 「專案分析器設定檔」.
+_Avoid_: CLI path only, Free-form provider name, Personal login readiness, Automatic fallback, Unvalidated JSON output
+
+**Development Host Analyst Bridge**:
+A development-only fallback that exposes the same bounded project-analysis contract through compatible host-installed CLIs when the Project Analyst Sidecar is unavailable. It is never a production dependency, never broadens the Project Read-Only Evidence Scope, and cannot be selected automatically after a sidecar failure; its Traditional Chinese display term is 「開發主機分析橋接」.
+_Avoid_: Production host daemon, Automatic fallback, User-home scanner, General CLI proxy
+
+**Project Change Proposal**:
+A review artifact produced by a separately authorized advanced workflow in one disposable isolated worktree. It contains a patch, bounded change summary, and test results but never modifies the active workspace, commits, switches branches, pushes, or opens a pull request. Applying the patch is an explicit workflow outside the Project Core Brain; rejection or expiry permanently removes the worktree and proposal artifacts. Its Traditional Chinese display term is 「專案變更提案」.
+_Avoid_: Direct project edit, Autonomous commit, Automatic patch application, Hidden worktree, Pull request bot
+
+**Non-Core Extension Module**:
+A self-contained new module proposed only under `extensions/<name>/`, with its own small interface, configuration contract, error modes, and tests. It does not edit existing files or depend on UI API implementation details, business database tables, Kiosk state, authentication, ordering, payment, migrations, runtime configuration, Docker integration, or R1-Omni internals. New documents from the same proposal workflow live only under `docs/proposals/`; connecting either artifact to a production flow requires a separately authorized core integration. Its Traditional Chinese display term is 「非核心擴充模組」.
+_Avoid_: Hidden core edit, UI plug-in by convention, Shared database access, Direct production registration, Cross-module internal import
+
+**Daily Optimization Simulation**:
+A manually triggered, non-production experiment that analyzes explicitly selected Voice Interaction Evidence, synthetic fixtures, or a sanitized administrator import and produces a `reference_only` report containing possible Kiosk LLM or prompt adjustments, possible RAG Knowledge Items, offline evaluation results, risks, and evidence. Its output is informational rather than an executable change: it has no apply or publish action and cannot update live settings, create or edit production knowledge, publish an index, change a recommendation or campaign, send a push, generate an applicable project patch, or schedule another run. Its Traditional Chinese display term is 「每日最佳化模擬」.
+_Avoid_: Production optimization job, Automatic publishing, Live configuration mutation, Customer-flow experiment, Scheduled retraining
+
+**Optimization Lab Module**:
+The isolated module and Docker service that runs Daily Optimization Simulation through a small structured analysis interface. It receives only explicitly selected de-identified Voice Interaction Evidence, synthetic fixtures, or sanitized administrator imports and returns a `reference_only` result; it has no project-file, Git, Docker, home-directory, raw-media, database-volume, Shell, Web, MCP, or production-write access. It may reuse provider-adapter implementation code with the Project Analyst Sidecar but never shares its container, credentials, data volume, or Project Analysis Snapshot. Its Traditional Chinese display term is 「最佳化實驗室模組」.
+_Avoid_: Project Analyst mode, Shared privileged container, Production optimizer, Customer-data coding agent, General LLM gateway
+
+**Daily Review Analyzer Profile**:
+A separately administrator-enabled Codex, Claude, or Grok adapter for a reference-only Daily Optimization Simulation or daily operational review. The adapter discovers and exposes only the models and reasoning-effort values supported by its installed analyzer version; Admin explicitly selects one enabled analyzer, one advertised model, and one advertised effort for a run. Each profile defaults to `synthetic_only`; `customer_evidence` requires separate provider-specific administrator authorization, automation-only credentials, disclosed outbound data categories, an accepted provider-retention configuration, and a per-run egress audit. Unsupported or free-form values are rejected, and failure never switches provider, model, effort, or data scope automatically. Its Traditional Chinese display term is 「每日檢視分析器設定檔」.
+_Avoid_: Common invented effort scale, Free-form model, Automatic fallback, Hidden default, Multi-provider implicit run
+
+**Analyzer Data Scope**:
+The explicit maximum evidence class allowed for one Daily Review Analyzer Profile. `synthetic_only` permits only synthetic fixtures and is the default; `customer_evidence` additionally permits de-identified Voice Interaction Evidence after provider-specific authorization. Enabling an analyzer does not enable customer evidence. Customer scope requires automation-only credentials, a visible disclosure of provider and outbound data categories, an accepted provider-retention configuration, and an egress audit containing analyzer, model, effort, store, evidence identifiers, counts, and time without copied content. Its Traditional Chinese display term is 「分析器資料範圍」.
+_Avoid_: Global external-AI consent, Personal OAuth, Implicit scope upgrade, Unlogged data export, Raw customer data
+
+**Daily Evidence Snapshot**:
+The immutable store-scoped input selection for one Daily Optimization Simulation, covering exactly one calendar date in the store timezone. A historical date covers local 00:00 through 23:59:59; the current date is allowed but is labeled partial with its run-start cutoff time. Evidence identifiers are frozen when the run starts, later interactions never enter the in-flight run, and including them requires an explicit rerun that creates a new snapshot. Its Traditional Chinese display term is 「每日證據快照」.
+_Avoid_: Rolling query, Cross-store day, Server-UTC date, Live-updating report, Implicit rerun
+
+**Daily Operations Review Surface**:
+The complete six-section evidence interface exposed to a Daily Review Analyzer Profile: run-time API connectivity; accepted voice, recommendation, and campaign clicks plus Confirmed Order Value; voice success and STT, LLM, TTS, retry, or correction outcomes; RAG hits, misses, suspected knowledge gaps, and issue clusters; aggregate emotion distribution and intensity plus de-identified voice-interaction analysis; and classified findings, reference guidance, offline tests, and risks. Database internals, complete system logs, member or order details, raw media, and individual emotion records are outside the interface. Its Traditional Chinese display term is 「每日營運檢視介面」.
+_Avoid_: All-database export, Log dump, Customer profile report, Raw evidence bundle, Analyzer-selected scope
+
+**Optimization Finding Classification**:
+The mandatory root-cause category assigned before a Daily Optimization Simulation may produce reference guidance: RAG Knowledge Gap for missing or unretrieved facts; Prompt Behavior for response style, format, or policy mismatch; Model Capability for model quality, latency, or stability; Product Pipeline for Kiosk, STT, TTS, transport, or workflow faults; and Insufficient Evidence when attribution is not supportable. Guidance may target only the classified seam, and Insufficient Evidence never produces a change recommendation. Its Traditional Chinese display term is 「最佳化發現分類」.
+_Avoid_: Change-first diagnosis, Multi-layer rewrite, Generic AI issue, Forced recommendation
+
+**Optimization Evidence Level**:
+The non-probabilistic evidence status of one Optimization Finding Classification. One or two similar records are an Observation Signal that may describe a pattern but cannot produce concrete adjustment guidance. Three or more similar records, or a behavior reproducible with synthetic fixtures, may become Reference Guidance. Reports show actual counts and redacted evidence instead of invented confidence percentages; contradictory evidence becomes Insufficient Evidence. Its Traditional Chinese display term is 「最佳化證據層級」.
+_Avoid_: Model confidence score, Single-example recommendation, Hidden threshold, Majority guess
+
+**Offline Optimization Evaluation**:
+The isolated replay required before concrete Prompt, model, or RAG Reference Guidance may appear in a Daily Optimization Reference Report. Voice candidates must preserve structured JSON, menu-ID allowlisting, no false order-confirmation claim, Traditional Chinese output, and TTS-safe text; RAG candidates must pass answerable queries, unanswerable queries, source correspondence, and non-fabrication checks. A candidate that regresses any existing safety acceptance is rejected. When evaluation cannot run, the report marks the direction Unverified and omits directly reusable settings or knowledge content. Its Traditional Chinese display term is 「離線最佳化評估」.
+_Avoid_: Live customer experiment, Same-example self-review, Safety tradeoff, Untested copy-paste setting, Model self-approval
+
+**Daily Optimization Reference Report**:
+A store-scoped `reference_only` result retained for 30 days from one Daily Optimization Simulation over one Daily Evidence Snapshot and the fixed Daily Operations Review Surface. It stores analysis time and cutoff, store timezone and selected date, partial-day status, Daily Review Analyzer Profile identity including analyzer version, model, and effort, the six review sections, finding clusters, occurrence counts, Optimization Finding Classification, Optimization Evidence Level, reference guidance, offline test results, risks, and opaque Voice Interaction Evidence identifiers; it never duplicates STT text or LLM answers. Authorized expansion resolves an identifier to its still-live de-identified evidence and creates an access-audit event. Evidence expiry makes the reference unavailable, and report expiry permanently deletes the report and its references. Its Traditional Chinese display term is 「每日最佳化參考報告」.
+_Avoid_: Transcript copy, Permanent report, Executable change plan, Unlogged evidence access, Broken-retention duplicate
+
+**Sensitive Voice Evidence Access**:
+The step-up authorization required to resolve a Daily Optimization Reference Report evidence identifier into de-identified STT text and the complete LLM answer. Report summaries require ordinary Admin access, while evidence expansion requires `optimization.evidence.read` and successful manager password reauthentication that remains valid for 15 minutes. Every expansion records administrator identity, time, store, and evidence identifier without copying conversation content into the audit event. Its Traditional Chinese display term is 「敏感語音證據存取」.
+_Avoid_: Report-level transcript exposure, Session-login-only access, Permanent unlock, Transcript in audit log, Cross-store lookup
+
+**Production Optimization Loop**:
+A future, separately authorized capability that may evaluate and release bounded Kiosk LLM or RAG changes from daily operational evidence. It is not part of the current Project Core Brain or Daily Optimization Simulation and has no production authority until its data governance, acceptance gates, rollback, release ownership, and emotion-evidence policy receive explicit decisions. Its Traditional Chinese display term is 「生產最佳化迴路」.
+_Avoid_: Current feature, Implicit future permission, Core Brain write mode, Ungated self-improvement
+
+## Operations Reporting Language
+
+**Accepted Engagement Click**:
+A unique, server-accepted customer intent counted for the Admin operational overview: starting one Voice Turn, activating the primary action of an AI recommendation, or activating a Campaign call to action. Duplicate delivery, impressions, automatic rotation, refresh, close, and rejected repeated input are excluded; its Traditional Chinese display term is 「有效互動點擊」.
+_Avoid_: DOM click, Impression, Retry count, Button press while busy
+
+**API Connectivity Diagnosis**:
+An Admin diagnostic that verifies each configured capability API can return its minimum health contract, then reports service name, connection status, latency, observation time, and a concise failure reason. It may verify required model presence or declared media capability but does not judge business data quality, retrieval quality, commercial impact, logs, or historical event samples; its Traditional Chinese display term is 「API 連線診斷」.
+_Avoid_: Port-open check, Business readiness dashboard, Log explorer, Data-quality report

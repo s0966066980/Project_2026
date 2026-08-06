@@ -1,0 +1,3 @@
+# Select only installed compatible emotion model profiles
+
+Admin may select the active emotion model from server-discovered Emotion Model Profiles, each pairing an installed adapter with a model version that passes the project's structured emotion and media-capability contracts. R1-Omni is the current default profile rather than a permanently fixed provider; arbitrary Ollama models, free-form IDs, and unvalidated providers are excluded, and runtime failure never triggers automatic model switching. This preserves a stable emotion contract while allowing additional compatible local models later.

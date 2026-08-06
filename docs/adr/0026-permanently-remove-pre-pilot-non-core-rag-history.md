@@ -1,0 +1,3 @@
+# Permanently remove pre-pilot non-core RAG history
+
+The Admin RAG product is reduced to Knowledge Item management, one published Retrieval Method, and an ad hoc RAG call test. Because the project has not entered formal operation, data and artifacts belonging only to removed evaluation, test-case, readiness, comparison, import-history, alert, and historical-configuration features will be permanently deleted without backup in the same release that removes their UI, API, service, worker, and test paths. Current knowledge, its published index, the active retrieval configuration, and work required to publish them remain authoritative.

@@ -1,7 +1,7 @@
 # Project_2026 架構完整度與能力模組 Roadmap
 
-> 更新日期：2026-08-05
-> Baseline：`725c5a3`（Docker-first runtime 與 capability architecture）
+> 更新日期：2026-08-06
+> Baseline：`949479d`（repository hygiene 與 capability boundaries）
 > 目標：單店 Admin＋Kiosk 點餐系統，維持 modular monolith，逐能力建立可驗證的獨立契約
 > Runtime：Docker Compose；host Python/Conda 不屬於支援路徑
 
@@ -209,6 +209,79 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 - 刪除 giant `v1_routes.py`、已空的 horizontal folders 與 legacy allowlists。
 - `Business Capability Modules passed = 10/10`、`Independent Product Frontends passed = 2/2`。
 
+## 6A. 產品穩定化優先交付軌
+
+本交付軌優先於 Phase 2 的大型模組搬移。目的不是暫停 capability architecture，而是先修復目前會阻斷點餐、語音與營運判讀的產品缺口，再把已穩定的行為收斂到能力模組。每一批必須通過自己的 Gate，後一批不得用未完成的前一批當作隱性前提。
+
+### Batch P0 — Kiosk 關鍵路徑
+
+狀態：**進行中**
+
+- 推薦連續性：菜單可互動且有 eligible item 時必須持續顯示有效推薦；API 失敗改用最近有效結果或本機 fallback。
+- 本機 fallback 只是佔位：它讓畫面不留白，但不得寫入商業曝光或點擊。商業觸點必須帶 server 的 decision 或 campaign，否則一律不送（ADR-0020）。
+- Voice Turn：麥克風、STT、LLM 與成功輸出可播放的 TTS 音檔都是成功條件；攝影機與情緒分析只能 advisory，不得阻斷 Voice。
+- TTS 經有限次 retry 後仍無法輸出音檔（含回傳空音訊），終局為 `Voice Playback Failure`；保留文字作為錯誤證據，但不得標記 Voice Turn 成功。
+- 音檔已輸出後的播放結果不做逐回合回報：瀏覽器播不出來時顧客看到明確失敗與保留文字，但不改寫 server 紀錄；TTS 是否真的送達顧客耳朵，由 P1 維運健康的服務綠燈與現場人工驗證負責。
+- 「直接點餐」與兩個「略過，直接點餐」共三個入口，使用同一個 Guest Ordering Choice 與同一條 server-authoritative entry path；未接上 entry hook 必須可見失敗，不得靜默進入菜單。
+- 會員限定優惠在點餐途中叫出的會員選擇，不是入口決策；它不得發出 entry flow 指令，也不得覆寫啟動時注入的 entry hooks。
+
+Gate：推薦不出現空白／暫停狀態、佔位推薦不產生商業觸點、Voice 成功必須有 TTS 音檔輸出證據、缺少攝影機仍可完成 Voice、三個訪客按鈕 contract 一致且各自有穿過真實接線的測試、API 失敗可見且可 retry。
+
+### Batch P1 — Admin 核心營運與精簡 RAG
+
+狀態：**等待 P0 Gate**
+
+- 營運總覽只顯示 server accepted 的 Voice、推薦、活動 CTA 次數，以及明確標示的「已確認訂單金額」。
+- Voice 成功數的口徑必須在畫面上寫明：它是「語音已產生並送出」的次數，不是顧客實際聽到的次數；顧客端播放失敗不進入這個數字，由維運健康的 TTS 綠燈與現場驗證涵蓋。
+- 維運健康只顯示 UI API、Ollama、R1 與 RAG retrieval API 的連線狀態、latency、觀測時間與安全錯誤。
+- RAG 只保留 Knowledge Item CRUD、單一已發布 Retrieval Method 與 ad hoc retrieval test。
+- 新資料結構、migration 與核心 RAG tests 全部通過後，永久刪除 pre-pilot evaluation、readiness、版本歷史、import history、舊 alerts/audit/history；本次已明確授權不備份且不可復原。
+
+Gate：Admin 沒有舊 KPI／內部 DB 與 log 面板；RAG 三條主流程可獨立運作；刪除清單有 migration evidence；保留 Knowledge Items、published index、active retrieval config 與 pending publish work。
+
+### Batch P2 — Emotion Diagnostics
+
+狀態：**等待 P1 Gate**
+
+- 三個互斥模式：Off、Periodic Ordering、Voice Only。
+- Periodic Ordering 依序執行 capture → inference → record；片段 2–30 秒、預設 5 秒，不允許並行 backlog。
+- Voice Only 使用 Voice Turn 對齊的 audiovisual evidence；未通過 audio-only acceptance 時，只有麥克風就明確 skip emotion，不阻斷 Voice。
+- Admin 即時測試支援一次性影音錄製、2–30 秒、自訂 prompt／還原 server default，raw media 在 inference 後刪除。
+- 紀錄只保留時間、事件、模型、強度、表情、聲音、描述；固定 emotion/intensity enum，store-scoped 保存 30 天。
+- Emotion 永遠只作客服參考，不得自動改變回答、推薦、價格或訂單。
+
+Gate：三模式互斥、ordering boundary 正確、submitted failure 可安全記錄、raw media/transcript 不落地、30 天清除可驗證。
+
+### Batch P3 — Project Core Brain
+
+狀態：**等待 P2 Gate**
+
+- 建立獨立 `project-analyst` sidecar，只接受手動 analyze/reanalyze。
+- 只讀取 allowlist 內的 tracked source/tests/docs/non-secret config、CodeGraph facts、Git status/diff、Docker/API readiness 與明確執行的 tests。
+- 禁止讀取 `.env`、secrets、客戶資料、raw media、home/external paths、Docker socket 與任意 shell。
+- Codex、Claude、Grok 只有通過版本、認證、headless、read-only restriction 與 JSON schema probe 才成為 Ready Profile；每次明確選一個，不自動 fallback。
+- 僅保留最新成功報告；失敗重掃保留舊報告並標示 stale。非核心提案未來只能輸出隔離 patch proposal，不 apply/commit/push。
+
+Gate：sidecar non-root/read-only/cap-drop/resource bounds、provider readiness contract、證據 allowlist、latest-report atomic replace、失敗不破壞舊報告。
+
+### Batch P4 — Optimization Lab（reference-only）
+
+狀態：**等待 P3 Gate**
+
+- 與 Project Analyst 分離為獨立 module/container，只做手動單店單日分析，不修改 LLM、Prompt、RAG、檔案，也不 push。
+- 保存去識別化 Voice Interaction Evidence 30 天：遮罩後 STT、完整 LLM answer、RAG hit、voice outcome、安全失敗、retry/correction；不保存 raw audio、會員／裝置／session／訂單／付款識別與個人 emotion。
+- 每次 run 在開始時凍結 Asia/Taipei 的單日 evidence IDs；今日可產出 partial report 並記錄 cutoff。
+- Codex／Claude／Grok 各自顯示 provider-native model 與 effort；一次只選一個 analyzer，無 fallback。
+- Finding 只能分類為 RAG Knowledge Gap、Prompt Behavior、Model Capability、Product Pipeline 或 Insufficient Evidence；1–2 筆只可列 Observation Signal，至少 3 筆相似或 synthetic reproducibility 才能給 Reference Guidance。
+- 具體 guidance 必須先通過 Voice/RAG offline acceptance；否則只能輸出 Unverified direction。
+- customer evidence scope 需要 provider-specific authorization、automation credential、outbound disclosure、retention acceptance 與 per-run egress audit。
+
+Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evidence.read` 加 15 分鐘 manager step-up、報告不複製 transcript、evidence expiry 可驗證、六段報告 contract 固定。
+
+### 共通完成定義
+
+每一批都必須具備 domain/unit、HTTP contract、failure、retention/security 與 frontend consumer tests；Docker Compose 是唯一支援 runtime，host Conda 不屬於完成證據。Roadmap 狀態只能由同一 commit 的 test、migration、OpenAPI 與 smoke evidence 更新，不能以畫面存在或 endpoint 可回 200 當作完成。
+
 ## 7. Repository 清理政策
 
 ### 已清理
@@ -270,14 +343,14 @@ merge main + auto-delete branch
 
 ## 10. 下一個可執行工作
 
-Phase 1 完成並提交後，只建立 Catalog & Availability slice：
+目前只執行 Batch P0，通過後才開啟 Batch P1：
 
-1. 產生 table/route/frontend caller inventory。
-2. 寫 Catalog Interface 與 contract tests。
-3. 建立 capability-centered v1 API 與 generated client pipeline。
-4. 分開 Admin/Kiosk Catalog features/styles/assets。
-5. 以 telemetry 驗證 legacy caller 歸零。
-6. 通過第一個 Module Independence Gate，再開始下一個 capability。
+1. 建立推薦連續性、Voice/TTS 終局與 Guest Ordering Choice 的 failure-first tests。
+2. 修復 Kiosk 行為並執行 frontend unit、typecheck、build 與 API contract tests。
+3. 在 Docker Compose 執行 Kiosk smoke，保存同一 commit 的 Gate evidence。
+4. P0 Gate 通過後，先建立精簡 RAG replacement migration 與 preservation tests。
+5. 只有 replacement migration 在乾淨 DB 與現有 schema upgrade 都通過，才執行已授權的永久 legacy RAG purge。
+6. 依序開啟 Emotion、Project Analyst 與 Optimization Lab，不平行引入跨批次資料 authority。
 
 相關決策：
 
