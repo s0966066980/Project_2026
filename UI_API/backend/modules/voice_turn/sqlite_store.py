@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS voice_turns (
     session_id TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN (
         'accepted', 'transcribing', 'assisting', 'synthesizing',
-        'completed', 'transcription_failed', 'assistant_failed'
+        'completed', 'transcription_failed', 'assistant_failed', 'playback_failed'
     )),
     audio_ref TEXT NOT NULL,
     transcript TEXT NOT NULL DEFAULT '',

@@ -222,7 +222,9 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
       if (payload.audio_base64) onAudio?.(payload.audio_base64, payload.audio_format || 'wav');
       onDone(payload);
     }
-    if (event.type === 'transcription_failed' || event.type === 'assistant_failed') onDone(payload);
+    if (event.type === 'transcription_failed' || event.type === 'assistant_failed' || event.type === 'playback_failed') {
+      onDone(payload);
+    }
   }
 
   /** @param {Response} response */

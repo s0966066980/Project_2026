@@ -117,7 +117,8 @@ export type VoiceTurnEventType =
   | "assistant_result"
   | "completed"
   | "transcription_failed"
-  | "assistant_failed";
+  | "assistant_failed"
+  | "playback_failed";
 
 export interface VoiceTurnEventPayload {
   status?: string;

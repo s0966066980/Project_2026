@@ -63,7 +63,7 @@ class Effects(Protocol):
     def record_history(self, **values: Any) -> None: ...
 
 
-TERMINAL = {"completed", "transcription_failed", "assistant_failed"}
+TERMINAL = {"completed", "transcription_failed", "assistant_failed", "playback_failed"}
 
 
 class VoiceTurnModule:
@@ -240,15 +240,13 @@ class VoiceTurnModule:
                     text=turn["assistant_text"],
                     operation_key=f"{voice_turn_id}:synthesize",
                 )
-            except TransientVoiceTurnError as exc:
+                if not str(audio.get("audio_ref") or "").strip():
+                    raise TransientVoiceTurnError("empty_tts_audio")
+            except Exception as exc:
                 if not retry_budget_exhausted:
                     self._store.record_error(scope=scope, voice_turn_id=voice_turn_id, reason=str(exc)[:200])
                     return {"voice_turn_id": voice_turn_id, "status": "synthesizing", "retryable": True}
-                audio = {}
-            except Exception:
-                audio = {}
-            playback_status = "available" if audio.get("audio_ref") else "degraded"
-            playback_message = "" if playback_status == "available" else "文字結果已保留，但語音播放暫時不可用。"
+                return self._playback_fail(scope=scope, voice_turn_id=voice_turn_id)
             turn = self._store.transition(
                 scope=scope,
                 voice_turn_id=voice_turn_id,
@@ -258,13 +256,13 @@ class VoiceTurnModule:
                     "audio_ref": "",
                     "tts_audio_ref": str(audio.get("audio_ref") or ""),
                     "tts_format": str(audio.get("format") or ""),
-                    "playback_status": playback_status,
+                    "playback_status": "available",
                 },
                 event_type="completed",
                 payload={
                     "status": "success",
-                    "playback_status": playback_status,
-                    "playback_message": playback_message,
+                    "playback_status": "available",
+                    "playback_message": "",
                     "user_text": turn["transcript"],
                     "ai_response": turn["assistant_text"],
                     "order_draft": turn["order_draft"],
@@ -274,6 +272,34 @@ class VoiceTurnModule:
                 },
                 terminal=True,
             )
+        return self._result(turn)
+
+    def _playback_fail(self, *, scope, voice_turn_id):
+        turn = self._store.get(scope=scope, voice_turn_id=voice_turn_id)
+        message = "語音播放失敗，文字結果已保留，請重試語音模式。"
+        turn = self._store.transition(
+            scope=scope,
+            voice_turn_id=voice_turn_id,
+            expected={"synthesizing"},
+            status="playback_failed",
+            updates={
+                "audio_ref": "",
+                "tts_audio_ref": "",
+                "tts_format": "",
+                "playback_status": "failed",
+                "safe_reason": "voice_playback_failure",
+            },
+            event_type="playback_failed",
+            payload={
+                "status": "error",
+                "code": "voice_playback_failure",
+                "playback_status": "failed",
+                "playback_message": message,
+                "user_text": turn["transcript"],
+                "ai_response": turn["assistant_text"],
+            },
+            terminal=True,
+        )
         return self._result(turn)
 
     def _fail(self, *, scope, voice_turn_id, expected, status, reason):
