@@ -187,8 +187,3 @@ def _schedule_voice_emotion_observation(
     task.add_done_callback(_background_emotion_tasks.discard)
     return task
 
-
-
-# ── 串流版語音處理 ─────────────────────────────────────────────────
-
-

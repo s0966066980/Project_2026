@@ -170,12 +170,19 @@ class VoiceTurnModule:
                 event_type="transcript",
                 payload={"user_text": text},
             )
-            self._effects.schedule_observation(
-                voice_turn_id=voice_turn_id,
-                session_id=turn["session_id"],
-                transcript=text,
-                audio_ref=turn["audio_ref"],
-            )
+            # Emotion enrichment is advisory. A kiosk with no camera, a denied
+            # permission, or an emotion stack that is down must never decide whether
+            # the customer can finish ordering, so the boundary belongs here rather
+            # than to whichever Effects adapter happens to swallow the error.
+            try:
+                self._effects.schedule_observation(
+                    voice_turn_id=voice_turn_id,
+                    session_id=turn["session_id"],
+                    transcript=text,
+                    audio_ref=turn["audio_ref"],
+                )
+            except Exception:
+                pass
 
         if turn["status"] == "assisting":
             try:
