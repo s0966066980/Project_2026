@@ -15,7 +15,7 @@ R1-Omni 原生輸出 <think>…</think><answer>情緒</answer>：
   讓 emotion_service 的 Ollama 後備流程再補結構化欄位。
 
 啟動：
-  /home/oliver/anaconda3/envs/r1omni/bin/python r1_omni_server.py --port 7890
+  由 docker/R1-Omni.Dockerfile 與 Compose 的 r1-omni service 啟動。
 """
 import argparse
 import json

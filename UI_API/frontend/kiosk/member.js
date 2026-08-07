@@ -6,6 +6,7 @@ import * as api from '../shared/apiClient.js';
 import { state } from './state.js';
 import { getRequiredRuntimeDependency } from './runtime.js';
 import { getMenuVisual, formatItemPrice, resolveItemPrice } from './menuVisuals.js';
+import { completeGuestOrderingChoice } from './guestOrdering.js';
 
 const $ = (id) => document.getElementById(id);
 let memberPhoneNumber = '';
@@ -145,18 +146,48 @@ async function submitRegister() {
   }
 }
 
-export function showMemberChoice(onResolved, { preserveInput = false, hooks = {} } = {}) {
+export function showMemberChoice(onResolved, { preserveInput = false, hooks } = {}) {
   onMemberResolved = onResolved;
-  entryHooks = hooks;
+  // Hooks are the only way this overlay reaches the server. Overwriting them with an
+  // empty object silently disconnects guest and member choices, so a caller that omits
+  // them keeps the previous set and is reported instead of being quietly accepted.
+  if (hooks) entryHooks = hooks;
+  else console.error('[member] showMemberChoice 缺少 entry hooks，沿用前一組。');
   memberLookupOutcome = '';
   $('memberLoginRegister')?.classList.add('hidden');
   if (!preserveInput) memberPhoneNumber = '';
   setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
   const next = $('memberLoginNext');
   if (next) next.textContent = '下一步 →';
+  ['memberChoiceGuest', 'memberLoginSkip', 'memberRegisterSkip'].forEach(id => {
+    const button = $(id);
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+  });
   renderPhone();
   hideAll();
   show($('memberChoiceOverlay'));
+}
+
+async function submitGuestOrdering(buttonId, hintId) {
+  const button = $(buttonId);
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  if (hintId) setHint(hintId, '正在進入訪客點餐…');
+  const accepted = await completeGuestOrderingChoice({
+    chooseGuest: entryHooks.onGuest,
+    onAccepted: () => resolve(null),
+    onRejected: () => {
+      if (hintId) setHint(hintId, '暫時無法進入點餐，請確認連線後重試。', true);
+    },
+  });
+  if (!accepted) {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+  }
 }
 
 // 事件綁定（模組載入時註冊一次；元素不存在則略過）
@@ -175,12 +206,12 @@ $('memberChoiceMember')?.addEventListener('click', async () => {
   show($('memberLoginOverlay'));
   renderPhone();
 });
-$('memberChoiceGuest')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
+$('memberChoiceGuest')?.addEventListener('click', () => submitGuestOrdering('memberChoiceGuest', 'memberChoiceHint'));
 $('memberLoginBack')?.addEventListener('click', async () => {
   await entryHooks.onReturnToMode?.();
   hideAll(); show($('memberChoiceOverlay'));
 });
-$('memberLoginSkip')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
+$('memberLoginSkip')?.addEventListener('click', () => submitGuestOrdering('memberLoginSkip', 'memberLoginHint'));
 $('memberLoginNext')?.addEventListener('click', submitLogin);
 $('memberLoginRegister')?.addEventListener('click', () => {
   $('memberRegisterPhone').textContent = memberPhoneNumber;
@@ -201,7 +232,7 @@ $('memberRegisterBack')?.addEventListener('click', async () => {
   if (next) next.textContent = '下一步 →';
   show($('memberLoginOverlay'));
 });
-$('memberRegisterSkip')?.addEventListener('click', async () => { await entryHooks.onGuest?.(); resolve(null); });
+$('memberRegisterSkip')?.addEventListener('click', () => submitGuestOrdering('memberRegisterSkip', 'memberRegisterHint'));
 $('memberRegisterDone')?.addEventListener('click', submitRegister);
 $('memberConsentInput')?.addEventListener('change', renderRegisterConsent);
 renderRegisterConsent();

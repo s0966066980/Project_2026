@@ -29,28 +29,35 @@ R1-Omni/
 └── requirements.txt
 ```
 
-## 安裝
+## Docker Runtime
+
+R1-Omni 不使用主機 Conda。`docker/R1-Omni.Dockerfile` 提供 CPU 與 NVIDIA GPU targets，完整 Project stack 由 Repository 根目錄執行：
 
 ```bash
-conda create -n r1omni python=3.10 -y
-conda activate r1omni
-pip install -r R1-Omni/requirements.txt
+bash docker/scripts/setup.sh        # GPU，主要路徑
+bash docker/scripts/setup.sh --cpu  # CPU 相容模式
 ```
 
-GPU/CUDA/PyTorch 版本需依部署環境確認。
+必要權重由主機提供，預設位置：
 
-## 啟動
-
-建議：
-
-```bash
-bash scripts/start_r1_omni.sh
+```text
+R1-Omni/models/
+├── R1-Omni-0.5B/
+├── bert-base-uncased/
+├── siglip-base-patch16-224/
+└── whisper-large-v3/
 ```
 
-單獨啟動：
+權重不會進入 image，Compose 會唯讀掛載至 `/models`。完整必要檔案清單見 [Repository README](../README.md#r1-omni-權重)。
+
+只重建並啟動 R1 GPU service：
 
 ```bash
-python R1-Omni/r1_omni_server.py --port 7890
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  up --build -d --wait r1-omni
 ```
 
 ## 現行 API 合約
@@ -70,11 +77,11 @@ UI_API 會將 `result` 正規化為 facial、body、vocal、emotion、intensity 
 ## 整合與商用規則
 
 - UI_API 透過 Multimodal Evidence Port/Adapter 呼叫，不讓核心 domain 依賴模型 SDK。
-- 目前 local pilot 以獨立本機 process 部署；其他部署型態需另行設計與驗證。
+- R1-Omni 只以獨立 Docker service 部署；UI_API 透過內部 service URL 呼叫。
 - 建立 timeout、並行限制、健康檢查、fallback、structured error 與 latency/error metrics。
 - 模型不可用時，核心點餐流程應可降級。
 - 不以未驗證的 client file path 作為長期跨服務 contract；正式部署應使用受控 upload/object reference。
 - 模型權重、原始碼、資料集與衍生模型的商業授權需獨立確認。
 - 影像、影片、音訊與情緒結果遵守最小收集、明確用途與保留政策。
 
-目前 UI_API provider/gateway 邊界見 [Backend Services](../UI_API/backend/services/README.md)。
+目前 UI_API provider/gateway 與 capability 邊界見 [UI_API 核心應用](../UI_API/README.md#架構方向)。

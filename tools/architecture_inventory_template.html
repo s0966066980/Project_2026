@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project_2026 Backend 現況架構</title>
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#fff; --line:#e4e2dd; --ink:#22201d; --muted:#6f6a62;
+  --accent:#3a5f8a; --accent-soft:#eaf0f7;
+  --pg:#2f6f4f; --pg-bg:#e8f2ec; --lite:#8a5a2b; --lite-bg:#f6ede2;
+  --warn:#8a3a3a; --warn-bg:#f7ebeb; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#17181a; --panel:#1e2023; --line:#32353a; --ink:#e6e4e0; --muted:#9a968f;
+    --accent:#8ab4e8; --accent-soft:#23303f;
+    --pg:#7fc4a0; --pg-bg:#1c2c25; --lite:#d4a373; --lite-bg:#2d251c;
+    --warn:#e39595; --warn-bg:#2e2020;
+  }
+}
+:root[data-theme=dark]{
+  --bg:#17181a; --panel:#1e2023; --line:#32353a; --ink:#e6e4e0; --muted:#9a968f;
+  --accent:#8ab4e8; --accent-soft:#23303f;
+  --pg:#7fc4a0; --pg-bg:#1c2c25; --lite:#d4a373; --lite-bg:#2d251c;
+  --warn:#e39595; --warn-bg:#2e2020;
+}
+:root[data-theme=light]{
+  --bg:#fbfbfa; --panel:#fff; --line:#e4e2dd; --ink:#22201d; --muted:#6f6a62;
+  --accent:#3a5f8a; --accent-soft:#eaf0f7;
+  --pg:#2f6f4f; --pg-bg:#e8f2ec; --lite:#8a5a2b; --lite-bg:#f6ede2;
+  --warn:#8a3a3a; --warn-bg:#f7ebeb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 24px 80px}
+header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:28px}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13.5px}
+.sub code{font-family:var(--mono);font-size:12.5px}
+h2{font-size:19px;margin:44px 0 4px;letter-spacing:-.01em}
+h2 .n{color:var(--muted);font-weight:400;font-size:14px;margin-left:8px}
+.lede{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:70ch}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:22px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 15px}
+.card .v{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.card .k{color:var(--muted);font-size:12px;margin-top:3px}
+.card.alert .v{color:var(--warn)}
+
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:20px 0 14px;
+  position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5;border-bottom:1px solid var(--line)}
+input[type=search]{flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:7px;background:var(--panel);color:var(--ink);font-size:14px}
+input[type=search]:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--muted);
+  padding:6px 11px;border-radius:20px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:500}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:.03em;
+  text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--accent-soft)}
+.tname{font-family:var(--mono);font-size:13px;font-weight:500}
+.mod{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.arrow{display:inline-block;width:12px;color:var(--muted);font-size:10px;transition:transform .12s}
+tr.open .arrow{transform:rotate(90deg)}
+
+.tag{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11.5px;
+  font-family:var(--mono);border:1px solid transparent;white-space:nowrap;margin-right:4px}
+.t-pg{background:var(--pg-bg);color:var(--pg)}
+.t-lite{background:var(--lite-bg);color:var(--lite)}
+.t-warn{background:var(--warn-bg);color:var(--warn)}
+.t-dim{background:transparent;color:var(--muted);border-color:var(--line)}
+.t-acc{background:var(--accent-soft);color:var(--accent)}
+
+.detail td{background:var(--bg);padding:0}
+.detail .inner{padding:14px 18px 18px 30px}
+.detail h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:500}
+.detail h4:not(:first-child){margin-top:16px}
+.fl{font-family:var(--mono);font-size:12.5px;padding:5px 0;border-bottom:1px dotted var(--line);
+  display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.fl:last-child{border-bottom:0}
+.fl .p{color:var(--ink);flex:1;min-width:280px}
+.note{font-size:12px;color:var(--muted);font-family:system-ui,sans-serif;font-style:italic}
+.empty{padding:26px;text-align:center;color:var(--muted);font-size:13.5px}
+
+.blind{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:9px;padding:16px 18px;margin-top:18px}
+.blind h3{margin:0 0 10px;font-size:14px}
+.blind ul{margin:0;padding-left:20px;color:var(--muted);font-size:13px}
+.blind li{margin:5px 0}
+.blind code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
+  color:var(--muted);font-size:12.5px}
+footer code{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Project_2026 Backend 現況架構</h1>
+  <div class="sub" id="meta"></div>
+</header>
+
+<section>
+  <h2>資料表歸屬<span class="n" id="tcount"></span></h2>
+  <p class="lede">
+    每張表對應「實際寫它的檔案」。歸屬以寫入語句為準，不做呼叫鏈上溯。
+    引擎欄反映該檔的 SQL 實際跑在哪個資料庫——同一段 SQL 可能同時服務兩個引擎，因為
+    <code>PostgresStore</code> 繼承對應的 <code>SQLiteStore</code> 並沿用它的 SQL 字面。
+  </p>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="controls">
+    <input type="search" id="q" placeholder="搜尋表名、檔案、模組…">
+    <button class="chip" data-f="shared" aria-pressed="false">多模組寫入</button>
+    <button class="chip" data-f="no_writer" aria-pressed="false">有 DDL 無寫入</button>
+    <button class="chip" data-f="no_ddl" aria-pressed="false">無 DDL</button>
+    <button class="chip" data-f="dual" aria-pressed="false">雙引擎</button>
+    <button class="chip" data-f="worker" aria-pressed="false">worker 寫入</button>
+    <button class="chip" data-f="noproc" aria-pressed="false">不在任一 process</button>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th style="width:24px"></th><th>資料表</th><th>建立於</th>
+        <th>寫入模組</th><th>引擎</th><th>Process</th><th>狀態</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty" hidden>沒有符合條件的資料表</div>
+
+  <div class="blind">
+    <h3>本章已知盲點</h3>
+    <ul id="blind"></ul>
+  </div>
+</section>
+
+<footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__INVENTORY__*/null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const short = f => f.replace('UI_API/backend/','');
+
+const STATE_LABEL = {
+  single_owner:['單一模組寫入','t-dim'],
+  shared:['多模組寫入','t-warn'],
+  no_writer:['有 DDL 無寫入','t-warn'],
+  no_ddl:['無 DDL','t-warn'],
+};
+
+$('#meta').innerHTML =
+  `commit <code>${esc(DATA.commit)}</code> · 產生於 ${esc(DATA.generated_at)} · ` +
+  `掃描範圍 <code>${esc(DATA.scope.root)}</code> · 由 <code>${esc(DATA.generator)}</code> 生成，請勿手改`;
+
+const T = DATA.totals;
+$('#cards').innerHTML = [
+  [T.tables_total,'表（DDL ∪ 有寫入）',0],
+  [T.migrations,'migration 檔',0],
+  [T.tables_with_writers,'有寫入者',0],
+  [T.tables_dual_engine,'雙引擎（PG + SQLite）',0],
+  [T.tables_shared_by_modules,'被多模組寫入',1],
+  [T.tables_without_writer,'有 DDL 但無寫入者',1],
+].map(([v,k,a]) =>
+  `<div class="card${a?' alert':''}"><div class="v">${v}</div><div class="k">${k}</div></div>`
+).join('');
+
+$('#tcount').textContent = `${DATA.tables.length} 張`;
+
+const engTag = es => es.length
+  ? es.map(e => e==='sqlite' ? '<span class="tag t-lite">sqlite</span>'
+      : e==='postgres' ? '<span class="tag t-pg">postgres</span>'
+      : `<span class="tag t-dim">${esc(e)}</span>`).join('')
+  : '<span class="tag t-dim">—</span>';
+
+const procTag = ps => ps.length
+  ? ps.map(p => `<span class="tag t-acc">${esc(p)}</span>`).join('')
+  : '<span class="tag t-dim">不在任一 process</span>';
+
+const filters = new Set();
+let query = '';
+
+function match(t){
+  if (filters.has('shared') && t.state !== 'shared') return false;
+  if (filters.has('no_writer') && t.state !== 'no_writer') return false;
+  if (filters.has('no_ddl') && t.state !== 'no_ddl') return false;
+  if (filters.has('dual') && !t.dual_engine) return false;
+  if (filters.has('worker') && !t.processes.includes('worker')) return false;
+  if (filters.has('noproc') && (t.processes.length || !t.writers.length)) return false;
+  if (!query) return true;
+  const hay = [t.name, t.created_by||'', ...t.writer_modules,
+    ...t.writers.map(w=>w.file), ...t.readers.map(r=>r.file)].join(' ').toLowerCase();
+  return hay.includes(query);
+}
+
+function fileLine(f, kind){
+  const ops = kind==='w'
+    ? Object.entries(f.ops).map(([k,v])=>`${k}×${v}`).join(' ')
+    : `SELECT×${f.reads}`;
+  const via = f.engine_via_subclass && f.engine_via_subclass.length
+    ? `<span class="note">同一段 SQL 也經 ${esc(short(f.engine_via_subclass[0]))} 跑在另一個引擎</span>` : '';
+  return `<div class="fl"><span class="p">${esc(short(f.file))}</span>` +
+    `<span class="tag t-dim">${esc(ops)}</span>${engTag(f.engines)}${procTag(f.process)}${via}</div>`;
+}
+
+function render(){
+  const list = DATA.tables.filter(match);
+  $('#empty').hidden = list.length > 0;
+  $('#rows').innerHTML = list.map((t,i) => {
+    const [label, cls] = STATE_LABEL[t.state];
+    const mods = t.writer_modules.length
+      ? t.writer_modules.map(m=>`<span class="mod">${esc(m)}</span>`).join('<br>')
+      : '<span class="tag t-dim">—</span>';
+    const detail =
+      (t.writers.length ? `<h4>寫入者 (${t.writers.length})</h4>` +
+        t.writers.map(w=>fileLine(w,'w')).join('') : '<h4>寫入者</h4><div class="note">無</div>') +
+      (t.readers.length ? `<h4>讀取者 (${t.readers.length})</h4>` +
+        t.readers.map(r=>fileLine(r,'r')).join('') : '');
+    return `<tr class="row" data-i="${i}">
+      <td><span class="arrow">▶</span></td>
+      <td class="tname">${esc(t.name)}</td>
+      <td class="mod">${t.created_by ? esc(t.created_by) : '<span class="tag t-warn">無</span>'}</td>
+      <td>${mods}</td><td>${engTag(t.engines)}</td><td>${procTag(t.processes)}</td>
+      <td><span class="tag ${cls}">${label}</span></td>
+    </tr>
+    <tr class="detail" hidden><td colspan="7"><div class="inner">${detail}</div></td></tr>`;
+  }).join('');
+}
+
+$('#rows').addEventListener('click', e => {
+  const row = e.target.closest('tr.row');
+  if (!row) return;
+  row.classList.toggle('open');
+  row.nextElementSibling.hidden = !row.classList.contains('open');
+});
+
+$('#q').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); render(); });
+document.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => {
+  const f = btn.dataset.f;
+  filters.has(f) ? filters.delete(f) : filters.add(f);
+  btn.setAttribute('aria-pressed', filters.has(f));
+  render();
+}));
+
+const dyn = DATA.unresolved_dynamic_writes;
+$('#blind').innerHTML = [
+  `表名由變數組成、靜態無法解析的寫入共 <strong>${dyn.length}</strong> 處，未計入上表：` +
+    (dyn.map(d=>`<code>${esc(short(d.file))}:${d.line}</code>`).join('、') || '無'),
+  `歸屬以「寫入語句所在檔案」為準，未追呼叫鏈。實際發動寫入的上層模組不在本表範圍。`,
+  `「不在任一 process」表示該檔不在 <code>${esc(DATA.process_entry_points.app)}</code> 或 ` +
+    `<code>${esc(DATA.process_entry_points.worker)}</code> 的 import 閉包內，可能是手動執行的腳本，也可能是未被引用的程式碼——本表不區分兩者。`,
+  `讀取者僅統計 SQL 字面中的 <code>FROM</code> / <code>JOIN</code>，CTE 名稱已排除；跨表 join 會讓同一檔案出現在多張表底下。`,
+].map(x=>`<li>${x}</li>`).join('');
+
+$('#foot').innerHTML =
+  `排除範圍：${DATA.scope.excluded.map(x=>`<code>${esc(x)}</code>`).join('、')}。` +
+  `重跑 <code>python3 ${esc(DATA.generator)}</code> 即更新；diff <code>inventory.json</code> 可看出實質變化。`;
+
+render();
+</script>
+</body>
+</html>

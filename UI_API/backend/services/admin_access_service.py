@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import sys
+from typing import TYPE_CHECKING
 
 from modules.identity import _admin_access_service as _impl
+
+if TYPE_CHECKING:
+    # The runtime swap below is invisible to static analysis, so the names are
+    # re-exported here for type checking only.
+    from modules.identity._admin_access_service import *  # noqa: F403
 
 sys.modules[__name__] = _impl

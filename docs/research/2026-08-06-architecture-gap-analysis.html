@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project_2026 認知落差分析</title>
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#fff; --line:#e4e2dd; --ink:#22201d; --muted:#6f6a62;
+  --accent:#3a5f8a; --accent-soft:#eaf0f7;
+  --ok:#2f6f4f; --ok-bg:#e8f2ec; --gap:#8a3a3a; --gap-bg:#f7ebeb;
+  --mid:#8a6a2b; --mid-bg:#f7f1e2;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#17181a; --panel:#1e2023; --line:#32353a; --ink:#e6e4e0; --muted:#9a968f;
+  --accent:#8ab4e8; --accent-soft:#23303f;
+  --ok:#7fc4a0; --ok-bg:#1c2c25; --gap:#e39595; --gap-bg:#2e2020;
+  --mid:#d9b872; --mid-bg:#2b2618;
+}}
+:root[data-theme=dark]{
+  --bg:#17181a; --panel:#1e2023; --line:#32353a; --ink:#e6e4e0; --muted:#9a968f;
+  --accent:#8ab4e8; --accent-soft:#23303f;
+  --ok:#7fc4a0; --ok-bg:#1c2c25; --gap:#e39595; --gap-bg:#2e2020;
+  --mid:#d9b872; --mid-bg:#2b2618;
+}
+:root[data-theme=light]{
+  --bg:#fbfbfa; --panel:#fff; --line:#e4e2dd; --ink:#22201d; --muted:#6f6a62;
+  --accent:#3a5f8a; --accent-soft:#eaf0f7;
+  --ok:#2f6f4f; --ok-bg:#e8f2ec; --gap:#8a3a3a; --gap-bg:#f7ebeb;
+  --mid:#8a6a2b; --mid-bg:#f7f1e2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.65 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 24px 90px}
+header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:10px}
+h1{font-size:27px;margin:0 0 8px;letter-spacing:-.015em}
+.sub{color:var(--muted);font-size:13.5px}
+code{font-family:var(--mono);font-size:.88em;
+  background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+h2{font-size:20px;margin:46px 0 6px;letter-spacing:-.01em}
+.lede{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:72ch}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:26px 0}
+.s{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px}
+.s .v{font-size:27px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.s .k{color:var(--muted);font-size:12.5px;margin-top:2px}
+.s.gap .v{color:var(--gap)} .s.ok .v{color:var(--ok)}
+
+.item{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  margin:14px 0;overflow:hidden}
+.item>.head{display:flex;gap:12px;align-items:flex-start;padding:15px 18px;cursor:pointer}
+.item>.head:hover{background:var(--accent-soft)}
+.badge{font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 8px;
+  border-radius:5px;white-space:nowrap;margin-top:2px}
+.b-gap{background:var(--gap-bg);color:var(--gap)}
+.b-mid{background:var(--mid-bg);color:var(--mid)}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.head .t{flex:1}
+.head .t b{font-weight:600;font-size:15.5px;display:block;margin-bottom:2px}
+.head .t span{color:var(--muted);font-size:13px}
+.arrow{color:var(--muted);font-size:11px;transition:transform .13s;margin-top:5px}
+.item.open .arrow{transform:rotate(90deg)}
+.body{padding:0 18px 18px;border-top:1px solid var(--line);margin-top:-1px}
+.item:not(.open) .body{display:none}
+
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+@media(max-width:640px){.vs{grid-template-columns:1fr}}
+.vs>div{border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:13.5px}
+.vs .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);margin-bottom:6px;font-weight:500}
+.vs .claim{background:var(--bg)}
+.vs .real{background:var(--gap-bg);border-color:var(--gap)}
+.vs .real.same{background:var(--ok-bg);border-color:var(--ok)}
+.src{font-size:12px;color:var(--muted);margin-top:4px}
+.ev{background:var(--bg);border:1px solid var(--line);border-radius:7px;
+  padding:10px 13px;font-family:var(--mono);font-size:12px;
+  overflow-x:auto;white-space:pre;color:var(--muted);margin-top:10px}
+.why{font-size:13.5px;margin:12px 0 0;padding-left:13px;border-left:3px solid var(--accent)}
+.why b{font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:7px 10px;border-bottom:1px solid var(--line)}
+td.m{font-family:var(--mono);font-size:12.5px}
+tr:last-child td{border-bottom:0}
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);
+  color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Project_2026 認知落差分析</h1>
+  <div class="sub">
+    比對對象：<code>README.md</code>、<code>Project_2026_Project_Completeness_Roadmap.md</code>、
+    <code>legacy-api-allowlist.json</code>、<code>docs/adr/</code> 對上實際程式碼與執行中的容器。<br>
+    commit <code>949479d</code>　·　核對日期 2026-08-06　·　執行中 stack 已連續運作 10 小時
+  </div>
+</header>
+
+<div class="summary">
+  <div class="s ok"><div class="v">8</div><div class="k">宣稱與實際相符</div></div>
+  <div class="s gap"><div class="v">4</div><div class="k">實質落差</div></div>
+  <div class="s"><div class="v">4</div><div class="k">敘述容易高估</div></div>
+</div>
+
+<p class="lede">
+  總結一句：<b>Roadmap 對「還沒做的事」誠實，對「已經有的事」樂觀。</b>
+  它自評 Capability 0/10、Frontend 0/2，這個保守是準的；
+  但 §2.1「已具備」那一節的幾個詞——RBAC、module registry、typed client——
+  讀起來像是機制已經接上，實際上機制存在、接線沒完成。
+  另外有兩件事任何文件都沒寫：一個閒置的第二資料庫正在跑，以及 ordering 的 SQL 由 SQLite 版本定義。
+</p>
+
+<h2>實質落差</h2>
+
+<div class="item open">
+  <div class="head"><span class="badge b-gap">落差</span>
+    <div class="t"><b>module registry 目前是完全空轉的</b>
+    <span>宣稱是 <code>/api/v1</code> 的組裝機制，實際貢獻 0 個 route</span></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        <code>bootstrap/module_registry.py</code> 的 <code>collect_v1_routers()</code>
+        收集各能力模組的 <code>api.py</code> 並併入 <code>/api/v1</code>。
+        Roadmap 把「module routers」列為已有的組裝路徑。
+        <div class="src">來源：程式碼 docstring「Modules are included when their api.py exists and exposes router」</div></div>
+      <div class="real"><div class="lab">實際</div>
+        它列出 11 個候選模組。<b>13 個 <code>modules/</code> 子目錄中，沒有任何一個含 <code>api.py</code></b>，
+        而 11 個候選裡有 7 個連目錄都不存在。<code>except ImportError: continue</code>
+        把每一次失敗都吞掉，函式恆回傳空 list。
+        <div class="src">現有的 route 全部來自 <code>routes/</code> 底下的 21 個 <code>create_router()</code></div></div>
+    </div>
+    <table>
+      <tr><th>候選模組</th><th>目錄</th><th>api.py</th></tr>
+      <tr><td class="m">identity / promotion / recommendation / analytics</td><td>存在</td><td>缺</td></tr>
+      <tr><td class="m">device / catalog / member / ordering / rag / intervention / fleet</td><td>不存在</td><td>缺</td></tr>
+    </table>
+    <div class="ev">$ find UI_API/backend/modules -name "api.py"
+（無輸出）</div>
+    <p class="why"><b>為何重要：</b>Phase 2 的計畫是「建立 <code>/api/v1/catalog</code> 並由 module 提供」。
+    這條路徑的接線程式已經寫好，但沒有任何一端接上，而且失敗是靜默的——
+    未來第一個 <code>api.py</code> 寫錯 import 時，不會報錯，只會安靜地不出現。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-gap">落差</span>
+    <div class="t"><b>一個沒人用的第二 PostgreSQL 正在跑</b>
+    <span>來自 Roadmap 標記為「待刪除」的舊 compose</span></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        README：「Docker Compose 啟動六個服務」，列出 app、worker、postgres、migrate、ollama、r1-omni。<br>
+        Roadmap §7 把 <code>UI_API/deploy/postgres/</code> 放在「先替代再刪除」表，
+        語氣是待清理的靜態檔案。
+        <div class="src">來源：README「系統架構」、Roadmap §7</div></div>
+      <div class="real"><div class="lab">實際</div>
+        <code>project-2026-local-postgres-1</code> <b>現在是執行中的第七個容器</b>，
+        已連續運作 10 小時，佔用 host port <code>55432</code>，
+        由 <code>UI_API/deploy/postgres/compose.yaml</code> 啟動。
+        app 連的是正規的 <code>postgres</code>，沒有任何程式連它。
+        <div class="src">它也沒出現在任何文件的服務清單中</div></div>
+    </div>
+    <div class="ev">$ docker inspect project-2026-local-postgres-1 → UI_API/deploy/postgres/compose.yaml
+$ docker exec project-2026-app-1 printenv DATABASE_URL
+postgresql://project_2026:***@postgres:5432/project_2026   ← 不是 local-postgres</div>
+    <p class="why"><b>為何重要：</b>Roadmap 把它當成「等替代方案完成再刪的檔案」，
+    但它是活的行程與被佔用的連接埠。任何人照 README 理解執行中的系統，都會少算一個資料庫。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-gap">落差</span>
+    <div class="t"><b>legacy fetch allowlist 宣告與實際相反</b>
+    <span>宣告已清零，實際 37/41 個呼叫仍打舊前綴</span></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        <code>frontend/legacy-api-allowlist.json</code>：<code>"entries": []</code>，
+        說明寫「New features must use shared/api/v1Client. Milestone 7B/7C freeze: only reduce this list.」<br>
+        空清單讀起來是「legacy 呼叫已經歸零」。
+        <div class="src">Roadmap Phase 7 的完成條件正是「raw frontend fetch 歸零」</div></div>
+      <div class="real"><div class="lab">實際</div>
+        10 個檔案共 46 個 <code>fetch(</code>。可解析路徑的 41 個當中，
+        <b>37 個打 <code>/api/*</code>（legacy），只有 4 個打 <code>/api/v1</code></b>。
+        typed client <code>shared/api/v1Client.ts</code> 存在，但只有 1 個檔案在用。
+        <div class="src">Roadmap §2.2 自己也寫了「46 個呼叫點」——與 allowlist 互相矛盾</div></div>
+    </div>
+    <div class="ev">/api      37
+/api/v1    4</div>
+    <p class="why"><b>為何重要：</b>allowlist 的用途是防止新的 legacy 呼叫混進來。
+    空清單目前不代表守住了防線，只代表這個機制沒有被填寫；
+    真正的 37 筆完全不在它的管轄內。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-gap">落差</span>
+    <div class="t"><b>Roadmap 對 <code>v1_routes.py</code> 的行數低估 251 行</b>
+    <span>寫 1,128，實際 1,379——在它自己宣告的 baseline 上就已經是 1,379</span></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        Roadmap §2.2：「<code>v1_routes.py:create_router()</code> 仍有 1,128 行，
+        跨至少 48 個 route/application dependencies」
+        <div class="src">Baseline 宣告為 commit <code>725c5a3</code></div></div>
+      <div class="real"><div class="lab">實際</div>
+        <b>1,379 行。</b>而且在 <code>725c5a3</code> 當下就是 1,379 行——
+        不是後來長大的，是撰寫時數字就不準。
+        <div class="src">git show 725c5a3 與 949479d 兩個 commit 的行數相同</div></div>
+    </div>
+    <div class="ev">$ git show 725c5a3:UI_API/backend/routes/v1_routes.py | wc -l   → 1379
+$ git show 949479d:UI_API/backend/routes/v1_routes.py | wc -l   → 1379
+$ wc -l UI_API/backend/routes/v1_routes.py                      → 1379</div>
+    <p class="why"><b>為何重要：</b>單獨看是小事，但 Roadmap 的其他數字（21 個 router、80 張表、46 個 fetch、
+    2,627 行 app.js）都經核對正確。這一筆是唯一的例外，
+    代表它是人工填的而非量測的——拆解工作量時值得重新量一次。</p>
+  </div>
+</div>
+
+<h2>敘述容易高估的部分</h2>
+<p class="lede">以下四項的說法本身沒錯，機制確實存在。落差在於「存在」與「接上了」之間的距離，
+文字沒有區分這兩者。</p>
+
+<div class="item">
+  <div class="head"><span class="badge b-mid">高估</span>
+    <div class="t"><b>RBAC：機制完整，但只掛在 6 個 operation 上</b></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        Roadmap §2.1「已具備」：「FastAPI 已有 route registry、typed <code>/api/v1</code> envelope、
+        <b>RBAC</b>、commercial scope 與 OpenAPI。」</div>
+      <div class="real"><div class="lab">實際</div>
+        RBAC 的資料層是真的：<code>admin_roles</code>、<code>admin_role_permissions</code>、
+        <code>admin_user_role_assignments</code> 三張表都有 DDL 與寫入路徑。
+        但在 <b>139 個 HTTP operations 中，只有 6 處出現 <code>require_permission</code></b>。</div>
+    </div>
+    <p class="why"><b>如何解讀：</b>Independence Gate 第 4 條要求「每個 operation 宣告 principal 與最小 permission」。
+    Roadmap 用 0/10 誠實反映了這條沒過，只是 §2.1 那句「已有 RBAC」單獨讀會讓人以為只剩收尾。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-mid">高估</span>
+    <div class="t"><b>9 張表有 schema、無寫入路徑、線上全空</b></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        Roadmap §4 把 <code>fleet_*</code> 列為 Identity &amp; Device Access 的 data authority，
+        <code>recommendation_*</code> 列為 Recommendation 能力的 data authority。
+        列在能力表上讀起來像是既有資產。</div>
+      <div class="real"><div class="lab">實際</div>
+        這 9 張表有 migration DDL，但<b>沒有任何程式寫入</b>，線上 live rows 幾乎全為 0。
+        它們是預留的 schema，不是運作中的資料。</div>
+    </div>
+    <table>
+      <tr><th>資料表</th><th>寫入者</th><th>線上列數</th></tr>
+      <tr><td class="m">fleet_commands / fleet_config_versions / fleet_rollouts</td><td>無</td><td>0</td></tr>
+      <tr><td class="m">recommendation_decisions / _governance_events / _strategies / _strategy_versions</td><td>無</td><td>0</td></tr>
+      <tr><td class="m">promotion_rule_versions</td><td>無</td><td>0</td></tr>
+      <tr><td class="m">rag_reset_receipts</td><td>無</td><td>1</td></tr>
+    </table>
+    <p class="why"><b>如何解讀：</b>Roadmap 已預告「Provisional data authority 必須在每個 slice 開始前校正」。
+    這 9 張正是需要校正的那一批——不是歸屬錯誤，是根本還沒有歸屬。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-mid">高估</span>
+    <div class="t"><b>ordering / checkout 的 SQL 由 SQLite 版本定義</b></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        README 與 Roadmap 通篇以 PostgreSQL 描述資料層。
+        ADR-0010 有提到 SQLite，定位是「Local Development/test adapter only」。</div>
+      <div class="real"><div class="lab">實際</div>
+        <code>PostgresCartStore</code> <b>繼承</b> <code>SQLiteCartStore</code>，
+        沿用它的 SQL 字面，只替換連線與 <code>?</code>→<code>%s</code>。
+        <b>21 張表的 SQL 語句實際撰寫在 <code>sqlite_store.py</code>，執行在 PostgreSQL 上。</b></div>
+    </div>
+    <div class="ev">class PostgresCartStore(SQLiteCartStore):
+    def _connect(self):
+        return _Conn(postgres_utils.connect())     # q.replace("?", "%s")</div>
+    <p class="why"><b>如何解讀：</b>這不算沒有文件——ADR-0010 承認 SQLite 存在。
+    但沒有任何文件說明生產路徑的 SQL 語意是由 SQLite 版本決定的。
+    Phase 5 要把 ordering 收斂成一個深模組時，這是必須先攤開的形狀。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="head"><span class="badge b-mid">高估</span>
+    <div class="t"><b>測試與 CI 的守備範圍比敘述窄</b></div>
+    <span class="arrow">▶</span></div>
+  <div class="body">
+    <div class="vs">
+      <div class="claim"><div class="lab">文件認知</div>
+        Roadmap §2.1：「Frontend 已有 Admin/Kiosk Vite entries、部分 typed client 與
+        <b>少量 unit/E2E tests</b>。」——「少量」只用來形容 frontend。</div>
+      <div class="real"><div class="lab">實際</div>
+        Backend 同樣稀薄：<b>8 個測試檔對 34,000 行程式碼</b>。
+        CI 的 ruff 只 lint 一份白名單（<code>main.py</code>、<code>app_factory.py</code>、
+        <code>api/</code>、<code>core/</code>、<code>models/</code> 與 2 個 repository 檔），
+        <code>services/</code>（16,676 行）與 <code>modules/</code>（7,768 行）不在其中。</div>
+    </div>
+    <table>
+      <tr><th>層</th><th>程式碼</th><th>測試</th></tr>
+      <tr><td>Backend</td><td class="m">~34,000 行</td><td class="m">8 檔</td></tr>
+      <tr><td>Frontend</td><td class="m">~6,100 行</td><td class="m">3 unit + 1 e2e</td></tr>
+    </table>
+    <p class="why"><b>如何解讀：</b>Gate 第 6 條要求六類測試全通過才算一個能力完成。
+    以目前基數，第一個 slice 的測試工作量會遠大於搬移程式碼本身。</p>
+  </div>
+</div>
+
+<h2>核對後確認相符的部分</h2>
+<p class="lede">這些數字我逐一量過，Roadmap 寫的是對的。它的保守自評也是準的。</p>
+<table>
+  <tr><th>宣稱</th><th>核對結果</th></tr>
+  <tr><td class="m">21 個 create_router() factories</td><td>21 ✓</td></tr>
+  <tr><td class="m">PostgreSQL 80 張 public tables</td><td>線上實測 80 ✓</td></tr>
+  <tr><td class="m">migration head = 0025_store_menu_items</td><td>檔案與線上 <code>schema_migrations</code> 皆為 0025 ✓</td></tr>
+  <tr><td class="m">Kiosk app.js 約 2,627 行</td><td>2,626 ✓</td></tr>
+  <tr><td class="m">frontend 至少 10 檔、46 個 raw fetch</td><td>恰為 10 檔 46 處 ✓</td></tr>
+  <tr><td class="m">transactional outbox / durable jobs / dead letter / idempotency 已存在</td>
+      <td>皆存在（dead letter 命名為 <code>dlq</code>；idempotency 見 28 檔）✓</td></tr>
+  <tr><td class="m">Docker stack 六服務 + health checks</td><td>全部 healthy，已運作 10 小時 ✓</td></tr>
+  <tr><td class="m">Capability 0/10、Frontend 0/2</td><td>與程式碼一致——<code>capabilities/</code> 僅 45 行 manifest，<code>platform/</code> 1 行 ✓</td></tr>
+</table>
+
+<h2>證據方法與界線</h2>
+<p class="lede">
+  全部結論來自靜態掃描（SQL 字串常值、ast import 圖）、執行中容器的 OpenAPI 與 PostgreSQL 實測查詢，
+  以及 git 歷史比對。沒有做 runtime trace，所以「某段程式碼從未被執行」這類命題不在本報告的能力範圍內——
+  報告中出現的「無寫入者」「不在 import 閉包內」都是靜態事實的陳述，不等於死程式碼的斷言。
+  兩處表名由變數組成、靜態無法解析（<code>member_repository.py:427</code>、
+  <code>knowledge_publication/sqlite_store.py:1247</code>），已排除在表歸屬統計之外。
+</p>
+
+<footer>
+  可重跑的證據基礎：<code>python3 tools/architecture_inventory.py</code>
+  會重新產生 <code>docs/architecture/inventory.json</code>（表歸屬、引擎、process 歸屬的原始資料）。
+  本報告的判讀為人工撰寫，不隨腳本自動更新。
+</footer>
+</div>
+<script>
+document.querySelectorAll('.item .head').forEach(h =>
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+</script>
+</body>
+</html>

@@ -1,6 +1,4 @@
-"""將菜單所有品項批次匯入 RAG。
-執行：conda run -n emotion_ui python tools/import_menu_to_rag.py
-"""
+"""將菜單所有品項批次匯入 RAG；執行方式見 tools/README.md。"""
 import asyncio
 import sys
 import os

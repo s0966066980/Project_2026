@@ -33,10 +33,12 @@ ADMIN_PERMISSION_NAMES = frozenset(machine_name for machine_name, _description i
 # 現場員工不需要主管密碼即可使用的最小權限集合。
 # 刻意不含 operations.read：健康頁與統計頁共用該權限，而健康屬於主管功能。
 # 也刻意不含 system.debug：Manager LLM Debug Access 不得暴露於員工模式。
-STAFF_PERMISSION_NAMES = frozenset({
-    "catalog.availability.read",
-    "catalog.availability.write",
-    "recommendations.effectiveness.read",
-})
+STAFF_PERMISSION_NAMES = frozenset(
+    {
+        "catalog.availability.read",
+        "catalog.availability.write",
+        "recommendations.effectiveness.read",
+    }
+)
 
 assert STAFF_PERMISSION_NAMES <= ADMIN_PERMISSION_NAMES

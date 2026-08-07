@@ -1,87 +1,73 @@
-# Project_2026 Docker 安裝與啟動
+# Project_2026 Docker Runtime
 
-Compose 檔案集中在本目錄；Docker 的唯一有效環境檔是專案根目錄的 `.env`。
-以下指令都從專案根目錄執行。
+Docker Compose 是 Project_2026 唯一支援的 application runtime。Kiosk、Admin、API、worker、PostgreSQL、Ollama 與 R1-Omni 都由本目錄的 Docker 定義啟動；不需要 Conda。
 
-Docker 只使用專案根目錄的 `.env`。手動執行 Compose 時請加上
-`--env-file .env`；`UI_API/.env` 只供原生 Conda `emotion_ui` 啟動的 UI_API
-使用，不要把兩個檔案互相複製。`docker/scripts/setup.sh` 已固定使用根目錄 `.env`。
+Docker development stack 只使用專案根目錄 `.env`。`docker/scripts/setup.sh` 會在第一次執行時從 `docker/.env.example` 建立該檔並產生隨機密碼。
 
-本文件只包含首次安裝、模型放置與日後啟動流程。R1-Omni 權重使用主機本地檔案，不會打包進 Docker image，也不會由腳本下載。
+## 一鍵啟動
 
-## 1. 準備專案與 R1-Omni 權重
-
-將專案放到主機後，確認四組權重位於：
-
-```text
-R1-Omni/models/
-├── R1-Omni-0.5B/
-├── bert-base-uncased/
-├── siglip-base-patch16-224/
-└── whisper-large-v3/
-```
-
-預設 `.env` 設定為：
-
-```dotenv
-R1_MODELS_PATH=../R1-Omni/models
-```
-
-如果權重放在其他位置，請先修改 `.env` 的 `R1_MODELS_PATH`。權重必須由使用者自行準備，`docker/scripts/setup.sh` 不會下載 R1-Omni。
-
-## 2. 第一次安裝與啟動（Ubuntu／Debian）
-
-CPU 主機：
+GPU 是主要路徑，適用於已安裝 NVIDIA driver 的 Debian／Ubuntu：
 
 ```bash
 cd ~/Project_2026
 bash docker/scripts/setup.sh
 ```
 
-GPU 主機：
+沒有 NVIDIA GPU 時：
 
 ```bash
-cd ~/Project_2026
-bash docker/scripts/setup.sh --gpu
+bash docker/scripts/setup.sh --cpu
 ```
 
-腳本會自動：
+常用選項：
 
-1. 安裝 Docker Engine、Docker Compose v2 與必要工具。
-2. 建立 `.env`，並在第一次執行時產生資料庫與 Admin 密碼。
-3. 檢查 R1-Omni 本地權重。
-4. 建置 image 並啟動 PostgreSQL、app、worker、Ollama 與 R1-Omni。
-
-GPU 主機需先安裝 NVIDIA driver；`--gpu` 會在 Ubuntu／Debian 自動安裝 NVIDIA Container Toolkit。
-
-腳本完成時會顯示 Admin 登入密碼，密碼也會保存在專案根目錄的 `.env`。
-
-## 3. 安裝 Ollama 模型
-
-Docker image 不會自動下載 Ollama 模型。首次啟動後手動執行：
-
-```bash
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml exec ollama ollama pull qwen3.5:4b
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml exec ollama ollama list
+```text
+--cpu            使用 CPU AI stack
+--gpu            明確使用 GPU；與預設相同
+--no-install     不安裝 Docker／主機套件
+--skip-r1-check  略過 R1 權重檢查；缺權重時服務不會健康
 ```
 
-如果 `.env` 的 `OLLAMA_MODEL` 不是 `qwen3.5:4b`，請將指令中的模型名稱換成相同名稱。
+setup 會安裝 Docker、設定 GPU runtime、驗證 R1 權重、建置 images、自動拉取 `.env` 的 Ollama 模型，最後啟動 stack 並等待健康檢查。
 
-Ollama 模型會保存於 Docker named volume；不要使用 `down --volumes`，否則會刪除模型與資料。
+## R1-Omni 權重
 
-## 4. 日後啟動環境
+setup 不下載 R1 權重。預設 `R1_MODELS_PATH=../R1-Omni/models` 是相對於 `docker/`，實際位置為：
 
-CPU：
-
-```bash
-cd ~/Project_2026
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml up -d --wait
+```text
+R1-Omni/models/
+├── R1-Omni-0.5B/
+│   ├── config.json
+│   └── model.safetensors
+├── bert-base-uncased/
+│   └── vocab.txt
+├── siglip-base-patch16-224/
+│   ├── config.json
+│   └── model.safetensors
+└── whisper-large-v3/
+    ├── config.json
+    └── model.safetensors
 ```
 
-GPU：
+其他位置可在根目錄 `.env` 使用絕對路徑：
+
+```dotenv
+R1_MODELS_PATH=/srv/project-2026/models
+```
+
+權重以唯讀方式掛載到 R1 容器 `/models`，不會進入 image。
+
+## Compose 分層
+
+| File | 用途 |
+| --- | --- |
+| `compose.yaml` | PostgreSQL、migration、app、worker 與 test profile |
+| `compose.ai.yaml` | AI dependencies、Ollama 與 CPU R1-Omni |
+| `compose.ai-gpu.yaml` | 將 Ollama／R1 切換為 NVIDIA GPU |
+
+GPU 手動啟動：
 
 ```bash
-cd ~/Project_2026
 docker compose --env-file .env \
   -f docker/compose.yaml \
   -f docker/compose.ai.yaml \
@@ -89,7 +75,51 @@ docker compose --env-file .env \
   up -d --wait
 ```
 
-如果修改了 Dockerfile 或程式碼，需要重新建置：
+CPU 手動啟動：
+
+```bash
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  up -d --wait
+```
+
+手動 Compose 不會替你拉取模型；需要時執行：
+
+```bash
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  exec ollama ollama pull qwen3.5:4b
+```
+
+一鍵 setup 已自動執行這一步。
+
+## 服務與資料
+
+```text
+Kiosk:   http://127.0.0.1:8000/kiosk
+Admin:   http://127.0.0.1:8000/admin
+Ready:   http://127.0.0.1:8000/ready
+R1-Omni: http://127.0.0.1:7890
+Ollama:  http://127.0.0.1:11434
+```
+
+實際 port 由根目錄 `.env` 決定；setup 遇到 Ollama port 衝突時會選擇可用 port 並更新 `.env`。
+
+Named volumes 保存：
+
+- `postgres_data`：PostgreSQL 資料。
+- `app_data`：application runtime data。
+- `ollama_models`：已拉取的 Ollama 模型。
+- `ai_cache`：STT、RAG 與 Hugging Face cache。
+- `shared_media`：app 與 R1 間的受控暫存媒體。
+
+`docker compose down` 會保留 volumes。不要執行 `down --volumes`，除非確定要刪除資料與模型。
+
+## 更新與除錯
+
+修改程式碼後，必須重新 build；程式碼會被複製進 image，不使用本機 Python runtime：
 
 ```bash
 docker compose --env-file .env \
@@ -99,43 +129,29 @@ docker compose --env-file .env \
   up --build -d --wait
 ```
 
-## 5. 查看狀態與停止
+```bash
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  ps
 
-查看服務：
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  logs -f app worker ollama r1-omni
+```
+
+## 驗證腳本
 
 ```bash
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml ps
+docker/scripts/test.sh
+docker/scripts/test-ai.sh
 ```
 
-服務網址：
+`test.sh` 建置核心 runtime/test image、執行測試並啟動暫存 PostgreSQL stack。`test-ai.sh` 驗證 AI image dependencies，不下載 R1 權重或執行長時間 GPU inference。
 
-```text
-Kiosk: http://127.0.0.1:8000/kiosk
-Admin: http://127.0.0.1:8000/admin
-R1-Omni: http://127.0.0.1:7890
-```
+## 安全邊界
 
-停止服務但保留資料、模型與權重掛載：
-
-```bash
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml down
-```
-
-再次啟動時，重新執行第 4 節的 CPU 或 GPU 指令即可。
-
-## 6. NVIDIA NIM（可選）
-
-只使用本地 Ollama 時，不需要 NVIDIA NIM API key；在 Admin「功能設定 → AI 模型」選擇「僅本機」即可。
-
-若要使用 NVIDIA NIM，將以下內容加入 `.env`：
-
-```dotenv
-NVIDIA_API_KEY=nvapi-你的金鑰
-NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1
-```
-
-然後重新建立 app 與 worker：
-
-```bash
-docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml up -d --force-recreate app worker
-```
+目前 Compose 是 development/local profile。它包含本機 manager auth 與 diagnostic routes，不得直接當成 Pilot 安全部署。後續 Pilot profile 必須使用主機外部 secrets、Redis、備份還原與 fail-closed 設定。

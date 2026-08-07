@@ -14,6 +14,7 @@ const KNOWN_EVENT_TYPES = new Set([
   'completed',
   'transcription_failed',
   'assistant_failed',
+  'playback_failed',
 ]);
 
 /** @param {VoiceTurnEvent} event */

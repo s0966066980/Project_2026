@@ -1,101 +1,151 @@
 # UI_API 核心應用
 
-`UI_API/` 是 Project_2026 的 production path，包含 FastAPI、Kiosk、Admin、資料存取、可靠 worker 與 RAG/AI integrations。
+`UI_API/` 是 Project_2026 的 production application source。FastAPI 提供能力 API，Admin 與 Kiosk 是兩個獨立 browser applications，worker 處理 durable jobs 與 outbox。唯一支援的執行與驗證環境是 Docker Compose。
 
-部署目標是單店 local pilot；目前尚未 production certified。
+## 架構方向
 
-## 功能範圍
+後端維持 modular monolith，不按 Admin/Kiosk 複製商業規則，而按十個 Business Capability Modules 垂直整理：
 
-- Kiosk：菜單、購物車、會員、推薦、活動 banner、語音/情緒輔助、互動介入、checkout。
-- Admin：登入/RBAC、設定、會員、供應、活動、推薦事件、RAG、健康與 AI 測試。
-- Backend：legacy `/api/*`、typed `/api/v1/*`、WebSocket、Admin/Device identity、commercial scope、audit/observability。
-- Data：Runtime Persistence Profile、PostgreSQL 18 單機路徑、隔離的 SQLite 測試 adapter、Redis shared infrastructure、local/S3 object-storage contract；JSON 不再是 runtime adapter。
-- Async：獨立 worker 處理 durable jobs 與 order outbox；AI/provider 失敗不得阻擋 checkout。
+1. Identity & Device Access
+2. Catalog & Availability
+3. Ordering & Checkout
+4. Member
+5. Campaign & Promotion
+6. Recommendation & Interaction Analytics
+7. Knowledge/RAG
+8. Voice Assistance
+9. Emotion Diagnostics
+10. Operations & Configuration
 
-## 結構
-
-```text
-UI_API/
-├── main.py                    # FastAPI app 與本機 server 入口
-├── config.py                  # 環境、動態設定與 commercial fail-closed 驗證
-├── backend/
-│   ├── app_factory.py         # middleware、health、static、route 組裝
-│   ├── api/                   # route registry、v1 contracts/error envelope
-│   ├── bootstrap/             # startup、process、server、module registry
-│   ├── modules/identity/      # 已抽離的 Identity Application API
-│   ├── routes/                # HTTP/WebSocket transport
-│   ├── services/              # 既有 workflows 與 compatibility shims
-│   ├── repositories/          # PostgreSQL/Redis persistence adapters
-│   ├── integrations/          # manual Payment/POS adapters
-│   ├── schemas/               # PostgreSQL migrations 0001–0021
-│   └── scripts/               # migration、pilot、worker、validation CLI
-├── frontend/                  # Kiosk、Admin、shared clients/UI
-├── menu_data/                 # 菜單來源
-├── rag_documents/             # 可審核與重建的 RAG 原始來源
-├── learning_data/             # local runtime compatibility data
-├── tests/                     # Backend/architecture/integration tests
-└── requirements.txt           # 完整 local runtime dependencies
-```
-
-## 執行路徑
+每個 capability 最終集中 HTTP transport、application workflow、domain rules、ports、adapters 與 tests。每張 business table 只有一個 capability 可寫；跨模組同步協作只透過 Capability Interface，durable consequences 使用 event/outbox。
 
 ```text
-main.py → app_factory.create_app()
-        → api.router.register_routes()
-        → api.route_registry → routes/*
-        → module Application API 或既有 service
-        → repository / integration
+backend/
+├── capabilities/            # 逐模組遷移的垂直業務能力
+│   └── <capability>/
+│       ├── api.py
+│       ├── application.py
+│       ├── domain.py
+│       ├── interface.py
+│       ├── ports.py
+│       └── adapters/
+├── foundation/              # persistence、events、objects、observability primitives
+├── bootstrap/               # composition root 與 process startup
+├── routes/                  # 遷移中的 legacy transports
+├── services/                # 遷移中的 workflows／compatibility shims
+├── repositories/            # 遷移中的 persistence adapters
+├── schemas/migrations/      # PostgreSQL forward migrations source of truth
+└── scripts/                 # production-adjacent maintenance／worker CLIs
 ```
 
-`main.py` 的本機 server 可讓同一 app 綁定 `APP_PORT` 與 `ADMIN_PORT`。`/live` 只表示 process 存活；`/ready` 會回報 dependency readiness。AI/STT/TTS/RAG 在 lifespan 背景初始化，失敗只降級相關能力。
+目前仍處於 Transitional Modular Monolith：Identity 已有 module 雛形，但 `routes/v1_routes.py` 仍跨多個 domain，`routes/services/repositories` 也尚未完成垂直搬遷。新增功能不得擴大這些 legacy ownership。
 
-可靠工作另以 process 啟動：
+## Admin 與 Kiosk
+
+Admin 和 Kiosk 必須各自擁有 UI/UX、bootstrap、state、features、styles、assets 與 tests，不能互相 import 或以 runtime mode 切換產品身分。
+
+```text
+frontend/
+├── admin/                   # Admin application
+├── kiosk/                   # Kiosk application
+├── shared/                  # 僅 generated clients、tokens、stateless primitives/transport
+├── tests/                   # product boundary、unit 與 E2E tests
+├── vite.config.ts
+├── vitest.config.ts
+└── playwright.config.ts
+```
+
+`shared/` 不得持有 product feature、auth、page、state 或全域 product CSS。FastAPI/Pydantic 產生 OpenAPI 與 TypeScript client；feature code 最終不得直接呼叫 legacy `/api/*` 或自行維護 transport DTO。
+
+現況債務：Kiosk `app.js` 與 Admin `admin.js` 仍偏大；Kiosk 尚有 Admin runtime mode 判斷；`shared/styles.css` 混合兩端 selector；raw `fetch` 與 legacy client 仍在遷移中。
+
+## 資料與執行邊界
+
+- PostgreSQL 是 tenant、store、device、identity、catalog、member、ordering、campaign、RAG governance 與 settings 的 authoritative store。
+- `backend/schemas/migrations/` 是 schema source of truth；目前 migration head 為 `0025_store_menu_items`。
+- Redis 只提供 shared cache、rate limiting 與 distributed lock，不持有 authoritative business data。
+- Object bytes 使用 local/S3 adapter；PostgreSQL 保存 metadata。
+- `menu_data/menu.json` 是待搬入 Catalog 的 seed，不是 runtime source of truth。
+- `learning_data/settings.json` 是待移除的 compatibility/test data，不得成為 Pilot settings authority。
+- AI、RAG、STT/TTS、Emotion provider 可以 degraded，但不得改寫 checkout transaction authority。
+
+## 啟動與狀態
+
+從 repository 根目錄啟動預設 NVIDIA GPU stack：
 
 ```bash
-cd UI_API
-python backend/scripts/run_worker.py --help
+bash docker/scripts/setup.sh
 ```
 
-## 啟動
-
-核心應用：
+CPU 模式：
 
 ```bash
-cd UI_API
-source /home/oliver/anaconda3/etc/profile.d/conda.sh
-conda activate emotion_ui
-ENABLE_NGROK=false python main.py
+bash docker/scripts/setup.sh --cpu
 ```
 
-local pilot 設定先從 Repository 根目錄的 `config/profiles/local-pilot.env.example` 建立部署擁有的環境檔，再執行：
+查看 app、worker 與 migration log：
 
 ```bash
-cd UI_API
-python backend/scripts/validate_local_environment.py --profile local-pilot
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  logs -f app worker migrate
 ```
 
-目前資料庫目標是本機單一主機，不是 HA：
+`/live` 只表示 process 存活；`/ready` 檢查必要依賴並列出 optional degradation。Payment/POS 目前只有 manual adapters，Order Confirmation 只建立 `Payment Pending` 訂單。
+
+## Maintenance CLI
+
+`backend/scripts/` 是必要的 production-adjacent entry points，不是可刪除的 root helper scripts：
+
+| Script | Responsibility |
+| --- | --- |
+| `manage_runtime_persistence.py` | migration/status/write probe；Compose `migrate` 入口 |
+| `run_worker.py` | durable job/outbox worker；Compose `worker` 入口 |
+| `manage_admin_identity.py` | trusted Admin/RBAC provisioning |
+| `verify_member_identity_migration.py` | Member UUID/PII integrity |
+| `validate_commercial_scope.py` | tenant/store/device scope integrity |
+| `validate_local_environment.py` | environment profile checks |
+| `validate_local_pilot_data_paths.py` | 防止 Pilot 商業資料落回 JSON |
+| `validate_voice_turn_performance.py` | Voice Turn performance evidence |
+| `import_rag_governance_json.py` | legacy RAG governance import |
+
+透過 app image 查看命令，不需要 host Python/Conda：
 
 ```bash
-cd UI_API
-uv run python backend/scripts/prepare_local_persistence.py --refresh-database-urls
-docker compose -f deploy/postgres/compose.yaml up -d
-uv run python backend/scripts/manage_runtime_persistence.py migrate
-uv run python backend/scripts/manage_runtime_persistence.py status
-uv run python backend/scripts/manage_runtime_persistence.py write-probe
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  run --rm --no-deps app \
+  python backend/scripts/manage_runtime_persistence.py --help
 ```
 
-`RUNTIME_DATA_ROOT` 下的 PostgreSQL、備份、物件、RAG 索引、SQLite、日誌、匯入匯出與暫存目錄互不重疊且預設為 `0700`。PostgreSQL 容器只掛載 `postgres/pgdata` 與 `postgres/wal-archive`。完整存取矩陣與未來三 VM／三可用區契約見 [ADR 0010](../docs/adr/0010-adopt-local-single-host-postgresql-runtime.md)。
-容器對主機只綁定 `127.0.0.1:55432`，避免干擾主機既有的 5432 PostgreSQL；容器內仍使用標準 5432。
+寫入型 maintenance command 必須 dry-run、明確 flag 或具備可觀測的冪等語意，且不得輸出 secrets、完整 PII 或 document content。
 
-模型整合啟動方式見 [Repository README](../README.md#本機啟動)。
+## 驗證
 
-## 邊界與限制
+核心 container tests 與 health smoke：
 
-- 現況是 Transitional Modular Monolith；Identity 已抽離，其餘多數 domain 尚在 `routes/services/repositories`。
-- `services/admin_identity_service.py` 等檔案是相容 shim，不新增業務責任。
-- `/api/v1` 已有 typed read/write contracts，但 `v1_routes.py` 仍直接依賴多個 service/repository。
-- `staging`、`pilot`、`production` 必須以 PostgreSQL 為商業資料 Source of Truth，並在啟動時 fail closed。
-- 本機 `DATABASE_TOPOLOGY=single` 不構成 production readiness；production 必須使用可觀測到同步與非同步 standby 的 `ha` 拓撲。
-- Payment/POS 目前只有 manual adapter；manual pending 不代表已自動扣款或送單。
-- 大型模型不是核心 API 的必要條件。
+```bash
+docker/scripts/test.sh
+```
+
+AI image dependency smoke：
+
+```bash
+docker/scripts/test-ai.sh
+```
+
+Frontend contract/type tests：
+
+```bash
+cd UI_API/frontend
+npm ci
+npm run typecheck
+npm test
+```
+
+Backend tests 的正式 surface 是 capability interface、HTTP contract 與 adapters。PostgreSQL、Redis、object storage integration tests 必須使用實際 provisioned dependency，不得用 in-memory fake 冒充 integration evidence。
+
+完整 Docker 操作、R1 權重與限制見 [Repository README](../README.md) 和 [Docker README](../docker/README.md)。架構詞彙與決策見 [CONTEXT.md](../CONTEXT.md) 與 [ADRs](../docs/adr/)。

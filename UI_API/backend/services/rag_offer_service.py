@@ -9,10 +9,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from modules.promotion import PromotionContext, evaluate_promotion
+
 import config
 from models.commercial_scope import CommercialScope
-from modules.promotion import PromotionContext, evaluate_promotion
 from repositories import promotion_repository
+
 
 def _as_list(value: Any) -> list[str]:
     if value is None:

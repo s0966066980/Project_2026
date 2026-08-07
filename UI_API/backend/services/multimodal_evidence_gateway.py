@@ -58,7 +58,7 @@ def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
             "model_loaded": False,
             "capabilities": [],
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-            "message": "R1-Omni 本機服務未就緒，請使用 scripts/start_r1_omni.sh 重新啟動。",
+            "message": "R1-Omni 服務未就緒，請使用 Docker Compose 檢查或重新啟動 r1-omni 服務。",
         }
 
 

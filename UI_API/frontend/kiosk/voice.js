@@ -10,6 +10,7 @@ import { startVoiceActivityMonitor } from './voiceActivity.js';
 import { createVoiceOrderDraftController } from './voiceOrderDraft.js';
 import { createVoiceTurnProtocolState, consumeVoiceTurnEvent, assertVoiceTurnStreamEnded } from './voiceTurnProtocol.js';
 import { kioskText } from './constants/kiosk.js';
+import { playVoiceAudioChunk } from './voicePlayback.js';
 
 function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
 function isKioskActive() { return getRequiredRuntimeDependency('isKioskActive')(); }
@@ -112,8 +113,13 @@ function resolveVoiceOrderDraft(data) {
 }
 
 export function isVoiceAssistantActive() {
-  // 語音 overlay 可見（聆聽 or 思考中）時視為語音模式進行中
-  return ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden');
+  // 等待文字或播放 TTS 時 overlay 可能先收起；仍須視為同一個 Voice Turn，
+  // 避免被動推薦在語音尚未真正完成時重新蓋上畫面。
+  return Boolean(
+    (ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden'))
+    || state.askRecorder?.state === 'recording'
+    || state.isVoiceProcessing,
+  );
 }
 
 function voiceRecommendationKey(itemId) {
@@ -187,7 +193,7 @@ function showVoiceBubble(data) {
   hideVoiceAssistOverlay();
   const userText = String(data.user_text || '').trim();
   const answerText = String(data.ai_response || '-').trim();
-  const playbackWarning = ['degraded', 'unavailable'].includes(data.playback_status)
+  const playbackWarning = ['degraded', 'unavailable', 'failed'].includes(data.playback_status)
     ? (data.playback_message || kioskText('voicePlaybackUnavailable'))
     : '';
   ui.voiceDialogueGrid.innerHTML = `
@@ -246,11 +252,13 @@ function showVoiceAssistOverlay(state = 'listening') {
   }
   if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.disabled = !listening;
   if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.disabled = !listening;
+  globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
 }
 
 export function hideVoiceAssistOverlay() {
   ui.voiceAssistOverlay?.classList.add('hidden');
   ui.voiceAssistOverlay?.setAttribute('aria-hidden', 'true');
+  globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
 }
 
 
@@ -318,28 +326,16 @@ export function setupAskRecorder() {
     formData.append('voice_turn_index', String(voiceTurn?.turnIndex || 0));
 
     // ── 串流版：邊生成邊播音 ─────────────────────────────────────────
-    const audioStreamQueue = [];
-    let   isAudioStreamPlaying = false;
-
-    async function playAudioStreamQueue() {
-      isAudioStreamPlaying = true;
-      while (audioStreamQueue.length) {
-        const { b64, fmt } = audioStreamQueue.shift();
-        await new Promise(resolve => {
-          const a = new Audio(`data:audio/${fmt};base64,${b64}`);
-          a.onended = resolve;
-          a.onerror = resolve;
-          a.play().catch(resolve);
-        });
-      }
-      isAudioStreamPlaying = false;
-    }
+    let audioPlayback = Promise.resolve();
+    let playbackAttempted = false;
+    let playbackFailed = false;
 
     let firstAudioReceived = false;
 
     let protocolState = createVoiceTurnProtocolState({ voiceTurnId: voiceTurn?.turnId || '' });
     let protocolViolation = null;
     let streamFailed = false;
+    let terminalData = null;
     await api.streamVoiceAssistantResponse(formData, {
       onEvent(event) {
         // 協議違規不得從 stream callback 逃逸成 unhandled rejection，
@@ -360,50 +356,16 @@ export function setupAskRecorder() {
           firstAudioReceived = true;
           hideVoiceAssistOverlay();   // 第一句音訊到就隱藏等待動畫
         }
-        audioStreamQueue.push({ b64, fmt });
-        if (!isAudioStreamPlaying) playAudioStreamQueue();
+        playbackAttempted = true;
+        audioPlayback = audioPlayback
+          .then(() => playVoiceAudioChunk({ b64, format: fmt, attempts: 2 }))
+          .catch((error) => {
+            playbackFailed = true;
+            console.warn('[voice] TTS 音訊播放失敗。', error);
+          });
       },
       onDone(data) {
-        // 顧客已進入付款畫面：這個回合以「已取消」作為唯一可見終局收尾，
-        // 不再彈出草稿或氣泡覆蓋付款流程，但也不能無聲消失。
-        if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
-          hideVoiceAssistOverlay();
-          trackInteractionEvent({
-            event_type: 'voice_assist_cancelled',
-            button_id: 'voiceAssistBtn',
-            metadata: { reason: 'payment_screen_opened' },
-          });
-          return;
-        }
-        if (data.status !== 'success') {
-          trackInteractionEvent({
-            event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn',
-            metadata: { reason: 'assistant_error', message: data.message || '' },
-          });
-          showVoiceAssistMessage(data.ai_response || data.message || kioskText('voiceOrderFailed'));
-          return;
-        }
-        trackInteractionEvent({
-          event_type: data.playback_status === 'degraded'
-            ? 'voice_assist_playback_degraded'
-            : 'voice_assist_completed',
-          button_id: 'voiceAssistBtn',
-          metadata: { playback_status: data.playback_status || 'available' },
-        });
-        const orderDraft = resolveVoiceOrderDraft(data);
-        // 有草稿待確認時，助理回覆改為引導顧客到草稿視窗勾選，避免文字與待辦動作不一致。
-        const displayData = orderDraft && !String(data.ai_response || '').trim()
-          ? {
-              ...data,
-              ai_response: '已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。',
-            }
-          : data;
-        showVoiceBubble(displayData);
-        if (orderDraft) voiceOrderDraftController.show(orderDraft);
-        if (data.mentioned_ids) data.mentioned_ids.forEach(id => {
-          state.sessionPushedIds.add(id);
-          reportVoiceRecommendationEvent('recommendation_shown', id, 0);
-        });
+        terminalData = data;
       },
       onError() {
         streamFailed = true;
@@ -429,6 +391,52 @@ export function setupAskRecorder() {
           metadata: { reason: 'voice_turn_protocol_violation', detail: String(violation.message || '') },
         });
         showVoiceAssistMessage(kioskText('voiceOrderFailed'));
+      } else if (terminalData) {
+        await audioPlayback;
+        if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) {
+          closeVoiceBubble();
+          trackInteractionEvent({
+            event_type: 'voice_assist_cancelled',
+            button_id: 'voiceAssistBtn',
+            metadata: { reason: 'payment_screen_opened' },
+          });
+        } else if (
+          terminalData.status !== 'success'
+          || terminalData.playback_status !== 'available'
+          || !playbackAttempted
+          || playbackFailed
+        ) {
+          const failureData = {
+            ...terminalData,
+            playback_status: 'failed',
+            playback_message: terminalData.playback_message || kioskText('voicePlaybackUnavailable'),
+          };
+          trackInteractionEvent({
+            event_type: 'voice_assist_failed',
+            button_id: 'voiceAssistBtn',
+            metadata: { reason: 'voice_playback_failure', playback_status: 'failed' },
+          });
+          showVoiceBubble(failureData);
+        } else {
+          trackInteractionEvent({
+            event_type: 'voice_assist_completed',
+            button_id: 'voiceAssistBtn',
+            metadata: { playback_status: 'played' },
+          });
+          const orderDraft = resolveVoiceOrderDraft(terminalData);
+          const displayData = orderDraft && !String(terminalData.ai_response || '').trim()
+            ? {
+                ...terminalData,
+                ai_response: '已整理您提到的餐點，請在畫面上勾選要加入的品項並確認。',
+              }
+            : terminalData;
+          showVoiceBubble(displayData);
+          if (orderDraft) voiceOrderDraftController.show(orderDraft);
+          if (terminalData.mentioned_ids) terminalData.mentioned_ids.forEach(id => {
+            state.sessionPushedIds.add(id);
+            reportVoiceRecommendationEvent('recommendation_shown', id, 0);
+          });
+        }
       }
     }
     const doneButtonText = document.getElementById('voiceAssistBtnText');
@@ -438,6 +446,7 @@ export function setupAskRecorder() {
       activeVoiceTurn = null;
       state.isVoiceProcessing = false;
       resumePassiveListener();
+      globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
     }
   };
 }

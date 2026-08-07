@@ -7,9 +7,10 @@ import asyncio
 import logging
 import time
 
+from modules.recommendation import decide
+
 import config
 from models.commercial_scope import CommercialScope
-from modules.recommendation import decide
 from repositories import menu_repository, push_copy_repository
 from services import (
     push_copy_service,

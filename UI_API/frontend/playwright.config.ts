@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Docker Compose is the only supported runtime, so the suite must be able to run
+// against an already-running stack. Point PLAYWRIGHT_BASE_URL at it and no local
+// server is started; without it the config keeps the host uvicorn fallback.
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -10,7 +15,7 @@ export default defineConfig({
   retries: 0,
   reporter: 'line',
   use: {
-    baseURL: 'http://127.0.0.1:9080',
+    baseURL: externalBaseURL || 'http://127.0.0.1:9080',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -23,8 +28,8 @@ export default defineConfig({
       },
     },
   }],
-  webServer: {
-    command: 'cd .. && env -u MEMBER_STORAGE_BACKEND -u DATABASE_PORT APP_ENV=test DATABASE_BACKEND=sqlite DATABASE_TOPOLOGY=single DATABASE_URL= RUNTIME_DATA_ROOT="${PLAYWRIGHT_RUNTIME_DATA_ROOT:-${TMPDIR:-/tmp}/project-2026-playwright-${PPID}}" "${PYTHON_BIN:-/home/oliver/anaconda3/envs/emotion_ui/bin/python}" -m uvicorn main:app --host 127.0.0.1 --port 9080',
+  webServer: externalBaseURL ? undefined : {
+    command: 'cd .. && env -u MEMBER_STORAGE_BACKEND -u DATABASE_PORT APP_ENV=test DATABASE_BACKEND=sqlite DATABASE_TOPOLOGY=single DATABASE_URL= RUNTIME_DATA_ROOT="${PLAYWRIGHT_RUNTIME_DATA_ROOT:-${TMPDIR:-/tmp}/project-2026-playwright-${PPID}}" "${PYTHON_BIN:-python}" -m uvicorn main:app --host 127.0.0.1 --port 9080',
     url: 'http://127.0.0.1:9080/live',
     reuseExistingServer: true,
     timeout: 30_000,

@@ -157,9 +157,7 @@ def connect():
 def migration_connect():
     url = migration_database_url()
     if not url:
-        raise PostgresUnavailableError(
-            "MIGRATION_DATABASE_URL is required for explicit schema migration"
-        )
+        raise PostgresUnavailableError("MIGRATION_DATABASE_URL is required for explicit schema migration")
     try:
         return direct_connection(url=url)
     except PersistenceConnectionError as exc:
@@ -271,14 +269,8 @@ def _grant_runtime_role(cur) -> None:
     cur.execute(f"GRANT USAGE ON SCHEMA public TO {role}")
     cur.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}")
     cur.execute(f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {role}")
-    cur.execute(
-        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {role}"
-    )
-    cur.execute(
-        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {role}"
-    )
+    cur.execute(f"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {role}")
+    cur.execute(f"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {role}")
 
 
 def get_migration_plan() -> MigrationPlan:

@@ -46,6 +46,20 @@ export function observeVisibleImpression(element, {
   };
 }
 
+/**
+ * A commercial touch may only be recorded when the server authored what the customer saw:
+ * a recommendation decision, or a campaign. A surface the kiosk filled in by itself — the
+ * local placeholder shown while the recommendation API is unreachable — carries neither,
+ * and must stay out of commercial evidence rather than land as a low-quality row.
+ *
+ * @param {Record<string, unknown>} details
+ */
+export function isServerAuthoredTouch(details) {
+  const decisionId = String(details?.decision_id ?? '').trim();
+  const campaignId = String(details?.campaign_id ?? '').trim();
+  return Boolean(decisionId || campaignId);
+}
+
 /** @param {string} prefix */
 export function createTouchId(prefix) {
   const random = globalThis.crypto?.randomUUID?.().replaceAll('-', '') || Math.random().toString(16).slice(2);

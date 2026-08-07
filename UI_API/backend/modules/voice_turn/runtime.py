@@ -149,8 +149,10 @@ class ProductionEffects:
                 voice_turn_id=values["voice_turn_id"],
                 voice_turn_index=0,
             )
-        except Exception:
-            return
+        except Exception as exc:
+            # The module already guarantees the turn survives this; the adapter's job
+            # is to leave operators a trace instead of failing silently.
+            print(f"⚠️ 語音情緒觀測未排程：{exc}")
 
     def record_history(self, **values: Any) -> None:
         session_repository.record_session_state(

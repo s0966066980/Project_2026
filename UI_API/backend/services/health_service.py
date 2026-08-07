@@ -132,7 +132,15 @@ def _recommendation_health() -> dict:
         latest = max(timestamps) if timestamps else None
         fresh = latest is not None and latest >= datetime.now(timezone.utc) - timedelta(hours=freshness_hours)
         status = "ok" if fresh else "degraded"
-        message = "" if fresh else ("no recommendation events recorded" if not events else "latest recommendation event is stale or missing a timestamp")
+        message = (
+            ""
+            if fresh
+            else (
+                "no recommendation events recorded"
+                if not events
+                else "latest recommendation event is stale or missing a timestamp"
+            )
+        )
         return {
             "name": "recommendation_events",
             "status": status,
@@ -169,15 +177,60 @@ def _overall_status(checks: dict) -> str:
 
 
 _INCIDENT_GUIDE = {
-    "database": ("資料庫無法安全使用", "點餐、結帳、會員與管理寫入可能失敗。", "值班技術人員", "確認資料庫連線與 DATABASE_URL，勿切換到 JSON。"),
-    "migration": ("資料庫版本未就緒", "商業資料結構可能與目前程式不相容。", "值班技術人員", "停止寫入並確認 forward migration 狀態。"),
-    "commercial_scope": ("門市資料範圍未就緒", "可能無法保證資料只屬於目前門市。", "系統管理員", "確認 tenant、store 與 device 的有效關聯。"),
-    "shared_infrastructure": ("共用基礎設施未就緒", "多程序下的 session、限流或事件協調可能不一致。", "值班技術人員", "依 readiness error code 檢查共用基礎設施。"),
-    "postgres": ("商業資料庫異常", "會員、訂單、活動與管理寫入可能失敗。", "值班技術人員", "確認資料庫連線、migration 與儲存 backend。"),
-    "rag": ("知識回答降級", "點餐與結帳可繼續，但知識回答可能缺少資料。", "知識管理者", "檢查最後一次成功建索引與已發布來源。"),
-    "rag_alerts": ("RAG 有未處理警示", "知識索引可能過期、不完整或存在驗證失敗。", "知識管理者", "前往 RAG 頁檢查並處理未結警示。"),
-    "recommendation_events": ("推薦成效量測降級", "推薦仍可運作，但今日成效與歸因可能不可靠。", "店長", "確認 Kiosk 是否持續送出事件及最後事件時間。"),
-    "runtime_logs": ("問題追查能力降級", "顧客流程通常可繼續，但故障證據可能不完整。", "值班技術人員", "檢查不可解析記錄、磁碟空間與保留設定。"),
+    "database": (
+        "資料庫無法安全使用",
+        "點餐、結帳、會員與管理寫入可能失敗。",
+        "值班技術人員",
+        "確認資料庫連線與 DATABASE_URL，勿切換到 JSON。",
+    ),
+    "migration": (
+        "資料庫版本未就緒",
+        "商業資料結構可能與目前程式不相容。",
+        "值班技術人員",
+        "停止寫入並確認 forward migration 狀態。",
+    ),
+    "commercial_scope": (
+        "門市資料範圍未就緒",
+        "可能無法保證資料只屬於目前門市。",
+        "系統管理員",
+        "確認 tenant、store 與 device 的有效關聯。",
+    ),
+    "shared_infrastructure": (
+        "共用基礎設施未就緒",
+        "多程序下的 session、限流或事件協調可能不一致。",
+        "值班技術人員",
+        "依 readiness error code 檢查共用基礎設施。",
+    ),
+    "postgres": (
+        "商業資料庫異常",
+        "會員、訂單、活動與管理寫入可能失敗。",
+        "值班技術人員",
+        "確認資料庫連線、migration 與儲存 backend。",
+    ),
+    "rag": (
+        "知識回答降級",
+        "點餐與結帳可繼續，但知識回答可能缺少資料。",
+        "知識管理者",
+        "檢查最後一次成功建索引與已發布來源。",
+    ),
+    "rag_alerts": (
+        "RAG 有未處理警示",
+        "知識索引可能過期、不完整或存在驗證失敗。",
+        "知識管理者",
+        "前往 RAG 頁檢查並處理未結警示。",
+    ),
+    "recommendation_events": (
+        "推薦成效量測降級",
+        "推薦仍可運作，但今日成效與歸因可能不可靠。",
+        "店長",
+        "確認 Kiosk 是否持續送出事件及最後事件時間。",
+    ),
+    "runtime_logs": (
+        "問題追查能力降級",
+        "顧客流程通常可繼續，但故障證據可能不完整。",
+        "值班技術人員",
+        "檢查不可解析記錄、磁碟空間與保留設定。",
+    ),
 }
 
 
@@ -209,11 +262,9 @@ def build_operational_health(checks: dict, readiness: dict, incident_actions: li
         for key, check in (readiness.get("required_checks") or {}).items()
         if check.get("status") not in {"ok", "skipped"}
     }
-    incident_checks.update({
-        key: check
-        for key, check in checks.items()
-        if check.get("status") in {"degraded", "failed", "not_ready"}
-    })
+    incident_checks.update(
+        {key: check for key, check in checks.items() if check.get("status") in {"degraded", "failed", "not_ready"}}
+    )
     incidents = []
     for key, check in incident_checks.items():
         title, impact, owner, action = _INCIDENT_GUIDE.get(
@@ -223,22 +274,26 @@ def build_operational_health(checks: dict, readiness: dict, incident_actions: li
         incident_id = _incident_id(key, check)
         latest_action = actions_by_incident.get(incident_id, {})
         action_name = str(latest_action.get("action") or "")
-        incidents.append({
-            "incident_id": incident_id,
-            "check_key": key,
-            "severity": "critical" if key in (readiness.get("required_checks") or {}) else "warning",
-            "title": title,
-            "impact": impact,
-            "suggested_action": action,
-            "owner": owner,
-            "status": (
-                "escalated" if action_name == "health.incident.escalate"
-                else "acknowledged" if action_name == "health.incident.acknowledge"
-                else "open"
-            ),
-            "last_action_at": latest_action.get("created_at"),
-            "last_actor": latest_action.get("actor", ""),
-        })
+        incidents.append(
+            {
+                "incident_id": incident_id,
+                "check_key": key,
+                "severity": "critical" if key in (readiness.get("required_checks") or {}) else "warning",
+                "title": title,
+                "impact": impact,
+                "suggested_action": action,
+                "owner": owner,
+                "status": (
+                    "escalated"
+                    if action_name == "health.incident.escalate"
+                    else "acknowledged"
+                    if action_name == "health.incident.acknowledge"
+                    else "open"
+                ),
+                "last_action_at": latest_action.get("created_at"),
+                "last_actor": latest_action.get("actor", ""),
+            }
+        )
 
     if not readiness.get("ready"):
         state = "unsafe_to_operate"
@@ -261,9 +316,21 @@ def build_operational_health(checks: dict, readiness: dict, incident_actions: li
         "headline": headline,
         "business_impact": impact,
         "capabilities": [
-            {"key": "ordering_checkout", "label": "點餐與結帳", "status": "available" if required_ready else "unavailable"},
-            {"key": "member_service", "label": "會員查詢與服務", "status": "available" if required_ready else "unavailable"},
-            {"key": "recommendation_measurement", "label": "推薦成效量測", "status": "available" if measurement_ok else "degraded"},
+            {
+                "key": "ordering_checkout",
+                "label": "點餐與結帳",
+                "status": "available" if required_ready else "unavailable",
+            },
+            {
+                "key": "member_service",
+                "label": "會員查詢與服務",
+                "status": "available" if required_ready else "unavailable",
+            },
+            {
+                "key": "recommendation_measurement",
+                "label": "推薦成效量測",
+                "status": "available" if measurement_ok else "degraded",
+            },
             {"key": "rag_answers", "label": "RAG 知識回答", "status": "available" if rag_ok else "degraded"},
         ],
         "incidents": incidents,

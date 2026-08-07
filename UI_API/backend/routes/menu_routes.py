@@ -1,12 +1,11 @@
 import asyncio
 
-import database
 from fastapi import APIRouter, Body, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
 from models.promotion_models import PosPromotionBannerResponse
 from repositories import menu_repository
-from services import menu_catalog_service, menu_validation_service, promotion_banner_service
+from services import menu_catalog_service, promotion_banner_service
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope

@@ -14,7 +14,7 @@ import { createRealtimeClient } from '../shared/realtimeClient.js';
 import { getMenuVisual, formatItemPrice, formatItemPriceDetail, resolveItemPrice } from './menuVisuals.js';
 import { createKioskMenuController } from './controllers/kioskMenuController.js';
 import { createPromoBannerController } from './controllers/promoBannerController.js';
-import { createTouchId, observeVisibleImpression } from '../shared/touchEventClient.js';
+import { createTouchId, isServerAuthoredTouch, observeVisibleImpression } from '../shared/touchEventClient.js';
 import { state } from './state.js';
 import { configureKioskRuntime } from './runtime.js';
 import {
@@ -37,6 +37,7 @@ import {
   saveKioskFeatures,
 } from './features/bootstrap/runtimePreferences.js';
 import { createDeviceIdentityController } from './features/bootstrap/deviceIdentity.js';
+import { recommendationEligibility, recommendationRefreshAction } from './recommendationContinuity.js';
 
 const APP_MODE = resolveKioskAppMode(window.location);
 
@@ -303,7 +304,7 @@ function handlePromotionCta(promotion = {}) {
     showMemberChoice((member) => {
       renderMemberMenuHeader();
       if (member) handlePromotionCta(promotion);
-    });
+    }, { hooks: midSessionMemberHooks() });
     return;
   }
   const requiredIds = Array.isArray(promotion.required_cart_item_ids)
@@ -375,6 +376,9 @@ export const itemMatchesSubFilter = kioskMenuController.itemMatchesSubFilter;
 
 /** @param {string} eventType @param {Record<string, unknown>} [details] */
 function sendCommercialTouch(eventType, details = {}) {
+  // ADR-0020：顧客可見活動的權威在 server。推薦 API 失敗時 kiosk 自己挑的佔位品項
+  // 既無 decision 也無 campaign，渲染它只是為了不留白，不得計入商業曝光或點擊。
+  if (!isServerAuthoredTouch(details)) return;
   api.reportCommercialTouch({
     event_id: createTouchId('touch'),
     event_type: eventType,
@@ -578,10 +582,18 @@ const aiRecommendationController = (() => {
   const $ = id => document.getElementById(id);
 
   function isRecommendationEligible() {
-    if (!$('aiPushBar')) return false;
     const paymentOpen = ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden');
     const cartOpen    = Boolean(document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open'));
-    return Boolean(isKioskActive() && !document.hidden && !isVoiceAssistantActive() && !paymentOpen && !cartOpen && state.menuData.length);
+    return recommendationEligibility({
+      featureEnabled: getFeatures().recommend,
+      barPresent: Boolean($('aiPushBar')),
+      kioskActive: Boolean(isKioskActive()),
+      documentVisible: !document.hidden,
+      voiceActive: isVoiceAssistantActive(),
+      paymentOpen: Boolean(paymentOpen),
+      cartOpen,
+      eligibleItemCount: state.menuData.filter(item => item?.id && resolveItemPrice(item) > 0).length,
+    }).eligible;
   }
 
   function markCurrentRecommendationIgnored(reason = 'replaced') {
@@ -669,7 +681,8 @@ const aiRecommendationController = (() => {
       emojiElement.style.display = visual.image ? 'none' : 'block';
     }
 
-    $('aiPushBar').classList.remove('hidden', 'loading');
+    $('aiPushBar').classList.remove('loading');
+    $('aiPushBar').classList.toggle('hidden', !isRecommendationEligible());
     stopCommercialImpression?.();
     currentCommercialImpressionId = createTouchId('impression');
     stopCommercialImpression = observeVisibleImpression($('aiPushBar'), {
@@ -760,7 +773,21 @@ const aiRecommendationController = (() => {
 
   // excludeCurrentItem=false 時不排除目前項目（首次呼叫用）
   async function fetchRecommendation(excludeCurrentItem = true) {
-    if (isRecommendationRequestInFlight || !isRecommendationEligible()) { if (!isRecommendationEligible()) hide(); return; }
+    const action = recommendationRefreshAction({
+      eligible: isRecommendationEligible(),
+      requestInFlight: isRecommendationRequestInFlight,
+      hasCurrent: Boolean(currentRecommendationItem),
+    });
+    if (action === 'hide_and_retry') {
+      hide();
+      scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
+      return;
+    }
+    if (action === 'show_current_and_retry' || action === 'retry') {
+      if (action === 'show_current_and_retry') $('aiPushBar')?.classList.remove('hidden');
+      scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
+      return;
+    }
 
     // 已預取到候選就直接換上，使用者按下「換一個」不會看到等待。
     const ready = excludeCurrentItem ? prefetchedRecommendations.shift() : null;
@@ -812,8 +839,22 @@ const aiRecommendationController = (() => {
     clearRecommendationTimer();
     recommendationTimer = setTimeout(() => {
       recommendationTimer = null;
-      if (isRecommendationEligible()) fetchRecommendation();
-      else { hide(); scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS); }
+      const action = recommendationRefreshAction({
+        eligible: isRecommendationEligible(),
+        requestInFlight: isRecommendationRequestInFlight,
+        hasCurrent: Boolean(currentRecommendationItem),
+      });
+      if (action === 'hide_and_retry') {
+        hide();
+        scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
+        return;
+      }
+      if (currentRecommendationItem) $('aiPushBar')?.classList.remove('hidden');
+      if (isRecommendationRequestInFlight) {
+        scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
+        return;
+      }
+      void fetchRecommendation();
     }, delay);
   }
 
@@ -856,7 +897,27 @@ const aiRecommendationController = (() => {
     if (bar) { bar.classList.add('hidden'); bar.classList.remove('loading'); }
   }
 
-  function scheduleAfterCartClose() { start(); }
+  function syncVisibility() {
+    if (!isRecommendationEligible()) {
+      hide();
+      scheduleRecommendationRefresh(RECOMMENDATION_RETRY_DELAY_MS);
+      return;
+    }
+    if (currentRecommendationItem) {
+      $('aiPushBar')?.classList.remove('hidden');
+      scheduleRecommendationRefresh(refreshDelayMs());
+      return;
+    }
+    const fallback = pickDefaultRecommendation();
+    if (fallback) {
+      renderRecommendation(fallback, LOCAL_PUSH_TEXT.local_default(fallback.name), {
+        source: 'local_default', reasons: ['local_default'], model_status: 'local_default',
+      });
+    }
+    if (!isRecommendationRequestInFlight) void fetchRecommendation(false);
+  }
+
+  function scheduleAfterCartClose() { syncVisibility(); }
 
   // 事件監聽（module 頂層執行一次）
   useDomReady(() => {
@@ -882,6 +943,8 @@ const aiRecommendationController = (() => {
       scheduleRecommendationRefresh(refreshDelayMs());
     });
     $('aiPushRefreshBtn')?.addEventListener('click', () => fetchRecommendation());
+    document.addEventListener('visibilitychange', syncVisibility);
+    globalThis.addEventListener?.('kiosk:recommendation-eligibility-changed', syncVisibility);
   });
 
   return { start, stop, hide, scheduleAfterCartClose };
@@ -1601,6 +1664,29 @@ function entryFlowHooks() {
       if (member.phone) await api.memberLogin(sessionId, member.phone);
     },
     onGuest: () => advanceEntryFlow('choose_guest'),
+  };
+}
+
+// 會員限定優惠在點餐途中再次叫出會員選擇時，entry flow 早已是 menu_ready，
+// choose_guest / choose_member 在 server 上都不是合法轉換（ordering_entry 只允許
+// 從 choosing_mode 等入口狀態發出）。這裡的「訪客」不是入口決策，而是關掉這次
+// 登入邀請、維持既有的訪客身分，所以只做會員登入，不再送 entry flow 指令。
+function midSessionMemberHooks() {
+  const keepCurrentMode = async () => {};
+  return {
+    onMemberMode: keepCurrentMode,
+    onMemberNotFound: keepCurrentMode,
+    onMemberUnavailable: keepCurrentMode,
+    onMemberRetry: keepCurrentMode,
+    onReturnToMode: keepCurrentMode,
+    onRegistrationStarted: keepCurrentMode,
+    onMemberFound: async member => {
+      if (member.phone) await api.memberLogin(sessionId, member.phone);
+    },
+    onRegistered: async member => {
+      if (member.phone) await api.memberLogin(sessionId, member.phone);
+    },
+    onGuest: keepCurrentMode,
   };
 }
 
