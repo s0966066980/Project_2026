@@ -94,3 +94,6 @@ Emotion-LLaMA/checkpoints/**/.git/
 
 # R1-Omni 推論服務：程式碼入庫，15GB 權重不入庫
 R1-Omni/models/
+
+# Generated architecture inventory (regenerate with tools/architecture_inventory.py)
+docs/architecture/

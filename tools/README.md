@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | `demo_passive_voice.py` | 被動語音關鍵詞偵測 Web demo | 啟動本機 demo server/音訊處理 |
 | `import_menu_to_rag.py` | 將菜單項目匯入 RAG | 寫入設定的 RAG collection |
+| `architecture_inventory.py` | 產生 backend 現況架構清單 | 覆寫 `docs/architecture/`（generated，不進版控） |
 
 ## 使用
 
