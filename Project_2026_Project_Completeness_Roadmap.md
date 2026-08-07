@@ -215,7 +215,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ### Batch P0 — Kiosk 關鍵路徑
 
-狀態：**進行中**
+狀態：**已完成**（PR #9，六條 Gate 各有失敗即紅的測試；CI 六項全綠）
 
 - 推薦連續性：菜單可互動且有 eligible item 時必須持續顯示有效推薦；API 失敗改用最近有效結果或本機 fallback。
 - 本機 fallback 只是佔位：它讓畫面不留白，但不得寫入商業曝光或點擊。商業觸點必須帶 server 的 decision 或 campaign，否則一律不送（ADR-0020）。
@@ -227,9 +227,20 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 Gate：推薦不出現空白／暫停狀態、佔位推薦不產生商業觸點、Voice 成功必須有 TTS 音檔輸出證據、缺少攝影機仍可完成 Voice、三個訪客按鈕 contract 一致且各自有穿過真實接線的測試、API 失敗可見且可 retry。
 
+Gate evidence（PR #9）：
+
+| Gate 條目 | 證據 |
+| --- | --- |
+| 推薦不出現空白／暫停狀態 | `tests/e2e/recommendation-continuity.spec.ts`（`/api/ai_push` 強制 500） |
+| 佔位推薦不產生商業觸點 | 同上，含「真實推薦仍照常回報」的反向驗證 |
+| Voice 成功必須有 TTS 音檔輸出證據 | `tests/test_voice_turn_playback_contract.py` |
+| 缺少攝影機仍可完成 Voice | `tests/test_voice_turn_media_degradation.py` |
+| 三個訪客按鈕 contract 一致 | `tests/unit/guest-ordering-wiring.test.ts`（載入真實 `member.js` 綁定） |
+| API 失敗可見且可 retry | 上述訪客與推薦兩組測試 |
+
 ### Batch P1 — Admin 核心營運與精簡 RAG
 
-狀態：**等待 P0 Gate**
+狀態：**進行中**
 
 - 營運總覽只顯示 server accepted 的 Voice、推薦、活動 CTA 次數，以及明確標示的「已確認訂單金額」。
 - Voice 成功數的口徑必須在畫面上寫明：它是「語音已產生並送出」的次數，不是顧客實際聽到的次數；顧客端播放失敗不進入這個數字，由維運健康的 TTS 綠燈與現場驗證涵蓋。
