@@ -29,7 +29,7 @@ backend/
 │       ├── interface.py
 │       ├── ports.py
 │       └── adapters/
-├── platform/                # persistence、events、objects、observability primitives
+├── foundation/              # persistence、events、objects、observability primitives
 ├── bootstrap/               # composition root 與 process startup
 ├── routes/                  # 遷移中的 legacy transports
 ├── services/                # 遷移中的 workflows／compatibility shims
