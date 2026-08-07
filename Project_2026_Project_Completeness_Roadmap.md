@@ -71,7 +71,7 @@ UI_API/backend/
 │       ├── interface.py
 │       ├── ports.py
 │       └── adapters/
-├── platform/
+├── foundation/
 │   ├── persistence/
 │   ├── events/
 │   ├── object_storage/
@@ -80,7 +80,7 @@ UI_API/backend/
 └── bootstrap/
 ```
 
-`platform/` 提供技術 primitives，不持有商品、訂單、會員、活動、RAG 或 AI 業務規則。Capability A 不得 import Capability B 的 `api.py`、`application.py`、`domain.py` 或 adapters；跨能力只允許 `interface.py`、`contracts.py` 或 `events.py`。
+`foundation/` 提供技術 primitives，不持有商品、訂單、會員、活動、RAG 或 AI 業務規則。Capability A 不得 import Capability B 的 `api.py`、`application.py`、`domain.py` 或 adapters；跨能力只允許 `interface.py`、`contracts.py` 或 `events.py`。
 
 ### 3.2 Frontend
 
@@ -233,6 +233,7 @@ Gate：推薦不出現空白／暫停狀態、佔位推薦不產生商業觸點�
 
 - 營運總覽只顯示 server accepted 的 Voice、推薦、活動 CTA 次數，以及明確標示的「已確認訂單金額」。
 - Voice 成功數的口徑必須在畫面上寫明：它是「語音已產生並送出」的次數，不是顧客實際聽到的次數；顧客端播放失敗不進入這個數字，由維運健康的 TTS 綠燈與現場驗證涵蓋。
+- 推薦次數必須排除 source 為 `local_default`、`local_fallback` 或空白的事件——那些是 kiosk 在 API 失敗時自己挑的佔位品項，事件保留是為了讓後續轉換有來源可對應，不是推薦成效（ADR-0054）。
 - 維運健康只顯示 UI API、Ollama、R1 與 RAG retrieval API 的連線狀態、latency、觀測時間與安全錯誤。
 - RAG 只保留 Knowledge Item CRUD、單一已發布 Retrieval Method 與 ad hoc retrieval test。
 - 新資料結構、migration 與核心 RAG tests 全部通過後，永久刪除 pre-pilot evaluation、readiness、版本歷史、import history、舊 alerts/audit/history；本次已明確授權不備份且不可復原。

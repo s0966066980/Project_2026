@@ -57,6 +57,30 @@ test('a placeholder recommendation never becomes commercial evidence', async ({ 
   expect(commercialTouches, 'the kiosk chose this item itself; no server decision authored it').toEqual([]);
 });
 
+// Recommendation events are the second reporting channel. They are not suppressed for
+// placeholders — that would leave later add-to-cart and checkout events with no source
+// record — so operational reporting excludes them by source instead (ADR-0054), which
+// only works if every placeholder event is actually labelled as one.
+test('placeholder recommendation events are labelled as locally chosen', async ({ page }) => {
+  const sources: string[] = [];
+  page.on('request', (request) => {
+    if (!request.url().includes('/api/recommendation_events')) return;
+    const body = String(request.postData() || '');
+    sources.push(String(JSON.parse(body || '{}').source || ''));
+  });
+  await page.route('**/api/ai_push', (route) => route.fulfill({
+    status: 500,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'recommendation_unavailable' }),
+  }));
+
+  await enterMenuAsGuest(page);
+  await page.waitForTimeout(6000);
+
+  expect(sources.length, 'the kiosk should still report what it displayed').toBeGreaterThan(0);
+  expect(sources.every((source) => ['local_default', 'local_fallback'].includes(source))).toBe(true);
+});
+
 test('a server-authored recommendation still reports its impression', async ({ page }) => {
   const commercialTouches: string[] = [];
   page.on('request', (request) => {

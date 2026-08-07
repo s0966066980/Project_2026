@@ -26,6 +26,26 @@ export function recommendationEligibility(state) {
   return { eligible: true, reason: 'eligible' };
 }
 
+/**
+ * Sources the kiosk assigns to an item it picked itself when the recommendation API
+ * gave it nothing usable. The events still report — suppressing them would leave the
+ * later add-to-cart and checkout events with no source record — so operational
+ * reporting excludes them by source instead (ADR-0054).
+ */
+export const PLACEHOLDER_RECOMMENDATION_SOURCES = Object.freeze(['local_default', 'local_fallback']);
+
+/**
+ * A blank source is not evidence that the server chose the item, so it is excluded
+ * with the placeholders rather than counted.
+ *
+ * @param {string} source
+ * @returns {boolean}
+ */
+export function isServerAuthoredRecommendation(source) {
+  const normalized = String(source || '').trim();
+  return Boolean(normalized) && !PLACEHOLDER_RECOMMENDATION_SOURCES.includes(normalized);
+}
+
 /** @param {{eligible: boolean, requestInFlight: boolean, hasCurrent: boolean}} state */
 export function recommendationRefreshAction(state) {
   if (!state.eligible) return 'hide_and_retry';

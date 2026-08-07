@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   recommendationEligibility,
   recommendationRefreshAction,
+  PLACEHOLDER_RECOMMENDATION_SOURCES,
+  isServerAuthoredRecommendation,
 } from '../../kiosk/recommendationContinuity.js';
 
 const visibleMenu = {
@@ -29,5 +31,27 @@ describe('passive recommendation continuity', () => {
       .toBe('show_current_and_retry');
     expect(recommendationRefreshAction({ eligible: false, requestInFlight: false, hasCurrent: true }))
       .toBe('hide_and_retry');
+  });
+});
+
+describe('placeholder recommendation sources', () => {
+  it('treats every locally chosen source as unauthored', () => {
+    PLACEHOLDER_RECOMMENDATION_SOURCES.forEach((source) => {
+      expect(isServerAuthoredRecommendation(source)).toBe(false);
+    });
+  });
+
+  it('treats a server source as authored', () => {
+    expect(isServerAuthoredRecommendation('ai_push')).toBe(true);
+    expect(isServerAuthoredRecommendation('campaign')).toBe(true);
+  });
+
+  // A missing source is not evidence that the server chose the item, so it is
+  // excluded with the placeholders rather than quietly counted.
+  it('treats a blank or padded source conservatively', () => {
+    expect(isServerAuthoredRecommendation('')).toBe(false);
+    expect(isServerAuthoredRecommendation('   ')).toBe(false);
+    expect(isServerAuthoredRecommendation('  local_default  ')).toBe(false);
+    expect(isServerAuthoredRecommendation('  ai_push  ')).toBe(true);
   });
 });
