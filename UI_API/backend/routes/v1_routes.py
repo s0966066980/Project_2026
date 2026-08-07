@@ -30,6 +30,7 @@ from modules.promotion import (
 from modules.recommendation import list_events as list_recommendation_events
 from modules.retrieval_check import RetrievalCheckError
 from modules.retrieval_check import runtime as retrieval_check_runtime
+from modules.service_health import runtime as service_health_runtime
 from realtime import event_bus
 
 from api.v1.contracts import (
@@ -433,6 +434,23 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             ),
             meta=_meta(request),
         )
+
+    @router.get(
+        "/operations/service-health",
+        tags=["v1-analytics"],
+        operation_id="v1_get_service_health",
+        response_model=ApiResponse[dict],
+    )
+    async def service_health(request: Request) -> ApiResponse[dict]:
+        """Connection status, latency, observation time and a safe error, per service.
+
+        Nothing about the inside of the system: an operator reads this to answer
+        whether a customer can order right now.
+        """
+
+        _scope(request, "operations.read")
+        statuses = await asyncio.to_thread(service_health_runtime.default_module().snapshot)
+        return ApiResponse(data={"services": [status.as_dict() for status in statuses]}, meta=_meta(request))
 
     @router.get(
         "/operations/overview",

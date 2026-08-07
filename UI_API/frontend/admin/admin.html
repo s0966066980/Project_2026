@@ -1828,35 +1828,12 @@ tbody tr:hover td { background: #f8fafd; }
       </div>
     </div>
 
-    <p class="health-context">此頁區分「正式營運必要條件」與「可選的 AI／分析／維運能力」。正常只代表本次檢查取得預期結果；是否真的有效仍需看文件數、近期事件、migration 與實際設定等證據。</p>
-
-    <section id="healthOperationalSummary" class="health-operational-summary">
-      <div><span>營運判斷</span><h2>正在判斷是否可安全營運…</h2><p>稍後會顯示功能影響與建議處置。</p></div>
-    </section>
-    <div id="healthCapabilities" class="health-capabilities" aria-label="營運能力狀態"></div>
-    <section class="health-card">
-      <div class="card-title"><i class="fas fa-exclamation-triangle"></i> 需要處理的事件</div>
-      <p class="recommendation-card-description">確認表示值班人員已看到事件；升級表示需要交由負責角色處理。此頁不提供重啟或清除資料操作。</p>
-      <div id="healthIncidents" class="health-incidents"></div>
-    </section>
-
-    <div id="healthKpis" class="health-kpis">
-      <div class="health-kpi"><b>—</b><span>載入中</span></div>
-    </div>
+    <p class="health-context">顯示顧客點餐所依賴的四項服務是否回應、回應多快、何時觀測，以及安全的錯誤訊息。此頁不顯示資料庫內部狀態或執行記錄，也不提供重啟或清除資料操作。</p>
 
     <div class="health-grid">
       <div class="health-card health-card-wide">
-        <div class="card-title"><i class="fas fa-server"></i> 功能、必要性與有效性證據</div>
+        <div class="card-title"><i class="fas fa-server"></i> 服務連線狀態</div>
         <div id="healthCoreChecks" class="health-service-list"></div>
-      </div>
-      <div class="health-card">
-        <div class="card-title"><i class="fas fa-clipboard-check"></i> 正式營運必要檢查</div>
-        <div id="healthReadinessChecks" class="health-readiness-list"></div>
-      </div>
-      <div class="health-card">
-        <div class="card-title"><i class="fas fa-file-alt"></i> 執行記錄</div>
-        <p class="recommendation-card-description">只用於故障追查與保留週期管理，不是顧客點餐或結帳的必要依賴。</p>
-        <div id="healthRuntimeLogs" class="health-log-list"></div>
       </div>
     </div>
   </section>
