@@ -146,10 +146,17 @@ def upsert_order_touch_attributions_scoped(
                   AND order_touch_attributions.store_id = EXCLUDED.store_id
                 """,
                 (
-                    uuid4(), scope.tenant_id, scope.store_id, UUID(str(row["order_id"])),
-                    int(row["order_item_id"]), decision_id or None,
-                    str(row.get("impression_id") or ""), str(row["attribution_type"]),
-                    int(row["attributed_revenue"]), int(row["attributed_discount"]), str(row["status"]),
+                    uuid4(),
+                    scope.tenant_id,
+                    scope.store_id,
+                    UUID(str(row["order_id"])),
+                    int(row["order_item_id"]),
+                    decision_id or None,
+                    str(row.get("impression_id") or ""),
+                    str(row["attribution_type"]),
+                    int(row["attributed_revenue"]),
+                    int(row["attributed_discount"]),
+                    str(row["status"]),
                 ),
             )
             count += max(0, int(cur.rowcount or 0))

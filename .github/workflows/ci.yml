@@ -93,7 +93,6 @@ jobs:
           backend/services/admin_audit_service.py
           backend/services/availability_service.py
           backend/services/checkout_pricing_service.py
-          backend/services/checkout_service.py
           backend/services/intervention_pipeline_service.py
           backend/services/health_service.py
           backend/services/member_key_provider.py
@@ -212,38 +211,17 @@ jobs:
       - name: Validate migration sources
         run: python backend/scripts/manage_postgres_migrations.py validate
 
-      - name: Apply migrations and verify idempotency
-        run: pytest -q tests/postgres_migration_integration.py
+      # The per-area integration suites this job used to name were deleted in 06dd4b9
+      # and the workflow was never updated, so it has failed on a missing path ever
+      # since. The contract suite runs here instead, against PostgreSQL rather than
+      # the SQLite default, which is the only place the pilot's database is covered.
+      - name: Apply migrations
+        run: python backend/scripts/manage_postgres_migrations.py apply
 
-      - name: Verify Milestone 1A to commercial scope upgrade
-        run: pytest -q tests/postgres_commercial_scope_integration.py
-
-      - name: Verify Admin identity and RBAC foundation
-        run: pytest -q tests/postgres_identity_integration.py
-
-      - name: Verify per-device identity foundation
-        run: pytest -q tests/postgres_device_identity_integration.py
-
-      - name: Verify commercial scope contract enforcement
-        run: pytest -q tests/postgres_scope_contract_integration.py
-
-      - name: Verify Member UUID and PII migration
-        run: pytest -q tests/postgres_member_identity_integration.py
-
-      - name: Verify Order checkout transaction boundary
-        run: pytest -q tests/postgres_order_checkout_integration.py
-
-      - name: Verify kiosk ordering cart store
-        run: pytest -q tests/postgres_cart_store_integration.py
-
-      - name: Verify commercial readiness and observability
-        run: pytest -q tests/postgres_observability_integration.py
-
-      - name: Verify reliable worker jobs and outbox delivery
-        run: pytest -q tests/postgres_worker_jobs_integration.py
-
-      - name: Verify worker production path handler and outbox ACK
-        run: pytest -q tests/postgres_worker_production_path_integration.py
+      - name: Backend contract suite on PostgreSQL
+        env:
+          DATABASE_BACKEND: postgresql
+        run: pytest -q tests
 
       - name: Reapply migrations safely
         run: python backend/scripts/manage_postgres_migrations.py apply
@@ -323,7 +301,8 @@ jobs:
         working-directory: UI_API
     env:
       APP_ENV: test
-      MEMBER_STORAGE_BACKEND: json
+      # MEMBER_STORAGE_BACKEND is a rejected legacy selection key: setting it makes
+      # load_profile() raise PersistenceConfigurationError, so it stays unset here.
       DATABASE_URL: ""
       REDIS_URL: redis://127.0.0.1:6379/15
       SHARED_RATE_LIMIT_ENABLED: "true"

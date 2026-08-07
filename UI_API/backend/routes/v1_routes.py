@@ -32,7 +32,6 @@ from modules.retrieval_check import RetrievalCheckError
 from modules.retrieval_check import runtime as retrieval_check_runtime
 from realtime import event_bus
 
-import config
 from api.v1.contracts import (
     AdminPrincipalDTO,
     ApiErrorResponse,
@@ -223,12 +222,17 @@ def _retrieval_check_http_error(exc: RetrievalCheckError) -> HTTPException:
 
 
 def _publication_http_error(exc: PublicationError) -> HTTPException:
-    status = 409 if exc.code in {
-        "exact_duplicate",
-        "near_duplicate",
-        "stale_knowledge_item",
-        "publication_in_progress",
-    } else 422
+    status = (
+        409
+        if exc.code
+        in {
+            "exact_duplicate",
+            "near_duplicate",
+            "stale_knowledge_item",
+            "publication_in_progress",
+        }
+        else 422
+    )
     return HTTPException(
         status_code=status,
         detail={"code": exc.code, "details": exc.details},
@@ -369,7 +373,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         member = None
         if body.session_id:
             member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
-        menu = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        menu = await asyncio.to_thread(
+            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+        )
         promotions = await asyncio.to_thread(promotion_service.list_promotions, scope)
         now = datetime.now(timezone.utc)
         data = []
@@ -390,17 +396,19 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 ),
                 base_price=base_price,
             )
-            data.append(MenuPriceProjectionDTO(
-                item_id=str(item.get("id") or ""),
-                base_price=projection.base_price,
-                effective_price=projection.effective_price,
-                discount=projection.discount,
-                activity_id=projection.promotion_ref,
-                activity_name=projection.promotion_title,
-                conditional=projection.conditional,
-                conditional_price=projection.conditional_price,
-                required_cart_item_ids=list(projection.required_cart_item_ids),
-            ))
+            data.append(
+                MenuPriceProjectionDTO(
+                    item_id=str(item.get("id") or ""),
+                    base_price=projection.base_price,
+                    effective_price=projection.effective_price,
+                    discount=projection.discount,
+                    activity_id=projection.promotion_ref,
+                    activity_name=projection.promotion_title,
+                    conditional=projection.conditional,
+                    conditional_price=projection.conditional_price,
+                    required_cart_item_ids=list(projection.required_cart_item_ids),
+                )
+            )
         return ApiResponse(data=data, meta=_meta(request))
 
     @router.post(
@@ -420,12 +428,15 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             receipt = await asyncio.to_thread(record_touch, body.model_dump(), scope)
         except TouchValidationError as exc:
             raise HTTPException(status_code=422, detail={"code": str(exc), "message": "事件資料無法接受"}) from exc
-        return ApiResponse(data=CommercialTouchReceiptDTO(
-            event_id=receipt.event_id,
-            accepted=receipt.accepted,
-            duplicate=receipt.duplicate,
-            data_quality=receipt.data_quality,
-        ), meta=_meta(request))
+        return ApiResponse(
+            data=CommercialTouchReceiptDTO(
+                event_id=receipt.event_id,
+                accepted=receipt.accepted,
+                duplicate=receipt.duplicate,
+                data_quality=receipt.data_quality,
+            ),
+            meta=_meta(request),
+        )
 
     @router.get(
         "/recommendation-effectiveness",
@@ -583,7 +594,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def campaign_preview(request: Request, body: CampaignPreviewRequest) -> ApiResponse[CampaignPreviewDTO]:
         scope = _scope(request, "campaigns.read")
         payload = body.model_dump(exclude={"campaign_id"})
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        catalog_items = await asyncio.to_thread(
+            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+        )
         result = await asyncio.to_thread(
             preview_campaign,
             payload,
@@ -601,7 +614,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     )
     async def create_campaign(request: Request, body: CampaignDraftRequest) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        catalog_items = await asyncio.to_thread(
+            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+        )
         try:
             row = await asyncio.to_thread(
                 create_campaign_draft,
@@ -611,7 +626,10 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 catalog_items=catalog_items,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])}) from exc
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])},
+            ) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -627,7 +645,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         body: CampaignDraftUpdateRequest,
     ) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        catalog_items = await asyncio.to_thread(
+            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+        )
         try:
             row = await asyncio.to_thread(
                 revise_campaign_draft,
@@ -639,13 +659,23 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 catalog_items=catalog_items,
             )
         except CampaignConflictError as exc:
-            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"},
+            ) from exc
         except CampaignStateError as exc:
-            raise HTTPException(status_code=409, detail={"code": str(exc), "message": "目前活動狀態無法修改。"}) from exc
+            raise HTTPException(
+                status_code=409, detail={"code": str(exc), "message": "目前活動狀態無法修改。"}
+            ) from exc
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+            raise HTTPException(
+                status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])}) from exc
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "campaign_invalid", "message": "還有欄位需要修正。", "field_errors": list(exc.args[0])},
+            ) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -658,7 +688,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def campaign_publish(request: Request, body: CampaignPublishRequest) -> ApiResponse[CampaignSnapshotDTO]:
         _scope(request, "campaigns.write")
         scope = _scope(request, "campaigns.publish")
-        catalog_items = await asyncio.to_thread(checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        catalog_items = await asyncio.to_thread(
+            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+        )
         try:
             row = await asyncio.to_thread(
                 publish_campaign,
@@ -670,13 +702,27 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 catalog_items=catalog_items,
             )
         except CampaignConflictError as exc:
-            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"},
+            ) from exc
         except CampaignStateError as exc:
-            raise HTTPException(status_code=409, detail={"code": str(exc), "message": "此活動已經發布，請從活動列表操作暫停或結束。"}) from exc
+            raise HTTPException(
+                status_code=409, detail={"code": str(exc), "message": "此活動已經發布，請從活動列表操作暫停或結束。"}
+            ) from exc
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+            raise HTTPException(
+                status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail={"code": "campaign_invalid", "message": "還有欄位需要修正，修正後才能發布。", "field_errors": list(exc.args[0])}) from exc
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "campaign_invalid",
+                    "message": "還有欄位需要修正，修正後才能發布。",
+                    "field_errors": list(exc.args[0]),
+                },
+            ) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -702,11 +748,19 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 actor_id=_admin_actor(request),
             )
         except CampaignConflictError as exc:
-            raise HTTPException(status_code=409, detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"}) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "campaign_version_conflict", "message": "活動已被其他人更新，請重新載入。"},
+            ) from exc
         except CampaignStateError as exc:
-            raise HTTPException(status_code=409, detail={"code": "campaign_transition_not_allowed", "message": "目前狀態不能執行此操作。"}) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "campaign_transition_not_allowed", "message": "目前狀態不能執行此操作。"},
+            ) from exc
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}) from exc
+            raise HTTPException(
+                status_code=404, detail={"code": "campaign_not_found", "message": "找不到活動。"}
+            ) from exc
         await _publish_campaign_change(row)
         return ApiResponse(data=_campaign_dto(row), meta=_meta(request))
 
@@ -901,7 +955,12 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         )
         return ApiResponse(data=data, meta=_meta(request))
 
-    @router.get("/rag/knowledge/export", tags=["v1-rag"], operation_id="v1_export_rag_knowledge", response_model=ApiResponse[dict])
+    @router.get(
+        "/rag/knowledge/export",
+        tags=["v1-rag"],
+        operation_id="v1_export_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
     async def export_rag_knowledge(request: Request) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         csv_text = await asyncio.to_thread(
@@ -956,12 +1015,8 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 check["complete"] = readiness_confirmation["complete"]
         checks = dashboard.get("readiness", {}).get("checks", [])
         if checks:
-            dashboard["readiness"]["completed"] = sum(
-                bool(check.get("complete")) for check in checks
-            )
-            dashboard["readiness"]["ready"] = all(
-                bool(check.get("complete")) for check in checks
-            )
+            dashboard["readiness"]["completed"] = sum(bool(check.get("complete")) for check in checks)
+            dashboard["readiness"]["ready"] = all(bool(check.get("complete")) for check in checks)
         dashboard["readiness_confirmation"] = readiness_confirmation["confirmation"]
         dashboard["workflow"] = rag_studio_workflow.build_workflow(
             publication=publication_dashboard,
@@ -982,9 +1037,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         operation_id="v1_create_rag_knowledge",
         response_model=ApiResponse[dict],
     )
-    async def create_rag_knowledge(
-        request: Request, body: RagKnowledgeUpsertRequest
-    ) -> ApiResponse[dict]:
+    async def create_rag_knowledge(request: Request, body: RagKnowledgeUpsertRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         try:
             row = await asyncio.to_thread(
@@ -1002,7 +1055,12 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         row = {**row, "autopublish": await _autopublish(request, scope, str(row.get("item_id") or ""))}
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/knowledge/chunk-preview", tags=["v1-rag"], operation_id="v1_preview_rag_chunks", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/knowledge/chunk-preview",
+        tags=["v1-rag"],
+        operation_id="v1_preview_rag_chunks",
+        response_model=ApiResponse[dict],
+    )
     async def preview_rag_chunks(request: Request, body: RagKnowledgeUpsertRequest) -> ApiResponse[dict]:
         _scope(request, "rag.write")
         try:
@@ -1047,7 +1105,12 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         row = {**row, "autopublish": await _autopublish(request, scope, item_id)}
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/knowledge/import", tags=["v1-rag"], operation_id="v1_import_rag_knowledge", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/knowledge/import",
+        tags=["v1-rag"],
+        operation_id="v1_import_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
     async def import_rag_knowledge(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         try:
@@ -1063,13 +1126,21 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         # 匯入的每一列都當作已經確認過的內容，直接排入發布，與單筆新增一致。
         item_ids = [str(created.get("item_id") or "") for created in row.get("created") or []]
         results = [await _autopublish(request, scope, item_id) for item_id in item_ids if item_id]
-        row = {**row, "autopublish": {
-            "published": sum(1 for outcome in results if outcome["published"]),
-            "skipped": [outcome["reason"] for outcome in results if not outcome["published"]],
-        }}
+        row = {
+            **row,
+            "autopublish": {
+                "published": sum(1 for outcome in results if outcome["published"]),
+                "skipped": [outcome["reason"] for outcome in results if not outcome["published"]],
+            },
+        }
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/knowledge/publish", tags=["v1-rag"], operation_id="v1_publish_rag_knowledge", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/knowledge/publish",
+        tags=["v1-rag"],
+        operation_id="v1_publish_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
     async def publish_rag_knowledge(request: Request, body: RagKnowledgePublishRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.publish")
         try:
@@ -1106,8 +1177,15 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _publication_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/knowledge/{item_id}/retire", tags=["v1-rag"], operation_id="v1_retire_rag_knowledge", response_model=ApiResponse[dict])
-    async def retire_rag_knowledge(request: Request, item_id: str, body: RagKnowledgeActionRequest) -> ApiResponse[dict]:
+    @router.post(
+        "/rag/knowledge/{item_id}/retire",
+        tags=["v1-rag"],
+        operation_id="v1_retire_rag_knowledge",
+        response_model=ApiResponse[dict],
+    )
+    async def retire_rag_knowledge(
+        request: Request, item_id: str, body: RagKnowledgeActionRequest
+    ) -> ApiResponse[dict]:
         scope = _scope(request, "rag.publish")
         try:
             row = await asyncio.to_thread(
@@ -1165,7 +1243,9 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _publication_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/retrieval/test", tags=["v1-rag"], operation_id="v1_test_rag_retrieval", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/retrieval/test", tags=["v1-rag"], operation_id="v1_test_rag_retrieval", response_model=ApiResponse[dict]
+    )
     async def test_rag_knowledge(request: Request, body: RagKnowledgeTestRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         try:
@@ -1202,12 +1282,22 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _retrieval_check_http_error(exc) from exc
         return ApiResponse(data=result, meta=_meta(request))
 
-    @router.get("/rag/retrieval/configurations", tags=["v1-rag"], operation_id="v1_list_rag_configurations", response_model=ApiResponse[dict])
+    @router.get(
+        "/rag/retrieval/configurations",
+        tags=["v1-rag"],
+        operation_id="v1_list_rag_configurations",
+        response_model=ApiResponse[dict],
+    )
     async def list_rag_configurations(request: Request) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         return ApiResponse(data=rag_knowledge_service.list_configurations(scope), meta=_meta(request))
 
-    @router.post("/rag/retrieval/configurations", tags=["v1-rag"], operation_id="v1_publish_rag_configuration", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/retrieval/configurations",
+        tags=["v1-rag"],
+        operation_id="v1_publish_rag_configuration",
+        response_model=ApiResponse[dict],
+    )
     async def publish_rag_configuration(request: Request, body: RagRetrievalConfigurationRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.publish")
         try:
@@ -1251,12 +1341,16 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         )
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.get("/rag/test-cases", tags=["v1-rag"], operation_id="v1_list_rag_test_cases", response_model=ApiResponse[dict])
+    @router.get(
+        "/rag/test-cases", tags=["v1-rag"], operation_id="v1_list_rag_test_cases", response_model=ApiResponse[dict]
+    )
     async def list_rag_test_cases(request: Request) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         return ApiResponse(data=rag_knowledge_service.list_test_cases(scope), meta=_meta(request))
 
-    @router.post("/rag/test-cases", tags=["v1-rag"], operation_id="v1_save_rag_test_case", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/test-cases", tags=["v1-rag"], operation_id="v1_save_rag_test_case", response_model=ApiResponse[dict]
+    )
     async def save_rag_test_case(request: Request, body: RagTestCaseRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         try:
@@ -1272,7 +1366,12 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _rag_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.post("/rag/test-cases/import", tags=["v1-rag"], operation_id="v1_import_rag_test_cases", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/test-cases/import",
+        tags=["v1-rag"],
+        operation_id="v1_import_rag_test_cases",
+        response_model=ApiResponse[dict],
+    )
     async def import_rag_test_cases(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         try:
@@ -1283,12 +1382,22 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _rag_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
 
-    @router.get("/rag/evaluation-runs", tags=["v1-rag"], operation_id="v1_list_rag_evaluation_runs", response_model=ApiResponse[dict])
+    @router.get(
+        "/rag/evaluation-runs",
+        tags=["v1-rag"],
+        operation_id="v1_list_rag_evaluation_runs",
+        response_model=ApiResponse[dict],
+    )
     async def list_rag_evaluation_runs(request: Request) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         return ApiResponse(data=rag_knowledge_service.list_evaluation_runs(scope), meta=_meta(request))
 
-    @router.get("/rag/evaluation-runs/{run_id}/export", tags=["v1-rag"], operation_id="v1_export_rag_evaluation", response_model=ApiResponse[dict])
+    @router.get(
+        "/rag/evaluation-runs/{run_id}/export",
+        tags=["v1-rag"],
+        operation_id="v1_export_rag_evaluation",
+        response_model=ApiResponse[dict],
+    )
     async def export_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
         scope = _scope(request, "rag.read")
         try:
@@ -1300,7 +1409,12 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             meta=_meta(request),
         )
 
-    @router.post("/rag/evaluation-runs", tags=["v1-rag"], operation_id="v1_start_rag_evaluation", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/evaluation-runs",
+        tags=["v1-rag"],
+        operation_id="v1_start_rag_evaluation",
+        response_model=ApiResponse[dict],
+    )
     async def start_rag_evaluation(request: Request) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         return ApiResponse(
@@ -1308,13 +1422,16 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             meta=_meta(request),
         )
 
-    @router.post("/rag/evaluation-runs/{run_id}/cancel", tags=["v1-rag"], operation_id="v1_cancel_rag_evaluation", response_model=ApiResponse[dict])
+    @router.post(
+        "/rag/evaluation-runs/{run_id}/cancel",
+        tags=["v1-rag"],
+        operation_id="v1_cancel_rag_evaluation",
+        response_model=ApiResponse[dict],
+    )
     async def cancel_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
         scope = _scope(request, "rag.write")
         try:
-            row = rag_knowledge_service.cancel_evaluation(
-                scope, run_id=run_id, actor=_admin_actor(request)
-            )
+            row = rag_knowledge_service.cancel_evaluation(scope, run_id=run_id, actor=_admin_actor(request))
         except rag_knowledge_service.RagKnowledgeError as exc:
             raise _rag_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))

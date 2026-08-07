@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
@@ -63,13 +64,14 @@ def register_v1_error_handlers(app: FastAPI) -> None:
         code, message = _ERRORS.get(exc.status_code, ("request_failed", "The request could not be completed."))
         # Only a dict detail is a deliberately public envelope written by a route; a string
         # detail is internal wording (auth failures carry credential context) and stays suppressed.
-        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        # HTTPException.detail is declared as str, but routes do raise dict envelopes
+        # through it, so the runtime check stays and the declared type is widened here.
+        raw_detail: Any = exc.detail
+        detail: dict[str, Any] = raw_detail if isinstance(raw_detail, dict) else {}
         code = str(detail.get("code") or code)
         message = str(detail.get("message") or message)
         details = detail.get("field_errors") if isinstance(detail.get("field_errors"), list) else None
-        return JSONResponse(
-            _payload(request, code, message, details), status_code=exc.status_code, headers=exc.headers
-        )
+        return JSONResponse(_payload(request, code, message, details), status_code=exc.status_code, headers=exc.headers)
 
     @app.exception_handler(Exception)
     async def unexpected_error(request: Request, _exc: Exception):

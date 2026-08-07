@@ -341,7 +341,9 @@ class CampaignDraftRequest(BaseModel):
     audience: Literal["all", "member"] = "all"
     schedule: CampaignScheduleRequest
     promotion_rules: list[CampaignPromotionRuleRequest] = Field(min_length=1, max_length=1)
-    placements: list[Literal["menu_card", "item_detail", "pos_home_banner", "kiosk_cart_banner", "recommendation", "voice"]] = Field(min_length=1, max_length=6)
+    placements: list[
+        Literal["menu_card", "item_detail", "pos_home_banner", "kiosk_cart_banner", "recommendation", "voice"]
+    ] = Field(min_length=1, max_length=6)
     creatives: CampaignCreativeRequest = Field(default_factory=CampaignCreativeRequest)
 
 
