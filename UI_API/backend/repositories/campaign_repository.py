@@ -9,9 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from modules.promotion.contracts import CampaignConflictError, CampaignSnapshot
+
 import config
 from models.commercial_scope import CommercialScope, is_legacy_store_scope
-from modules.promotion.contracts import CampaignConflictError, CampaignSnapshot
 from repositories import admin_audit_repository, postgres_utils, promotion_repository
 
 _lock = threading.Lock()

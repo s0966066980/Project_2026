@@ -34,6 +34,7 @@ class VoiceTurnStore(Protocol):
     def record_error(self, *, scope: CommercialScope, voice_turn_id: str, reason: str) -> None: ...
     def events(self, *, scope: CommercialScope, voice_turn_id: str, after_sequence: int) -> list[dict[str, Any]]: ...
     def cleanup_terminal_before(self, *, cutoff: str, limit: int) -> int: ...
+    def count_completed_since(self, *, scope: CommercialScope, since: str) -> int: ...
 
 
 class STT(Protocol):
@@ -111,6 +112,15 @@ class VoiceTurnModule:
 
     def cleanup_expired(self, *, cutoff: str, limit: int = 500) -> int:
         return self._store.cleanup_terminal_before(cutoff=cutoff, limit=max(1, min(int(limit), 2000)))
+
+    def count_completed_since(self, *, scope: CommercialScope, since: str) -> int:
+        """How many Voice Turns produced and delivered speech in the window.
+
+        Owned here because this module decides what completion means; a report that
+        counted the rows itself could drift from that definition (ADR-0025).
+        """
+
+        return self._store.count_completed_since(scope=scope, since=since)
 
     def run(
         self,

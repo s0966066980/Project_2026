@@ -266,6 +266,43 @@ def get_recommendation_events_scoped(
     return rows[-safe_limit:]
 
 
+def count_shown_scoped(
+    scope: CommercialScope,
+    *,
+    since: str,
+    excluded_sources: tuple[str, ...] = (),
+) -> int:
+    """Count recommendations the store actually put in front of a customer.
+
+    Excluding by source in the query rather than in the caller keeps a placeholder
+    from being counted and subtracted back out, which is where a reporting number
+    quietly stops meaning what its label says (ADR-0054).
+    """
+
+    if not postgres_utils.use_postgres():
+        return 0
+    excluded = tuple(str(source).strip() for source in excluded_sources if str(source).strip())
+    try:
+        with postgres_utils.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total FROM recommendation_events
+                    WHERE tenant_id = %s AND store_id = %s
+                      AND event_type = 'recommendation_shown'
+                      AND timestamp >= %s
+                      AND COALESCE(NULLIF(TRIM(source), ''), '') <> ''
+                      AND NOT (source = ANY(%s))
+                    """,
+                    (scope.tenant_id, scope.store_id, str(since), list(excluded)),
+                )
+                row = cur.fetchone() or {}
+        return int(row.get("total") or 0)
+    except Exception as exc:
+        postgres_utils.handle_postgres_failure(exc)
+        return 0
+
+
 def clear_recommendation_events() -> int:
     return clear_recommendation_events_scoped(resolve_commercial_scope())
 

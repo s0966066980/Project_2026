@@ -13,6 +13,7 @@ from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBea
 from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
 from modules.knowledge_publication import PublicationError
 from modules.knowledge_publication import runtime as knowledge_publication_runtime
+from modules.operations_overview import runtime as operations_overview_runtime
 from modules.promotion import (
     CampaignConflictError,
     CampaignStateError,
@@ -432,6 +433,30 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             ),
             meta=_meta(request),
         )
+
+    @router.get(
+        "/operations/overview",
+        tags=["v1-analytics"],
+        operation_id="v1_get_operations_overview",
+        response_model=ApiResponse[dict],
+    )
+    async def operations_overview(
+        request: Request,
+        days: Annotated[int, Query(ge=1, le=31)] = 1,
+    ) -> ApiResponse[dict]:
+        """The four counts a store manager reads, each carrying what it means.
+
+        The definitions travel with the values because every one of them excludes
+        something a reader would otherwise assume was included.
+        """
+
+        scope = _scope(request, "analytics.read")
+        overview = await asyncio.to_thread(
+            operations_overview_runtime.default_module().build,
+            scope=scope,
+            since=operations_overview_runtime.since_days_ago(days),
+        )
+        return ApiResponse(data={**overview.as_dict(), "window_days": days}, meta=_meta(request))
 
     @router.get(
         "/recommendation-effectiveness",

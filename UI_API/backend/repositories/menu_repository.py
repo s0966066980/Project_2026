@@ -16,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 import config
-from models.commercial_scope import CommercialScope, is_legacy_store_scope
+from models.commercial_scope import CommercialScope
 from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 

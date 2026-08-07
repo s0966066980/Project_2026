@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 import config
+from models.commercial_scope import CommercialScope
 from repositories import postgres_utils
 
 
@@ -367,3 +368,32 @@ def data_quality(rows: list[dict[str, Any]]) -> dict[str, int]:
         "unknown_schema_version": unknown_version,
         "total": len(rows),
     }
+
+
+def count_campaign_cta_clicks(scope: CommercialScope, *, since: str) -> int:
+    """Count clicks on a campaign entry point the server authored.
+
+    A touch without a campaign never represents an activity a manager published,
+    so it is excluded here rather than left for the reader to notice.
+    """
+
+    if not postgres_utils.use_postgres():
+        return 0
+    try:
+        with postgres_utils.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total FROM commercial_touch_events
+                    WHERE tenant_id = %s AND store_id = %s
+                      AND event_type = 'click'
+                      AND occurred_at >= %s
+                      AND COALESCE(NULLIF(TRIM(campaign_id), ''), '') <> ''
+                    """,
+                    (scope.tenant_id, scope.store_id, str(since)),
+                )
+                row = cur.fetchone() or {}
+        return int(row.get("total") or 0)
+    except Exception as exc:
+        postgres_utils.handle_postgres_failure(exc)
+        return 0

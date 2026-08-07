@@ -151,7 +151,6 @@ async function loadStats() {
     const fail    = data.failure_sessions ?? 0;
     const rate    = data.success_rate ?? 0;
     const score   = data.cumulative_score ?? 0;
-    operationsOverviewAdmin.updateStats({ total, clicks, success, fail, successRate: Number(rate || 0) });
 
     // Donut
     const pct = Math.round(rate * 100);
@@ -172,7 +171,6 @@ async function loadStats() {
     renderTable(sessions);
 
   } catch (error) {
-    operationsOverviewAdmin.failStats(error);
     const tbody = document.getElementById('s-tbody');
     if (tbody) emptyRow(tbody, '載入失敗，請重新整理。', '#e84040');
   }
@@ -400,8 +398,11 @@ function fmtDate(value) {
 const operationsOverviewAdmin = createOperationsOverviewAdmin({
   getElement: g,
   hasPermission: hasAdminPermission,
-  loadStats,
-  loadRecommendations: () => recommendationEventsAdmin.loadTodaySummary(),
+  loadOverview: async () => {
+    const res = await fetch(`${API}/api/v1/operations/overview`, { headers: adminHeaders() });
+    if (!res.ok) throw new Error(`營運總覽讀取失敗（${res.status}）`);
+    return (await res.json()).data;
+  },
 });
 
 const recommendationEventsAdmin = createRecommendationEventsAdmin({
@@ -413,7 +414,6 @@ const recommendationEventsAdmin = createRecommendationEventsAdmin({
   formatDate: fmtDate,
   loadMenu,
   menuName,
-  onSummary: operationsOverviewAdmin.updateRecommendations,
 });
 
 const campaignAdmin = createCampaignAdmin({

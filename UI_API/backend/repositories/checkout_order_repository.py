@@ -401,3 +401,33 @@ def transition_order_scoped(order_id: UUID, target: OrderStatus, scope: Commerci
         result = _order_result(cur, order_id, replayed=False)
         conn.commit()
     return result
+
+
+def sum_confirmed_amount_scoped(scope: CommercialScope, *, since: str) -> tuple[int, str]:
+    """Total the amounts of orders the store actually confirmed.
+
+    A cart that never reached confirmation is not revenue, so the sum is taken from
+    confirmed orders alone and the screen has to say so — an unlabelled total reads
+    as money taken.
+    """
+
+    if not postgres_utils.use_postgres():
+        return 0, "TWD"
+    try:
+        with postgres_utils.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                      COALESCE(SUM((pricing_json ->> 'total')::numeric), 0) AS total,
+                      COALESCE(MAX(pricing_json ->> 'currency'), 'TWD') AS currency
+                    FROM confirmed_orders
+                    WHERE tenant_id = %s AND store_id = %s AND created_at >= %s
+                    """,
+                    (scope.tenant_id, scope.store_id, str(since)),
+                )
+                row = cur.fetchone() or {}
+        return int(row.get("total") or 0), str(row.get("currency") or "TWD")
+    except Exception as exc:
+        postgres_utils.handle_postgres_failure(exc)
+        return 0, "TWD"

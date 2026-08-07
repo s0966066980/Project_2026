@@ -197,6 +197,23 @@ class SQLiteVoiceTurnStore:
                 conn.execute("DELETE FROM voice_turns WHERE tenant_id=? AND store_id=? AND voice_turn_id=?", key)
         return len(keys)
 
+    def count_completed_since(self, *, scope: CommercialScope, since: str) -> int:
+        """Voice Turns whose speech was produced and delivered.
+
+        This is what a store manager sees as voice success. It cannot mean the
+        customer heard it — only the browser knows that, and this pilot confirms
+        audible output through TTS service health instead (ADR-0025).
+        """
+
+        tenant_id, store_id = _scope(scope)
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS total FROM voice_turns"
+                " WHERE tenant_id=? AND store_id=? AND status='completed' AND completed_at >= ?",
+                (tenant_id, store_id, since),
+            ).fetchone()
+        return int((row["total"] if row else 0) or 0)
+
     @staticmethod
     def _append_event(conn, tenant_id, store_id, voice_turn_id, event_type, payload, terminal, at):
         sequence = int(

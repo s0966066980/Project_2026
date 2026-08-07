@@ -4,7 +4,6 @@ import threading
 
 import config
 
-
 SESSION_LOG_PATH = os.path.join(config.LEARNING_DATA_DIR, "session_logs.json")
 
 _cache_lock = threading.Lock()
