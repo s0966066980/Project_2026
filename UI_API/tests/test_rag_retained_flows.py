@@ -54,6 +54,16 @@ class TestKnowledgeItemCrud:
     def test_an_empty_store_lists_nothing_rather_than_failing(self, knowledge):
         assert knowledge.list_items(scope=SCOPE)["items"] == []
 
+    # The editor's category and type vocabularies used to arrive through the studio
+    # aggregate P1 retires. The list that owns these items carries them now, so the
+    # form still renders without a second round trip.
+    def test_the_list_carries_the_vocabularies_the_editor_needs(self, knowledge):
+        metadata = knowledge.list_items(scope=SCOPE)["metadata"]
+
+        assert {row["id"] for row in metadata["categories"]} >= {"store_and_hours", "other"}
+        assert {row["id"] for row in metadata["content_types"]} >= {"question_answer", "policy_rule"}
+        assert all(row["label"] for row in metadata["categories"])
+
     def test_a_draft_is_created_and_readable(self, knowledge):
         created = _draft(knowledge)
 

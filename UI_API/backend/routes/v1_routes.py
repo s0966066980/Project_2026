@@ -13,7 +13,6 @@ from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBea
 from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
 from modules.knowledge_publication import PublicationError
 from modules.knowledge_publication import runtime as knowledge_publication_runtime
-from modules.knowledge_publication.content import chunk_content as publication_chunk_content
 from modules.promotion import (
     CampaignConflictError,
     CampaignStateError,
@@ -64,14 +63,12 @@ from api.v1.contracts import (
     PaginationMeta,
     PromotionCreateRequest,
     PromotionSummaryDTO,
-    RagCsvImportRequest,
     RagDocumentDTO,
     RagKnowledgeActionRequest,
     RagKnowledgePublishRequest,
     RagKnowledgeTestRequest,
     RagKnowledgeUpsertRequest,
     RagRetrievalConfigurationRequest,
-    RagTestCaseRequest,
     RecommendationEffectivenessDTO,
     RecommendationEventDTO,
     SettingsDTO,
@@ -88,8 +85,6 @@ from services import (
     member_service,
     promotion_service,
     rag_knowledge_service,
-    rag_studio_workflow,
-    worker_service,
 )
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, require_kiosk_token
@@ -955,82 +950,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         )
         return ApiResponse(data=data, meta=_meta(request))
 
-    @router.get(
-        "/rag/knowledge/export",
-        tags=["v1-rag"],
-        operation_id="v1_export_rag_knowledge",
-        response_model=ApiResponse[dict],
-    )
-    async def export_rag_knowledge(request: Request) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.read")
-        csv_text = await asyncio.to_thread(
-            knowledge_publication_runtime.default_module().export_csv,
-            scope=scope,
-        )
-        return ApiResponse(
-            data={"filename": "rag-knowledge-ids.csv", "csv_text": csv_text},
-            meta=_meta(request),
-        )
-
-    @router.get(
-        "/rag/studio",
-        tags=["v1-rag"],
-        operation_id="v1_get_rag_studio",
-        response_model=ApiResponse[dict],
-    )
-    async def get_rag_studio(request: Request) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.read")
-        dashboard, publication_dashboard, readiness_confirmation, configurations = await asyncio.gather(
-            asyncio.to_thread(rag_knowledge_service.dashboard, scope),
-            asyncio.to_thread(
-                knowledge_publication_runtime.default_module().dashboard,
-                scope=scope,
-            ),
-            asyncio.to_thread(
-                retrieval_check_runtime.default_module().readiness,
-                scope=scope,
-            ),
-            asyncio.to_thread(rag_knowledge_service.list_configurations, scope),
-        )
-        dashboard.update(publication_dashboard)
-        job_store = worker_service.default_store()
-        for attempt in publication_dashboard.get("recent_publication_attempts", []):
-            job_id = str(attempt.get("job_id") or "").strip()
-            if not job_id:
-                attempt["job_status"] = "missing"
-                continue
-            try:
-                job = await asyncio.to_thread(job_store.get_job, UUID(job_id))
-                attempt["job_status"] = job.status.value if job is not None else "missing"
-                attempt["job_safe_error"] = job.safe_error if job is not None else ""
-            except Exception:
-                attempt["job_status"] = "unavailable"
-                attempt["job_safe_error"] = "job_status_unavailable"
-        for check in dashboard.get("readiness", {}).get("checks", []):
-            if check.get("id") == "knowledge":
-                check["complete"] = publication_dashboard["published_items"] > 0
-            elif check.get("id") == "index":
-                check["complete"] = publication_dashboard["index_health"] == "healthy"
-            elif check.get("id") == "test":
-                check["complete"] = readiness_confirmation["complete"]
-        checks = dashboard.get("readiness", {}).get("checks", [])
-        if checks:
-            dashboard["readiness"]["completed"] = sum(bool(check.get("complete")) for check in checks)
-            dashboard["readiness"]["ready"] = all(bool(check.get("complete")) for check in checks)
-        dashboard["readiness_confirmation"] = readiness_confirmation["confirmation"]
-        dashboard["workflow"] = rag_studio_workflow.build_workflow(
-            publication=publication_dashboard,
-            published_configuration=configurations.get("published"),
-            readiness_confirmation=readiness_confirmation["confirmation"],
-        )
-        return ApiResponse(
-            data={
-                "metadata": rag_knowledge_service.metadata(),
-                "dashboard": dashboard,
-            },
-            meta=_meta(request),
-        )
-
     @router.post(
         "/rag/knowledge",
         tags=["v1-rag"],
@@ -1054,26 +973,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             raise _publication_http_error(exc) from exc
         row = {**row, "autopublish": await _autopublish(request, scope, str(row.get("item_id") or ""))}
         return ApiResponse(data=row, meta=_meta(request))
-
-    @router.post(
-        "/rag/knowledge/chunk-preview",
-        tags=["v1-rag"],
-        operation_id="v1_preview_rag_chunks",
-        response_model=ApiResponse[dict],
-    )
-    async def preview_rag_chunks(request: Request, body: RagKnowledgeUpsertRequest) -> ApiResponse[dict]:
-        _scope(request, "rag.write")
-        try:
-            chunks = publication_chunk_content(body.content, body.content_type)
-        except PublicationError as exc:
-            raise _publication_http_error(exc) from exc
-        return ApiResponse(
-            data={
-                "chunks": chunks,
-                "chunking_version": knowledge_publication_runtime.CHUNKING_VERSION,
-            },
-            meta=_meta(request),
-        )
 
     @router.put(
         "/rag/knowledge/{item_id}",
@@ -1103,36 +1002,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         except PublicationError as exc:
             raise _publication_http_error(exc) from exc
         row = {**row, "autopublish": await _autopublish(request, scope, item_id)}
-        return ApiResponse(data=row, meta=_meta(request))
-
-    @router.post(
-        "/rag/knowledge/import",
-        tags=["v1-rag"],
-        operation_id="v1_import_rag_knowledge",
-        response_model=ApiResponse[dict],
-    )
-    async def import_rag_knowledge(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.write")
-        try:
-            row = await asyncio.to_thread(
-                knowledge_publication_runtime.default_module().import_csv,
-                scope=scope,
-                csv_text=body.csv_text,
-                actor=_admin_actor(request),
-                override_near_duplicates=body.override_near_duplicates,
-            )
-        except PublicationError as exc:
-            raise _publication_http_error(exc) from exc
-        # 匯入的每一列都當作已經確認過的內容，直接排入發布，與單筆新增一致。
-        item_ids = [str(created.get("item_id") or "") for created in row.get("created") or []]
-        results = [await _autopublish(request, scope, item_id) for item_id in item_ids if item_id]
-        row = {
-            **row,
-            "autopublish": {
-                "published": sum(1 for outcome in results if outcome["published"]),
-                "skipped": [outcome["reason"] for outcome in results if not outcome["published"]],
-            },
-        }
         return ApiResponse(data=row, meta=_meta(request))
 
     @router.post(
@@ -1198,24 +1067,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         except PublicationError as exc:
             raise _publication_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
-
-    @router.get(
-        "/rag/knowledge/{item_id}/deletion-impact",
-        tags=["v1-rag"],
-        operation_id="v1_rag_knowledge_deletion_impact",
-        response_model=ApiResponse[dict],
-    )
-    async def rag_knowledge_deletion_impact(request: Request, item_id: str) -> ApiResponse[dict]:
-        """刪除前先講清楚會連帶影響哪些檢索測試案例，不要讓案例在操作者不知情下失效。"""
-
-        scope = _scope(request, "rag.read")
-        cases = await asyncio.to_thread(rag_knowledge_service.list_test_cases, scope)
-        affected = [
-            {"test_case_id": row.get("test_case_id"), "question": row.get("question")}
-            for row in cases.get("test_cases") or []
-            if item_id in (row.get("expected_knowledge_ids") or [])
-        ]
-        return ApiResponse(data={"item_id": item_id, "affected_test_cases": affected}, meta=_meta(request))
 
     @router.delete(
         "/rag/knowledge/{item_id}",
@@ -1339,101 +1190,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             metadata={"actor_id": actor},
             scope=scope,
         )
-        return ApiResponse(data=row, meta=_meta(request))
-
-    @router.get(
-        "/rag/test-cases", tags=["v1-rag"], operation_id="v1_list_rag_test_cases", response_model=ApiResponse[dict]
-    )
-    async def list_rag_test_cases(request: Request) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.read")
-        return ApiResponse(data=rag_knowledge_service.list_test_cases(scope), meta=_meta(request))
-
-    @router.post(
-        "/rag/test-cases", tags=["v1-rag"], operation_id="v1_save_rag_test_case", response_model=ApiResponse[dict]
-    )
-    async def save_rag_test_case(request: Request, body: RagTestCaseRequest) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.write")
-        try:
-            row = rag_knowledge_service.save_test_case(
-                scope=scope,
-                test_case_id=body.test_case_id,
-                question=body.question,
-                expected_knowledge_ids=body.expected_knowledge_ids,
-                enabled=body.enabled,
-                actor=_admin_actor(request),
-            )
-        except rag_knowledge_service.RagKnowledgeError as exc:
-            raise _rag_http_error(exc) from exc
-        return ApiResponse(data=row, meta=_meta(request))
-
-    @router.post(
-        "/rag/test-cases/import",
-        tags=["v1-rag"],
-        operation_id="v1_import_rag_test_cases",
-        response_model=ApiResponse[dict],
-    )
-    async def import_rag_test_cases(request: Request, body: RagCsvImportRequest) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.write")
-        try:
-            row = rag_knowledge_service.import_test_cases_csv(
-                scope=scope, csv_text=body.csv_text, actor=_admin_actor(request)
-            )
-        except rag_knowledge_service.RagKnowledgeError as exc:
-            raise _rag_http_error(exc) from exc
-        return ApiResponse(data=row, meta=_meta(request))
-
-    @router.get(
-        "/rag/evaluation-runs",
-        tags=["v1-rag"],
-        operation_id="v1_list_rag_evaluation_runs",
-        response_model=ApiResponse[dict],
-    )
-    async def list_rag_evaluation_runs(request: Request) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.read")
-        return ApiResponse(data=rag_knowledge_service.list_evaluation_runs(scope), meta=_meta(request))
-
-    @router.get(
-        "/rag/evaluation-runs/{run_id}/export",
-        tags=["v1-rag"],
-        operation_id="v1_export_rag_evaluation",
-        response_model=ApiResponse[dict],
-    )
-    async def export_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.read")
-        try:
-            csv_text = rag_knowledge_service.export_evaluation_csv(scope, run_id=run_id)
-        except rag_knowledge_service.RagKnowledgeError as exc:
-            raise _rag_http_error(exc) from exc
-        return ApiResponse(
-            data={"filename": f"{run_id}.csv", "csv_text": csv_text},
-            meta=_meta(request),
-        )
-
-    @router.post(
-        "/rag/evaluation-runs",
-        tags=["v1-rag"],
-        operation_id="v1_start_rag_evaluation",
-        response_model=ApiResponse[dict],
-    )
-    async def start_rag_evaluation(request: Request) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.write")
-        return ApiResponse(
-            data=rag_knowledge_service.start_evaluation(scope, actor=_admin_actor(request)),
-            meta=_meta(request),
-        )
-
-    @router.post(
-        "/rag/evaluation-runs/{run_id}/cancel",
-        tags=["v1-rag"],
-        operation_id="v1_cancel_rag_evaluation",
-        response_model=ApiResponse[dict],
-    )
-    async def cancel_rag_evaluation(request: Request, run_id: str) -> ApiResponse[dict]:
-        scope = _scope(request, "rag.write")
-        try:
-            row = rag_knowledge_service.cancel_evaluation(scope, run_id=run_id, actor=_admin_actor(request))
-        except rag_knowledge_service.RagKnowledgeError as exc:
-            raise _rag_http_error(exc) from exc
         return ApiResponse(data=row, meta=_meta(request))
 
     @router.post(

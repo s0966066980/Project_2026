@@ -11,12 +11,11 @@ and anything added back shows up as an unexpected path.
 
 from routes.v1_routes import create_router
 
-# Knowledge Item CRUD, including the lifecycle steps that make deletion safe.
+# Knowledge Item CRUD, including the retirement step that makes deletion safe.
 KNOWLEDGE_ITEM_PATHS = {
     "/api/v1/rag/knowledge",
     "/api/v1/rag/knowledge/{item_id}",
     "/api/v1/rag/knowledge/{item_id}/retire",
-    "/api/v1/rag/knowledge/{item_id}/deletion-impact",
 }
 
 # One published retrieval method, plus the pending publish work P1 preserves.
@@ -35,8 +34,8 @@ AD_HOC_RETRIEVAL_PATHS = {
 
 RETAINED_PATHS = KNOWLEDGE_ITEM_PATHS | PUBLISHED_RETRIEVAL_PATHS | AD_HOC_RETRIEVAL_PATHS
 
-# Named rather than implied, so the P1 removal has a checklist and the roadmap's
-# "刪除清單有 migration evidence" gate has something to point at.
+# Removed in P1. Named rather than merely absent, so re-adding one is a visible
+# edit to this list instead of a quiet regrowth of the surface.
 RETIRED_PATHS = {
     "/api/v1/rag/studio",
     "/api/v1/rag/knowledge/chunk-preview",
@@ -47,6 +46,9 @@ RETIRED_PATHS = {
     "/api/v1/rag/evaluation-runs",
     "/api/v1/rag/evaluation-runs/{run_id}/cancel",
     "/api/v1/rag/evaluation-runs/{run_id}/export",
+    # Reported only which retrieval test cases a deletion would break. With the
+    # test-case library gone it could answer nothing but "none affected".
+    "/api/v1/rag/knowledge/{item_id}/deletion-impact",
 }
 
 
@@ -67,6 +69,17 @@ def test_the_three_retained_flows_are_present():
     assert KNOWLEDGE_ITEM_PATHS <= paths, sorted(KNOWLEDGE_ITEM_PATHS - paths)
     assert PUBLISHED_RETRIEVAL_PATHS <= paths, sorted(PUBLISHED_RETRIEVAL_PATHS - paths)
     assert AD_HOC_RETRIEVAL_PATHS <= paths, sorted(AD_HOC_RETRIEVAL_PATHS - paths)
+
+
+def test_the_retired_flows_are_gone():
+    """Evaluation runs, test-case libraries, bulk import/export and the studio view."""
+    still_present = _rag_paths() & RETIRED_PATHS
+
+    assert still_present == set(), f"RAG paths P1 removed are back: {sorted(still_present)}"
+
+
+def test_the_surface_is_exactly_the_retained_set():
+    assert _rag_paths() == RETAINED_PATHS
 
 
 def test_retained_and_retired_sets_do_not_overlap():

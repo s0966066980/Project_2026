@@ -358,6 +358,8 @@ class KnowledgePublicationModule:
             enumerate(CATEGORIES),
             key=lambda entry: (-published_counts[entry[1]["id"]], entry[0]),
         )[:4]
+        from .content import CONTENT_TYPES
+
         return {
             "items": rows,
             "popular_categories": [
@@ -365,6 +367,13 @@ class KnowledgePublicationModule:
             ],
             "counts": counts,
             "total": len(rows),
+            # The editor needs the category and type vocabularies to render its form.
+            # They used to arrive through the studio aggregate, which P1 retires, so the
+            # list that owns these items carries them instead of a second round trip.
+            "metadata": {
+                "categories": [dict(category) for category in CATEGORIES],
+                "content_types": [dict(content_type) for content_type in CONTENT_TYPES],
+            },
         }
 
     def import_csv(

@@ -1,4 +1,4 @@
-/** RAG Intelligence Studio — store-scoped knowledge and retrieval evaluation. */
+/** Store-scoped knowledge, one published retrieval method, and an ad hoc retrieval check. */
 
 // @ts-check
 
@@ -6,29 +6,17 @@
 /** @typedef {{chunk_id: string, content: string}} RagChunk */
 /** @typedef {{item_id: string, title: string, content: string, category: string, content_type: string, status: string, version: number, published_version?: number, updated_at: string, index_error?: string, row_revision?: number, chunks?: RagChunk[]}} RagItem */
 /** @typedef {{id: string, label: string, icon: string, published_count?: number}} RagPopularCategory */
-/** @typedef {{status: string, run_id: string, progress?: number}} RagJob */
 /** @typedef {{status: string, attempts?: number, result_ref?: string, last_error?: string}} RagRebuildJob */
-/** @typedef {{id: string, state: string, title: string, detail: string, tab: string, action?: string, attempt_id?: string, reason?: string}} RagWorkflowStep */
-/** @typedef {{ready: boolean, completed: number, total: number, next_step?: string, steps: RagWorkflowStep[]}} RagWorkflow */
-/** @typedef {{readiness?: {completed?: number, total?: number, ready?: boolean}, online_health?: {query_count?: number, p95_latency_ms?: number}, recent_jobs?: RagJob[], published_method?: string, index_health?: string, published_items?: number, workflow?: RagWorkflow}} RagDashboard */
 /** @typedef {{categories: RagOption[], content_types: RagOption[], methods: RagOption[], top_k_values: number[], preset_version?: string}} RagMetadata */
-/** @typedef {{metadata?: RagMetadata, dashboard?: RagDashboard}} RagStudio */
-/** @typedef {{items: RagItem[], popular_categories: RagPopularCategory[], counts: Record<string, number>, total: number}} RagKnowledge */
+/** @typedef {{items: RagItem[], popular_categories: RagPopularCategory[], counts: Record<string, number>, total: number, metadata?: RagMetadata}} RagKnowledge */
 /** @typedef {{version: number, method: string, top_k: number, relevance_policy: string, status: string, published_at: string}} RagConfiguration */
 /** @typedef {{configurations: RagConfiguration[], published: RagConfiguration | null}} RagConfigurations */
-/** @typedef {{hit_rate_at_3?: number, mrr_at_5?: number, p95_latency_ms?: number}} RagMetrics */
-/** @typedef {{method: string, metrics: RagMetrics}} RagEvaluationResult */
-/** @typedef {{run_id: string, created_at: string, index_version?: string, status: string, progress?: number, results?: RagEvaluationResult[], recommendation?: string, recommendations?: string[], recommendation_tied?: boolean, evaluation_ready?: boolean, readiness?: {valid_cases?: number, categories?: number}}} RagEvaluationRun */
-/** @typedef {{evaluation_runs: RagEvaluationRun[]}} RagEvaluationRuns */
-/** @typedef {{question: string, expected_knowledge_ids: string[], category: string, valid: boolean, enabled: boolean, revision: number}} RagTestCase */
-/** @typedef {{test_cases: RagTestCase[], total: number}} RagTestCases */
 /** @typedef {{rank: number, title?: string, score?: number, category?: string, content_type?: string, chunk_id?: string, content?: string, match_types?: string[]}} RagRetrievalHit */
 /** @typedef {{check_id?: string, total?: number, method?: string, top_k?: number, relevance_policy?: string, latency_ms?: number, fallback_used?: string, confirmed_at?: string, confirmation_eligible?: boolean, confirmation_reason?: string, results?: RagRetrievalHit[], snapshot?: {query: string, method: string, top_k: number, relevance_policy: string}}} RagRetrievalResult */
 /** @typedef {{kind: 'item', item: RagItem | null, title: string, category: string, content_type: string, content: string, preview: RagChunk[], initialValues: {title: string, category: string, contentType: string, content: string}}} RagItemDrawer */
-/** @typedef {{kind: 'test-case', question: string, expected?: string[], initialValues: {question: string, expected: string[]}}} RagTestCaseDrawer */
-/** @typedef {RagItemDrawer | RagTestCaseDrawer} RagDrawer */
+/** @typedef {RagItemDrawer} RagDrawer */
 /** @typedef {HTMLElement & {value: string, checked: boolean, files: FileList | null, selectedOptions: HTMLCollectionOf<HTMLOptionElement>}} RagElement */
-/** @typedef {{tab: string, testTab: string, category: string, status: string, search: string, studio: RagStudio | null, knowledge: RagKnowledge, configurations: RagConfigurations, testCases: RagTestCases, runs: RagEvaluationRuns, retrievalCheck: {draft: string, method: string, topK: number, relevancePolicy: string, inFlight: boolean, result: RagRetrievalResult | null, error: string, configurationVersion: number | null}, drawer: RagDrawer | null, selectedMethod: string, pollingStarted: boolean, knownJobStatuses: Map<string, string>, boundRoot: HTMLElement | null, drawerReturnTarget: {action: string, itemId: string} | null}} RagState */
+/** @typedef {{tab: string, category: string, status: string, search: string, loaded: boolean, knowledge: RagKnowledge, configurations: RagConfigurations, retrievalCheck: {draft: string, method: string, topK: number, relevancePolicy: string, inFlight: boolean, result: RagRetrievalResult | null, error: string, configurationVersion: number | null}, drawer: RagDrawer | null, selectedMethod: string, pollingStarted: boolean, boundRoot: HTMLElement | null, drawerReturnTarget: {action: string, itemId: string} | null}} RagState */
 /** @typedef {Error & {code?: string, details?: {title?: string, item_id?: string}, status?: number}} RagApiError */
 const TERMINAL_JOB_STATUSES = new Set(['succeeded', 'failed', 'dead_letter', 'cancelled']);
 /** @type {Record<string, string>} */
@@ -41,14 +29,6 @@ const STATUS_LABELS = {
 };
 /** @type {Record<string, string>} */
 const CONFIG_STATUS_LABELS = { ...STATUS_LABELS, superseded: '已取代' };
-/** @type {Record<string, string>} */
-const JOB_STATUS_LABELS = {
-  pending: '等待中',
-  running: '執行中',
-  succeeded: '已完成',
-  failed: '失敗',
-  cancelled: '已取消',
-};
 /** @type {Record<string, string>} */
 const RELEVANCE_LABELS = {
   lenient: '寬鬆',
@@ -141,15 +121,12 @@ export function createRagAdmin({
   /** @type {RagState} */
   const state = {
     tab: 'knowledge',
-    testTab: 'adhoc',
     category: '',
     status: '',
     search: '',
-    studio: null,
+    loaded: false,
     knowledge: { items: [], popular_categories: [], counts: {}, total: 0 },
     configurations: { configurations: [], published: null },
-    testCases: { test_cases: [], total: 0 },
-    runs: { evaluation_runs: [] },
     retrievalCheck: {
       draft: '',
       method: '',
@@ -163,7 +140,6 @@ export function createRagAdmin({
     drawer: null,
     selectedMethod: '',
     pollingStarted: false,
-    knownJobStatuses: new Map(),
     boundRoot: null,
     drawerReturnTarget: null,
   };
@@ -192,11 +168,10 @@ export function createRagAdmin({
 
   /** @returns {RagMetadata} */
   function meta() {
-    return state.studio?.metadata || FALLBACK_METADATA;
-  }
-  /** @returns {RagDashboard} */
-  function dashboard() {
-    return state.studio?.dashboard || {};
+    // Categories and content types come from the knowledge list, which owns them.
+    // Retrieval methods and Top-K remain local: they describe the configuration form,
+    // not the store's data, and no retained endpoint publishes them.
+    return { ...FALLBACK_METADATA, ...(state.knowledge.metadata || {}) };
   }
   /** @param {RagOption[]} list @param {string | undefined} id */
   function label(list, id) {
@@ -211,10 +186,6 @@ export function createRagAdmin({
   function icon(name) {
     const safe = String(name || 'circle').replace(/[^a-z-]/g, '');
     return `<i class="fas fa-${safe}" aria-hidden="true"></i>`;
-  }
-  /** @param {number | undefined} value */
-  function pct(value) {
-    return `${Math.round(Number(value || 0) * 100)}%`;
   }
   /** @param {number | undefined | null} value @param {string} [suffix] */
   function metric(value, suffix = '') {
@@ -246,42 +217,15 @@ export function createRagAdmin({
   }
 
   function statusHeader() {
-    const ready = dashboard().readiness || { completed: 0, total: 4, ready: false };
-    const health = dashboard().online_health || {};
-    const recentJobs = dashboard().recent_jobs || [];
-    const activeJobs = recentJobs.filter(row => ['pending', 'running'].includes(row.status));
-    return `${activeJobs.length ? `<div class="rag-toolbar" style="margin:-6px 0 10px"><span class="rag-badge indexing">${icon('bell')} ${activeJobs.length} 個背景工作進行中</span><span class="rag-table-sub">${activeJobs.map(row => `${escapeHtml(row.run_id)} ${Number(row.progress || 0)}%`).join(' · ')}</span></div>` : ''}<div class="rag-status-grid">
-      <article class="rag-status-card">
-        <span>RAG 就緒狀態</span>
-        <strong>${ready.ready ? '可供顧客使用' : `${Number(ready.completed || 0)} / ${Number(ready.total || 4)} 已完成`}</strong>
-        <div class="rag-meter" aria-label="完成度 ${Number(ready.completed || 0)} / ${Number(ready.total || 4)}"><i style="width:${Number(ready.completed || 0) / Math.max(1, Number(ready.total || 4)) * 100}%"></i></div>
-      </article>
-      <article class="rag-status-card"><span>已發布檢索方法</span><strong>${escapeHtml(mappedLabel(METHOD_LABELS, dashboard().published_method, '尚未發布'))}</strong></article>
-      <article class="rag-status-card"><span>索引健康狀態</span><strong><b class="rag-badge ${escapeHtml(dashboard().index_health || 'degraded')}">${dashboard().index_health === 'healthy' ? '健康' : '異常'}</b></strong></article>
-      <article class="rag-status-card"><span>線上檢索</span><strong class="rag-code">${Number(health.query_count || 0)} 次查詢 · P95 ${metric(health.p95_latency_ms, 'ms')}</strong></article>
+    const counts = state.knowledge.counts || {};
+    const published = /** @type {Partial<RagConfiguration>} */ (state.configurations.published || {});
+    const publishing = Number(counts.indexing || 0) + Number(counts.resuming || 0);
+    const failed = Number(counts.index_failed || 0) + Number(counts.publication_failed || 0);
+    return `<div class="rag-status-grid">
+      <article class="rag-status-card"><span>門市知識</span><strong>${Number(state.knowledge.total || 0)} 筆</strong><div class="rag-table-sub">已發布 ${Number(counts.published || 0)} · 草稿 ${Number(counts.draft || 0)}</div></article>
+      <article class="rag-status-card"><span>已發布檢索方法</span><strong>${escapeHtml(mappedLabel(METHOD_LABELS, published.method, '尚未發布'))}</strong>${published.version ? `<div class="rag-table-sub">版本 v${Number(published.version)}</div>` : ''}</article>
+      <article class="rag-status-card"><span>待完成發布</span><strong>${publishing} 筆</strong>${failed ? `<div class="rag-table-sub"><b class="rag-badge index_failed">${failed} 筆需要處理</b></div>` : ''}</article>
     </div>`;
-  }
-
-  function workflowGuide() {
-    const workflow = dashboard().workflow;
-    if (!workflow?.steps?.length) return '';
-    /** @type {Record<string, string>} */
-    const labels = {
-      complete: '已完成',
-      active: '處理中',
-      blocked: '需要處理',
-      pending: '下一步',
-      locked: '尚未開放',
-    };
-    return `<section class="rag-workflow" aria-labelledby="rag-workflow-title">
-      <div class="rag-workflow-head"><div><div class="rag-eyebrow">完整使用流程</div><h2 id="rag-workflow-title">從門市知識到正式就緒證據</h2></div><span class="rag-badge ${workflow.ready ? 'published' : 'indexing'}">${Number(workflow.completed)} / ${Number(workflow.total)} 完成</span></div>
-      <ol class="rag-workflow-steps">${workflow.steps.map((step, index) => `<li class="rag-workflow-step is-${escapeHtml(step.state)}" ${workflow.next_step === step.id ? 'aria-current="step"' : ''}>
-        <span class="rag-workflow-index" aria-hidden="true">${step.state === 'complete' ? icon('check') : Number(index) + 1}</span>
-        <div><div class="rag-workflow-title"><strong>${escapeHtml(step.title)}</strong><span>${escapeHtml(labels[step.state] || step.state)}</span></div><p>${escapeHtml(step.detail)}</p>
-          <div class="rag-workflow-actions"><button class="rag-secondary" type="button" data-action="go-step" data-tab="${escapeHtml(step.tab)}">查看此步驟</button>${step.action === 'resume-publication' && hasPermission('rag.publish') ? `<button class="rag-primary" type="button" data-action="resume-publication" data-attempt-id="${escapeHtml(step.attempt_id)}">重新排入索引</button>` : ''}</div>
-        </div>
-      </li>`).join('')}</ol>
-    </section>`;
   }
 
   function tabs() {
@@ -319,9 +263,6 @@ export function createRagAdmin({
           </select>
         </div>
         <div class="rag-toolbar-group">
-          <button class="rag-secondary" type="button" data-action="export-knowledge">${icon('file-export')} 匯出 IDs</button>
-          <button class="rag-secondary" type="button" data-action="import-knowledge">${icon('file-import')} 匯入 CSV</button>
-          <input id="rag-import-file" type="file" accept=".csv,text/csv" hidden>
           <button class="rag-secondary" type="button" data-action="refresh">${icon('rotate')} 重新整理</button>
         </div>
       </div>
@@ -349,31 +290,14 @@ export function createRagAdmin({
       </section>`;
   }
 
-  /** @param {string} methodId @returns {RagMetrics} */
-  function latestMetrics(methodId) {
-    for (const run of state.runs.evaluation_runs || []) {
-      const result = (run.results || []).find(row => row.method === methodId);
-      if (result) return result.metrics || {};
-    }
-    return {};
-  }
-
   function methodsView() {
     const published = /** @type {Partial<RagConfiguration>} */ (state.configurations.published || {});
     const selectedMethod = state.selectedMethod || published.method || 'hybrid_rrf';
     return `<div class="rag-algorithm-grid">${(meta().methods || []).map(method => {
-      const metrics = latestMetrics(method.id);
-      const latestRun = (state.runs.evaluation_runs || []).find(run => (run.results || []).some(row => row.method === method.id));
-      const recommended = latestRun?.recommendation === method.id || latestRun?.recommendations?.includes(method.id);
       return `<article class="rag-algorithm ${selectedMethod === method.id ? 'selected' : ''}">
-        <div class="rag-toolbar"><div><h3>${escapeHtml(method.label)}</h3></div><div>${published.method === method.id ? '<span class="rag-badge published">已發布</span>' : ''} ${recommended ? `<span class="rag-badge indexing">${latestRun?.recommendation_tied ? '並列推薦' : '推薦'}</span>` : ''}</div></div>
+        <div class="rag-toolbar"><div><h3>${escapeHtml(method.label)}</h3></div><div>${published.method === method.id ? '<span class="rag-badge published">已發布</span>' : ''}</div></div>
         <p><strong>適合：</strong>${escapeHtml(method.use_case)}</p>
         <p><strong>限制：</strong>${escapeHtml(method.limitation)}</p>
-        <div class="rag-algorithm-metrics">
-          <div class="rag-metric"><span>Hit Rate@3</span><strong>${metrics.hit_rate_at_3 == null ? '—' : pct(metrics.hit_rate_at_3)}</strong></div>
-          <div class="rag-metric"><span>MRR@5</span><strong>${metric(metrics.mrr_at_5)}</strong></div>
-          <div class="rag-metric"><span>P95 latency</span><strong>${metric(metrics.p95_latency_ms, 'ms')}</strong></div>
-        </div>
         <button class="rag-secondary" type="button" data-action="choose-method" data-method="${escapeHtml(method.id)}" style="margin-top:14px;width:100%">${selectedMethod === method.id ? '已選擇' : '選擇此方法'}</button>
       </article>`;
     }).join('')}</div>
@@ -407,8 +331,19 @@ export function createRagAdmin({
    * 永遠達不到相關性門檻——此時回傳空結果並非設定錯誤，必須講清楚，否則只會看到「沒有結果」。
    * @param {string} method @returns {string}
    */
+  function publishedItemCount() {
+    return Number((state.knowledge.counts || {}).published || 0);
+  }
+
+  /** @returns {number} */
+  function pendingPublishCount() {
+    const counts = state.knowledge.counts || {};
+    return Number(counts.indexing || 0) + Number(counts.resuming || 0);
+  }
+
+  /** @param {string} method @returns {string} */
   function methodIneffectiveReason(method) {
-    const publishedItems = Number(dashboard().published_items || 0);
+    const publishedItems = publishedItemCount();
     if (method === 'bm25' && publishedItems > 0 && publishedItems < 5) {
       return `BM25 以關鍵字稀有度評分，目前只有 ${publishedItems} 筆已發布知識，
         所有結果的分數都會趨近 0 而達不到門檻，因此幾乎必定查無結果。請改用 Hybrid RRF，或先增加知識筆數。`;
@@ -422,10 +357,10 @@ export function createRagAdmin({
     const published = /** @type {Partial<RagConfiguration>} */ (state.configurations.published || {});
     const selectedMethod = effectiveTestMethod();
     const ineffectiveReason = methodIneffectiveReason(selectedMethod);
-    const formalPrerequisites = Number(dashboard().published_items || 0) > 0 && Boolean(published.version);
-    const emptyGuidance = dashboard().workflow?.steps?.find(step => step.id === 'publish')?.reason === 'publication_job_missing'
-      ? '知識仍停在 Indexing，且可靠工作佇列缺少 job。請先在上方流程按「重新排入索引」。'
-      : Number(dashboard().published_items || 0) <= 0
+    const formalPrerequisites = publishedItemCount() > 0 && Boolean(published.version);
+    const emptyGuidance = publishedItemCount() <= 0 && pendingPublishCount() > 0
+      ? `有 ${pendingPublishCount()} 筆知識仍在索引中，完成後才會出現在檢索結果裡。`
+      : publishedItemCount() <= 0
         ? '目前沒有 Published 知識。請先新增知識並等待索引完成。'
         : !published.version
           ? '尚未發布正式檢索設定。請先到「檢索方法」發布設定。'
@@ -452,27 +387,9 @@ export function createRagAdmin({
         ${workspace.error ? `<div class="rag-empty"><strong>檢索失敗</strong><p>${escapeHtml(workspace.error)}</p></div>` : !result ? '<div class="rag-empty"><strong>結果會顯示在這裡</strong><p>包含執行快照、排名、分類、內容型態、區塊、分數與延遲。</p></div>' :
           `<div class="rag-toolbar" style="padding:14px 14px 0"><div><strong>${Number(result.total)} 筆結果</strong><div class="rag-table-sub">${escapeHtml(mappedLabel(METHOD_LABELS, result.method))} · Top ${Number(result.top_k)} · ${escapeHtml(mappedLabel(RELEVANCE_LABELS, result.relevance_policy))} · ${metric(result.latency_ms, 'ms')}${result.fallback_used ? ` · 備援 ${escapeHtml(result.fallback_used)}` : ''}</div><div class="rag-table-sub rag-code">${escapeHtml(result.check_id || '')}</div></div>${result.confirmed_at ? '<span class="rag-badge published">已確認為 RAG 就緒證據</span>' : result.confirmation_eligible && hasPermission('rag.publish') ? '<button class="rag-secondary" data-action="confirm-test">確認畫面結果</button>' : ''}</div>
           ${!result.confirmation_eligible ? `<div class="rag-table-sub" style="padding:0 14px 12px;color:var(--rag-amber)">${escapeHtml(confirmationReason(result.confirmation_reason))}</div>` : result.confirmation_eligible && !hasPermission('rag.publish') ? '<div class="rag-table-sub" style="padding:0 14px 12px">需要 rag.publish 權限才能建立 RAG 就緒確認。</div>' : ''}
-          ${Number(result.total || 0) === 0 ? `<div class="rag-empty rag-empty-diagnostic"><strong>沒有檢索結果</strong><p>${escapeHtml(emptyGuidance)}</p><button class="rag-secondary" type="button" data-action="go-step" data-tab="${Number(dashboard().published_items || 0) <= 0 ? 'knowledge' : !published.version ? 'methods' : 'knowledge'}">前往處理</button></div>` : `<div class="rag-result-list">${renderedHits}</div>`}`}
+          ${Number(result.total || 0) === 0 ? `<div class="rag-empty rag-empty-diagnostic"><strong>沒有檢索結果</strong><p>${escapeHtml(emptyGuidance)}</p><button class="rag-secondary" type="button" data-action="go-step" data-tab="${publishedItemCount() <= 0 ? 'knowledge' : !published.version ? 'methods' : 'knowledge'}">前往處理</button></div>` : `<div class="rag-result-list">${renderedHits}</div>`}`}
       </section>
     </div>`;
-  }
-
-  function testCasesView() {
-    const published = state.knowledge.items.filter(row => row.published_version);
-    return `<div class="rag-toolbar"><p class="rag-table-sub">預期知識必須是同一分類的已發布項目；停用知識後案例會自動變為無效。</p><div class="rag-toolbar-group"><button class="rag-secondary" type="button" data-action="import-test-cases">匯入 CSV</button><input id="rag-test-import-file" type="file" accept=".csv,text/csv" hidden><button class="rag-primary" type="button" data-action="new-test-case">新增檢索測試案例</button></div></div>
-    <section class="rag-panel">${state.testCases.test_cases?.length ? `<div class="rag-table-wrap"><table class="rag-table"><thead><tr><th>問題</th><th>預期知識</th><th>分類</th><th>狀態</th><th>版本</th></tr></thead><tbody>${state.testCases.test_cases.map(row => `<tr><td>${escapeHtml(row.question)}</td><td class="rag-code">${row.expected_knowledge_ids.map(escapeHtml).join('<br>')}</td><td>${escapeHtml(label(meta().categories || [], row.category))}</td><td><span class="rag-badge ${row.valid && row.enabled ? 'published' : 'index_failed'}">${row.enabled ? (row.valid ? '已啟用' : '無效') : '已停用'}</span></td><td class="rag-code">r${Number(row.revision)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="rag-empty"><strong>尚無檢索測試案例</strong><p>至少 20 案例、3 個分類，且單一分類不超過 50%，才能產生推薦。</p></div>'}</section>
-    <div hidden id="rag-published-options">${published.map(row => row.item_id).join(',')}</div>`;
-  }
-
-  function runsView() {
-    return `<div class="rag-toolbar"><div><strong>固定評估基準</strong><div class="rag-table-sub">深度 10 · 平衡政策 · 全部四種方法 · 評估時停用備援</div></div><button class="rag-primary" data-action="start-evaluation" ${hasPermission('rag.write') ? '' : 'disabled'}>開始評估作業</button></div>
-    <section class="rag-panel">${state.runs.evaluation_runs?.length ? state.runs.evaluation_runs.map(run => `<article style="padding:16px;border-bottom:1px solid var(--rag-border)"><div class="rag-toolbar"><div><strong class="rag-code">${escapeHtml(run.run_id)}</strong><div class="rag-table-sub">${escapeHtml(new Date(run.created_at).toLocaleString('zh-TW'))} · 索引 ${escapeHtml(run.index_version || '')}</div></div><div><span class="rag-badge ${run.status === 'succeeded' ? 'published' : 'indexing'}">${escapeHtml(mappedLabel(JOB_STATUS_LABELS, run.status))} · ${Number(run.progress || 0)}%</span>${['pending','running'].includes(run.status) ? ` <button class="rag-secondary" data-action="cancel-evaluation" data-run-id="${escapeHtml(run.run_id)}">取消</button>` : ''}${run.status === 'succeeded' ? ` <button class="rag-secondary" data-action="export-evaluation" data-run-id="${escapeHtml(run.run_id)}">匯出 CSV</button>` : ''}</div></div>${run.status === 'succeeded' ? `<div class="rag-algorithm-metrics">${(run.results || []).map(row => `<div class="rag-metric"><span>${escapeHtml(mappedLabel(METHOD_LABELS, row.method))}</span><strong>H@3 ${pct(row.metrics.hit_rate_at_3)}</strong><div class="rag-table-sub">MRR ${metric(row.metrics.mrr_at_5)} · P95 ${metric(row.metrics.p95_latency_ms, 'ms')}</div></div>`).join('')}</div><p class="rag-table-sub">${run.evaluation_ready ? (run.recommendation_tied ? `並列推薦：${(run.recommendations || []).map(id => escapeHtml(mappedLabel(METHOD_LABELS, id))).join('、')}` : `推薦：${escapeHtml(mappedLabel(METHOD_LABELS, run.recommendation))}`) : `資料不足：${Number(run.readiness?.valid_cases || 0)} 個案例 / ${Number(run.readiness?.categories || 0)} 個分類`}</p>` : '<div class="rag-meter"><i style="width:'+Number(run.progress || 0)+'%"></i></div>'}</article>`).join('') : '<div class="rag-empty"><strong>尚未執行評估</strong><p>先建立有效檢索測試案例，再比較四種方法。</p></div>'}</section>`;
-  }
-
-  function testsView() {
-    /** @type {Array<[string, string]>} */
-    const tabs = [['adhoc','即時測試'],['cases','檢索測試案例'],['runs','評估作業']];
-    return `<div class="rag-subtabs" role="tablist">${tabs.map(([id,text]) => `<button class="rag-subtab" data-action="test-tab" data-tab="${id}" aria-selected="${state.testTab === id}">${text}</button>`).join('')}</div>${state.testTab === 'adhoc' ? adhocView() : state.testTab === 'cases' ? testCasesView() : runsView()}`;
   }
 
   function rememberDrawerTrigger() {
@@ -491,13 +408,6 @@ export function createRagAdmin({
 
   function drawerValues() {
     if (!state.drawer) return null;
-    if (state.drawer.kind === 'test-case') {
-      const selectedOptions = getElement('rag-case-expected')?.selectedOptions;
-      return {
-        question: getElement('rag-case-question')?.value || state.drawer.question || '',
-        expected: selectedOptions ? [...selectedOptions].map(option => option.value).sort() : [...(state.drawer.expected || [])].sort(),
-      };
-    }
     return {
       title: getElement('rag-edit-title')?.value ?? state.drawer.title ?? '',
       category: state.drawer.category || '',
@@ -539,21 +449,10 @@ export function createRagAdmin({
     return true;
   }
 
-  function openTestCase() {
-    rememberDrawerTrigger();
-    state.drawer = { kind: 'test-case', question: '', initialValues: { question: '', expected: [] } };
-    setDrawerOpen(true);
-    render();
-    window.setTimeout(() => getElement('rag-case-question')?.focus(), 0);
-  }
 
   function drawer() {
     const drawerState = state.drawer;
     if (!drawerState) return '';
-    if (drawerState.kind === 'test-case') {
-      const published = state.knowledge.items.filter(row => row.published_version);
-      return `<div class="rag-drawer-backdrop"><aside class="rag-drawer" role="dialog" aria-modal="true" aria-labelledby="rag-drawer-title"><div class="rag-drawer-head"><div><div class="rag-eyebrow">人工策劃評估基準</div><h2 id="rag-drawer-title">新增檢索測試案例</h2></div><button class="rag-icon-button" data-action="close-drawer" aria-label="關閉">${icon('xmark')}</button></div><label class="rag-label">問題<textarea class="rag-field" id="rag-case-question"></textarea></label><label class="rag-label" style="margin-top:12px">預期知識<select class="rag-field" id="rag-case-expected" multiple size="8">${published.map(row => `<option value="${escapeHtml(row.item_id)}">${escapeHtml(row.title)} · ${escapeHtml(label(meta().categories || [], row.category))} · ${escapeHtml(row.item_id)}</option>`).join('')}</select></label><div class="rag-drawer-actions"><button class="rag-secondary" data-action="close-drawer">取消</button><button class="rag-primary" data-action="save-test-case">儲存案例</button></div></aside></div>`;
-    }
     const item = drawerState.item;
     const contentType = drawerState.content_type;
     const preview = drawerState.preview || [];
@@ -570,8 +469,8 @@ export function createRagAdmin({
 
   function render() {
     const root = getElement('rag-studio-root');
-    if (!root || !state.studio) return;
-    root.innerHTML = `<header class="rag-hero"><div><div class="rag-eyebrow">門市專屬檢索管理平台</div><h1>RAG 智慧工作室</h1><p>依序建立知識、完成索引、發布檢索設定，最後以正式結果建立就緒證據。</p></div><button class="rag-primary" data-action="add" ${hasPermission('rag.write') ? '' : 'disabled'}>${icon('plus')} 新增知識</button></header>${statusHeader()}${workflowGuide()}${tabs()}<main role="tabpanel">${state.tab === 'knowledge' ? knowledgeView() : state.tab === 'methods' ? methodsView() : testsView()}</main>${drawer()}`;
+    if (!root || !state.loaded) return;
+    root.innerHTML = `<header class="rag-hero"><div><div class="rag-eyebrow">門市專屬檢索管理平台</div><h1>RAG 智慧工作室</h1><p>依序建立知識、完成索引、發布檢索設定，最後以正式結果建立就緒證據。</p></div><button class="rag-primary" data-action="add" ${hasPermission('rag.write') ? '' : 'disabled'}>${icon('plus')} 新增知識</button></header>${statusHeader()}${tabs()}<main role="tabpanel">${state.tab === 'knowledge' ? knowledgeView() : state.tab === 'methods' ? methodsView() : adhocView()}</main>${drawer()}`;
     setDrawerOpen(Boolean(state.drawer));
     bindRoot(root);
   }
@@ -590,14 +489,11 @@ export function createRagAdmin({
     const root = getElement('rag-studio-root');
     if (root && !quiet) root.innerHTML = '<div class="rag-studio-loading"><span class="rag-spinner"></span>正在同步門市 RAG 狀態…</div>';
     try {
-      const [studio, knowledge, configurations, testCases, runs] = /** @type {[RagStudio, RagKnowledge, RagConfigurations, RagTestCases, RagEvaluationRuns]} */ (await Promise.all([
-        request('/api/v1/rag/studio'),
+      const [knowledge, configurations] = /** @type {[RagKnowledge, RagConfigurations]} */ (await Promise.all([
         request('/api/v1/rag/knowledge'),
         request('/api/v1/rag/retrieval/configurations'),
-        request('/api/v1/rag/test-cases'),
-        request('/api/v1/rag/evaluation-runs'),
       ]));
-      state.studio = studio;
+      state.loaded = true;
       state.knowledge = knowledge;
       state.configurations = configurations;
       const published = /** @type {Partial<RagConfiguration>} */ (configurations.published || {});
@@ -608,17 +504,8 @@ export function createRagAdmin({
         state.retrievalCheck.relevancePolicy = published.relevance_policy || 'balanced';
         state.retrievalCheck.configurationVersion = publishedVersion;
       }
-      state.testCases = testCases;
-      state.runs = runs;
-      for (const job of studio.dashboard?.recent_jobs || []) {
-        const previous = state.knownJobStatuses.get(job.run_id);
-        if (previous && previous !== job.status && ['succeeded', 'failed', 'cancelled'].includes(job.status)) {
-          notice(`背景工作 ${job.run_id} 已${job.status === 'succeeded' ? '完成' : job.status === 'failed' ? '失敗' : '取消'}。`, job.status === 'failed');
-        }
-        state.knownJobStatuses.set(job.run_id, job.status);
-      }
-      const workspaceActive = state.tab === 'tests' && state.testTab === 'adhoc';
-      if (!(quiet && workspaceActive)) render();
+      // A quiet poll must not wipe a retrieval query the operator is still editing.
+      if (!(quiet && state.tab === 'tests')) render();
     } catch (error) {
       if (root) root.innerHTML = `<div class="rag-empty"><strong>RAG 智慧工作室載入失敗</strong><p>${escapeHtml(errorMessage(error))}</p><button class="rag-primary" data-action="refresh">重試</button></div>`;
       if (root) bindRoot(root);
@@ -728,24 +615,7 @@ export function createRagAdmin({
     const item = drawerState?.kind === 'item' ? drawerState.item : null;
     if (!item) return;
 
-    // 先問清楚會不會弄壞檢索測試案例，不要讓案例在操作者不知情的狀況下失效。
-    /** @type {Array<{test_case_id?: string, question?: string}>} */
-    let affected = [];
-    try {
-      const impact = await request(
-        `/api/v1/rag/knowledge/${encodeURIComponent(item.item_id)}/deletion-impact`,
-      );
-      affected = impact.affected_test_cases || [];
-    } catch {
-      // 查不到影響時仍讓操作者決定，只是無法先提醒。
-    }
-    const warning = affected.length
-      ? `這筆知識被 ${affected.length} 個檢索測試案例引用為預期知識，刪除後這些案例會失效：\n`
-        + affected.slice(0, 5).map(row => `・${row.question}`).join('\n')
-        + (affected.length > 5 ? `\n…等共 ${affected.length} 個` : '')
-        + '\n\n'
-      : '';
-    if (!confirmAction(`${warning}刪除後會從正式檢索下架並徹底移除這筆知識，無法復原。確定要刪除嗎？`)) return;
+    if (!confirmAction('刪除後會從正式檢索下架並徹底移除這筆知識，無法復原。確定要刪除嗎？')) return;
 
     try {
       await request(
@@ -852,37 +722,8 @@ export function createRagAdmin({
     }
   }
 
-  async function saveTestCase() {
-    const question = getElement('rag-case-question')?.value?.trim() || '';
-    const selected = [...(getElement('rag-case-expected')?.selectedOptions || [])].map(option => option.value);
-    try {
-      await request('/api/v1/rag/test-cases', {
-        method: 'POST',
-        body: JSON.stringify({ question, expected_knowledge_ids: selected, enabled: true }),
-      });
-      closeDrawer({ force: true });
-      notice('檢索測試案例已建立。');
-      await refresh({ quiet: true });
-    } catch (error) {
-      notice(`案例儲存失敗：${errorMessage(error)}`, true);
-    }
-  }
 
   /** @param {File} file */
-  async function importKnowledge(file) {
-    try {
-      const csvText = await file.text();
-      /** @type {{count: number}} */
-      const result = await request('/api/v1/rag/knowledge/import', {
-        method: 'POST',
-        body: JSON.stringify({ csv_text: csvText, override_near_duplicates: false }),
-      });
-      notice(`已原子匯入 ${Number(result.count)} 筆草稿。`);
-      await refresh({ quiet: true });
-    } catch (error) {
-      notice(`整批未匯入：${errorMessage(error)}`, true);
-    }
-  }
 
   /** @param {string} filename @param {string} csvText */
   function downloadCsv(filename, csvText) {
@@ -896,55 +737,11 @@ export function createRagAdmin({
   }
 
   /** @param {string} path */
-  async function exportCsv(path) {
-    try {
-      /** @type {{filename: string, csv_text: string}} */
-      const result = await request(path);
-      downloadCsv(result.filename, result.csv_text);
-    } catch (error) {
-      notice(`匯出失敗：${errorMessage(error)}`, true);
-    }
-  }
 
   /** @param {File} file */
-  async function importTestCases(file) {
-    try {
-      const csvText = await file.text();
-      /** @type {{count: number}} */
-      const result = await request('/api/v1/rag/test-cases/import', {
-        method: 'POST',
-        body: JSON.stringify({ csv_text: csvText }),
-      });
-      notice(`已原子匯入 ${Number(result.count)} 個檢索測試案例。`);
-      await refresh({ quiet: true });
-    } catch (error) {
-      notice(`整批未匯入：${errorMessage(error)}`, true);
-    }
-  }
 
-  async function startEvaluation() {
-    try {
-      /** @type {{run_id: string}} */
-      const run = await request('/api/v1/rag/evaluation-runs', { method: 'POST' });
-      notice(`評估作業 ${run.run_id} 已在背景開始。`);
-      state.testTab = 'runs';
-      await refresh({ quiet: true });
-    } catch (error) {
-      notice(`無法開始評測：${errorMessage(error)}`, true);
-    }
-  }
 
   /** @param {string | undefined} runId */
-  async function cancelEvaluation(runId) {
-    if (!runId) return;
-    try {
-      await request(`/api/v1/rag/evaluation-runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' });
-      notice('評估作業已取消；既有紀錄會保留。');
-      await refresh({ quiet: true });
-    } catch (error) {
-      notice(`取消失敗：${errorMessage(error)}`, true);
-    }
-  }
 
   /** @param {MouseEvent} event */
   async function handleClick(event) {
@@ -959,7 +756,6 @@ export function createRagAdmin({
     const action = target.dataset.action;
     if (action === 'tab') { state.tab = target.dataset.tab || 'knowledge'; history.replaceState(null, '', `#rag/${state.tab}`); render(); }
     if (action === 'go-step') { state.tab = target.dataset.tab || 'knowledge'; history.replaceState(null, '', `#rag/${state.tab}`); render(); }
-    if (action === 'test-tab') { state.testTab = target.dataset.tab || 'adhoc'; render(); }
     if (action === 'category') { state.category = target.dataset.category || ''; render(); }
     if (action === 'refresh') refresh();
     if (action === 'add') openItem();
@@ -995,14 +791,6 @@ export function createRagAdmin({
     if (action === 'delete-config') deleteConfiguration(Number(target.dataset.version), target.dataset.published === 'true');
     if (action === 'run-test') runTest();
     if (action === 'confirm-test') confirmTest();
-    if (action === 'new-test-case') openTestCase();
-    if (action === 'save-test-case') saveTestCase();
-    if (action === 'start-evaluation') startEvaluation();
-    if (action === 'cancel-evaluation') cancelEvaluation(target.dataset.runId);
-    if (action === 'import-knowledge') getElement('rag-import-file')?.click();
-    if (action === 'export-knowledge') exportCsv('/api/v1/rag/knowledge/export');
-    if (action === 'import-test-cases') getElement('rag-test-import-file')?.click();
-    if (action === 'export-evaluation' && target.dataset.runId) exportCsv(`/api/v1/rag/evaluation-runs/${encodeURIComponent(target.dataset.runId)}/export`);
   }
 
   /** @param {Event} event */
@@ -1010,11 +798,6 @@ export function createRagAdmin({
     const target = /** @type {RagElement} */ (event.target);
     if (target.id === 'rag-status-filter') { state.status = target.value; render(); }
     if (target.id === 'rag-category-filter') { state.category = target.value; render(); }
-    if (target.id === 'rag-import-file' && target.files?.[0]) importKnowledge(target.files[0]);
-    if (target.id === 'rag-test-import-file' && target.files?.[0]) importTestCases(target.files[0]);
-    if (target.id === 'rag-case-expected' && state.drawer?.kind === 'test-case') {
-      state.drawer.expected = [...target.selectedOptions].map(option => option.value);
-    }
     if (target.id === 'rag-test-method') state.retrievalCheck.method = target.value;
     if (target.id === 'rag-test-top-k') state.retrievalCheck.topK = Number(target.value);
     if (target.id === 'rag-test-policy') state.retrievalCheck.relevancePolicy = target.value;
@@ -1099,9 +882,6 @@ export function createRagAdmin({
     }
     if (target.id === 'rag-edit-title' && state.drawer?.kind === 'item') {
       state.drawer.title = target.value;
-    }
-    if (target.id === 'rag-case-question' && state.drawer?.kind === 'test-case') {
-      state.drawer.question = target.value;
     }
   }
 
