@@ -28,6 +28,10 @@ jobs:
         working-directory: UI_API
     env:
       APP_ENV: test
+      # The profile defaults to postgresql, and only conftest.py setdefaults sqlite,
+      # so the plain `from main import app` step below needs this stated explicitly.
+      # PostgreSQL behaviour is covered by the postgres-migration job.
+      DATABASE_BACKEND: sqlite
       DATABASE_URL: ""
       SECURITY_ENFORCED: "false"
       ENABLE_DEMO_ROUTES: "false"
@@ -191,7 +195,10 @@ jobs:
       APP_ENV: test
       # MEMBER_STORAGE_BACKEND is a rejected legacy selection key: setting it makes
       # load_profile() raise PersistenceConfigurationError. DATABASE_URL selects PostgreSQL.
+      DATABASE_BACKEND: postgresql
       DATABASE_URL: postgresql://migration_ci@127.0.0.1:5432/migration_ci
+      # Schema migration refuses to run on the runtime credential and requires its own.
+      MIGRATION_DATABASE_URL: postgresql://migration_ci@127.0.0.1:5432/migration_ci
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v4
@@ -219,8 +226,6 @@ jobs:
         run: python backend/scripts/manage_postgres_migrations.py apply
 
       - name: Backend contract suite on PostgreSQL
-        env:
-          DATABASE_BACKEND: postgresql
         run: pytest -q tests
 
       - name: Reapply migrations safely
