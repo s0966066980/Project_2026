@@ -21,6 +21,7 @@ from routes import (
     push_copy_routes,
     realtime_routes,
     recommendation_event_routes,
+    v1_catalog_routes,
     v1_routes,
     voice_routes,
 )
@@ -54,6 +55,7 @@ def _debug_routes_enabled() -> bool:
 
 ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("public", v1_routes),
+    RouteRegistration("public", v1_catalog_routes),
     RouteRegistration("public", admin_identity_routes),
     RouteRegistration("public", device_identity_routes),
     RouteRegistration("public", core_routes),

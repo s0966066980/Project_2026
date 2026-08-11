@@ -161,7 +161,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ### Phase 2 — Catalog & Availability vertical slice
 
-狀態：**進行中**（步驟 1 完成、步驟 2 完成讀取側；步驟 3–8 未開始）
+狀態：**進行中**（步驟 1 完成、步驟 2 讀取側完成、步驟 3 讀取端點完成；其餘未開始）
 
 資料權威校正結果（步驟 1）：`store_menu_items` 只被 `menu_repository` 觸及，`store_availability` 只被 `availability_repository` 與一支驗證腳本觸及。**寫入本來就只有一個入口**——`create_item_scoped`、`update_item_scoped`、`retire_item_scoped`、`restore_item_scoped`、`replace_all_scoped`、`ensure_seeded_scoped` 全部只出現在 `services/menu_catalog_service.py`。違反 Gate 第 3 條的是**讀取**：13 個跨能力呼叫點直接 import `menu_repository`，分佈在 ordering、voice、member、promotion、recommendation 與 worker。
 
@@ -175,7 +175,13 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | 沒有跨能力 repository import | `tests/test_architecture_boundaries.py::test_catalog_tables_have_one_reader_surface` | 已完成 |
 | 寫入權威單一 | 移除 `database.update_menu()`；寫入僅存於 `menu_catalog_service` | 已完成 |
 | port 在執行期真的接上 | 測試容器實測：`_LegacyMenuRepositoryCatalogAdapter`，回傳 138 筆 active items | 已完成 |
-| backend regression | Docker test image：`99 passed` | 已完成 |
+| `/api/v1/catalog/items` 讀取端點 | `routes/v1_catalog_routes.py`, `tests/test_v1_catalog_contract.py` | 已完成 |
+| 發布契約不外洩儲存與匯入細節 | `tests/test_v1_catalog_contract.py` 逐欄位鎖定 | 已完成 |
+| backend regression | Docker test image：`104 passed` | 已完成 |
+
+步驟 3 的契約決定：儲存列有 23 個 key，其中 `image_ref`、`image_source`、`image_storage`、`official_image_url`、`official_name`、`source_category`、`source_url`、`rag_metadata`、`extra` 是匯入相容與儲存細節，不是 [[Store Menu Item]] 的定義。`CatalogItemDTO` 只發布 12 個領域欄位。versioned contract 加欄位相容、刪欄位不相容，所以起點取窄——這個取捨值得你複核，因為它決定 Admin 與 Kiosk 之後能拿到什麼。
+
+路由暫時放在 `routes/v1_catalog_routes.py` 而非 `capabilities/catalog/api.py`：能力套件不得 import `services`／`utils`，而 admin scope 解析仍在那裡。契約本身已是能力形狀，之後搬檔案不會搬動 API。
 
 順帶修好一條空轉的架構閘門：`test_architecture_boundaries.py` 的 `PLATFORM_ROOT` 指向 `backend/platform`，但該層在 `633c7d2` 已改名為 `foundation`；`rglob` 對不存在的目錄回空集合，所以那條規則自改名以來一直是空過。已改指 `foundation` 並加上 `test_boundary_roots_exist()`，讓同類空轉不會再發生。
 
