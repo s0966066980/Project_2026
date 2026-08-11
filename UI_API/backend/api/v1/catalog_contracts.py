@@ -14,7 +14,12 @@ that costs least when wrong is to start narrow.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+#: Catalog Availability: the operational sellability overlay on an item.
+AvailabilityStatus = Literal["normal", "low_stock", "sold_out", "disabled"]
 
 
 class CatalogItemDTO(BaseModel):
@@ -40,6 +45,49 @@ class CatalogItemListDTO(BaseModel):
     categories: list[str]
 
 
+class CatalogItemWriteDTO(BaseModel):
+    """Authoring fields. Everything else about an item is derived or stored."""
+
+    name: str | None = None
+    category: str | None = None
+    price: int | None = None
+    description: str | None = None
+    image: str | None = None
+    prep_time_minutes: int | None = None
+    nutrition: str | None = None
+    price_note: str | None = None
+    availability_note: str | None = None
+    aliases: list[str] | None = None
+
+
+class CatalogAvailabilityRowDTO(BaseModel):
+    id: str
+    name: str = ""
+    category: str = ""
+    status: AvailabilityStatus = "normal"
+    #: Set by the store's service-period rules rather than by an operator.
+    time_unavailable: bool = False
+
+
+class CatalogAvailabilityDTO(BaseModel):
+    service_period: str = ""
+    items: list[CatalogAvailabilityRowDTO]
+
+
+class CatalogAvailabilityCommandDTO(BaseModel):
+    """The operator's intent. Unknown item ids are dropped, not rejected.
+
+    Availability is an overlay on a catalog that changes underneath it; a stale
+    id in a saved selection is expected rather than an error worth refusing the
+    whole change over.
+    """
+
+    service_period: str | None = None
+    sold_out_item_ids: list[str] = Field(default_factory=list)
+    low_stock_item_ids: list[str] = Field(default_factory=list)
+    disabled_item_ids: list[str] = Field(default_factory=list)
+
+
 def catalog_item_dto(row: dict) -> CatalogItemDTO:
     """Project one stored catalog row onto the published contract."""
 
@@ -57,3 +105,18 @@ def catalog_item_dto(row: dict) -> CatalogItemDTO:
         aliases=[str(alias) for alias in (row.get("aliases") or []) if str(alias)],
         retired=bool(row.get("retired") or False),
     )
+
+
+def catalog_availability_dto(state: dict) -> CatalogAvailabilityDTO:
+    rows = [
+        CatalogAvailabilityRowDTO(
+            id=str(row.get("id") or ""),
+            name=str(row.get("name") or ""),
+            category=str(row.get("category") or ""),
+            status=str(row.get("status") or "normal"),
+            time_unavailable=bool(row.get("time_unavailable") or False),
+        )
+        for row in (state.get("items") or [])
+        if str(row.get("id") or "")
+    ]
+    return CatalogAvailabilityDTO(service_period=str(state.get("service_period") or ""), items=rows)

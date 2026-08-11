@@ -33,6 +33,10 @@ FROM base AS test
 
 USER root
 RUN python -m pip install --requirement requirements-ci.txt
+# The contract-drift gate regenerates the published TypeScript from the running
+# schema, so the generator has to be in the image. A gate that skips when its
+# tool is missing is a gate that reports green without checking anything.
+COPY tools/ /app/tools/
 USER project2026
 
 FROM base AS ai-base

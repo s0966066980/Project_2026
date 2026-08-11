@@ -81,3 +81,159 @@ def test_one_item_can_be_read_by_id():
 
     assert response.status_code == 200
     assert response.json()["data"] == first
+
+
+def _created(client, **overrides):
+    payload = {"name": "契約測試品項", "category": "測試", "price": 100, **overrides}
+    return client.post("/api/v1/catalog/items", json=payload)
+
+
+def test_an_item_can_be_authored_and_read_back():
+    with TestClient(app) as client:
+        created = _created(client)
+        assert created.status_code == 201, created.text
+        item = created.json()["data"]
+        assert item["name"] == "契約測試品項"
+        assert item["price"] == 100
+
+        fetched = client.get(f"/api/v1/catalog/items/{item['id']}")
+
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["id"] == item["id"]
+
+
+def test_a_partial_change_leaves_the_untouched_fields_alone():
+    with TestClient(app) as client:
+        item = _created(client, name="改價前").json()["data"]
+
+        updated = client.patch(f"/api/v1/catalog/items/{item['id']}", json={"price": 250})
+
+    assert updated.status_code == 200
+    body = updated.json()["data"]
+    assert body["price"] == 250
+    assert body["name"] == "改價前"
+
+
+def test_retirement_hides_an_item_from_the_sellable_catalog_and_can_be_undone():
+    with TestClient(app) as client:
+        item = _created(client, name="退役測試").json()["data"]
+
+        retired = client.post(f"/api/v1/catalog/items/{item['id']}/retirement")
+        assert retired.status_code == 200
+        assert retired.json()["data"]["retired"] is True
+
+        sellable = client.get("/api/v1/catalog/items").json()["data"]["items"]
+        assert item["id"] not in {row["id"] for row in sellable}
+
+        # Retired is not deleted: it stays addressable for recovery.
+        with_retired = client.get("/api/v1/catalog/items?include_retired=true").json()["data"]["items"]
+        assert item["id"] in {row["id"] for row in with_retired}
+
+        restored = client.delete(f"/api/v1/catalog/items/{item['id']}/retirement")
+
+    assert restored.status_code == 200
+    assert restored.json()["data"]["retired"] is False
+
+
+def test_authoring_refusals_name_the_field_rather_than_failing_generically():
+    with TestClient(app) as client:
+        missing_name = client.post("/api/v1/catalog/items", json={"category": "測試", "price": 10})
+        bad_price = _created(client, price=-5)
+
+    assert missing_name.status_code == 422
+    assert missing_name.json()["error"]["code"] in {"name_required", "validation_error"}
+    assert bad_price.status_code == 422
+
+
+def test_changing_an_item_that_is_not_there_is_a_not_found():
+    with TestClient(app) as client:
+        response = client.patch("/api/v1/catalog/items/no-such-item", json={"price": 1})
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "item_not_found"
+
+
+def test_an_unreadable_upload_is_refused_by_type_rather_than_stored():
+    with TestClient(app) as client:
+        item = _created(client, name="圖片測試").json()["data"]
+        response = client.put(
+            f"/api/v1/catalog/items/{item['id']}/image",
+            files={"file": ("note.txt", b"not an image", "text/plain")},
+        )
+
+    assert response.status_code == 415
+    assert response.json()["error"]["code"] == "image_type_not_allowed"
+
+
+def test_availability_publishes_the_four_statuses_and_the_service_period():
+    with TestClient(app) as client:
+        state = client.get("/api/v1/catalog/availability")
+
+    assert state.status_code == 200
+    data = state.json()["data"]
+    assert isinstance(data["service_period"], str)
+    assert {row["status"] for row in data["items"]} <= {"normal", "low_stock", "sold_out", "disabled"}
+
+
+def test_an_operator_can_mark_an_item_sold_out():
+    with TestClient(app) as client:
+        item = _created(client, name="售完測試").json()["data"]
+
+        saved = client.put(
+            "/api/v1/catalog/availability",
+            json={"sold_out_item_ids": [item["id"]], "low_stock_item_ids": [], "disabled_item_ids": []},
+        )
+
+    assert saved.status_code == 200
+    rows = {row["id"]: row for row in saved.json()["data"]["items"]}
+    assert rows[item["id"]]["status"] == "sold_out"
+
+
+def test_a_stale_item_id_is_dropped_rather_than_refusing_the_whole_change():
+    with TestClient(app) as client:
+        saved = client.put(
+            "/api/v1/catalog/availability",
+            json={"sold_out_item_ids": ["gone-yesterday"], "low_stock_item_ids": [], "disabled_item_ids": []},
+        )
+
+    assert saved.status_code == 200
+    assert all(row["status"] != "sold_out" for row in saved.json()["data"]["items"])
+
+
+def test_legacy_routes_hold_no_rules_of_their_own():
+    """The compatibility surface must agree with the capability, not reimplement it."""
+
+    with TestClient(app) as client:
+        item = _created(client, name="轉接測試").json()["data"]
+
+        legacy = client.get("/api/menu/items").json()
+        v1 = client.get("/api/v1/catalog/items?include_retired=false").json()["data"]
+
+    legacy_ids = {row["id"] for row in legacy["items"]}
+    v1_ids = {row["id"] for row in v1["items"]}
+    assert item["id"] in legacy_ids
+    assert legacy_ids == v1_ids
+    assert legacy["categories"] == v1["categories"]
+
+
+def test_legacy_refusals_still_name_their_reason_after_adapting():
+    with TestClient(app) as client:
+        response = client.put("/api/menu/items/no-such-item", json={"price": 1})
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "item_not_found"
+
+
+def test_legacy_catalog_use_is_counted_so_deletion_can_rest_on_evidence():
+    from services import observability_service
+
+    def counted() -> float:
+        snapshot = observability_service.metrics_snapshot()
+        return snapshot.get("legacy_catalog_requests_total", {}).get("menu.get_menu", 0.0)
+
+    with TestClient(app) as client:
+        before = counted()
+        client.get("/api/menu")
+        after = counted()
+
+    assert after == before + 1

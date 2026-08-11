@@ -15,4 +15,9 @@ UI_API/frontend/node_modules
 UI_API/learning_data
 UI_API/runtime_data
 docs
-tools
+# `tools/` is not application code, but the contract-drift gate runs the
+# OpenAPI type generator from inside the test image, so it has to be in the
+# build context. Only the test stage copies it; runtime images do not.
+tools/architecture_inventory*
+tools/demo_*
+tools/import_*
