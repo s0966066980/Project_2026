@@ -85,6 +85,14 @@ docker compose --env-file .env \
   up -d --wait
 ```
 
+建置時可把 commit 烘進 image，讓專案分析報告能指名版本。省略時為 `unknown`——runtime image 沒有 git 也沒有 repository，執行期問不到：
+
+```bash
+APP_GIT_REVISION=$(git rev-parse --short HEAD) docker compose --env-file .env \
+  -f docker/compose.yaml -f docker/compose.ai.yaml -f docker/compose.ai-gpu.yaml \
+  build
+```
+
 手動 Compose 不會替你拉取模型；需要時執行：
 
 ```bash
