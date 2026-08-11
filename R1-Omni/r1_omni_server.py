@@ -48,6 +48,26 @@ DEFAULT_INSTRUCT = (
     "conveyed by the characters is the most obvious to you? Output the thinking "
     "process in <think> </think> and final emotion in <answer> </answer> tags."
 )
+NATIVE_OUTPUT_INSTRUCT = (
+    "Output the thinking process in <think> </think> and the final emotion label "
+    "in <answer> </answer> tags. Always include both tag pairs."
+)
+
+EMOTION_LABELS_ZH = {
+    "happy": "開心",
+    "happiness": "開心",
+    "joy": "開心",
+    "angry": "生氣",
+    "anger": "生氣",
+    "sad": "難過",
+    "sadness": "難過",
+    "fear": "害怕",
+    "fearful": "害怕",
+    "surprise": "驚訝",
+    "surprised": "驚訝",
+    "disgust": "厭惡",
+    "neutral": "中性",
+}
 
 _model = None
 _processor = None
@@ -178,19 +198,42 @@ def _sanitize_video(path: str) -> tuple[str, str | None]:
         return path, None
 
 
+def _normalize_emotion(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    for label, translated in EMOTION_LABELS_ZH.items():
+        if re.search(rf"\b{re.escape(label)}\b", normalized):
+            return translated
+    return str(value or "").strip()[:40]
+
+
 def _parse_output(out: str) -> dict:
     """R1-Omni 文字輸出 → 結構化欄位。"""
     out = str(out or "").strip()
+    json_match = re.search(r"\{.*\}", out, re.DOTALL)
+    if json_match:
+        try:
+            payload = json.loads(json_match.group(0))
+            if isinstance(payload, dict):
+                return {
+                    "facial": str(payload.get("facial") or "not_observed"),
+                    "body": str(payload.get("body") or ""),
+                    "vocal": str(payload.get("vocal") or "not_observed"),
+                    "emotion": _normalize_emotion(str(payload.get("emotion") or "")),
+                    "intensity": str(payload.get("intensity") or "undetermined"),
+                    "description": str(payload.get("description") or "").strip(),
+                }
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
     think = re.search(r"<think>(.*?)</think>", out, re.DOTALL)
     answer = re.search(r"<answer>(.*?)</answer>", out, re.DOTALL)
-    emotion = answer.group(1).strip() if answer else ""
+    emotion = _normalize_emotion(answer.group(1)) if answer else ""
     description = think.group(1).strip() if think else out
     return {
-        "facial": "",
+        "facial": "not_observed" if emotion else "",
         "body": "",
-        "vocal": "",
+        "vocal": "not_observed" if emotion else "",
         "emotion": emotion,
-        "intensity": "",
+        "intensity": "undetermined" if emotion else "",
         "description": description,
     }
 
@@ -208,7 +251,11 @@ def process_video_question(
         return f"[R1_OMNI_ERROR] path_not_allowed: {video_path}"
 
     load_model()
-    instruct = question.strip() if (question and question.strip()) else DEFAULT_INSTRUCT
+    requested_instruct = question.strip() if (question and question.strip()) else DEFAULT_INSTRUCT
+    # R1-Omni is trained against the native think/answer contract. Admin may
+    # customize the observation prompt, but not remove the machine-readable
+    # output boundary used by downstream records.
+    instruct = f"{requested_instruct}\n\n{NATIVE_OUTPUT_INSTRUCT}"
     start_ts = time.time()
     normalized_mode = str(media_mode or "video_audio").strip().lower()
     if normalized_mode not in {"video_audio", "audio_only"}:
@@ -239,6 +286,8 @@ def process_video_question(
         elapsed_ms = int((time.time() - start_ts) * 1000)
         print(f"✅ R1-Omni 推論完成: elapsed_ms={elapsed_ms}, "
               f"emotion={structured.get('emotion')!r}, raw={str(output)[:80]!r}")
+        if not structured.get("emotion"):
+            return "[R1_OMNI_ERROR] unstructured_output"
         return json.dumps(structured, ensure_ascii=False)
     except Exception as e:
         print(f"❌ R1-Omni 推論失敗: {e}")

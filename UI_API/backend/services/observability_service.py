@@ -288,8 +288,6 @@ def _runtime_log_paths() -> list[Path]:
         base / "recommendation_events.json",
         base / "emotion_intervention_logs.json",
         base / "admin_audit_logs.json",
-        base / "rag_alerts.json",
-        base / "rag_reviews.json",
     ]
 
 

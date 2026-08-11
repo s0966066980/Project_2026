@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-AdminAuthMethod = Literal["session", "legacy_token", "device_staff"]
+AdminAuthMethod = Literal["session", "legacy_token", "device_admin"]
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,11 @@ becomes a deliberate edit with a diff rather than something that quietly happens
 and anything added back shows up as an unexpected path.
 """
 
+from pathlib import Path
+
 from routes.v1_routes import create_router
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # Knowledge Item CRUD, including the retirement step that makes deletion safe.
 KNOWLEDGE_ITEM_PATHS = {
@@ -84,3 +88,13 @@ def test_the_surface_is_exactly_the_retained_set():
 
 def test_retained_and_retired_sets_do_not_overlap():
     assert RETAINED_PATHS & RETIRED_PATHS == set()
+
+
+def test_admin_does_not_call_retired_rag_routes():
+    """A removed backend route must not survive as a best-effort Admin request."""
+    source = (PROJECT_ROOT / "frontend/admin/modules/ragAdmin.js").read_text(encoding="utf-8")
+    retired_literal_paths = {path for path in RETIRED_PATHS if "{" not in path}
+
+    still_called = {path for path in retired_literal_paths if path in source}
+
+    assert still_called == set(), f"Admin still calls retired RAG paths: {sorted(still_called)}"

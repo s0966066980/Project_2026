@@ -112,12 +112,6 @@ def collect_violations() -> list[Violation]:
             "orphan_or_mismatched_scope",
             "NOT EXISTS (SELECT 1 FROM devices WHERE devices.id = intervention_outcomes.device_id AND devices.store_id = intervention_outcomes.store_id AND devices.tenant_id = intervention_outcomes.tenant_id)",
         ),
-        ("rag_asset_scopes", "missing_tenant_scope", "tenant_id IS NULL"),
-        (
-            "rag_asset_scopes",
-            "orphan_store_scope",
-            "store_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM stores WHERE stores.id = rag_asset_scopes.store_id AND stores.tenant_id = rag_asset_scopes.tenant_id)",
-        ),
     )
     violations: list[Violation] = []
     with postgres_utils.connect() as conn:

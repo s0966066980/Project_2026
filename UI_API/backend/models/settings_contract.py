@@ -40,13 +40,6 @@ class SettingsUpdateRequest(BaseModel):
     AI_PUSH_SCOPE_CATEGORIES: list[str] | None = Field(default=None, max_length=50)
     AI_PUSH_EXCLUDE_SEEN: bool | None = None
     AI_PUSH_PREFETCH: bool | None = None
-    PASSIVE_VOICE_KEYWORDS: list[str] | None = Field(default=None, max_length=200)
-    PASSIVE_VOICE_ALIASES: dict[str, list[str]] | None = None
-
-    # ── 推薦表現目標 ─────────────────────────────────────────
-    RECOMMENDATION_PURCHASE_RATE_TARGET: float | None = Field(default=None, ge=0, le=1)
-    RECOMMENDATION_IGNORE_RATE_GUARDRAIL: float | None = Field(default=None, ge=0, le=1)
-
     # ── 語音輸入輸出 ─────────────────────────────────────────
     STT_PROVIDER: Literal["faster_whisper", "openai_compatible"] | None = None
     STT_MODEL: str | None = Field(default=None, min_length=1, max_length=120)
@@ -59,16 +52,10 @@ class SettingsUpdateRequest(BaseModel):
 
     # ── 情緒診斷 ─────────────────────────────────────────────
     EMOTION_ENABLED: bool | None = None
-    EMOTION_CLIP_SEC: float | None = Field(default=None, ge=0.5, le=30)
-    EMOTION_QUALITY_CHECK: bool | None = None
-    EMOTION_AFFECT_VOICE: bool | None = None
-    EMOTION_EVENT_VOICE: bool | None = None
-    EMOTION_INCLUDE_STT: bool | None = None
-    EMOTION_ANALYSIS_MODE: Literal["media_only", "media_plus_stt", "paired"] | None = None
+    EMOTION_MODEL_PROFILE: Literal["r1_omni"] | None = None
+    EMOTION_CAPTURE_MODE: Literal["voice", "periodic"] | None = None
+    EMOTION_CLIP_SEC: float | None = Field(default=None, ge=2, le=30)
     EMOTION_PROMPT: str | None = Field(default=None, max_length=20_000)
-    EMOTION_ASSISTANCE_MODE: Literal["off", "shadow", "active"] | None = None
-    EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD: float | None = Field(default=None, ge=0, le=1)
-    EMOTION_ASSISTANCE_ROLLOUT_PERCENT: int | None = Field(default=None, ge=0, le=100)
 
     def changed_settings(self) -> dict:
         """Only the keys the caller actually sent, so a tab save never rewrites another tab."""

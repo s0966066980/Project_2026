@@ -9,6 +9,10 @@
     "typecheck": "tsc -p tsconfig.json",
     "syntax": "find kiosk admin shared -type f -name '*.js' -print | sort | xargs -n 1 node --check"
   },
+  "dependencies": {
+    "@ricky0123/vad-web": "0.0.30",
+    "onnxruntime-web": "1.27.0"
+  },
   "devDependencies": {
     "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",

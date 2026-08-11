@@ -3,8 +3,7 @@
 // @ts-check
 
 /** @typedef {{id: string, label: string, icon?: string, description?: string, template?: string, use_case?: string, limitation?: string}} RagOption */
-/** @typedef {{chunk_id: string, content: string}} RagChunk */
-/** @typedef {{item_id: string, title: string, content: string, category: string, content_type: string, status: string, version: number, published_version?: number, updated_at: string, index_error?: string, row_revision?: number, chunks?: RagChunk[]}} RagItem */
+/** @typedef {{item_id: string, title: string, content: string, category: string, content_type: string, status: string, version: number, published_version?: number, updated_at: string, index_error?: string, row_revision?: number}} RagItem */
 /** @typedef {{id: string, label: string, icon: string, published_count?: number}} RagPopularCategory */
 /** @typedef {{status: string, attempts?: number, result_ref?: string, last_error?: string}} RagRebuildJob */
 /** @typedef {{categories: RagOption[], content_types: RagOption[], methods: RagOption[], top_k_values: number[], preset_version?: string}} RagMetadata */
@@ -13,7 +12,7 @@
 /** @typedef {{configurations: RagConfiguration[], published: RagConfiguration | null}} RagConfigurations */
 /** @typedef {{rank: number, title?: string, score?: number, category?: string, content_type?: string, chunk_id?: string, content?: string, match_types?: string[]}} RagRetrievalHit */
 /** @typedef {{check_id?: string, total?: number, method?: string, top_k?: number, relevance_policy?: string, latency_ms?: number, fallback_used?: string, confirmed_at?: string, confirmation_eligible?: boolean, confirmation_reason?: string, results?: RagRetrievalHit[], snapshot?: {query: string, method: string, top_k: number, relevance_policy: string}}} RagRetrievalResult */
-/** @typedef {{kind: 'item', item: RagItem | null, title: string, category: string, content_type: string, content: string, preview: RagChunk[], initialValues: {title: string, category: string, contentType: string, content: string}}} RagItemDrawer */
+/** @typedef {{kind: 'item', item: RagItem | null, title: string, category: string, content_type: string, content: string, initialValues: {title: string, category: string, contentType: string, content: string}}} RagItemDrawer */
 /** @typedef {RagItemDrawer} RagDrawer */
 /** @typedef {HTMLElement & {value: string, checked: boolean, files: FileList | null, selectedOptions: HTMLCollectionOf<HTMLOptionElement>}} RagElement */
 /** @typedef {{tab: string, category: string, status: string, search: string, loaded: boolean, knowledge: RagKnowledge, configurations: RagConfigurations, retrievalCheck: {draft: string, method: string, topK: number, relevancePolicy: string, inFlight: boolean, result: RagRetrievalResult | null, error: string, configurationVersion: number | null}, drawer: RagDrawer | null, selectedMethod: string, pollingStarted: boolean, boundRoot: HTMLElement | null, drawerReturnTarget: {action: string, itemId: string} | null}} RagState */
@@ -455,14 +454,12 @@ export function createRagAdmin({
     if (!drawerState) return '';
     const item = drawerState.item;
     const contentType = drawerState.content_type;
-    const preview = drawerState.preview || [];
     return `<div class="rag-drawer-backdrop"><aside class="rag-drawer" role="dialog" aria-modal="true" aria-labelledby="rag-drawer-title">
       <div class="rag-drawer-head"><div><div class="rag-eyebrow">${item ? `知識項目 · ${escapeHtml(item.item_id)}` : '新增知識項目'}</div><h2 id="rag-drawer-title">${item ? '建立新版本' : '新增知識'}</h2></div><button class="rag-icon-button" data-action="close-drawer" aria-label="關閉">${icon('xmark')}</button></div>
       <label class="rag-label">標題（可留白，將使用內容第一行）<input class="rag-field" id="rag-edit-title" maxlength="160" value="${escapeHtml(drawerState.title || '')}"></label>
       <div class="rag-label" style="margin-top:14px">知識分類<div class="rag-option-grid">${(meta().categories || []).map(row => `<button class="rag-option ${drawerState.category === row.id ? 'selected' : ''}" type="button" data-action="drawer-category" data-category="${row.id}" aria-pressed="${drawerState.category === row.id}"><strong>${icon(row.icon)} ${escapeHtml(row.label)}</strong></button>`).join('')}</div></div>
       <div class="rag-label" style="margin-top:14px">RAG 內容類型<div class="rag-option-grid">${(meta().content_types || []).map(row => `<button class="rag-option ${contentType === row.id ? 'selected' : ''}" type="button" data-action="drawer-type" data-content-type="${row.id}" aria-pressed="${contentType === row.id}"><strong>${escapeHtml(row.label)}</strong><span>${escapeHtml(row.description)}</span></button>`).join('')}</div></div>
       <label class="rag-label" style="margin-top:14px">內容<textarea class="rag-field" id="rag-edit-content" maxlength="200000" placeholder="${escapeHtml((meta().content_types || []).find(row => row.id === contentType)?.template || '')}">${escapeHtml(drawerState.content || '')}</textarea></label>
-      <details class="rag-preview" ${preview.length ? 'open' : ''}><summary>自動切塊預覽 · ${preview.length || '儲存後產生'} 個區塊</summary>${preview.map(row => `<article><b class="rag-code">${escapeHtml(row.chunk_id)}</b>\n${escapeHtml(row.content)}</article>`).join('')}</details>
       <div class="rag-drawer-actions">${item ? `<button class="rag-danger" data-action="delete-item">刪除</button>` : ''}<button class="rag-secondary" data-action="close-drawer">取消</button><button class="rag-primary" data-action="save-item">${item ? '儲存並發布' : '建立並發布'}</button></div>
     </aside></div>`;
   }
@@ -523,7 +520,6 @@ export function createRagAdmin({
       category: item?.category || meta().categories?.[0]?.id || 'store_and_hours',
       content_type: item?.content_type || 'knowledge_article',
       content: item?.content || '',
-      preview: item?.chunks || [],
       initialValues: { title: '', category: '', contentType: '', content: '' },
     };
     drawerState.initialValues = {
@@ -834,7 +830,6 @@ export function createRagAdmin({
   }
 
   let searchTimer = 0;
-  let previewTimer = 0;
   /** @param {Event} event */
   function handleInput(event) {
     const target = /** @type {RagElement} */ (event.target);
@@ -853,32 +848,6 @@ export function createRagAdmin({
       const content = target.value;
       if (state.drawer?.kind !== 'item') return;
       state.drawer.content = content;
-      window.clearTimeout(previewTimer);
-      previewTimer = window.setTimeout(async () => {
-        if (!content.trim() || state.drawer?.kind !== 'item') return;
-        try {
-          /** @type {{chunks: RagChunk[]}} */
-          const result = await request('/api/v1/rag/knowledge/chunk-preview', {
-            method: 'POST',
-            body: JSON.stringify({
-              category: state.drawer.category,
-              content_type: state.drawer.content_type,
-              title: getElement('rag-edit-title')?.value || '',
-              content,
-            }),
-          });
-          if (state.drawer?.kind === 'item') {
-            state.drawer.preview = result.chunks || [];
-            const preview = /** @type {HTMLDetailsElement | null} */ (document.querySelector('.rag-preview'));
-            if (preview) {
-              preview.open = true;
-              preview.innerHTML = `<summary>自動切塊預覽 · ${state.drawer.preview.length} 個區塊</summary>${state.drawer.preview.map(row => `<article><b class="rag-code">${escapeHtml(row.chunk_id)}</b>\n${escapeHtml(row.content)}</article>`).join('')}`;
-            }
-          }
-        } catch {
-          // Draft input remains editable when preview is temporarily unavailable.
-        }
-      }, 350);
     }
     if (target.id === 'rag-edit-title' && state.drawer?.kind === 'item') {
       state.drawer.title = target.value;
@@ -907,10 +876,7 @@ export function createRagAdmin({
     retryKnowledge: retryItem,
     deleteKnowledge: deleteItem,
     testKnowledge: () => runTest(),
-    loadHealth: () => refresh({ quiet: true }),
-    loadAlerts: async () => {},
     saveSettings: publishConfig,
     updateStrategyHelp: () => {},
-    handleAlert: () => refresh({ quiet: true }),
   };
 }

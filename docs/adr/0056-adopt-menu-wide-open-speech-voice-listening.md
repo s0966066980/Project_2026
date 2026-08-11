@@ -1,0 +1,5 @@
+# Adopt menu-wide open-speech voice listening
+
+Status: accepted
+
+Kiosk begins Menu-Wide Voice Listening automatically at Menu Ready and accepts every Silero VAD speech segment as a Voice Turn without a wake phrase, confirmation, or voice button. It uses the Voice Speech Boundary of at least 250 milliseconds of speech, 1.2 seconds of ending silence, and a 30-second maximum; processing and TTS are half-duplex, followed by no more than 500 milliseconds of echo cooldown. A persistent indicator shows listening, processing, playback, or unavailable state but offers no customer pause control. If the pinned browser VAD, worklet, or microphone is unavailable, voice fails visibly while touch ordering continues, with no RMS or manual-button fallback. The old passive keyword-recommendation recorder and its settings are removed so the durable Voice Turn stream remains the sole customer-voice contract. This amends only the customer activation boundary of ADR-0007; its backend orchestration and replay guarantees remain in force.

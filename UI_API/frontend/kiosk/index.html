@@ -282,7 +282,6 @@
       </div>
       <button id="memberLoginNext" class="member-primary" type="button">下一步 →</button>
       <button id="memberLoginRegister" class="member-primary hidden" type="button">註冊會員</button>
-      <button id="memberLoginSkip" class="member-skip" type="button">略過，直接點餐</button>
     </div>
   </div>
 
@@ -300,7 +299,6 @@
       <label class="member-consent"><input id="memberOrderHistoryConsent" type="checkbox" /><span>儲存點餐紀錄（選填）</span></label>
       <label class="member-consent"><input id="memberPersonalizationConsent" type="checkbox" /><span>使用個人化推薦（選填）</span></label>
       <button id="memberRegisterDone" class="member-primary" type="button">完成註冊並開始點餐 →</button>
-      <button id="memberRegisterSkip" class="member-skip" type="button">略過，直接點餐</button>
     </div>
   </div>
 
@@ -601,10 +599,10 @@
     </div>
     <div class="kiosk-bottom-right">
       <div id="mod-voice-assist" class="kiosk-bottom-voice-wrap">
-        <button id="voiceAssistBtn" class="kiosk-bottom-voice" type="button" title="語音模式">
+        <div id="voiceAssistBtn" class="kiosk-bottom-voice" role="status" aria-live="polite" title="Silero VAD v5 自動語音模式">
           <i class="fas fa-microphone"></i>
-          <span id="voiceAssistBtnText">語音模式</span>
-        </button>
+          <span id="voiceAssistBtnText">語音準備中</span>
+        </div>
       </div>
       <button id="kioskCartBtn" class="kiosk-bottom-cart" type="button">
         <span class="kiosk-cart-icon"><i class="fas fa-shopping-cart"></i><b id="kioskBottomCount">0</b></span>
@@ -614,34 +612,6 @@
   </div>
 
 
-</div>
-
-<!-- 語音模式全螢幕 overlay（放在 view-kiosk 外層，避免被 overflow:hidden 裁切） -->
-<div id="voiceAssistOverlay" class="voice-assist-overlay hidden" aria-hidden="true">
-  <div class="voice-assist-panel" role="dialog" aria-label="語音模式">
-    <h2 id="voiceAssistOverlayTitle">語音模式</h2>
-    <p id="voiceAssistOverlaySubtitle">我正在聽，請說出您的需求</p>
-    <div class="voice-wave-stage" aria-hidden="true">
-      <div class="voice-wave voice-wave-left">
-        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span>
-      </div>
-      <div class="voice-core"><i class="fas fa-microphone"></i></div>
-      <div class="voice-wave voice-wave-right">
-        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span>
-      </div>
-    </div>
-    <div class="voice-assist-actions">
-      <button id="voiceAssistSendBtn" class="voice-assist-action voice-assist-send" type="button">
-        <i class="fas fa-paper-plane"></i><span>立即送出</span>
-      </button>
-      <button id="voiceAssistStopBtn" class="voice-assist-action voice-assist-cancel" type="button">
-        <i class="fas fa-times"></i><span>取消</span>
-      </button>
-    </div>
-    <p id="voiceAssistStopText" class="voice-assist-stop-text">說完後停頓 1.5 秒會自動送出</p>
-  </div>
 </div>
 
 <!-- admin 已移至 admin.html，由 port 8001 獨立提供；此 div 保留給 ui.adminView 參照 -->
@@ -672,6 +642,8 @@
 </div>
 
 <audio id="ttsAudio" class="hidden"></audio>
+<script src="/static/node_modules/onnxruntime-web/dist/ort.min.js"></script>
+<script src="/static/node_modules/@ricky0123/vad-web/dist/bundle.min.js"></script>
 <script type="module" src="/static/kiosk/app.js"></script>
 
 </body>

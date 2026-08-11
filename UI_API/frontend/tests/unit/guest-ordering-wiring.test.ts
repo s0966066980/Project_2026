@@ -51,7 +51,7 @@ function element(id: string): StubElement {
   return created;
 }
 
-const GUEST_BUTTON_IDS = ['memberChoiceGuest', 'memberLoginSkip', 'memberRegisterSkip'] as const;
+const GUEST_BUTTON_IDS = ['memberChoiceGuest'] as const;
 
 interface MemberEntryHooks {
   onGuest?: () => Promise<unknown> | unknown;

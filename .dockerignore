@@ -4,6 +4,16 @@
 UI_API/.env
 UI_API/deploy/edge/.env.edge
 
+# Local dependency, cache, VCS, and model trees are never build context.
+.git
+.codebase-memory
+.codegraph
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+UI_API/frontend/node_modules
+R1-Omni/models
+
 # Keep examples available for documentation and setup tooling.
 !.env.example
 !docker/.env.example

@@ -4,7 +4,6 @@ import { createHealthAdmin } from './modules/healthAdmin.js';
 import { createRecommendationEventsAdmin } from './modules/recommendationEventsAdmin.js';
 import { createCampaignAdmin } from './modules/campaignAdmin.js';
 import { createSettingsAdmin } from './modules/settingsAdmin.js';
-import { createEmotionInfluenceAdmin } from './modules/emotionInfluenceAdmin.js';
 import { createMemberServiceDeskAdmin } from './modules/memberServiceDeskAdmin.js';
 import { createRagAdmin } from './modules/ragAdmin.js';
 import { createOperationsOverviewAdmin } from './modules/operationsOverviewAdmin.js';
@@ -12,6 +11,12 @@ import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { bindLayoutPreference, initZoom } from './modules/layoutPreference.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 import { llmTestErrorMessage } from './features/apiErrors.js';
+import {
+  classifyEmotionMediaError,
+  createEmotionSectionLoader,
+  describeEmotionApiError,
+  parseEmotionResponse,
+} from './modules/emotionConsoleAdmin.js';
 
 const API = window.location.origin;
 
@@ -98,11 +103,11 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'availability') loadAvailability();
     if (page === 'health') loadAdminHealth();
     if (page === 'rag') ragAdmin.loadPage();
-    if (page === 'emotion') { loadEmotionSettings(); loadEmotionLogs(); }
+    if (page === 'emotion') { loadEmotionConsole(); }
     if (page === 'members') loadMembers();
     // 模型診斷與即時影音測試已併入功能設定／情緒分析頁，測試頁不再存在。
     if (page === 'settings') { loadOllamaModels(); loadVoicePromptDefault(); }
-    if (page !== 'emotion') stopEmotionVideoDetection();
+    if (page !== 'emotion') stopEmotionConsoleTest();
   });
 });
 
@@ -468,15 +473,6 @@ const ragAdmin = createRagAdmin({
   hasPermission: hasAdminPermission,
 });
 
-const emotionInfluenceAdmin = createEmotionInfluenceAdmin({
-  getElement: g,
-  escapeHtml: escHtml,
-  emotionLabel: zhEmotion,
-  intensityLabel: zhIntensity,
-  providerLabel: value => EMOTION_RUNTIME_LABELS[value] || String(value || 'R1-Omni'),
-});
-let latestEmotionRoundId = '';
-
 function loadRecommendationEvents() { return recommendationEventsAdmin.loadRecommendationEvents(); }
 function loadOperationsOverview() { return operationsOverviewAdmin.refresh(); }
 function loadCampaigns() { return campaignAdmin.loadCampaigns(); }
@@ -489,586 +485,21 @@ function loadMembers() { return memberServiceDeskAdmin.load(); }
 
 function loadSettings() { return settingsAdmin.load(); }
 
-// ── 情緒分析頁分頁 ──
-
-function showEmotionTab(tab) {
-  document.querySelectorAll('[data-emotion-tab]').forEach(node => {
-    const selected = node.dataset.emotionTab === tab;
-    node.classList.toggle('active', selected);
-    node.setAttribute('aria-selected', String(selected));
-  });
-  document.querySelectorAll('[data-emotion-panel]').forEach(node => {
-    const selected = node.dataset.emotionPanel === tab;
-    node.hidden = !selected;
-    node.classList.toggle('active', selected);
-  });
-  // 攝影機只在「即時客人分析」分頁需要；離開分頁就收掉，避免鏡頭在背景持續開著。
-  if (tab !== 'live') stopEmotionVideoDetection();
-}
-
-function bindEmotionTabs() {
-  document.querySelectorAll('[data-emotion-tab]').forEach(node => {
-    node.addEventListener('click', () => showEmotionTab(node.dataset.emotionTab || 'config'));
-  });
-}
-
-// ── R1-Omni emotion settings ──
-
-async function loadEmotionSettings() {
-  try {
-    const res = await fetch(`${API}/api/settings`, { headers: adminHeaders() });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const s = await res.json();
-    g('inp-emotion-enabled').checked        = Boolean(s.EMOTION_ENABLED);
-    setVal('inp-emotion-clip-sec',            s.EMOTION_CLIP_SEC       ?? 2.0);
-    g('inp-emotion-quality-check').checked  = s.EMOTION_QUALITY_CHECK !== false;
-    g('inp-emotion-affect-voice').checked   = Boolean(s.EMOTION_AFFECT_VOICE);
-    const assistanceMode = s.EMOTION_ASSISTANCE_MODE || 'shadow';
-    setVal('inp-emotion-assistance-mode', assistanceMode);
-    setVal('inp-emotion-confidence-threshold', s.EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD ?? 0.7);
-    setVal('inp-emotion-rollout-percent', s.EMOTION_ASSISTANCE_ROLLOUT_PERCENT ?? 0);
-    g('inp-emotion-affect-voice').checked = assistanceMode === 'active';
-    g('inp-emotion-event-voice').checked    = s.EMOTION_EVENT_VOICE !== false;
-    const analysisMode = s.EMOTION_ANALYSIS_MODE
-      || (s.EMOTION_INCLUDE_STT === false ? 'media_only' : 'media_plus_stt');
-    setVal('inp-emotion-analysis-mode', analysisMode);
-    g('inp-emotion-include-stt').checked = analysisMode !== 'media_only';
-    setVal('inp-emotion-prompt',              s.EMOTION_PROMPT || '');
-    updateEmotionPromptCounter();
-  } catch (e) {
-    console.error('loadEmotionSettings failed', e);
-  }
-}
-
-function updateEmotionPromptCounter() {
-  const ta      = g('inp-emotion-prompt');
-  const counter = g('emotion-prompt-counter');
-  const warn    = g('emotion-prompt-warn');
-  if (!ta || !counter) return;
-  const len = (ta.value || '').length;
-  counter.textContent = `${len} 字`;
-  const over = len > 800;
-  counter.style.color = over ? 'var(--danger)' : 'var(--text2)';
-  if (warn) warn.style.display = over ? 'inline' : 'none';
-}
-
-async function saveEmotionSettings() {
-  const notice = g('emotion-settings-notice');
-  if (notice) notice.style.display = 'none';
-  try {
-    const analysisMode = val('inp-emotion-analysis-mode') || 'media_plus_stt';
-    const assistanceMode = val('inp-emotion-assistance-mode') || 'shadow';
-    const body = {
-      EMOTION_ENABLED:        g('inp-emotion-enabled').checked,
-      EMOTION_CLIP_SEC:       parseFloat(val('inp-emotion-clip-sec') || '2.0'),
-      EMOTION_QUALITY_CHECK:  g('inp-emotion-quality-check').checked,
-      EMOTION_AFFECT_VOICE:   assistanceMode === 'active',
-      EMOTION_ASSISTANCE_MODE:      assistanceMode,
-      EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD: Math.min(1, Math.max(0,
-        parseFloat(val('inp-emotion-confidence-threshold') || '0.7'))),
-      EMOTION_ASSISTANCE_ROLLOUT_PERCENT: parseInt(val('inp-emotion-rollout-percent') || '0', 10),
-      EMOTION_EVENT_VOICE:    g('inp-emotion-event-voice').checked,
-      EMOTION_ANALYSIS_MODE:  analysisMode,
-      EMOTION_INCLUDE_STT:    analysisMode !== 'media_only',
-      EMOTION_PROMPT:         val('inp-emotion-prompt'),
-    };
-    const res = await fetch(`${API}/api/settings`, {
-      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    if (notice) {
-      notice.textContent = '✓ 儲存成功';
-      notice.style.color = '#1db87a';
-      notice.style.display = 'inline';
-      setTimeout(() => { notice.style.display = 'none'; }, 2000);
-    }
-  } catch (e) {
-    console.error('saveEmotionSettings failed', e);
-    if (notice) {
-      notice.textContent = '✗ 儲存失敗';
-      notice.style.color = '#e84040';
-      notice.style.display = 'inline';
-    }
-  }
-}
-
-function escHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// R1-Omni 結構化欄位英→繁對照（emotion / intensity 為有限列舉）
+// ── 情緒分析欄位英→繁對照 ──
 const EMOTION_ZH = {
-  neutral: '中性', happy: '開心', sad: '難過', angry: '生氣',
-  frustrated: '沮喪', anxious: '焦慮', confused: '困惑', surprise: '驚訝', surprised: '驚訝',
-  disgust: '厭惡', fear: '害怕', fearful: '害怕', excited: '興奮', bored: '無聊',
+  neutral: "中性", happy: "開心", sad: "難過", angry: "生氣",
+  frustrated: "沮喪", anxious: "焦慮", confused: "困惑", surprise: "驚訝", surprised: "驚訝",
+  disgust: "厭惡", fear: "害怕", fearful: "害怕", excited: "興奮", bored: "無聊",
 };
-const INTENSITY_ZH = { low: '低', medium: '中', high: '高' };
-// 情緒分析模型代碼 → 顯示名稱
-const EMOTION_RUNTIME_LABELS = { r1_omni: 'R1-Omni' };
+const INTENSITY_ZH = { low: "低", medium: "中", high: "高" };
 
-function zhEmotion(v) {
-  if (!v) return '';
-  return EMOTION_ZH[String(v).trim().toLowerCase()] || v;
+function zhEmotion(value) {
+  if (!value) return "";
+  return EMOTION_ZH[String(value).trim().toLowerCase()] || value;
 }
-function zhIntensity(v) {
-  if (!v) return '';
-  return INTENSITY_ZH[String(v).trim().toLowerCase()] || v;
-}
-
-let emotionVideoStream = null;
-let emotionVideoRecorder = null;
-let emotionVideoRunning = false;
-let emotionVideoGeneration = 0;
-let emotionVideoAbortController = null;
-let emotionTestCapabilities = null;
-
-function setEmotionVideoStatus(message, tone = 'info', icon = 'fa-circle-info') {
-  const status = g('emotion-video-status');
-  if (!status) return;
-  status.classList.toggle('is-error', tone === 'error');
-  status.innerHTML = `<i class="fas ${escHtml(icon)}" aria-hidden="true"></i><span>${escHtml(message)}</span>`;
-}
-
-async function loadEmotionTestCapabilities() {
-  const pill = g('emotion-test-provider-pill');
-  if (pill) {
-    pill.className = 'emotion-test-pill is-checking';
-    pill.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 檢查模型';
-  }
-  try {
-    const response = await fetch(`${API}/api/emotion/test_capabilities`, { headers: adminHeaders() });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-    emotionTestCapabilities = data;
-    const provider = data.provider || {};
-    const label = EMOTION_RUNTIME_LABELS[provider.provider] || provider.provider || 'R1-Omni';
-    const capabilities = Array.isArray(provider.capabilities) ? provider.capabilities : [];
-    const ready = data.enabled && provider.status === 'ready' && provider.model_loaded === true && capabilities.includes('video_audio');
-    if (pill) {
-      pill.className = `emotion-test-pill ${ready ? 'is-ready' : 'is-error'}`;
-      pill.innerHTML = `<i class="fas ${ready ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> ${escHtml(label)}${ready ? ' 已就緒' : ' 未就緒'}`;
-      pill.title = ready
-        ? `模型已載入；影音能力已確認；健康檢查 ${provider.latency_ms || 0}ms`
-        : (provider.message || '模型尚未載入，或未宣告影音分析能力');
-    }
-    if (!ready) setEmotionVideoStatus(provider.message || '情緒模型尚未就緒，請使用對應啟動腳本。', 'error', 'fa-triangle-exclamation');
-    return ready;
-  } catch (error) {
-    emotionTestCapabilities = null;
-    if (pill) {
-      pill.className = 'emotion-test-pill is-error';
-      pill.innerHTML = '<i class="fas fa-triangle-exclamation"></i> 無法檢查模型';
-    }
-    setEmotionVideoStatus(`模型狀態檢查失敗：${error.message}`, 'error', 'fa-triangle-exclamation');
-    return false;
-  }
-}
-
-function emotionVideoRecorderOptions() {
-  if (typeof MediaRecorder === 'undefined') return {};
-  if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-    return { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 240000 };
-  }
-  return MediaRecorder.isTypeSupported('video/webm')
-    ? { mimeType: 'video/webm', videoBitsPerSecond: 240000 }
-    : {};
-}
-
-function captureEmotionVideoClip(stream, { minMs = 1500, silenceMs = 900, noSpeechMs = 2500, maxMs = 8000 } = {}) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let recorder;
-    let animationFrame = 0;
-    let audioContext = null;
-    let audioSource = null;
-    let analyser = null;
-    let noSpeechTimer = 0;
-    try {
-      recorder = new MediaRecorder(stream, emotionVideoRecorderOptions());
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    emotionVideoRecorder = recorder;
-    const stopRecorder = () => {
-      if (recorder.state !== 'inactive') recorder.stop();
-    };
-    const deadline = window.setTimeout(stopRecorder, maxMs);
-    const cleanup = () => {
-      window.clearTimeout(deadline);
-      window.clearTimeout(noSpeechTimer);
-      if (animationFrame) cancelAnimationFrame(animationFrame);
-      audioSource?.disconnect();
-      analyser?.disconnect();
-      if (audioContext) void audioContext.close().catch(() => {});
-    };
-    const AudioContextClass = globalThis.AudioContext;
-    if (AudioContextClass && stream.getAudioTracks().length) {
-      try {
-        audioContext = new AudioContextClass();
-        audioSource = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 512;
-        audioSource.connect(analyser);
-        const levels = new Uint8Array(analyser.fftSize);
-        const startedAt = performance.now();
-        let speechSeen = false;
-        let lastSpeechAt = startedAt;
-        noSpeechTimer = window.setTimeout(stopRecorder, noSpeechMs);
-        const sample = () => {
-          if (!analyser || recorder.state === 'inactive') return;
-          analyser.getByteTimeDomainData(levels);
-          const rms = Math.sqrt(levels.reduce((total, level) => total + ((level - 128) / 128) ** 2, 0) / levels.length);
-          const now = performance.now();
-          if (rms >= 0.025) {
-            speechSeen = true;
-            lastSpeechAt = now;
-            window.clearTimeout(noSpeechTimer);
-          }
-          if (speechSeen && now - startedAt >= minMs && now - lastSpeechAt >= silenceMs) {
-            stopRecorder();
-            return;
-          }
-          animationFrame = requestAnimationFrame(sample);
-        };
-        animationFrame = requestAnimationFrame(sample);
-      } catch {
-        noSpeechTimer = window.setTimeout(stopRecorder, noSpeechMs);
-      }
-    } else {
-      noSpeechTimer = window.setTimeout(stopRecorder, noSpeechMs);
-    }
-    recorder.ondataavailable = event => {
-      if (event.data?.size > 0) chunks.push(event.data);
-    };
-    recorder.onerror = event => {
-      cleanup();
-      if (emotionVideoRecorder === recorder) emotionVideoRecorder = null;
-      reject(event.error || new Error('瀏覽器無法錄製影像片段'));
-    };
-    recorder.onstop = () => {
-      cleanup();
-      if (emotionVideoRecorder === recorder) emotionVideoRecorder = null;
-      const type = recorder.mimeType || 'video/webm';
-      resolve(new Blob(chunks, { type }));
-    };
-    recorder.start();
-  });
-}
-
-function renderEmotionVideoResult(data, batchLatencyMs = 0) {
-  const result = g('emotion-video-result');
-  if (!result) return;
-  const rows = [data];
-  result.classList.add('is-single');
-  result.innerHTML = rows.map(row => {
-    const provider = EMOTION_RUNTIME_LABELS[row.provider] || row.provider || 'R1-Omni';
-    const model = row.model_version && row.model_version !== 'unknown' ? `${provider} · ${row.model_version}` : provider;
-    const emotion = zhEmotion(row.emotion) || '—';
-    const intensity = zhIntensity(row.intensity);
-    const confidence = row.confidence == null ? Number.NaN : Number(row.confidence);
-    const transcriptStatus = row.transcript_status === 'available'
-      ? `同片段 STT 完成（${Number(row.transcript_character_count || 0)} 字）`
-      : row.transcript_status === 'no_speech'
-        ? '同片段未偵測到語音'
-        : '同片段 STT 無法完成（未補入手填文字）';
-    const failed = row.status === 'error';
-    return `<article class="emotion-result-card${failed ? ' is-error' : ''}">
-      <header><b>單次影音擷取</b><span>${escHtml(failed ? '失敗' : (row.status || '完成'))}</span></header>
-      <dl>
-        <div class="emotion-result-wide"><dt>權威情緒模型</dt><dd>${escHtml(model)}</dd></div>
-        <div><dt>主要情緒／強度</dt><dd>${escHtml(`${emotion}${intensity ? `／${intensity}` : ''}`)}</dd></div>
-        <div><dt>信心</dt><dd>${Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : '—'}</dd></div>
-        <div><dt>模型耗時</dt><dd>${Number.isFinite(Number(row.evidence_latency_ms)) ? `${Math.round(Number(row.evidence_latency_ms))}ms` : '—'}</dd></div>
-        <div><dt>證據品質</dt><dd>${escHtml(row.quality_skipped ? '品質快篩跳過' : (row.evidence_quality || row.status || '—'))}</dd></div>
-        <div class="emotion-result-wide"><dt>同片段 STT 狀態</dt><dd>${escHtml(transcriptStatus)}</dd></div>
-        <div class="emotion-result-wide"><dt>表情線索</dt><dd>${escHtml(row.facial || '—')}</dd></div>
-        <div class="emotion-result-wide"><dt>聲音線索</dt><dd>${escHtml(row.vocal || '未觀察到')}</dd></div>
-        <div class="emotion-result-wide"><dt>${failed ? '失敗原因與復原方式' : '情緒模型分析內容'}</dt><dd>${escHtml(failed ? (row.failure_message || '請檢查模型服務後重試。') : (row.description || '—'))}</dd></div>
-        <div class="emotion-result-wide"><dt>情緒觀察解說（不改分類）</dt><dd>${escHtml(row.emotion_observation_explanation || '—')}</dd></div>
-      </dl>
-    </article>`;
-  }).join('');
-  setText('emotion-video-result-pair', '單次擷取');
-  setText('emotion-video-last-completed', new Date().toLocaleTimeString('zh-TW', { hour12: false }));
-  setText('emotion-video-batch-latency', `${Math.round(batchLatencyMs)}ms`);
-}
-
-async function runEmotionVideoDetection(generation) {
-  if (emotionVideoRunning && generation === emotionVideoGeneration && emotionVideoStream) {
-    try {
-      setEmotionVideoStatus('正在單次自適應擷取；說完並停頓後會自動送出，最長 8 秒。', 'info', 'fa-video');
-      g('emotion-video-capture-badge')?.removeAttribute('hidden');
-      const blob = await captureEmotionVideoClip(emotionVideoStream);
-      g('emotion-video-capture-badge')?.setAttribute('hidden', '');
-      if (!emotionVideoRunning || generation !== emotionVideoGeneration) return;
-      if (!blob.size) throw new Error('沒有取得可分析的影像片段');
-
-      setEmotionVideoStatus('同一片段正交由情緒模型與 STT 處理；STT 不接受手填替代文字。', 'info', 'fa-circle-notch fa-spin');
-      setText('emotion-video-inflight', '1');
-      const formData = new FormData();
-      formData.append('media', blob, 'admin_emotion_test.webm');
-      emotionVideoAbortController = new AbortController();
-      const batchStarted = performance.now();
-      const response = await fetch(`${API}/api/emotion/analyze_media_test`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: formData,
-        signal: emotionVideoAbortController.signal,
-      });
-      const data = await response.json();
-      emotionVideoAbortController = null;
-      setText('emotion-video-inflight', '0');
-      if (!response.ok) throw new Error(data.message || data.detail || `HTTP ${response.status}`);
-      if (data.status === 'disabled') {
-        setEmotionVideoStatus('情緒分析尚未啟用，請先到情緒分析頁開啟。', 'error', 'fa-triangle-exclamation');
-        stopEmotionVideoDetection({ preserveStatus: true });
-        return;
-      }
-      const batchLatency = performance.now() - batchStarted;
-      renderEmotionVideoResult(data, batchLatency);
-      if (data.status === 'error') {
-        const reason = data.failure_message || '模型沒有產生可用結果。';
-        setEmotionVideoStatus(`${reason} 單次診斷已停止。`, 'error', 'fa-triangle-exclamation');
-        stopEmotionVideoDetection({ preserveStatus: true });
-        return;
-      }
-      setEmotionVideoStatus('單次診斷完成；原始影音與逐字稿已丟棄，可再次開始新的擷取。', 'info', 'fa-circle-check');
-      stopEmotionVideoDetection({ preserveStatus: true });
-    } catch (error) {
-      emotionVideoAbortController = null;
-      setText('emotion-video-inflight', '0');
-      g('emotion-video-capture-badge')?.setAttribute('hidden', '');
-      if (error?.name === 'AbortError' || generation !== emotionVideoGeneration) return;
-      setEmotionVideoStatus(`即時偵測停止：${error.message}`, 'error', 'fa-triangle-exclamation');
-      stopEmotionVideoDetection({ preserveStatus: true });
-      return;
-    }
-  }
-}
-
-async function startEmotionVideoDetection() {
-  if (emotionVideoRunning) return;
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    setEmotionVideoStatus('此瀏覽器不支援攝影機或 MediaRecorder。', 'error', 'fa-triangle-exclamation');
-    return;
-  }
-  try {
-    const providerReady = await loadEmotionTestCapabilities();
-    if (!providerReady) return;
-    setEmotionVideoStatus('正在請求攝影機與麥克風權限…', 'info', 'fa-video');
-    emotionVideoStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 480, max: 640 },
-        height: { ideal: 360, max: 480 },
-        frameRate: { ideal: 10, max: 15 },
-      },
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-    const video = g('emotion-video');
-    if (video) video.srcObject = emotionVideoStream;
-    g('emotion-video-preview')?.classList.add('is-active');
-    emotionVideoRunning = true;
-    emotionVideoGeneration += 1;
-    g('emotion-video-start-btn')?.setAttribute('disabled', '');
-    g('emotion-video-stop-btn')?.removeAttribute('disabled');
-    void runEmotionVideoDetection(emotionVideoGeneration);
-  } catch (error) {
-    stopEmotionVideoDetection({ preserveStatus: true });
-    setEmotionVideoStatus(`無法啟用攝影機或麥克風：${error.message}`, 'error', 'fa-triangle-exclamation');
-  }
-}
-
-function stopEmotionVideoDetection({ preserveStatus = false } = {}) {
-  const wasActive = emotionVideoRunning || Boolean(emotionVideoStream);
-  emotionVideoRunning = false;
-  emotionVideoGeneration += 1;
-  emotionVideoAbortController?.abort();
-  emotionVideoAbortController = null;
-  if (emotionVideoRecorder?.state && emotionVideoRecorder.state !== 'inactive') {
-    emotionVideoRecorder.stop();
-  }
-  emotionVideoRecorder = null;
-  emotionVideoStream?.getTracks().forEach(track => track.stop());
-  emotionVideoStream = null;
-  const video = g('emotion-video');
-  if (video) video.srcObject = null;
-  g('emotion-video-preview')?.classList.remove('is-active');
-  g('emotion-video-capture-badge')?.setAttribute('hidden', '');
-  setText('emotion-video-inflight', '0');
-  g('emotion-video-start-btn')?.removeAttribute('disabled');
-  g('emotion-video-stop-btn')?.setAttribute('disabled', '');
-  if (wasActive && !preserveStatus) setEmotionVideoStatus('擷取已取消，攝影機與麥克風已關閉。', 'info', 'fa-circle-stop');
-}
-
-async function loadEmotionLogs() {
-  const tbody = g('emotion-logs-tbody');
-  if (!tbody) return;
-  const EMPTY_CELL = '<span style="color:var(--text2)">—</span>';
-  tbody.innerHTML = `<tr><td colspan="8" style="padding:16px;color:var(--text2);text-align:center">載入中…</td></tr>`;
-  emotionInfluenceAdmin.renderLoading();
-  try {
-    const res = await fetch(`${API}/api/emotion/intervention_logs?limit=200`, { headers: adminHeaders() });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const logs = (data.logs || []).slice().reverse();
-    await loadEmotionAssistanceSummary();
-    const emotionView = emotionInfluenceAdmin.render(logs);
-    latestEmotionRoundId = String(emotionView.latestRound?.id || '');
-    const analysisLogs = logs.filter(r => !['voice_llm_influence', 'assistance_outcome', 'human_evaluation'].includes(r.event_type));
-    if (!analysisLogs.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="padding:16px;color:var(--text2);text-align:center">尚無紀錄</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = analysisLogs.map(r => {
-      const time  = escHtml(r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '—');
-      // 優先使用後端已計算的 event_type_label，避免前後端 label 不同步
-      const evt   = escHtml(r.event_type_label || r.event_type || '—');
-      const prov  = r.provider ? escHtml(EMOTION_RUNTIME_LABELS[r.provider] || r.provider) : '—';
-
-      let emoCell, facialCell, vocalCell, descCell;
-      if (r.quality_skipped) {
-        emoCell    = `<span style="color:var(--text2)">品質快篩跳過</span>`;
-        facialCell = EMPTY_CELL;
-        vocalCell  = EMPTY_CELL;
-        descCell   = EMPTY_CELL;
-      } else if (r.status === 'error') {
-        emoCell    = `<span style="color:var(--danger)">分析失敗</span>`;
-        facialCell = EMPTY_CELL;
-        vocalCell  = EMPTY_CELL;
-        descCell   = EMPTY_CELL;
-      } else {
-        const intens = r.intensity ? ` <span style="font-size:11px;color:var(--text2)">(${escHtml(zhIntensity(r.intensity))})</span>` : '';
-        emoCell    = r.emotion  ? `<strong>${escHtml(zhEmotion(r.emotion))}</strong>${intens}` : EMPTY_CELL;
-        facialCell = r.facial   ? escHtml(r.facial)   : EMPTY_CELL;
-        vocalCell  = r.vocal    ? escHtml(r.vocal)    : EMPTY_CELL;
-        descCell   = r.description
-          ? `<details class="emo-desc"><summary></summary><div class="emo-desc-body">${escHtml(r.description)}</div></details>`
-          : EMPTY_CELL;
-      }
-      const evaluationCell = r.event_id && r.status === 'ok'
-        ? `<div style="display:flex;gap:4px"><button class="btn" style="font-size:11px;padding:3px 7px" type="button" onclick="labelEmotionEvent('${escHtml(r.event_id)}','${encodeURIComponent(String(r.emotion || ''))}',true)">符合</button><button class="btn" style="font-size:11px;padding:3px 7px" type="button" onclick="labelEmotionEvent('${escHtml(r.event_id)}','${encodeURIComponent(String(r.emotion || ''))}',false)">修正</button></div>`
-        : EMPTY_CELL;
-
-      return `<tr style="border-top:1px solid var(--border)">
-        <td style="padding:7px 10px;white-space:nowrap;font-size:12px">${time}</td>
-        <td style="padding:7px 10px;white-space:nowrap">${evt}</td>
-        <td style="padding:7px 10px;white-space:nowrap;font-size:12px">${prov}</td>
-        <td style="padding:7px 10px;white-space:nowrap">${emoCell}</td>
-        <td style="padding:7px 10px;max-width:180px;overflow-wrap:break-word;font-size:12px">${facialCell}</td>
-        <td style="padding:7px 10px;max-width:160px;overflow-wrap:break-word;font-size:12px">${vocalCell}</td>
-        <td style="padding:7px 10px;max-width:240px;overflow-wrap:break-word;font-size:12px">${descCell}</td>
-        <td style="padding:7px 10px;white-space:nowrap">${evaluationCell}</td>
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    emotionInfluenceAdmin.renderError(e);
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:16px;color:var(--danger)">載入失敗：${escHtml(e.message)}</td></tr>`;
-  }
-}
-
-async function loadEmotionAssistanceSummary() {
-  const box = g('emotion-assistance-summary');
-  const assessment = g('emotion-assistance-assessment');
-  if (!box) return;
-  try {
-    const response = await fetch(`${API}/api/emotion/assistance_summary`, { headers: adminHeaders() });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-    const agreement = data.exact_label_agreement == null
-      ? '資料不足'
-      : `${Math.round(Number(data.exact_label_agreement) * 100)}%`;
-    const treatment = data.groups?.treatment || {};
-    const control = data.groups?.control || {};
-    const cards = [
-      [String(data.annotated_samples || 0), '人工標註', `${data.usable_samples || 0} 筆可用`],
-      [agreement, '情緒標籤一致率', '模型標籤 vs 人工觀察'],
-      [String(data.shadow_turns || 0), 'Shadow 回合', '只記錄、不影響顧客回覆'],
-      [`${treatment.sessions || 0} / ${control.sessions || 0}`, '實驗／對照 session', `完成率 ${Math.round(Number(treatment.checkout_rate || 0) * 100)}% / ${Math.round(Number(control.checkout_rate || 0) * 100)}%`],
-    ];
-    box.innerHTML = cards.map(([value, label, hint]) => `<article class="emotion-influence-kpi"><b>${escHtml(value)}</b><span>${escHtml(label)}</span><small>${escHtml(hint)}</small></article>`).join('');
-    if (assessment) {
-      const accuracy = data.accuracy_assessment === 'measured' ? '人工標註樣本已達可評估門檻' : '人工標註不足，暫不能判定偵測準確性';
-      const outcome = data.outcome_assessment === 'measured' ? '分流樣本已達可比較門檻' : '實驗／對照樣本不足，暫不能宣稱提升回覆成效';
-      assessment.textContent = `${accuracy}；${outcome}。`;
-    }
-  } catch (error) {
-    box.innerHTML = `<div class="emotion-influence-empty error">成效證據載入失敗：${escHtml(error.message)}</div>`;
-  }
-}
-
-async function labelEmotionEvent(eventId, encodedModelEmotion, matches) {
-  const modelEmotion = decodeURIComponent(String(encodedModelEmotion || ''));
-  let observedEmotion = modelEmotion;
-  if (!matches) {
-    observedEmotion = prompt('請輸入人工觀察的情緒標籤（例如 neutral、confused、frustrated）', modelEmotion) || '';
-  }
-  if (!observedEmotion.trim()) return;
-  const response = await fetch(`${API}/api/emotion/human_evaluations`, {
-    method: 'POST',
-    headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      evidence_event_id: eventId,
-      observed_emotion: observedEmotion.trim(),
-      usable: true,
-      notes: matches ? 'admin_confirmed' : 'admin_corrected',
-    }),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(`標註失敗：${data.detail || response.status}`);
-    return;
-  }
-  await loadEmotionAssistanceSummary();
-}
-
-async function analyzeEmotionCustomer() {
-  const button = g('emotion-customer-analyze-btn');
-  const status = g('emotion-customer-analysis-status');
-  const result = g('emotion-customer-analysis-result');
-  if (!latestEmotionRoundId) {
-    if (status) status.textContent = '目前沒有可分析的本輪情緒紀錄。';
-    return;
-  }
-  if (button) button.disabled = true;
-  if (result) result.hidden = true;
-  if (status) status.textContent = 'LLM 正在分析本輪客戶情況…';
-  try {
-    const response = await fetch(`${API}/api/emotion/analyze_ordering_round`, {
-      method: 'POST',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emotion_round_id: latestEmotionRoundId }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${response.status}`);
-    setText('emotion-customer-current-situation', data.current_situation || '—');
-    setText('emotion-customer-ordering-need', data.ordering_need || '—');
-    setText('emotion-customer-response-focus', data.response_focus || '—');
-    setText('emotion-customer-caution', data.caution || '—');
-    if (result) result.hidden = false;
-    if (status) status.textContent = `分析完成；採用 ${Number(data.evidence_count || 0)} 筆五欄完整情緒證據。`;
-  } catch (error) {
-    if (status) status.textContent = `客人分析失敗：${error instanceof Error ? error.message : String(error)}`;
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-async function clearEmotionLogs() {
-  if (!confirm('確定清除所有 R1-Omni 分析紀錄？')) return;
-  try {
-    const res = await fetch(`${API}/api/emotion/intervention_logs`, { method: 'DELETE', headers: adminHeaders() });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    loadEmotionLogs();
-  } catch (e) {
-    console.error('clearEmotionLogs failed', e);
-  }
+function zhIntensity(value) {
+  if (!value) return "";
+  return INTENSITY_ZH[String(value).trim().toLowerCase()] || value;
 }
 
 // ── 測試頁：載入預設語音 Prompt ──
@@ -1341,6 +772,322 @@ async function sendTestMsg() {
   }
 }
 
+// ── Single-pass emotion console ────────────────────────────────
+let emotionConsoleProfiles = null;
+let emotionConsoleDefaultPrompt = '';
+let emotionConsoleStream = null;
+let emotionConsoleRecorder = null;
+let emotionConsoleTimer = null;
+let emotionConsoleCancelled = false;
+let emotionConsoleSelectedProfile = 'r1_omni';
+
+function emotionDuration(id) {
+  return Math.max(2, Math.min(30, Number(val(id) || 5)));
+}
+
+function selectedEmotionProfile() {
+  return emotionConsoleProfiles?.profiles?.find(row => row.id === val('emotion2-model'));
+}
+
+function updateEmotionModelState() {
+  const profile = selectedEmotionProfile();
+  setText(
+    'emotion2-model-status',
+    profile?.ready
+      ? `模型已就緒；能力：${(profile.capabilities || []).join('、')}`
+      : (profile?.message || '模型尚未就緒；設定仍可儲存，顧客擷取會自動暫停。'),
+  );
+  const start = g('emotion2-start');
+  if (start && !emotionConsoleRecorder) start.disabled = !profile?.ready;
+}
+
+function renderEmotionConsoleProfiles(data) {
+  emotionConsoleProfiles = data;
+  emotionConsoleDefaultPrompt = String(data.default_prompt || '');
+  const select = g('emotion2-model');
+  if (select) {
+    select.textContent = '';
+    (data.profiles || []).forEach(profile => {
+      const option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = `${profile.label}${profile.ready ? '（就緒）' : '（未就緒）'}`;
+      select.appendChild(option);
+    });
+    const requested = emotionConsoleSelectedProfile || data.default_profile || 'r1_omni';
+    select.value = [...select.options].some(option => option.value === requested)
+      ? requested
+      : (data.default_profile || 'r1_omni');
+  }
+  updateEmotionModelState();
+  if (!val('emotion2-prompt')) setVal('emotion2-prompt', emotionConsoleDefaultPrompt);
+}
+
+function renderEmotionConsoleSettings(settings) {
+  setVal('emotion2-mode', settings.EMOTION_ENABLED === false ? 'off' : (settings.EMOTION_CAPTURE_MODE || 'voice'));
+  emotionConsoleSelectedProfile = settings.EMOTION_MODEL_PROFILE || 'r1_omni';
+  setVal('emotion2-model', emotionConsoleSelectedProfile);
+  setVal('emotion2-clip', settings.EMOTION_CLIP_SEC ?? 5);
+  updateEmotionModelState();
+}
+
+function renderEmotionConsoleRecords(data) {
+  const body = g('emotion2-records');
+  if (!body) return;
+  const rows = data.records || [];
+  body.innerHTML = rows.length ? rows.map(row => `<tr style="border-top:1px solid var(--border)">
+    <td>${escHtml(formatDate(row.timestamp))}</td><td>${escHtml(row.event)}</td><td>${escHtml(row.model)}</td>
+    <td>${escHtml(zhIntensity(row.emotion_intensity))}</td>
+    <td>${escHtml(row.expression)}</td><td>${escHtml(row.voice)}</td><td>${escHtml(row.description)}</td></tr>`).join('')
+    : '<tr><td colspan="7">尚無紀錄</td></tr>';
+}
+
+function updateEmotionSection(section, state) {
+  const status = g(`emotion2-${section}-load-status`);
+  const retry = g(`emotion2-${section}-retry`);
+  if (retry) retry.hidden = state.status !== 'error';
+  if (status) {
+    status.classList?.toggle('error', state.status === 'error');
+    status.textContent = state.status === 'loading'
+      ? '載入中…'
+      : state.status === 'error'
+        ? state.message
+        : '已更新';
+  }
+  if (state.status !== 'ready') return;
+  if (section === 'settings') renderEmotionConsoleSettings(state.data);
+  if (section === 'model') renderEmotionConsoleProfiles(state.data);
+  if (section === 'records') renderEmotionConsoleRecords(state.data);
+}
+
+async function requestEmotionJson(path) {
+  const response = await fetch(`${API}${path}`, { headers: adminHeaders(), credentials: 'same-origin' });
+  return parseEmotionResponse(response);
+}
+
+const emotionSectionLoader = createEmotionSectionLoader({
+  requests: {
+    settings: () => requestEmotionJson('/api/settings'),
+    model: () => requestEmotionJson('/api/emotion/profiles'),
+    records: () => requestEmotionJson('/api/emotion/records?limit=200'),
+  },
+  onState: updateEmotionSection,
+});
+
+async function loadEmotionConsole() {
+  await emotionSectionLoader.refreshAll();
+}
+
+async function saveEmotionConsoleSettings() {
+  const mode = val('emotion2-mode') || 'off';
+  setText('emotion2-settings-status', '儲存中…');
+  try {
+    const response = await fetch(`${API}/api/settings`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        EMOTION_ENABLED: mode !== 'off',
+        EMOTION_CAPTURE_MODE: mode === 'periodic' ? 'periodic' : 'voice',
+        EMOTION_MODEL_PROFILE: val('emotion2-model') || 'r1_omni',
+        EMOTION_CLIP_SEC: emotionDuration('emotion2-clip'),
+      }),
+    });
+    await parseEmotionResponse(response);
+    setText('emotion2-settings-status', '設定已儲存；模型未就緒時顧客擷取會自動暫停。');
+  } catch (error) {
+    setText('emotion2-settings-status', `儲存失敗：${describeEmotionApiError(error)}`);
+  }
+}
+
+function resetEmotionConsolePrompt() {
+  setVal('emotion2-prompt', emotionConsoleDefaultPrompt);
+}
+
+function renderEmotionConsoleResult(data) {
+  const record = { ...(data?.record || data || {}), emotion: data?.emotion || data?.record?.emotion };
+  document.querySelectorAll('[data-emotion-field]').forEach(node => {
+    const key = node.dataset.emotionField;
+    node.textContent = record[key] || '—';
+  });
+}
+
+async function submitEmotionConsoleClip(blob) {
+  if (!blob?.size) throw Object.assign(new Error('empty media'), { name: 'EmptyMediaError' });
+  const form = new FormData();
+  form.append('media', blob, 'admin_emotion_test.webm');
+  form.append('model_profile', val('emotion2-model') || 'r1_omni');
+  form.append('prompt', val('emotion2-prompt'));
+  const response = await fetch(`${API}/api/emotion/analyze_media_test`, { method: 'POST', credentials: 'same-origin', headers: adminHeaders(), body: form });
+  const data = await parseEmotionResponse(response);
+  renderEmotionConsoleResult(data);
+  setText('emotion2-test-status', data.status === 'ok' ? '分析完成。原始影音已刪除。' : `分析未完成：${data.reason || response.status}`);
+  await emotionSectionLoader.refresh('records');
+}
+
+async function startEmotionConsoleTest() {
+  if (emotionConsoleRecorder) return;
+  const profile = emotionConsoleProfiles?.profiles?.find(row => row.id === val('emotion2-model'));
+  if (!profile?.ready) {
+    setText('emotion2-test-status', '選定模型尚未就緒，無法測試。');
+    return;
+  }
+  emotionConsoleCancelled = false;
+  try {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      throw Object.assign(new Error('unsupported recorder'), { name: 'NotSupportedError', source: 'recorder' });
+    }
+    let cameraStream;
+    let microphoneStream;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      if (!cameraStream.getVideoTracks().length) throw Object.assign(new Error('camera not found'), { name: 'NotFoundError' });
+    } catch (error) {
+      throw Object.assign(error, { source: 'camera' });
+    }
+    try {
+      microphoneStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      if (!microphoneStream.getAudioTracks().length) throw Object.assign(new Error('microphone not found'), { name: 'NotFoundError' });
+    } catch (error) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      throw Object.assign(error, { source: 'microphone' });
+    }
+    emotionConsoleStream = new MediaStream([...cameraStream.getTracks(), ...microphoneStream.getTracks()]);
+    g('emotion2-video').srcObject = emotionConsoleStream;
+    const chunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+    if (!MediaRecorder.isTypeSupported(mimeType)) throw Object.assign(new Error('unsupported recorder'), { name: 'NotSupportedError', source: 'recorder' });
+    emotionConsoleRecorder = new MediaRecorder(emotionConsoleStream, { mimeType });
+    emotionConsoleRecorder.ondataavailable = event => { if (event.data?.size) chunks.push(event.data); };
+    emotionConsoleRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      emotionConsoleStream?.getTracks().forEach(track => track.stop());
+      emotionConsoleStream = null;
+      emotionConsoleRecorder = null;
+      g('emotion2-video').srcObject = null;
+      updateEmotionModelState();
+      g('emotion2-cancel').disabled = true;
+      if (!emotionConsoleCancelled) {
+        try {
+          setText('emotion2-test-status', '正在分析影音…');
+          await submitEmotionConsoleClip(blob);
+        } catch (error) {
+          setText(
+            'emotion2-test-status',
+            error?.name === 'EmptyMediaError'
+              ? classifyEmotionMediaError(error, 'media')
+              : `分析未完成：${describeEmotionApiError(error)}`,
+          );
+        }
+      }
+    };
+    emotionConsoleRecorder.start(500);
+    g('emotion2-start').disabled = true;
+    g('emotion2-cancel').disabled = false;
+    const seconds = emotionDuration('emotion2-duration');
+    setText('emotion2-test-status', `錄製中，${seconds} 秒後自動送出…`);
+    emotionConsoleTimer = setTimeout(() => emotionConsoleRecorder?.stop(), seconds * 1000);
+  } catch (error) {
+    setText('emotion2-test-status', classifyEmotionMediaError(error, error?.source || 'media'));
+    stopEmotionConsoleTest();
+  }
+}
+
+function stopEmotionConsoleTest() {
+  clearTimeout(emotionConsoleTimer);
+  emotionConsoleTimer = null;
+  emotionConsoleCancelled = true;
+  if (emotionConsoleRecorder?.state && emotionConsoleRecorder.state !== 'inactive') emotionConsoleRecorder.stop();
+  emotionConsoleStream?.getTracks().forEach(track => track.stop());
+  emotionConsoleStream = null;
+  const video = g('emotion2-video');
+  if (video) video.srcObject = null;
+  if (!emotionConsoleRecorder) {
+    const start = g('emotion2-start');
+    const cancel = g('emotion2-cancel');
+    if (start) start.disabled = !selectedEmotionProfile()?.ready;
+    if (cancel) cancel.disabled = true;
+  }
+}
+
+async function loadEmotionConsoleRecords() {
+  await emotionSectionLoader.refresh('records');
+}
+
+async function clearEmotionConsoleRecords() {
+  if (!confirm('確定清除目前的情緒分析紀錄？')) return;
+  try {
+    const response = await fetch(`${API}/api/emotion/records`, { method: 'DELETE', credentials: 'same-origin', headers: adminHeaders() });
+    await parseEmotionResponse(response);
+    await loadEmotionConsoleRecords();
+  } catch (error) {
+    updateEmotionSection('records', { status: 'error', message: describeEmotionApiError(error) });
+  }
+}
+
+g('emotion2-model')?.addEventListener('change', () => {
+  emotionConsoleSelectedProfile = val('emotion2-model');
+  updateEmotionModelState();
+});
+['settings', 'model', 'records'].forEach(section => {
+  g(`emotion2-${section}-retry`)?.addEventListener('click', () => emotionSectionLoader.refresh(section));
+});
+
+function renderProjectBrainReport(report) {
+  const target = g('projectBrainReport');
+  if (!target) return;
+  if (!report) { target.textContent = '尚無報告；按「重新分析專案」才會建立。'; return; }
+  const tests = report.snapshot?.allowlisted_tests
+    ? `\n\n允許清單測試\n${JSON.stringify(report.snapshot.allowlisted_tests, null, 2)}` : '';
+  target.textContent = `時間：${formatDate(report.generated_at)}\n模型：${report.model}\n\n${report.analysis || '—'}${tests}`;
+}
+
+async function loadProjectBrain() {
+  const response = await fetch(`${API}/api/project-brain/status`, { headers: adminHeaders() });
+  const data = await response.json();
+  if (!response.ok) { setText('projectBrainModelStatus', `讀取失敗（${response.status}）`); return; }
+  const select = g('projectBrainModel');
+  if (select) {
+    const previous = select.value;
+    select.textContent = '';
+    (data.models || []).filter(model => model.ready).forEach(model => {
+      const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.id}（Ollama 就緒）`; select.appendChild(option);
+    });
+    if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
+  }
+  setText('projectBrainModelStatus', (data.models || []).length ? `可用模型 ${(data.models || []).length} 個；不會自動切換模型。` : '目前沒有就緒模型。');
+  renderProjectBrainReport(data.latest);
+}
+
+async function analyzeProjectBrain() {
+  const button = g('projectBrainAnalyze');
+  if (button) button.disabled = true;
+  setText('projectBrainReport', '正在建立唯讀快照並分析…');
+  try {
+    const response = await fetch(`${API}/api/project-brain/analyze`, {
+      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: val('projectBrainModel'), run_tests: Boolean(g('projectBrainRunTests')?.checked) }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderProjectBrainReport(data);
+  } catch (error) { setText('projectBrainReport', `分析失敗：${error.message}`); }
+  finally { if (button) button.disabled = false; }
+}
+
+async function proposeProjectBrainExtension() {
+  const target = g('projectBrainProposal');
+  if (target) target.textContent = '正在產生隔離提案…';
+  try {
+    const response = await fetch(`${API}/api/project-brain/proposals`, {
+      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: val('projectBrainModel'), kind: val('projectBrainProposalKind'), request: val('projectBrainProposalRequest') }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (target) target.textContent = `提議路徑：${data.proposed_path}\n已套用：否\n\n${data.content}`;
+  } catch (error) { if (target) target.textContent = `提案失敗：${error.message}`; }
+}
+
 // ── expose to inline handlers
 window.saveRagSettings = ragAdmin.saveSettings;
 window.updateRagStrategyHelp = ragAdmin.updateStrategyHelp;
@@ -1352,16 +1099,15 @@ window.cancelRagKnowledgeEdit = ragAdmin.cancelEdit;
 window.retryRagKnowledge = ragAdmin.retryKnowledge;
 window.deleteRagKnowledge = ragAdmin.deleteKnowledge;
 window.loadRagHealth   = ragAdmin.loadHealth;
-window.loadRagAlerts   = ragAdmin.loadAlerts;
 window.loadAvailability = loadAvailability;
 window.saveAvailability = saveAvailability;
-window.saveEmotionSettings        = saveEmotionSettings;
-window.analyzeEmotionCustomer     = analyzeEmotionCustomer;
-window.startEmotionVideoDetection = startEmotionVideoDetection;
-window.stopEmotionVideoDetection  = stopEmotionVideoDetection;
-window.clearEmotionLogs           = clearEmotionLogs;
-window.labelEmotionEvent          = labelEmotionEvent;
-window.updateEmotionPromptCounter = updateEmotionPromptCounter;
+window.loadEmotionConsole = loadEmotionConsole;
+window.saveEmotionConsoleSettings = saveEmotionConsoleSettings;
+window.resetEmotionConsolePrompt = resetEmotionConsolePrompt;
+window.startEmotionConsoleTest = startEmotionConsoleTest;
+window.stopEmotionConsoleTest = stopEmotionConsoleTest;
+window.clearEmotionConsoleRecords = clearEmotionConsoleRecords;
+window.loadProjectBrain = loadProjectBrain;
 window.onTestProviderChange = onTestProviderChange;
 window.onTestNimModelChange = onTestNimModelChange;
 window.sendTestMsg   = sendTestMsg;
@@ -1381,8 +1127,7 @@ g('test-input')?.addEventListener('input', (e) => {
   e.target.style.height = 'auto';
   e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
 });
-g('emotion-test-provider-refresh')?.addEventListener('click', loadEmotionTestCapabilities);
-window.addEventListener('beforeunload', () => stopEmotionVideoDetection({ preserveStatus: true }));
+window.addEventListener('beforeunload', stopEmotionConsoleTest);
 
 // ── Init ──
 document.getElementById('refreshBtn')?.addEventListener('click', loadOperationsOverview);
@@ -1394,7 +1139,9 @@ document.getElementById('availabilityStatusFilter')?.addEventListener('change', 
 document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
 campaignAdmin.bind();
 settingsAdmin.bind();
-bindEmotionTabs();
+g('projectBrainAnalyze')?.addEventListener('click', analyzeProjectBrain);
+g('projectBrainRefresh')?.addEventListener('click', loadProjectBrain);
+g('projectBrainPropose')?.addEventListener('click', proposeProjectBrainExtension);
 bindLayoutPreference(g);
 [
   'recommendationEventTypeFilter',
@@ -1427,7 +1174,7 @@ createAdminAuthController({
   onAuthenticated: async () => {
     await loadMenu();
     await loadOperationsOverview();
-    if (hasAdminPermission('system.debug')) await loadEmotionTestCapabilities();
+    if (hasAdminPermission('system.debug')) await loadEmotionConsoleProfiles();
   },
 }).bind();
 // 只在統計頁可見時才自動重整
@@ -1451,10 +1198,6 @@ function handleStaffNotify(event) {
   if (backdrop) backdrop.style.display = 'flex';
 }
 
-function handleRagAlert(event) {
-  ragAdmin.handleAlert(event);
-}
-
 window.dismissStaffNotify = function () {
   const backdrop = document.getElementById('staffNotifyBackdrop');
   if (backdrop) backdrop.style.display = 'none';
@@ -1462,5 +1205,4 @@ window.dismissStaffNotify = function () {
 
 createRealtimeClient('admin', 'admin', {
   staff_notify: handleStaffNotify,
-  rag_alert: handleRagAlert,
 });

@@ -15,40 +15,19 @@ const TAB_KEYS = {
     'AI_PUSH_EXCLUDE_SEEN', 'AI_PUSH_PREFETCH', 'AI_PUSH_TEXT_MIN', 'AI_PUSH_TEXT_MAX'],
   voice: ['STT_PROVIDER', 'STT_MODEL', 'STT_API_URL', 'TTS_PROVIDER', 'EDGE_TTS_VOICE',
     'TTS_API_URL', 'TTS_VOICE'],
-  prompt: ['VOICE_ASSIST_SYSTEM_PROMPT', 'AI_PUSH_SYSTEM_PROMPT',
-    'PASSIVE_VOICE_KEYWORDS', 'PASSIVE_VOICE_ALIASES'],
-  goal: ['RECOMMENDATION_PURCHASE_RATE_TARGET', 'RECOMMENDATION_IGNORE_RATE_GUARDRAIL'],
+  prompt: ['VOICE_ASSIST_SYSTEM_PROMPT', 'AI_PUSH_SYSTEM_PROMPT'],
 };
 
 /** @type {Record<string, string>} */
 const TAB_LABELS = {
   ai: 'AI 模型', push: 'AI 推播規則', voice: '語音輸入輸出',
-  prompt: '系統指令與關鍵詞', goal: '推薦表現目標',
+  prompt: '系統指令與關鍵詞',
 };
 
 /** @param {unknown} value */
 function text(value) { return String(value ?? '').trim(); }
 
 /** @param {string} raw */
-export function parseAliasText(raw) {
-  return Object.fromEntries(
-    text(raw).split('\n').map(line => line.trim()).filter(line => line.includes('='))
-      .map(line => {
-        const [id, rest] = line.split('=').map(part => part.trim());
-        return [id, text(rest).split(',').map(alias => alias.trim()).filter(Boolean)];
-      })
-      .filter(([id, aliases]) => Boolean(id) && Boolean(aliases?.length)),
-  );
-}
-
-/** @param {any} aliases */
-export function formatAliasText(aliases) {
-  if (!aliases || typeof aliases !== 'object') return '';
-  return Object.entries(/** @type {Record<string, string[]>} */ (aliases))
-    .map(([id, list]) => `${id} = ${Array.isArray(list) ? list.join(', ') : list}`)
-    .join('\n');
-}
-
 /**
  * @param {{
  *   apiBaseUrl: string,
@@ -120,11 +99,11 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     });
     if (tab === 'history') loadHistory();
     if (tab === 'ai') refreshRuntimeState();
+    if (tab === 'brain') globalThis.loadProjectBrain?.();
     // 兩個分頁都需要這份資料：推薦詞管理要列表，推播規則要可選的類別清單。
     if (tab === 'copy' || tab === 'push') loadCopy();
     // 進分頁就先看一次批次狀態：上一次的產生可能仍在背景跑，關過分頁也要能接回進度。
     if (tab === 'copy') void pollBatch();
-    if (tab === 'goal') loadGoalCurrent();
   }
 
   /** @param {string} tab @param {boolean} isDirty */
@@ -303,61 +282,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       const message = mismatchMessage(value('inp-llm-policy'), traffic.providers || {});
       note.textContent = message;
       note.hidden = !message;
-    }
-  }
-
-  // ── 推薦表現目標 ─────────────────────────────────────────
-  /**
-   * 把目前的實際成效擺在門檻旁邊。只看到兩個空白輸入框時，無從判斷門檻設得合不合理，
-   * 也看不出這個分頁到底影響了什麼。
-   */
-  async function loadGoalCurrent() {
-    const box = getElement('goal-current');
-    const note = getElement('goal-current-note');
-    if (!box) return;
-    /** @param {string} message */
-    const showMessage = message => {
-      box.textContent = '';
-      const span = document.createElement('span');
-      span.className = 'setting-help';
-      span.style.margin = '0';
-      span.textContent = message;
-      box.appendChild(span);
-    };
-    try {
-      const report = await request('/api/v1/recommendation-effectiveness');
-      const data = report?.data ?? report;
-      const impressions = Number(data.impressions || 0);
-      /** @param {number} rate */
-      const pct = rate => `${Math.round(Number(rate || 0) * 1000) / 10}%`;
-      box.textContent = '';
-      [
-        ['有效曝光', impressions.toLocaleString('zh-TW'), ''],
-        ['購買率', pct(data.purchase_rate), `目標 ${pct(data.purchase_rate_target)}`],
-        ['忽略率', pct(data.ignore_rate), `警戒 ${pct(data.ignore_rate_guardrail)}`],
-      ].forEach(([caption, value, sub]) => {
-        const cell = document.createElement('div');
-        cell.className = 'settings-live-stat';
-        const strong = document.createElement('b');
-        strong.textContent = String(value);
-        const label = document.createElement('span');
-        label.textContent = sub ? `${caption}（${sub}）` : String(caption);
-        cell.append(strong, label);
-        box.appendChild(cell);
-      });
-      if (note) {
-        note.textContent = impressions < 100
-          ? `目前 ${impressions} 次有效曝光，未達 100 次的判定門檻，營運總覽會顯示「資料不足」而不做達標判斷。`
-          : {
-            on_target: '營運總覽目前顯示為已達標。',
-            below_purchase_target: '購買率低於目標，營運總覽目前顯示為需要注意。',
-            high_ignore_rate: '忽略率高於警戒值，營運總覽目前顯示為需要注意。',
-            below_target_and_high_ignore: '購買率與忽略率都未過關，營運總覽目前顯示為需要注意。',
-          }[String(data.target_status || '')] || '';
-      }
-    } catch (error) {
-      showMessage(`無法載入目前表現：${/** @type {any} */ (error).message}`);
-      if (note) note.textContent = '';
     }
   }
 
@@ -785,8 +709,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     setValue('inp-push-refresh', settings.AI_PUSH_REFRESH_SEC ?? 15);
     if (getElement('inp-push-exclude-seen')) getElement('inp-push-exclude-seen').checked = settings.AI_PUSH_EXCLUDE_SEEN !== false;
     if (getElement('inp-push-prefetch')) getElement('inp-push-prefetch').checked = settings.AI_PUSH_PREFETCH !== false;
-    setValue('inp-recommendation-purchase-target', Math.round(Number(settings.RECOMMENDATION_PURCHASE_RATE_TARGET ?? 0.1) * 1000) / 10);
-    setValue('inp-recommendation-ignore-guardrail', Math.round(Number(settings.RECOMMENDATION_IGNORE_RATE_GUARDRAIL ?? 0.35) * 1000) / 10);
     setValue('inp-stt-provider', settings.STT_PROVIDER || 'faster_whisper');
     setValue('inp-stt-model', settings.STT_MODEL || 'small');
     setValue('inp-stt-api-url', settings.STT_API_URL || '');
@@ -794,8 +716,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     setValue('inp-tts-voice-zh', settings.EDGE_TTS_VOICE || 'zh-TW-HsiaoChenNeural');
     setValue('inp-tts-api-url', settings.TTS_API_URL || '');
     setValue('inp-tts-voice', settings.TTS_VOICE || 'alloy');
-    setValue('inp-passive-keywords', (Array.isArray(settings.PASSIVE_VOICE_KEYWORDS) ? settings.PASSIVE_VOICE_KEYWORDS : []).join('\n'));
-    setValue('inp-passive-aliases', formatAliasText(settings.PASSIVE_VOICE_ALIASES));
     updateSttFields();
     updateTtsFields();
   }
@@ -849,14 +769,9 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       return {
         VOICE_ASSIST_SYSTEM_PROMPT: value('inp-voice-prompt-zh'),
         AI_PUSH_SYSTEM_PROMPT: push === DEFAULT_PUSH_PROMPT ? '' : push,
-        PASSIVE_VOICE_KEYWORDS: value('inp-passive-keywords').split('\n').map(line => line.trim()).filter(Boolean),
-        PASSIVE_VOICE_ALIASES: parseAliasText(value('inp-passive-aliases')),
       };
     }
-    return {
-      RECOMMENDATION_PURCHASE_RATE_TARGET: Math.min(1, Math.max(0, Number(value('inp-recommendation-purchase-target') || '10') / 100)),
-      RECOMMENDATION_IGNORE_RATE_GUARDRAIL: Math.min(1, Math.max(0, Number(value('inp-recommendation-ignore-guardrail') || '35') / 100)),
-    };
+    return {};
   }
 
   /** @param {string} tab */

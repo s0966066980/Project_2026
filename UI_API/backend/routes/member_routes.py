@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Body, Form, HTTPException, Query, Request, Response
 
-from services import admin_audit_service, emotion_service, member_service
+from services import admin_audit_service, member_service
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
@@ -94,14 +94,6 @@ def create_router(deps: dict) -> APIRouter:
             reason,
             scope,
         )
-        try:
-            await asyncio.to_thread(
-                emotion_service.record_assistance_outcome,
-                session_id,
-                "order_abandoned",
-            )
-        except Exception:
-            pass
         return {"ok": bool(member), "member": member_service._public_member(member) if member else None}
 
     @router.get("/api/members")

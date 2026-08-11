@@ -61,8 +61,8 @@ frontend/
 
 ## 資料與執行邊界
 
-- PostgreSQL 是 tenant、store、device、identity、catalog、member、ordering、campaign、RAG governance 與 settings 的 authoritative store。
-- `backend/schemas/migrations/` 是 schema source of truth；目前 migration head 為 `0025_store_menu_items`。
+- PostgreSQL 是 tenant、store、device、identity、catalog、member、ordering、campaign、Knowledge publication、Retrieval configuration/checks 與 settings 的 authoritative store。
+- `backend/schemas/migrations/` 是 schema source of truth；目前 migration head 為 `0027_remove_pre_pilot_rag_history`。
 - Redis 只提供 shared cache、rate limiting 與 distributed lock，不持有 authoritative business data。
 - Object bytes 使用 local/S3 adapter；PostgreSQL 保存 metadata。
 - `menu_data/menu.json` 是待搬入 Catalog 的 seed，不是 runtime source of truth。
@@ -109,7 +109,6 @@ docker compose --env-file .env \
 | `validate_local_environment.py` | environment profile checks |
 | `validate_local_pilot_data_paths.py` | 防止 Pilot 商業資料落回 JSON |
 | `validate_voice_turn_performance.py` | Voice Turn performance evidence |
-| `import_rag_governance_json.py` | legacy RAG governance import |
 
 透過 app image 查看命令，不需要 host Python/Conda：
 

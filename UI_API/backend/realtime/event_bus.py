@@ -2,12 +2,10 @@ import time
 
 from realtime.connection_manager import manager
 
-
 EVENT_TYPES = {
     "human_reply",
     "interaction_intervention",
     "staff_notify",
-    "rag_alert",
     "settings_changed",
     "campaigns_changed",
     "demo_event",

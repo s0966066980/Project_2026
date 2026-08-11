@@ -1,43 +1,77 @@
-"""emotion_intervention_logs.json 讀寫。"""
+"""Thirty-day, media-free emotion analysis record store."""
+
+from __future__ import annotations
+
 import json
 import os
 import threading
+from datetime import datetime, timedelta, timezone
 
 import config
 
-_LOG_PATH = os.path.join(config.LEARNING_DATA_DIR, "emotion_intervention_logs.json")
+_RECORD_PATH = os.path.join(config.LEARNING_DATA_DIR, "emotion_analysis_records.json")
+_LEGACY_PATH = os.path.join(config.LEARNING_DATA_DIR, "emotion_intervention_logs.json")
 _lock = threading.Lock()
 
 
-def _load() -> list:
-    if not os.path.exists(_LOG_PATH):
-        return []
+def _timestamp(value: object) -> datetime | None:
     try:
-        with open(_LOG_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except Exception:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_unlocked() -> list[dict]:
+    try:
+        with open(_RECORD_PATH, encoding="utf-8") as handle:
+            value = json.load(handle)
+        return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
+    except (OSError, json.JSONDecodeError):
         return []
 
 
-def append_log(entry: dict) -> dict:
+def _pruned(rows: list[dict]) -> list[dict]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    return [row for row in rows if (parsed := _timestamp(row.get("timestamp"))) and parsed >= cutoff]
+
+
+def _write_unlocked(rows: list[dict]) -> None:
+    os.makedirs(os.path.dirname(_RECORD_PATH), exist_ok=True)
+    temp_path = f"{_RECORD_PATH}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(rows, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, _RECORD_PATH)
+
+
+def purge_legacy() -> None:
+    """Permanent cutover: legacy intervention/effectiveness evidence is not retained."""
+    try:
+        os.remove(_LEGACY_PATH)
+    except FileNotFoundError:
+        pass
+
+
+def append_record(entry: dict) -> dict:
     with _lock:
-        logs = _load()
-        logs.append(entry)
-        with open(_LOG_PATH, "w", encoding="utf-8") as f:
-            json.dump(logs, f, ensure_ascii=False, indent=2)
+        purge_legacy()
+        rows = _pruned(_load_unlocked())
+        rows.append(dict(entry))
+        _write_unlocked(rows)
     return entry
 
 
-def get_logs(limit: int = 200) -> list:
+def get_records(limit: int = 200) -> list[dict]:
     with _lock:
-        logs = _load()
-    return logs[-limit:]
+        purge_legacy()
+        rows = _pruned(_load_unlocked())
+        _write_unlocked(rows)
+    return list(reversed(rows[-max(1, min(int(limit), 1000)):]))
 
 
-def clear_logs() -> int:
+def clear_records() -> int:
     with _lock:
-        count = len(_load())
-        with open(_LOG_PATH, "w", encoding="utf-8") as f:
-            json.dump([], f)
+        purge_legacy()
+        count = len(_load_unlocked())
+        _write_unlocked([])
     return count

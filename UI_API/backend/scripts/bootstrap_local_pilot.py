@@ -121,8 +121,6 @@ def _write_pilot_environment(
             os.getenv("RUNTIME_DATA_ROOT", Path.home() / ".local/share/project-2026")
         ),
         "SECURITY_ENFORCED": "true",
-        "ADMIN_LOCAL_MANAGER_AUTH_ENABLED": "false",
-        "ADMIN_MANAGER_LOGIN_IDENTITY": admin_login,
         "ENABLE_LEGACY_KIOSK_TOKEN": "false",
         "ENABLE_DEMO_ROUTES": "false",
         "ENABLE_DIAGNOSTIC_ROUTES": "false",

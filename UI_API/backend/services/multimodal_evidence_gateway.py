@@ -45,6 +45,7 @@ def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
             "provider": provider,
             "status": "ready" if ready else "unavailable",
             "model_loaded": model_loaded,
+            "device": str(body.get("device") or "") if isinstance(body, dict) else "",
             "capabilities": capabilities,
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
         }
@@ -56,6 +57,7 @@ def configured_provider_status(timeout_seconds: float = 1.5) -> dict:
             "provider": provider,
             "status": "unavailable",
             "model_loaded": False,
+            "device": "",
             "capabilities": [],
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
             "message": "R1-Omni 服務未就緒，請使用 Docker Compose 檢查或重新啟動 r1-omni 服務。",
@@ -198,7 +200,9 @@ def _http_provider_analyze(
         confidence_f = float(confidence) if confidence is not None and str(confidence) != "" else None
     except (TypeError, ValueError):
         confidence_f = None
-    has_evidence = bool(signals.get("emotion") or signals.get("description"))
+    # Free-form text without an emotion label is not structured evidence. Treat
+    # it as a submitted inference failure instead of recording a false success.
+    has_evidence = bool(signals.get("emotion") and signals.get("description"))
     quality = "ok" if has_evidence else "low_confidence"
     return MultimodalEvidence(
         provider=provider,

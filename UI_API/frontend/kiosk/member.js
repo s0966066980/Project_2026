@@ -159,7 +159,7 @@ export function showMemberChoice(onResolved, { preserveInput = false, hooks } = 
   setHint('memberLoginHint', LOGIN_HINT_DEFAULT);
   const next = $('memberLoginNext');
   if (next) next.textContent = '下一步 →';
-  ['memberChoiceGuest', 'memberLoginSkip', 'memberRegisterSkip'].forEach(id => {
+  ['memberChoiceGuest'].forEach(id => {
     const button = $(id);
     if (button) {
       button.disabled = false;
@@ -211,7 +211,6 @@ $('memberLoginBack')?.addEventListener('click', async () => {
   await entryHooks.onReturnToMode?.();
   hideAll(); show($('memberChoiceOverlay'));
 });
-$('memberLoginSkip')?.addEventListener('click', () => submitGuestOrdering('memberLoginSkip', 'memberLoginHint'));
 $('memberLoginNext')?.addEventListener('click', submitLogin);
 $('memberLoginRegister')?.addEventListener('click', () => {
   $('memberRegisterPhone').textContent = memberPhoneNumber;
@@ -232,7 +231,6 @@ $('memberRegisterBack')?.addEventListener('click', async () => {
   if (next) next.textContent = '下一步 →';
   show($('memberLoginOverlay'));
 });
-$('memberRegisterSkip')?.addEventListener('click', () => submitGuestOrdering('memberRegisterSkip', 'memberRegisterHint'));
 $('memberRegisterDone')?.addEventListener('click', submitRegister);
 $('memberConsentInput')?.addEventListener('change', renderRegisterConsent);
 renderRegisterConsent();

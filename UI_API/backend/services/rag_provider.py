@@ -152,7 +152,7 @@ class RAGProvider:
     def _rebuild_bm25(self):
         """從 ChromaDB 現有文件重建 BM25 in-memory index。同步執行。"""
         try:
-            from rank_bm25 import BM25Okapi
+            from rank_bm25 import BM25Plus
         except ImportError:
             print("⚠️ rank-bm25 未安裝，跳過 BM25 index 建立")
             return
@@ -168,7 +168,9 @@ class RAGProvider:
         ids = result.get("ids", [])
         docs = result.get("documents", [])
         tokenized = [self._tokenize(doc) for doc in docs]
-        RAGProvider._bm25 = BM25Okapi(tokenized)
+        # BM25Okapi produces non-positive IDF scores for a one-document corpus,
+        # which makes a valid first Knowledge Item impossible to retrieve.
+        RAGProvider._bm25 = BM25Plus(tokenized)
         RAGProvider._bm25_ids = list(ids)
         RAGProvider._bm25_docs = list(docs)
 
@@ -423,11 +425,7 @@ class RAGProvider:
 
         def _run() -> str:
             embedding = next(RAGProvider._model.embed([content])).tolist()
-            try:
-                RAGProvider._collection.delete(ids=[doc_id])
-            except Exception:
-                pass
-            RAGProvider._collection.add(
+            RAGProvider._collection.upsert(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
