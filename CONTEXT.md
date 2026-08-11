@@ -64,6 +64,10 @@ _Avoid_: Local image tag, On-host build, Latest image, Git checkout
 An ordered admission boundary passed only by current evidence for the same Pilot Release Artifact and target environment. Closing implementation issues or assigning a completion percentage does not pass a gate, and its Traditional Chinese display term is 「試營運就緒閘門」.
 _Avoid_: Project phase, Priority bucket, Checklist completion, Subjective percentage
 
+**Product Batch Functional Acceptance**:
+The evidence threshold that permits work to advance from one approved product batch to the next after that batch's promised behavior and required tests pass. It does not imply that the affected Business Capability Modules have passed the Module Independence Gate, and any remaining architecture convergence or legacy removal still belongs to Project Completion; its Traditional Chinese display term is 「產品批次功能驗收」.
+_Avoid_: Module Independence Gate, Project Completion, Architecture complete, Legacy removed
+
 **Pilot Recovery Objective**:
 The accepted recovery bound for the closed single-store Pilot: authoritative data may be restored to no more than one hour before a failure, and critical ordering operations must return within four hours. It requires observed restore evidence from a backup copy separated from the primary runtime, and its Traditional Chinese display term is 「試營運復原目標」.
 _Avoid_: Volume persistence, Backup command succeeded, Daily-only backup, Production disaster recovery
@@ -309,6 +313,10 @@ _Avoid_: Full-response duration, API response-header latency, Emotion-analysis c
 **Progressive Voice Response**:
 A Voice Turn response that displays validated assistant text as soon as it becomes available and begins synthesized speech afterward without withholding the text. Text is the first response surface, but the turn reaches completion only after synthesized speech plays successfully; its Traditional Chinese display term is 「漸進式語音回覆」.
 _Avoid_: Processing placeholder, Audio-gated text, Unvalidated JSON fragment
+
+**Voice Dialogue Display Order**:
+The Kiosk presentation rule that establishes the customer's message row before showing assistant text for the same Voice Turn. It uses an available partial transcript or a visible transcription-in-progress placeholder until the final transcript replaces it, while synthesized audio remains free to stream without waiting for final transcription display; its Traditional Chinese display term is 「語音對話顯示順序」.
+_Avoid_: Assistant-first transcript, Final-transcript audio gate, Late row insertion, Completed-turn-only redraw
 
 **Voice Menu Candidate Set**:
 The small request-specific set of menu items selected by names, aliases, and retrieval signals for one Voice Turn. The voice LLM reasons only over this set rather than the full store menu, while the server remains authoritative for item IDs, prices, availability, and proposed order items. When no candidate is sufficiently reliable, the kiosk presents a few similar items for explicit customer selection instead of loading the full menu or guessing an order item; its Traditional Chinese display term is 「語音菜單候選集」.

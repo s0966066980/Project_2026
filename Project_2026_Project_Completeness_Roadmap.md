@@ -4,6 +4,7 @@
 > Baseline：`949479d`（repository hygiene 與 capability boundaries）
 > 目標：單店 Admin＋Kiosk 點餐系統，維持 modular monolith，逐能力建立可驗證的獨立契約
 > Runtime：Docker Compose；host Python/Conda 不屬於支援路徑
+> P2～P7 canonical 修改流程：[Project_2026_P2_to_P7_Execution_Plan.md](Project_2026_P2_to_P7_Execution_Plan.md)
 
 ## 1. 本輪結論
 
@@ -45,11 +46,25 @@ Primary delivery endpoint — Local Pilot Readiness: NOT YET DECLARED
 Business Capability Modules passed: 1 / 10
 Independent Product Frontends passed: 2 / 2
 Current vertical slice: Catalog & Availability — COMPLETE
-Next approved batch: P2 Emotion Diagnostics
+Next approved batch: P2 Kiosk Voice + Emotion Diagnostics
 ```
 
 已有 endpoint 或搬入新目錄不算完成。只有通過 Module Independence Gate 才能增加上述數字。
 不使用主觀百分比表示進度；Local Pilot Readiness 是主要交付終點，Module Independence Gate 是次要結構指標。P1、Batch R 與 Catalog closure 已完成，不等於整體 Local Pilot 已完成。
+
+P2 之後採兩個明確終點：P2 通過後先對同一候選成品執行 Local Pilot Admission；P7 完成 `10/10`、legacy closure 與完整候選成品驗收後才是 Project Completion。詳細工作包、遷移、測試、收斂債與 Gate 證據格式以 [P2～P7 執行計畫](Project_2026_P2_to_P7_Execution_Plan.md) 為準。
+
+| 統一執行階段 | 目前狀態 | 前置 Gate |
+| --- | --- | --- |
+| P2 Kiosk Voice＋Emotion Diagnostics | NOT_STARTED | Batch R complete |
+| Local Pilot Admission | NOT YET DECLARED | P2 Functional Acceptance |
+| P3 Project Core Brain | WAITING P2/Pilot | Local Pilot Admission |
+| P4 Optimization Lab | WAITING P3 | P3 Functional Acceptance |
+| P5.1 Identity/Operations | WAITING P4 | P4 Functional Acceptance |
+| P5.2 Member/Campaign/Recommendation | WAITING P5.1 | P5.1 Module Gates |
+| P5.3 Ordering & Checkout | WAITING P5.2 | P5.2 Module Gates |
+| P6 Knowledge/RAG → Voice → Emotion | WAITING P5.3 | Ordering Module Gate |
+| P7 Legacy Closure | WAITING P6 | Business Capability Modules 10/10 candidate |
 
 ## 3. 目標結構
 
@@ -123,7 +138,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | 3 | Ordering & Checkout | Core | entry flow、session、cart、quote、confirmation、order、manual payment handoff | `ordering_*`, `checkout_*`, `confirmed_orders`, `orders`, `order_*` |
 | 4 | Knowledge/RAG | Optional | knowledge lifecycle、publication、retrieval configuration/checks | `knowledge_*`, `publication_*`, `retrieval_configurations`, `rag_retrieval_checks`, `published_knowledge_pointers` |
 | 4 | Voice Assistance | Optional | voice turn journal、STT/LLM/TTS orchestration、cart command proposal | `voice_turns`, `voice_turn_events` |
-| 4 | Emotion Diagnostics | Optional | R1 evidence、diagnostic records、assistance outcome | emotion/intervention records assigned during detailed inventory |
+| 4 | Emotion Diagnostics | Optional | model evidence、diagnostic settings/records、retention | emotion settings、analysis records 與 retention metadata，於 P2 inventory 校正 |
 
 `Provisional data authority` 必須在每個 slice 開始前以 migrations、repository SQL 與 runtime trace 校正。表名相近不等於 ownership 已證明。
 
@@ -143,6 +158,8 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 10. **Evidence**：CI、OpenAPI diff、migration、smoke 與 Roadmap evidence 都指向同一 commit/artifact。
 
 ## 6. 執行階段
+
+本節 Phase 0～7 保留原架構 Roadmap 的歷史與責任分組。未完成工作的執行編號已統一為 P2～P7：舊 Phase 3、4、5 分別對應 P5.1、P5.2、P5.3，舊 Phase 6 對應 P6，舊 Phase 7 對應 P7；不可再把 Batch 與 Phase 當成兩條可獨立完成的計畫。
 
 ### Phase 0 — Baseline checkpoint
 
@@ -249,7 +266,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ## 6A. 產品穩定化優先交付軌
 
-本交付軌優先於 Phase 2 的大型模組搬移。目的不是暫停 capability architecture，而是先修復目前會阻斷點餐、語音與營運判讀的產品缺口，再把已穩定的行為收斂到能力模組。每一批必須通過自己的 Gate，後一批不得用未完成的前一批當作隱性前提。
+P2～P4 先修復目前會阻斷點餐、語音與營運判讀的產品缺口，再由 P5～P7 把已穩定行為收斂到能力模組。P2～P4 的 Product Batch Functional Acceptance 只允許流程前進，不代表 Module Independence；任何剩餘收斂工作都必須在轉移前登錄並於 P5、P6 或 P7 關閉。完整規則見 [P2～P7 執行計畫](Project_2026_P2_to_P7_Execution_Plan.md)。
 
 ### Batch P0 — Kiosk 關鍵路徑
 
@@ -358,28 +375,32 @@ AI/GPU stack 重啟實測（`docker/compose.yaml` + `compose.ai.yaml` + `compose
 | P1「四服務維運健康」 | **比宣稱的弱**。原有 11 個測試全部只把既有資料算成畫面，沒有一個碰到讀取路徑；`createHealthAdmin` 從未被測試建構過。而該讀取原本也沒有時限，UI API 接受連線卻不回應時，面板會無限停在載入中——回報「哪個服務不回應」的畫面，自己會被同一件事弄停。已補上有界讀取與兩個測試。附帶觀察：維運健康頁掛在裝置驗證之後，UI API 全掛時整個 Admin 都進不去，此時該由裝置驗證邊界的「服務啟動中」負責告知，而不是這個面板。 |
 | P1「Admin 無退役面板」 | **成立**。`test_p1_admin_surface.py` 用 token 缺席與 contract 欄位互斥來證明「已移除」，而移除本來就是靜態性質，測法與宣稱相符。 |
 
-### Batch P2 — Emotion Diagnostics
+### Batch P2 — Kiosk Voice + Emotion Diagnostics
 
-狀態：**可開始**（Batch R Gate 已通過）
+狀態：**NOT_STARTED，可開始規劃的第一個實作階段**（Batch R Gate 已通過；本輪文件工作停在 P2 實作前）
 
+- Kiosk Voice Turn 先建立使用者訊息槽：partial transcript 或「語音辨識中…」必須先於 assistant 文字；final transcript 原位替換，音訊串流不額外等待。
+- 保留點餐方式頁唯一的「直接點餐」訪客入口；永久清除舊「略過，直接點餐」handler、selector、copy、fixture 與 stale bundle/source-map 內容。
+- 以專案綁定的 Silero VAD v5 完成 Menu-Wide Voice Listening、Open Speech Activation、Half-Duplex Voice Listening、明確 unavailable 與 noisy-store 實機驗收。
 - 三個互斥模式：Off、Periodic Ordering、Voice Only。
 - Periodic Ordering 依序執行 capture → inference → record；片段 2–30 秒、預設 5 秒，不允許並行 backlog。
 - Voice Only 使用 Voice Turn 對齊的 audiovisual evidence；未通過 audio-only acceptance 時，只有麥克風就明確 skip emotion，不阻斷 Voice。
 - Admin 即時測試支援一次性影音錄製、2–30 秒、自訂 prompt／還原 server default，raw media 在 inference 後刪除。
-- 紀錄只保留時間、事件、模型、強度、表情、聲音、描述；固定 emotion/intensity enum，store-scoped 保存 30 天。
+- 紀錄只保留時間、事件、模型、情緒、強度、表情、聲音、描述；固定 emotion/intensity enum，store-scoped 保存 30 天。
 - Emotion 永遠只作客服參考，不得自動改變回答、推薦、價格或訂單。
 
-Gate：三模式互斥、ordering boundary 正確、submitted failure 可安全記錄、raw media/transcript 不落地、30 天清除可驗證。
+Gate：Voice 顯示順序不反轉、舊 skip 入口與產物歸零、Silero VAD v5 自動監聽與失效邊界成立、三模式互斥、ordering boundary 正確、submitted failure 可安全記錄、raw media/transcript 不落地、30 天清除可驗證。通過後還要執行 Local Pilot Admission；未通過前不開始 P3。
 
 ### Batch P3 — Project Core Brain
 
-狀態：**等待 P2 Gate**
+狀態：**WAITING P2/Pilot**
 
 - 建立獨立 `project-analyst` sidecar，只接受手動 analyze/reanalyze。
+- 從 Admin 功能設定移除「推薦表現目標」及其舊 consumer；合法 analytics authority 若仍需保留，轉入 P5.2 收斂清單，不以隱藏 UI 冒充刪除。
 - 只讀取 allowlist 內的 tracked source/tests/docs/non-secret config、CodeGraph facts、Git status/diff、Docker/API readiness 與明確執行的 tests。
 - 禁止讀取 `.env`、secrets、客戶資料、raw media、home/external paths、Docker socket 與任意 shell。
 - Codex、Claude、Grok 只有通過版本、認證、headless、read-only restriction 與 JSON schema probe 才成為 Ready Profile；每次明確選一個，不自動 fallback。
-- 僅保留最新成功報告；失敗重掃保留舊報告並標示 stale。非核心提案未來只能輸出隔離 patch proposal，不 apply/commit/push。
+- 僅保留最新成功報告；失敗重掃保留舊報告並標示 stale。非核心文件或功能只能輸出位於隔離 worktree 的 patch proposal，不 apply/commit/push。
 
 Gate：sidecar non-root/read-only/cap-drop/resource bounds、provider readiness contract、證據 allowlist、latest-report atomic replace、失敗不破壞舊報告。
 
@@ -432,6 +453,7 @@ Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evid
 - `R1-Omni/README.md`：R1 runtime/weights。
 - `CONTEXT.md`：專案詞彙。
 - 本 Roadmap：完成度、wave、gate 與下一步。
+- `Project_2026_P2_to_P7_Execution_Plan.md`：P2～P7 canonical 修改順序、遷移、測試、收斂債與 Gate 流程。
 - `docs/adr/`：難逆轉的決策歷史。
 - `docs/agents/` 與 `AGENTS.md`：agent workflow。
 - `tools/README.md`：非 production tools。
@@ -439,6 +461,8 @@ Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evid
 不要為每個資料夾建立 README。模組責任由 interface、manifest、tests 與本 Roadmap 表達；只有真正的 operator runbook 才新增獨立文件。
 
 ## 9. 工作流程
+
+以下是摘要；P2～P7 每個工作包都必須遵守 [完整修改流程](Project_2026_P2_to_P7_Execution_Plan.md#4-所有階段共用的修改流程)。
 
 ```text
 Roadmap capability/wave
@@ -484,9 +508,12 @@ Batch R 的兩個未決項已處理，並揭露一個更嚴重的問題：
 
 接著是 P2：
 
-1. 建立三種 Emotion Diagnostics 模式與 failure-first acceptance tests。
-2. 在 Docker Compose 執行 raw media、retention 與安全邊界測試。
-3. 完成 P2 Gate 後才開啟 Project Analyst；不平行引入跨批次資料 authority。
+1. 建立 P2 parent issue、P2.0 as-is inventory 與 failure-first evidence slots；先分類現有 Voice/Silero/Emotion 路徑為 retain、refactor、migrate、purge。
+2. 依執行計畫完成 Voice 顯示順序、舊 skip 入口清除、Silero VAD v5 與 Emotion Diagnostics 四個工作流。
+3. 在同一 Docker artifact 執行 contract、migration、raw media、retention、安全、frontend 與目標硬體測試。
+4. P2 Functional Acceptance 後執行 Local Pilot Admission；全部有效才宣告 Pilot Ready，之後才開啟 P3。
+
+目前只完成規劃與索引，尚未建立 P2 implementation commit、issue、branch 或 PR。
 
 相關決策：
 
