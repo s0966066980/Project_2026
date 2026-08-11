@@ -1031,13 +1031,28 @@ g('emotion2-model')?.addEventListener('change', () => {
   g(`emotion2-${section}-retry`)?.addEventListener('click', () => emotionSectionLoader.refresh(section));
 });
 
+// The report is now the sidecar's structured result: findings and the evidence
+// they cite. Model reasoning and CLI output are never persisted (ADR-0038), so
+// there is no prose blob to render — and a stale report says so, because a
+// failed rescan that still looks current is the failure nobody notices.
 function renderProjectBrainReport(report) {
   const target = g('projectBrainReport');
   if (!target) return;
   if (!report) { target.textContent = '尚無報告；按「重新分析專案」才會建立。'; return; }
-  const tests = report.snapshot?.allowlisted_tests
-    ? `\n\n允許清單測試\n${JSON.stringify(report.snapshot.allowlisted_tests, null, 2)}` : '';
-  target.textContent = `時間：${formatDate(report.generated_at)}\n模型：${report.model}\n\n${report.analysis || '—'}${tests}`;
+
+  const result = report.result || {};
+  const stale = report.status === 'stale'
+    ? `⚠ 這份報告已過期（${formatDate(report.stale_since)}）：${report.stale_reason || '重新分析失敗'}\n\n`
+    : '';
+  const findings = (result.findings || []).length
+    ? (result.findings || []).map(finding => {
+        const cited = (finding.evidence_paths || []).join('、');
+        return `[${finding.severity}] ${finding.title}${finding.detail ? `\n  ${finding.detail}` : ''}${cited ? `\n  依據：${cited}` : ''}`;
+      }).join('\n\n')
+    : '—';
+
+  target.textContent =
+    `${stale}時間：${formatDate(report.recorded_at)}\n分析設定檔：${result.profile || '—'}\n版本：${result.git_revision || '—'}\n\n${findings}`;
 }
 
 async function loadProjectBrain() {
@@ -1045,15 +1060,32 @@ async function loadProjectBrain() {
   const data = await response.json();
   if (!response.ok) { setText('projectBrainModelStatus', `讀取失敗（${response.status}）`); return; }
   const select = g('projectBrainModel');
+  const profiles = data.models || [];
   if (select) {
     const previous = select.value;
     select.textContent = '';
-    (data.models || []).filter(model => model.ready).forEach(model => {
-      const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.id}（Ollama 就緒）`; select.appendChild(option);
+    // Only ready profiles are selectable, and no profile is ever chosen for the
+    // operator: an analysis names the provider that produced it (ADR-0037).
+    profiles.filter(profile => profile.ready).forEach(profile => {
+      const option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = `${profile.id}${profile.version ? ` ${profile.version}` : ''}`;
+      select.appendChild(option);
     });
     if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
   }
-  setText('projectBrainModelStatus', (data.models || []).length ? `可用模型 ${(data.models || []).length} 個；不會自動切換模型。` : '目前沒有就緒模型。');
+
+  const ready = profiles.filter(profile => profile.ready);
+  // An unready profile is shown with its reason rather than hidden. An empty
+  // selector tells an operator nothing; `credential_missing` tells them what to do.
+  const blocked = profiles.filter(profile => !profile.ready)
+    .map(profile => `${profile.id || '未知'}：${profile.reason || '未就緒'}`).join('；');
+  setText(
+    'projectBrainModelStatus',
+    ready.length
+      ? `就緒設定檔 ${ready.length} 個；不會自動切換。${blocked ? ` 未就緒 — ${blocked}` : ''}`
+      : `目前沒有就緒的分析設定檔。${blocked ? ` 原因 — ${blocked}` : ''}`,
+  );
   renderProjectBrainReport(data.latest);
 }
 
@@ -1064,28 +1096,20 @@ async function analyzeProjectBrain() {
   try {
     const response = await fetch(`${API}/api/project-brain/analyze`, {
       method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: val('projectBrainModel'), run_tests: Boolean(g('projectBrainRunTests')?.checked) }),
+      body: JSON.stringify({ profile: val('projectBrainModel') }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     renderProjectBrainReport(data);
-  } catch (error) { setText('projectBrainReport', `分析失敗：${error.message}`); }
+  } catch (error) {
+    setText('projectBrainReport', `分析失敗：${error.message}`);
+    // A failed rescan leaves the previous report in place and marked stale, so
+    // reload rather than leaving the surface showing only the error.
+    loadProjectBrain().catch(() => {});
+  }
   finally { if (button) button.disabled = false; }
 }
 
-async function proposeProjectBrainExtension() {
-  const target = g('projectBrainProposal');
-  if (target) target.textContent = '正在產生隔離提案…';
-  try {
-    const response = await fetch(`${API}/api/project-brain/proposals`, {
-      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: val('projectBrainModel'), kind: val('projectBrainProposalKind'), request: val('projectBrainProposalRequest') }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-    if (target) target.textContent = `提議路徑：${data.proposed_path}\n已套用：否\n\n${data.content}`;
-  } catch (error) { if (target) target.textContent = `提案失敗：${error.message}`; }
-}
 
 // ── expose to inline handlers
 window.saveRagSettings = ragAdmin.saveSettings;
@@ -1140,7 +1164,6 @@ campaignAdmin.bind();
 settingsAdmin.bind();
 g('projectBrainAnalyze')?.addEventListener('click', analyzeProjectBrain);
 g('projectBrainRefresh')?.addEventListener('click', loadProjectBrain);
-g('projectBrainPropose')?.addEventListener('click', proposeProjectBrainExtension);
 bindLayoutPreference(g);
 [
   'recommendationEventTypeFilter',

@@ -2225,20 +2225,16 @@ tbody tr:hover td { background: #f8fafd; }
       <div class="settings-panel" data-settings-panel="brain" hidden>
         <section>
           <div class="section-title">專案狀態分析</div>
-          <p class="setting-help">開啟時只顯示最近一次報告；只有按下分析才會重新讀取唯讀狀態。模型不具寫入、部署或資料修改權限。</p>
-          <div class="setting-row"><label class="setting-label" for="projectBrainModel">就緒模型</label><div class="setting-field"><select id="projectBrainModel" class="setting-input"></select><div id="projectBrainModelStatus" class="setting-help"></div></div></div>
-          <label style="display:flex;gap:8px;align-items:center"><input id="projectBrainRunTests" type="checkbox"> 同時執行允許清單內的唯讀測試</label>
+          <p class="setting-help">開啟時只顯示最近一次報告；只有按下分析才會重新讀取唯讀狀態。分析在獨立的 project-analyst sidecar 執行，不具寫入、部署或資料修改權限，也不會自動改用其他設定檔。</p>
+          <div class="setting-row"><label class="setting-label" for="projectBrainModel">就緒分析設定檔</label><div class="setting-field"><select id="projectBrainModel" class="setting-input"></select><div id="projectBrainModelStatus" class="setting-help"></div></div></div>
           <div style="display:flex;gap:8px;margin:12px 0"><button id="projectBrainAnalyze" class="refresh-btn settings-primary" type="button">重新分析專案</button><button id="projectBrainRefresh" class="refresh-btn" type="button">查看最近報告</button></div>
           <pre id="projectBrainReport" class="raw-json" style="white-space:pre-wrap;max-height:520px;overflow:auto">尚無報告</pre>
         </section>
         <hr class="settings-rule">
         <section>
           <div class="section-title">進階：隔離提案</div>
-          <p class="setting-help">只產生提案文字，不套用。僅允許新非核心文件或獨立 extension，不可修改現有核心業務。</p>
-          <div class="setting-row"><label class="setting-label" for="projectBrainProposalKind">類型</label><div class="setting-field"><select id="projectBrainProposalKind" class="setting-input"><option value="document">新文件</option><option value="extension">獨立 Extension</option></select></div></div>
-          <textarea id="projectBrainProposalRequest" class="setting-input" rows="5" maxlength="6000" placeholder="描述希望新增的非核心文件或獨立功能"></textarea>
-          <button id="projectBrainPropose" class="refresh-btn" type="button" style="margin-top:8px">產生隔離提案</button>
-          <pre id="projectBrainProposal" class="raw-json" style="white-space:pre-wrap;max-height:420px;overflow:auto">尚無提案</pre>
+          <p class="setting-help">提案工作流尚未佈建。它需要獨立授權、在拋棄式隔離 worktree 產生 patch 並執行自身驗證，不會修改工作區、不 commit、不 push。</p>
+          <pre id="projectBrainProposal" class="raw-json" style="white-space:pre-wrap;max-height:420px;overflow:auto">提案工作流尚未佈建。</pre>
         </section>
       </div>
 

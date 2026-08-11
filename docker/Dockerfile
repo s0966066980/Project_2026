@@ -8,6 +8,12 @@ RUN npm ci --omit=dev --ignore-scripts
 
 FROM python:3.10-slim-bookworm AS base
 
+# The revision this image is, recorded once at build time. The runtime image has
+# no Git and no repository, so asking at runtime can only ever answer "unknown";
+# for a digest-pinned artifact the revision is a property of the image anyway.
+ARG APP_GIT_REVISION=unknown
+ENV APP_GIT_REVISION=${APP_GIT_REVISION}
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \

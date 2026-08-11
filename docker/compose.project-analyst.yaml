@@ -18,6 +18,14 @@
 # host-external file owned by uid 10002 with mode 0600 and uncomment its secret.
 
 services:
+  # The app reaches the sidecar by service name over the compose network. It is
+  # not a dependency: project analysis being down must never stop ordering, so
+  # there is no depends_on and the client treats an unreachable sidecar as a
+  # bounded, visible failure of that one Admin operation.
+  app:
+    environment:
+      PROJECT_ANALYST_BASE_URL: http://project-analyst:7900
+
   project-analyst:
     build:
       context: ..
