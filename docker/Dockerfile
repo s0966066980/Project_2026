@@ -39,6 +39,13 @@ FROM base AS test
 
 USER root
 RUN python -m pip install --requirement requirements-ci.txt
+# The proposal-workflow tests build a real Git repository and assert the source
+# tree is byte-identical afterwards. Mocking the clone would prove the code
+# calls git, which is not the claim. Without git those thirteen tests skip —
+# and the ones that skip are precisely the ones that prove the isolation.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 # The contract-drift gate regenerates the published TypeScript from the running
 # schema, so the generator has to be in the image. A gate that skips when its
 # tool is missing is a gate that reports green without checking anything.

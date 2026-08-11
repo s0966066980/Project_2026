@@ -36,15 +36,21 @@ def create_router(deps: dict) -> APIRouter:
     @router.post("/proposals")
     async def proposals(request: Request):
         authorize_admin_request(request, "system.debug")
-        # The in-process proposal generator is deleted, not disabled. It ran a
-        # provider inside the UI API process, which ADR-0036 forbids, and it
-        # produced text described as a proposal without an isolated worktree,
-        # a patch, or verification behind it — which ADR-0039 requires.
+        # The in-process proposal generator is deleted. It ran a provider inside
+        # the UI API process, which ADR-0036 forbids, and called the output a
+        # proposal without an isolated worktree, a patch or verification behind
+        # it, which ADR-0039 requires.
         #
-        # The replacement is a separately authorized workflow with its own
-        # permissions and review boundary (ADR-0034). Until it exists this
-        # endpoint refuses, because answering with anything else would be the
-        # unsafe path wearing a new name.
-        raise HTTPException(status_code=503, detail="proposal_workflow_not_provisioned")
+        # The confinement half of the replacement exists and is proven:
+        # `project_analyst.proposer` clones the source at an explicit revision
+        # into a disposable directory, refuses anything outside
+        # `docs/proposals/` and `extensions/<name>/`, refuses to modify an
+        # existing file, and returns a patch it never applies.
+        #
+        # What is missing is the half that writes the content: generation needs
+        # a Project Analyst Profile, and no provider credential is mounted. The
+        # reason says which input is absent rather than implying the workflow is
+        # unbuilt, because those call for different actions.
+        raise HTTPException(status_code=503, detail="proposal_generation_requires_a_ready_profile")
 
     return router

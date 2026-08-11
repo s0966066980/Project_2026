@@ -30,6 +30,7 @@ services:
     build:
       context: ..
       dockerfile: docker/project-analyst.Dockerfile
+      target: analyst
     image: project-2026-project-analyst:local
     restart: unless-stopped
 
