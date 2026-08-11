@@ -11,7 +11,8 @@ from modules.recommendation import decide
 
 import config
 from models.commercial_scope import CommercialScope
-from repositories import menu_repository, push_copy_repository
+from capabilities import catalog
+from repositories import push_copy_repository
 from services import (
     push_copy_service,
     recommendation_context_service,
@@ -29,7 +30,7 @@ async def _get_menu_cached() -> list:
     now = time.monotonic()
     ttl = float(config.get("VOICE_MENU_CACHE_TTL_SEC", 60.0))
     if _menu_cache["items"] is None or now - _menu_cache["ts"] > ttl:
-        _menu_cache["items"] = await asyncio.to_thread(menu_repository.get_menu)
+        _menu_cache["items"] = await asyncio.to_thread(catalog.list_active_items)
         _menu_cache["ts"] = now
     return _menu_cache["items"]
 

@@ -59,3 +59,31 @@ class AppContainer:
 
         # Local disk / memory selected by existing OBJECT_STORAGE_BACKEND env.
         return object_storage_service.storage()
+
+    def catalog_read_port(self):
+        """Bind the catalog capability to the store menu tables it owns.
+
+        The adapter lives here rather than inside `capabilities/catalog`
+        because a capability that imports a repository has not stopped
+        depending on the legacy layer, it has only moved the import.
+        """
+
+        return _LegacyMenuRepositoryCatalogAdapter()
+
+
+class _LegacyMenuRepositoryCatalogAdapter:
+    """Satisfies `CatalogReadPort` from the existing menu repository."""
+
+    def list_items(self, scope=None, *, include_retired: bool = False, ensure_seed: bool = True):
+        from repositories import menu_repository
+
+        return menu_repository.get_menu_scoped(
+            scope,
+            include_retired=include_retired,
+            ensure_seed=ensure_seed,
+        )
+
+    def get_item(self, scope, item_id: str, *, include_retired: bool = True):
+        from repositories import menu_repository
+
+        return menu_repository.get_item_scoped(scope, item_id, include_retired=include_retired)

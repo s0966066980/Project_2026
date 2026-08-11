@@ -10,6 +10,7 @@ from uuid import UUID, uuid5
 
 from fastapi import APIRouter, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
+from capabilities import catalog
 from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
 from modules.knowledge_publication import PublicationError
 from modules.knowledge_publication import runtime as knowledge_publication_runtime
@@ -65,7 +66,6 @@ from api.v1.contracts import (
     PaginationMeta,
     PromotionCreateRequest,
     PromotionSummaryDTO,
-    RagDocumentDTO,
     RagKnowledgeActionRequest,
     RagKnowledgePublishRequest,
     RagKnowledgeTestRequest,
@@ -185,16 +185,6 @@ def _campaign_dto(snapshot) -> CampaignSnapshotDTO:
 
 def _admin_actor(request: Request) -> str:
     return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
-
-
-def _rag_document_dto(asset) -> RagDocumentDTO:
-    return RagDocumentDTO(
-        document_id=asset.document_id,
-        version=asset.version,
-        status=asset.status.value,
-        checksum=asset.checksum,
-        content_ref=asset.content_ref,
-    )
 
 
 def _rag_http_error(exc: rag_knowledge_service.RagKnowledgeError) -> HTTPException:
@@ -371,7 +361,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         if body.session_id:
             member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
         menu = await asyncio.to_thread(
-            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+            catalog.list_items, scope, include_retired=False, ensure_seed=True
         )
         promotions = await asyncio.to_thread(promotion_service.list_promotions, scope)
         now = datetime.now(timezone.utc)
@@ -493,7 +483,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         audience: Annotated[str, Query(max_length=40)] = "",
     ) -> ApiResponse[RecommendationEffectivenessDTO]:
         scope = _scope(request, "recommendations.effectiveness.read")
-        events, attributions, settings_values = await asyncio.gather(
+        events, attributions = await asyncio.gather(
             asyncio.to_thread(
                 analytics_pipeline_service.list_events,
                 tenant_id=scope.tenant_id,
@@ -507,7 +497,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 since=since,
                 until=until,
             ),
-            asyncio.to_thread(commercial_settings_repository.get_settings_scoped, scope),
         )
         report = build_effectiveness_report(
             events,
@@ -519,7 +508,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 "variant_id": variant_id,
                 "audience": audience,
             },
-            targets=settings_values,
         )
         return ApiResponse(data=RecommendationEffectivenessDTO(**report.__dict__), meta=_meta(request))
 
@@ -633,7 +621,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         scope = _scope(request, "campaigns.read")
         payload = body.model_dump(exclude={"campaign_id"})
         catalog_items = await asyncio.to_thread(
-            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+            catalog.list_items, scope, include_retired=False, ensure_seed=True
         )
         result = await asyncio.to_thread(
             preview_campaign,
@@ -653,7 +641,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def create_campaign(request: Request, body: CampaignDraftRequest) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
         catalog_items = await asyncio.to_thread(
-            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+            catalog.list_items, scope, include_retired=False, ensure_seed=True
         )
         try:
             row = await asyncio.to_thread(
@@ -684,7 +672,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     ) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
         catalog_items = await asyncio.to_thread(
-            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+            catalog.list_items, scope, include_retired=False, ensure_seed=True
         )
         try:
             row = await asyncio.to_thread(
@@ -727,7 +715,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         _scope(request, "campaigns.write")
         scope = _scope(request, "campaigns.publish")
         catalog_items = await asyncio.to_thread(
-            checkout_pricing_service.menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
+            catalog.list_items, scope, include_retired=False, ensure_seed=True
         )
         try:
             row = await asyncio.to_thread(

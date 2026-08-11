@@ -1,6 +1,6 @@
 # Project_2026 架構完整度與能力模組 Roadmap
 
-> 更新日期：2026-08-06
+> 更新日期：2026-08-10
 > Baseline：`949479d`（repository hygiene 與 capability boundaries）
 > 目標：單店 Admin＋Kiosk 點餐系統，維持 modular monolith，逐能力建立可驗證的獨立契約
 > Runtime：Docker Compose；host Python/Conda 不屬於支援路徑
@@ -25,7 +25,7 @@
 - Docker Compose 已包含 app、worker、PostgreSQL、migration、Ollama、R1-Omni 與 health checks。
 - FastAPI 已有 route registry、typed `/api/v1` envelope、RBAC、commercial scope 與 OpenAPI。
 - Backend 已有 21 個 `create_router()` factories（包含商業與受 flag 控制的 routes），以及 cart、checkout、ordering entry、knowledge publication、retrieval check、voice turn 等 module 雛形。
-- PostgreSQL 目前有 80 張 public tables；migration head 是 `0025_store_menu_items`。
+- PostgreSQL migration head 是 `0027_remove_pre_pilot_rag_history`；RAG legacy tables are removed by forward migration and the retained state has explicit owners.
 - Transactional outbox、durable jobs、dead letter、checkout idempotency 與 outcome recovery 已存在。
 - Frontend 已有 Admin/Kiosk Vite entries、部分 typed client 與少量 unit/E2E tests。
 
@@ -118,7 +118,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | 2 | Campaign & Promotion | Operational | campaign lifecycle、promotion rules、published push copy | `campaign_*`, `promotion_*`, `menu_item_push_copy`, `push_copy_batches` |
 | 2 | Recommendation & Interaction Analytics | Optional | recommendation decisions/events、touch attribution、interaction analytics | `recommendation_*`, `commercial_touch_events`, `interaction_events`, `analytics_*` |
 | 3 | Ordering & Checkout | Core | entry flow、session、cart、quote、confirmation、order、manual payment handoff | `ordering_*`, `checkout_*`, `confirmed_orders`, `orders`, `order_*` |
-| 4 | Knowledge/RAG | Optional | knowledge lifecycle、publication、retrieval checks/evaluation | `knowledge_*`, `publication_*`, `rag_*`, `published_knowledge_pointers` |
+| 4 | Knowledge/RAG | Optional | knowledge lifecycle、publication、retrieval configuration/checks | `knowledge_*`, `publication_*`, `retrieval_configurations`, `rag_retrieval_checks`, `published_knowledge_pointers` |
 | 4 | Voice Assistance | Optional | voice turn journal、STT/LLM/TTS orchestration、cart command proposal | `voice_turns`, `voice_turn_events` |
 | 4 | Emotion Diagnostics | Optional | R1 evidence、diagnostic records、assistance outcome | emotion/intervention records assigned during detailed inventory |
 
@@ -161,10 +161,28 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ### Phase 2 — Catalog & Availability vertical slice
 
-狀態：**未開始**
+狀態：**進行中**（步驟 1 完成、步驟 2 完成讀取側；步驟 3–8 未開始）
 
-1. 校正 `store_menu_items`、`store_availability`、圖片 metadata 的唯一 owner。
-2. 建立 Catalog domain/application/interface/ports/adapters。
+資料權威校正結果（步驟 1）：`store_menu_items` 只被 `menu_repository` 觸及，`store_availability` 只被 `availability_repository` 與一支驗證腳本觸及。**寫入本來就只有一個入口**——`create_item_scoped`、`update_item_scoped`、`retire_item_scoped`、`restore_item_scoped`、`replace_all_scoped`、`ensure_seeded_scoped` 全部只出現在 `services/menu_catalog_service.py`。違反 Gate 第 3 條的是**讀取**：13 個跨能力呼叫點直接 import `menu_repository`，分佈在 ordering、voice、member、promotion、recommendation 與 worker。
+
+另外發現兩個問題：`database.update_menu()` 是一個沒有任何呼叫者的第二寫入者（已移除，寫入權威因此名副其實）；`v1_routes.py` 有 5 處經由 `checkout_pricing_service.menu_repository` 取用，是 re-export 洩漏而非自己的 import。
+
+步驟 2 讀取側已完成：`backend/capabilities/catalog/` 具備 `contracts`、`ports`、`application`、`interface`，13 個跨能力呼叫點全部改走 `capabilities.catalog`。Adapter 刻意放在 `bootstrap/container.py` 而非能力內部——能力若自己 import repository，只是把 legacy 依賴換個位置，不是移除。列的型別仍是既有 dict：把 13 個消費端改成 typed DTO 是行為變更，依第 9 節必須與這次的純機械搬移分開提交。
+
+| Gate 條目 | 證據 | 狀態 |
+| --- | --- | --- |
+| Catalog 只有一個對外讀取介面 | `backend/capabilities/catalog/interface.py` | 已完成 |
+| 沒有跨能力 repository import | `tests/test_architecture_boundaries.py::test_catalog_tables_have_one_reader_surface` | 已完成 |
+| 寫入權威單一 | 移除 `database.update_menu()`；寫入僅存於 `menu_catalog_service` | 已完成 |
+| port 在執行期真的接上 | 測試容器實測：`_LegacyMenuRepositoryCatalogAdapter`，回傳 138 筆 active items | 已完成 |
+| backend regression | Docker test image：`99 passed` | 已完成 |
+
+順帶修好一條空轉的架構閘門：`test_architecture_boundaries.py` 的 `PLATFORM_ROOT` 指向 `backend/platform`，但該層在 `633c7d2` 已改名為 `foundation`；`rglob` 對不存在的目錄回空集合，所以那條規則自改名以來一直是空過。已改指 `foundation` 並加上 `test_boundary_roots_exist()`，讓同類空轉不會再發生。
+
+剩餘步驟：
+
+1. ~~校正 `store_menu_items`、`store_availability`、圖片 metadata 的唯一 owner。~~（完成）
+2. 建立 Catalog domain/application/interface/ports/adapters。（讀取側完成；寫入側與 availability 未搬）
 3. 建立 `/api/v1/catalog/items`、item image 與 availability commands。
 4. 由 FastAPI OpenAPI 產生 TypeScript client。
 5. Admin 與 Kiosk 各自建立 Catalog feature；移除 Kiosk/Admin mode 共享。
@@ -240,7 +258,7 @@ Gate evidence（PR #9）：
 
 ### Batch P1 — Admin 核心營運與精簡 RAG
 
-狀態：**進行中**（RAG 端點與面板、營運總覽、維運健康已完成；RAG 表移除待授權）
+狀態：**已完成**（RAG 三條保留流程、營運總覽、四服務維運健康、legacy purge 與實際 GPU／跨程序 smoke 已完成）
 
 - 營運總覽只顯示 server accepted 的 Voice、推薦、活動 CTA 次數，以及明確標示的「已確認訂單金額」。
 - Voice 成功數的口徑必須在畫面上寫明：它是「語音已產生並送出」的次數，不是顧客實際聽到的次數；顧客端播放失敗不進入這個數字，由維運健康的 TTS 綠燈與現場驗證涵蓋。
@@ -251,9 +269,78 @@ Gate evidence（PR #9）：
 
 Gate：Admin 沒有舊 KPI／內部 DB 與 log 面板；RAG 三條主流程可獨立運作；刪除清單有 migration evidence；保留 Knowledge Items、published index、active retrieval config 與 pending publish work。
 
+Gate evidence（同一 commit）：
+
+| Gate 條目 | 證據 |
+| --- | --- |
+| 三條 RAG flow contract | `tests/test_rag_surface_contract.py`, `tests/test_rag_retained_flows.py` |
+| worker 發布後 app 可立即檢索 | `tests/test_rag_runtime_visibility.py`；GPU Compose 實測不重啟 app 即通過 `hybrid_rrf` 與 `bm25` |
+| active Retrieval Configuration 有獨立 owner | `backend/modules/retrieval_configuration/`, migration `0027` |
+| legacy purge 有 row-count receipt 且不刪 retained tables | `backend/schemas/migrations/0027_remove_pre_pilot_rag_history.sql`, `tests/test_p1_rag_storage_cutover.py` |
+| worker 不再接受 evaluation／Studio job | `models/worker_jobs.py`, `services/worker_handlers.py` |
+| Admin 無退役 chunk preview／推薦目標契約 | `tests/test_p1_admin_surface.py`, `tests/test_rag_surface_contract.py` |
+| Ollama 維運診斷 | NVIDIA Compose 實測 `qwen3.5:4b` 兩次 HTTP 200（1.47 秒、1.13 秒） |
+| backend／frontend regression | Docker test image：`79 passed`；Vitest：`97 passed`；typecheck、syntax、production build 通過 |
+
+### Batch R — 重啟後可用性
+
+狀態：**已完成**（前端邊界、後端非阻塞暖機、維運健康有界讀取、殘留 runtime 停止、gate 抽驗與 AI/GPU stack 重啟實測皆有證據）
+
+重啟後 Admin 與 Kiosk 卡在「正在驗證裝置」而永不恢復。根因不在驗證本身：`app_factory.py` 的 lifespan 在 `yield` 前 `await background_init()`，uvicorn 因此在 STT、RAG 與 Ollama 暖機完成前不回應任何請求，而 Docker 的 port 早已可連。`docker/compose.ai.yaml` 把 app healthcheck 的 `start_period` 覆寫成 `10m`，等於已經承認主路徑最久有 10 分鐘不回應。前端兩支 bootstrap 的 fetch 都沒有時限，於是把後端的暫時性暖機放大成永久性故障：控制項停用後不再還原，後端恢復也不會自己好。
+
+這批的判準是 README 第 214 行既有的要求——「AI、RAG、STT、TTS 或 R1-Omni 無法使用時，核心菜單、購物車與訂單確認必須維持可用」——目前不成立。
+
+- 每次裝置驗證請求都有時限，且介面永遠停在三個可見終局之一：已驗證、服務啟動中（自動重試）、裝置未授權（需人工）。
+- 「服務啟動中」不得呈現為裝置權限問題。把暖機誤報成未授權會把現場人員導去重新註冊沒有問題的裝置。
+- 暖機屬於個別能力的就緒狀態，不是全域啟動門檻；Optional 能力的暖機不得阻擋 HTTP 服務接受請求（延續 ADR-0059 對情緒能力已確立的原則）。
+- 殘留的 `UI_API/deploy/postgres` runtime 停止運行；檔案移除仍照第 7 節「先替代再刪除」處理。
+
+Gate：連線可建立但伺服器不回應時，Admin 與 Kiosk 都在有界時間內到達可見終局且控制項可用；服務恢復後不需人工操作即自行恢復；暖機期間 HTTP 服務可接受請求且 `/ready` 能說明哪一項未就緒。
+
+Gate evidence：
+
+| Gate 條目 | 證據 | 狀態 |
+| --- | --- | --- |
+| Admin 掛住時到達有界終局且重試控制項不鎖死 | `tests/unit/admin-auth.test.ts` | 已完成 |
+| Admin 不把啟動中報成裝置未授權 | `tests/unit/admin-auth.test.ts` | 已完成 |
+| Admin 服務恢復後自行復原 | `tests/unit/admin-auth.test.ts` | 已完成 |
+| Kiosk 掛住時到達有界終局且不導向 provisioning | `tests/unit/device-identity.test.ts` | 已完成 |
+| Kiosk 服務恢復後自行復原 | `tests/unit/device-identity.test.ts` | 已完成 |
+| 暖機期間 HTTP 服務可回應 | `tests/test_restart_availability.py`、ADR-0060 | 已完成 |
+| `/ready` 報告暖機中能力但不因此判定未就緒 | `tests/test_restart_availability.py` | 已完成 |
+| 語音在 STT 未就緒時明確拒絕而非讓顧客空等 | `tests/test_restart_availability.py` | 已完成 |
+| 殘留 PostgreSQL runtime 已停止 | `project-2026-local` compose project 已 down；資料為 host bind mount，未刪除 | 已完成 |
+| 維運健康讀取有時限且失敗可見 | `tests/unit/health-admin.test.ts` | 已完成 |
+| P0/P1 三條 gate 抽驗 | 見下方抽驗結果 | 已完成 |
+| AI/GPU stack 重啟實測：暖機期間 Admin 可用 | 見下方實測證據 | 已完成 |
+| app healthcheck grace 不再掩蓋真實故障 | `docker/compose.ai.yaml` `start_period` 10m → 120s；重建後 8 秒 healthy | 已完成 |
+
+AI/GPU stack 重啟實測（`docker/compose.yaml` + `compose.ai.yaml` + `compose.ai-gpu.yaml`，`up -d --force-recreate --no-deps app`）：
+
+修復前後的啟動日誌順序是最直接的對照。修復前，`載入 faster-whisper`、`RAG 模型預載完成`、`語音 LLM 預熱完成` 全部出現在 `Application startup complete` **之前**；修復後 `Application startup complete` 排在最前，模型載入排在其後。
+
+| 觀測 | 結果 |
+| --- | --- |
+| 容器啟動 → `/api/admin/auth/me` 首次 200 | +1.65 秒（其中多數是 Python 啟動，非暖機） |
+| 容器啟動 → `/ready` 首次回應 | +1.83 秒 |
+| 暖機視窗內 `/ready` | `ready=true`，`warming_capabilities=['rag','stt','voice_llm']`，逐項在就緒時消失 |
+| 暖機視窗內 `/api/admin/auth/me` | 200，4.7 ms |
+| 暖機視窗內 `/api/menu/items` | 200，63.8 ms |
+| 暖機視窗內 `/api/v1/operations/overview` | 200，35.4 ms |
+| 暖機視窗內 `/api/ask/stream` | 503 `voice_capability_warming`（明確拒絕，非靜默等待） |
+| 語音 LLM 實際預熱耗時 | 4.51 秒——這段時間過去會是整個系統無回應 |
+
+抽驗結果（Roadmap 狀態依第 6A 節規則，等實測證據齊全後才調整 P0/P1 的完成宣告）：
+
+| 抽驗的 gate | 結論 |
+| --- | --- |
+| P0「API 失敗可見且可 retry」 | **不成立於 Admin**。三份證據（`recommendation-continuity.spec.ts`、`guest-ordering-wiring.test.ts`、`critical-runtime.spec.ts`）全部只走 Kiosk；`critical-runtime.spec.ts` 只開 `/kiosk` 與 `/live`。Admin 端沒有任何「API 失敗可見且可 retry」的測試，這正是本次缺陷得以出貨的原因。已由 `tests/unit/admin-auth.test.ts` 補上。 |
+| P1「四服務維運健康」 | **比宣稱的弱**。原有 11 個測試全部只把既有資料算成畫面，沒有一個碰到讀取路徑；`createHealthAdmin` 從未被測試建構過。而該讀取原本也沒有時限，UI API 接受連線卻不回應時，面板會無限停在載入中——回報「哪個服務不回應」的畫面，自己會被同一件事弄停。已補上有界讀取與兩個測試。附帶觀察：維運健康頁掛在裝置驗證之後，UI API 全掛時整個 Admin 都進不去，此時該由裝置驗證邊界的「服務啟動中」負責告知，而不是這個面板。 |
+| P1「Admin 無退役面板」 | **成立**。`test_p1_admin_surface.py` 用 token 缺席與 contract 欄位互斥來證明「已移除」，而移除本來就是靜態性質，測法與宣稱相符。 |
+
 ### Batch P2 — Emotion Diagnostics
 
-狀態：**等待 P1 Gate**
+狀態：**可開始**（Batch R Gate 已通過）
 
 - 三個互斥模式：Off、Periodic Ordering、Voice Only。
 - Periodic Ordering 依序執行 capture → inference → record；片段 2–30 秒、預設 5 秒，不允許並行 backlog。
@@ -355,14 +442,25 @@ merge main + auto-delete branch
 
 ## 10. 下一個可執行工作
 
-目前只執行 Batch P0，通過後才開啟 Batch P1：
+P0、P1 與 Batch R 已完成。Batch R 揭露了 P0/P1 都沒有涵蓋的失敗模式（重啟後服務不回應時 Admin 與 Kiosk 永久卡住），並已在 AI/GPU stack 上實測修復。
 
-1. 建立推薦連續性、Voice/TTS 終局與 Guest Ordering Choice 的 failure-first tests。
-2. 修復 Kiosk 行為並執行 frontend unit、typecheck、build 與 API contract tests。
-3. 在 Docker Compose 執行 Kiosk smoke，保存同一 commit 的 Gate evidence。
-4. P0 Gate 通過後，先建立精簡 RAG replacement migration 與 preservation tests。
-5. 只有 replacement migration 在乾淨 DB 與現有 schema upgrade 都通過，才執行已授權的永久 legacy RAG purge。
-6. 依序開啟 Emotion、Project Analyst 與 Optimization Lab，不平行引入跨批次資料 authority。
+Batch R 的兩個未決項已處理，並揭露一個更嚴重的問題：
+
+**1. `voice_capability_warming` 不對應到 [[Voice Listening Unavailable]]**。查證後這個對應是錯的：`Voice Listening Unavailable` 指瀏覽器端的無能力（VAD 模型、AudioWorklet、麥克風權限），而且「Voice Turns are disabled **for that ordering session**」；暖機是伺服器端的暫時狀態，幾秒後就結束。對應過去會為了幾秒暖機關掉整場點餐的語音。改為自己的暫時終局：`apiClient` 把服務給的 refusal code 帶到 `onError`，Kiosk 顯示「語音服務正在啟動，請稍候再說一次；期間仍可觸控點餐」，監聽照原本的 `finally` 恢復，顧客再說一次即可。證據：`tests/unit/voice-service-refusal.test.ts`。
+
+**2. Kiosk 經 `shared/httpClient.js` 的 16 個呼叫點已一併有界**（預設 15 秒，呼叫端可覆寫；情緒推論因為要跑最長 30 秒的片段而給 90 秒）。證據：`tests/unit/http-client-bounds.test.ts`。
+
+**3. 顧客關鍵路徑六個呼叫點已收斂**。`shared/apiClient.js` 的 cart 讀寫、checkout prepare、checkout outcome、entry-flow start／command 原本都是無界 raw `fetch`。`startEntryFlow` 無界代表顧客按下「開始點餐」後可能永遠停住，而 [[Guest Ordering Start Failure]] 明文要求那必須是「可見說明加重試」的可復原狀態——那條定義過去做不到。現在統一走 15 秒時限並保留各自的錯誤詞彙。證據：`tests/unit/kiosk-critical-path-bounds.test.ts`。
+
+**4. checkout confirm 的時限 5 秒 → 20 秒**。confirm 原本就有時限，而且逾時已導向 [[Confirmation Outcome Unknown]]（`app.js` 的 `AbortController` 加 `resolveUnknownConfirmation()`），所以這裡不是補上缺口而是調整刻度。五秒對一個要做原子履約驗證與寫入的訂單建立太短：一個只是比較慢、其實會成功的 confirm 會被推進不確定狀態，那條路徑會自己查出訂單而恢復，但顧客會先看到一次不必要的「仍在確認訂單」。
+
+**5. Admin 端 33 個 raw `fetch` 仍無界**（`admin.js` 14、`availabilityAdmin` 8、`memberServiceDeskAdmin` 5、`recommendationEventsAdmin` 3、其餘 3）。風險層級不同——卡住的是操作人員的面板而非顧客點餐——且其中含檔案上傳，需要逐點判斷合適的時限，未在本批處理。
+
+接著是 P2：
+
+1. 建立三種 Emotion Diagnostics 模式與 failure-first acceptance tests。
+2. 在 Docker Compose 執行 raw media、retention 與安全邊界測試。
+3. 完成 P2 Gate 後才開啟 Project Analyst；不平行引入跨批次資料 authority。
 
 相關決策：
 

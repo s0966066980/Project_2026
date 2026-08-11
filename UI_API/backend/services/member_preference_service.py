@@ -5,7 +5,7 @@ LLM 呼叫或 HTTP request 處理。
 """
 from collections import Counter
 
-from repositories import menu_repository
+from capabilities import catalog
 from services import member_service
 
 
@@ -79,7 +79,7 @@ def _last_order_item_ids(member: dict, limit: int = 8) -> list[str]:
 def _items_from_ids(item_ids: list[str]) -> list[dict]:
     if not item_ids:
         return []
-    menu_by_id = {str(item.get("id")): item for item in menu_repository.get_menu() if item.get("id")}
+    menu_by_id = {str(item.get("id")): item for item in catalog.list_active_items() if item.get("id")}
     rows = []
     for item_id in item_ids:
         item = menu_by_id.get(item_id)
@@ -115,7 +115,7 @@ def _frequent_pairs(member: dict, limit: int = 3) -> list[dict]:
     pair_freq = member.get("pair_freq") or {}
     if not pair_freq:
         return []
-    menu_by_id = {str(item.get("id")): item for item in menu_repository.get_menu() if item.get("id")}
+    menu_by_id = {str(item.get("id")): item for item in catalog.list_active_items() if item.get("id")}
     rows = []
     for pair_key, count in sorted(pair_freq.items(), key=lambda kv: int(kv[1] or 0), reverse=True):
         item_ids = [part for part in str(pair_key).split("|") if part]

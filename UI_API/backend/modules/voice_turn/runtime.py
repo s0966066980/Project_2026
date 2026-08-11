@@ -12,7 +12,8 @@ from modules.runtime_persistence.runtime import sqlite_database_path
 import config
 from models.llm import LLMRequest
 from services import llm_routing_service
-from repositories import menu_repository, postgres_utils, session_repository
+from capabilities import catalog
+from repositories import postgres_utils, session_repository
 from services import llm_gateway_service
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
@@ -33,7 +34,7 @@ class ProductionSTT:
 
 class ProductionMenu:
     def candidates(self, *, scope, session_id: str, operation_key: str) -> list[dict[str, Any]]:
-        rows = menu_repository.get_menu()
+        rows = catalog.list_active_items()
         return [
             {
                 **row,

@@ -1,8 +1,8 @@
 """Admin-facing structured promotion management.
 
-Promotions are stored as JSON source documents under rag_documents/promotions.
-The recommendation engine reads the same files through rag_offer_service, so
-this service only validates and writes the source records.
+Promotions are stored as structured records in the promotion repository. The
+recommendation engine reads the same records through rag_offer_service, so this
+service validates and writes the source records.
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
 from models.commercial_scope import CommercialScope
-from repositories import menu_repository, promotion_repository
+from capabilities import catalog
+from repositories import promotion_repository
 
 VALID_STATUSES = {"active", "draft", "inactive"}
 VALID_TYPE = "promotion"
@@ -133,7 +134,7 @@ def _parse_timezone(value: Any) -> str:
 
 
 def _menu_lookup() -> tuple[set[str], set[str]]:
-    menu_rows = menu_repository.get_menu()
+    menu_rows = catalog.list_active_items()
     item_ids = {str(item.get("id") or "").strip() for item in menu_rows if str(item.get("id") or "").strip()}
     categories = {
         str(item.get("category") or "").strip() for item in menu_rows if str(item.get("category") or "").strip()

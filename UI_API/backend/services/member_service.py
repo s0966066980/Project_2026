@@ -10,7 +10,8 @@ from uuid import UUID, uuid4
 
 import config
 from models.commercial_scope import CommercialScope
-from repositories import member_repository, member_session_repository, menu_repository, recommendation_event_repository
+from capabilities import catalog
+from repositories import member_repository, member_session_repository, recommendation_event_repository
 from services.member_pii_service import configured_key_provider, phone_lookup_hash, protect_phone
 
 _session_member: dict[str, str] = {}
@@ -225,7 +226,7 @@ def _public_member(member: dict) -> dict:
 
 
 def _menu_by_id() -> dict:
-    return {str(i["id"]): i for i in menu_repository.get_menu() if i.get("id")}
+    return {str(i["id"]): i for i in catalog.list_active_items() if i.get("id")}
 
 
 def _as_positive_int(value, default: int = 1, maximum: int = 20) -> int:

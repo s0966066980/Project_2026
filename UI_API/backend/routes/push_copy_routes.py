@@ -10,7 +10,8 @@ import asyncio
 from fastapi import APIRouter, Body, HTTPException, Request
 
 import config
-from repositories import menu_repository, push_copy_batch_repository, push_copy_repository
+from capabilities import catalog
+from repositories import push_copy_batch_repository, push_copy_repository
 from services import (
     admin_audit_service,
     push_copy_authoring_service,
@@ -41,7 +42,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
         principal = authorize_admin_request(request, "settings.read")
         scope = scope_from_admin_principal(principal)
-        menu_items = await asyncio.to_thread(menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        menu_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         rows = await asyncio.to_thread(push_copy_repository.list_copy_scoped, scope)
         offers = await asyncio.to_thread(_offers_for, scope, menu_items)
         live_ids = push_copy_service.active_offer_ids(offers, audience="member")
@@ -104,7 +105,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
                 },
             )
 
-        menu_items = await asyncio.to_thread(menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        menu_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         rows = await asyncio.to_thread(push_copy_repository.list_copy_scoped, scope)
         if mode == "fill_missing":
             candidates = [
@@ -213,7 +214,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
         scope = scope_from_admin_principal(principal)
         check_rate_limit(request, "admin_push_copy_generate", limit=60)
 
-        menu_items = await asyncio.to_thread(menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True)
+        menu_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         item = next((row for row in menu_items if _text(row.get("id")) == _text(item_id)), None)
         if item is None:
             raise HTTPException(status_code=404, detail={"code": "item_not_found", "message": "找不到這個品項。"})
