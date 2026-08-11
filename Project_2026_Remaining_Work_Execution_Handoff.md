@@ -16,13 +16,15 @@
 ## 2. 交接時的嚴格完成狀態
 
 ```text
-Local Pilot Readiness: READY_FOR_HUMAN — NOT DECLARED
+Local Pilot Readiness: BLOCKED — NOT DECLARED（見 3.1 順序例外）
 Business Capability Modules passed: 1 / 10
 Independent Product Frontends passed: 2 / 2
 Current accepted Module Independence Gate: Catalog & Availability
-Current blocking gate: Local Pilot target-device and security admission
+Current active stage: P3 Project Core Brain（Pilot 暫停下的例外路徑）
 Project Completion: NOT ACHIEVED
 ```
+
+> 交接時的原始狀態為 `READY_FOR_HUMAN — NOT DECLARED`。G0.1 已完成並合併（PR #46），G0.2 候選成品證據已記錄；Local Pilot 因憑證移除與缺少目標實機而轉為 `BLOCKED`。
 
 | Stage | Repository／Gate 現況 | 下一個動作 |
 | --- | --- | --- |
@@ -81,6 +83,21 @@ Project Completion: NOT ACHIEVED
 | #32 | P7 Project Completion | Open；等待 P6 |
 
 Issue 只能在驗收證據回填後關閉。若一個 Issue 同時含 repository 與 target-device scope，應拆分或明確保留未完成 child，不能以 PR merged 直接關閉全部 scope。
+
+## 3.1 順序例外：Local Pilot 暫停（2026-08-11 專案擁有者決定）
+
+本文件第 4 節的固定順序把 P3～P7 全部排在 Local Pilot Admission 之後。2026-08-11 專案擁有者指示移除所有 pilot 登入憑證、目前不建立任何登入認證，並決定**暫停 Local Pilot、先進行 P3～P7 架構收斂**。
+
+```text
+Local Pilot Readiness: BLOCKED — NOT DECLARED
+阻塞輸入 1：Pilot Configuration Authority（憑證已依指示刪除）
+阻塞輸入 2：目標 Kiosk 實機、麥克風、攝影機
+決定：明確跨越 Gate 順序，先做 P3～P7
+```
+
+這是一個**被記錄的例外，不是通過的 Gate**。後續工作不得以「已進入 P3」推論 Local Pilot 已成立。相關證據與未完成項目見 [`docs/agents/p2-local-pilot-readiness.md`](docs/agents/p2-local-pilot-readiness.md)。
+
+需要恢復 Local Pilot 時的重新進入條件：建立 host-external Pilot Configuration Authority、重建 digest-pinned candidate、重跑第 8 節全部項目，並取得目標實機證據。
 
 ## 4. 固定階段順序
 

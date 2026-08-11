@@ -2,50 +2,115 @@
 
 ## Status
 
-`READY_FOR_HUMAN` — not declared. The Docker artifact and all repository-verifiable admission checks below are recorded; target Kiosk admission and physical AV acceptance remain external gates.
+`BLOCKED` — not declared, and not currently pursuable.
 
-This evidence is for commit `f5967a6` and was collected on 2026-08-11. Any later application, image, migration, or external-configuration change makes this record `EVIDENCE_STALE`.
+Two independent inputs are missing, and neither can be substituted from this repository:
 
-## Candidate artifact
+1. **Pilot Configuration Authority.** On 2026-08-11 the project owner directed that all pilot login credentials be removed and that no login authentication be created for now. Every file under `~/.config/project-2026/` was deleted at their instruction. Local Pilot Readiness is defined by one host-external, privately permissioned configuration and secret source; without it the gate cannot be entered, let alone passed.
+2. **Target Kiosk device.** Microphone, camera, browser permissions, AudioWorklet, bundled Silero VAD v5 timing, physical ordering and Live AV Emotion evidence.
+
+The project owner has decided to **pause Local Pilot Admission and proceed to the P3–P7 architecture convergence work instead**. This deliberately crosses the fixed stage order in [the remaining-work handoff](../../Project_2026_Remaining_Work_Execution_Handoff.md), which places every later stage behind this gate. It is recorded here as an explicit decision, not as a passed gate. Local Pilot Readiness remains **NOT DECLARED**.
+
+Issues: [#19](https://github.com/s0966066980/Project_2026/issues/19), [#20](https://github.com/s0966066980/Project_2026/issues/20), [#23](https://github.com/s0966066980/Project_2026/issues/23).
+
+## The superseded record
+
+The evidence previously recorded here, for commit `f5967a6`, is **`EVIDENCE_STALE`**. PR [#46](https://github.com/s0966066980/Project_2026/pull/46) changed the Pilot runtime contract and the images, which invalidates it by the rule that record itself stated.
+
+Two facts about that superseded record are worth keeping, because both made it weaker than it read:
+
+- **It authenticated with the compose default credential.** The database role password was the literal `project-2026-local` from `docker/compose.yaml`, not the value in the repository `.env`; the stack had been started without `--env-file .env`. Any invocation that did pass `--env-file .env` failed authentication. `.env` has since been aligned to the database (backup: `.env.bak.20260811230306`).
+- **Its Playwright evidence ran without device admission.** Those five tests passed against `SECURITY_ENFORCED=false`. Under the Pilot profile the same suite cannot reach the menu at all — see below.
+
+## Candidate artifact verified on 2026-08-11
+
+A hardened Pilot candidate was built and exercised before the credentials were removed. This is a **repository-and-host** record for that candidate. It is not a readiness declaration and no target-device claim is made anywhere in it.
 
 | Item | Evidence |
 | --- | --- |
-| app and worker image | `project-2026:ai`, `sha256:064453313b190b4314e653d6cd45d5b8cbb4771dedb67ca9afaa2963f134c49c` |
-| R1-Omni image | `project-2026-r1-omni:gpu`, `sha256:0cfd93d4549aee379e7c7c687dc3c92167b3b0c0a834811d0f2cc618eee9fe4f` |
+| commit | `2d9ff9899799bce765f0a1db368eb6b4ad10598d` |
+| source integrity | `config.py`, `main.py` and `tests/test_pilot_container_security.py` md5-identical between image and working tree |
+| app and worker image | `project-2026:ai`, `sha256:8d9d7b625c01714905f416bda212847fca14abdf313a121ba0fdd84c7637cdb0` |
+| core runtime image | `project-2026:local`, `sha256:728adc6ec564c66f780b4a2e219ac5e19188f33bdbcdec1b009025ed48410e33` |
+| R1-Omni image | `project-2026-r1-omni:gpu`, `sha256:e80c34e712b4965ce6ff8930ef050d7cfa22f31887ef37f062932ebc05fa380d` |
+| PostgreSQL image | `postgres@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296` |
 | Ollama image | `ollama/ollama@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131` |
-| PostgreSQL image | `postgres:18.4-bookworm`, `sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296` |
-| external compose fingerprint | `11a7b823d5c5477120c620d60a95ebb69eeef914dbd09389526a2728343a8de7` |
-| migration head | `0027_remove_pre_pilot_rag_history` |
-| migration state | 27 applied, 0 pending, checksums valid |
+| merged compose fingerprint | `b66bd2e3aa6fa8922eba4463803ff0ca01571519f2da57b638ac96b68192f17b` |
+| external config fingerprint | `6a8918d38ffcb2a37c0513e7fecebdeb6fdc6cd00bd7efd7c12369715a3bca4c` (source since deleted) |
+| migration head | `0027_remove_pre_pilot_rag_history`, 27 applied, 0 pending |
+| runtime | single local host, Docker Compose with the AI and GPU overlays plus `compose.pilot.yaml` |
 
-The application and worker were started through `docker/compose.yaml` plus the AI and GPU overrides. The Ollama tag was resolved to the digest above for this run. Existing PostgreSQL data and volumes were retained.
+### Container security — 22 of 22 passed
 
-## Passed checks
+`docker/scripts/verify-pilot-security.sh` against the running candidate, for both app and worker:
 
-- Docker Compose app, worker, PostgreSQL, Ollama, and R1-Omni were healthy.
-- `/ready` reported database, migration, and commercial-scope checks valid; AI warm-up reached STT, RAG, and Voice LLM ready with no degraded optional dependency.
-- R1-Omni profile reported ready with CUDA and audio/video-audio capability.
-- Edge TTS synthesis returned 11,376 bytes for a Traditional Chinese probe.
-- Docker Compose backend matrix: 131 passed, 2 dependency warnings.
-- Dockerized Playwright against the running Compose stack: 5 passed, including Kiosk reachability and recommendation failure/placeholder behavior.
-- PostgreSQL custom-format backup was restored into an explicitly named temporary database and verified at 27 migration rows; the temporary database and exact temporary dump path were removed afterward.
-- App/worker restart followed by readiness check passed.
-- P2 legacy source/bundle checks found no old guest bypass copy, passive keyword recorder, or passive-recorder settings in supported surfaces. The exact emotion purge target is recorded in [`p2-emotion-legacy-purge-manifest.md`](p2-emotion-legacy-purge-manifest.md).
-- The passive keyword recorder file was deleted in PR #42 and has a Docker negative test.
+- `ReadonlyRootfs=true`, `CapDrop=[ALL]`, `CapAdd=[]`, `no-new-privileges:true`, `User=10001:10001`.
+- Kernel-level: `CapPrm`, `CapEff` and `CapBnd` all `0000000000000000`; `NoNewPrivs: 1`.
+- Every root filesystem write rejected with `EROFS(30)`: `/app/UI_API`, `/`, `/usr/local`, `/etc`, `/home/project2026`, `/var/lib`.
+- Allowlisted paths writable: `/tmp`, `/var/lib/project-2026`, `/tmp/project-2026-media`, `/home/project2026/.cache`.
+- Secrets mode `0600`, uid `10001`, readable; database password absent from the environment and from container logs.
+- `/api/ollama/models`, `/api/demo`, `/api/debug` → 404. `/ready` → 200.
 
-## Not yet admissible
+The structural half is a required check: `UI_API/tests/test_pilot_container_security.py`, 27 tests, mutation-verified.
 
-The following cannot be proven by this repository and host alone:
+### Fail-fast configuration
 
-1. Admission of the target Kiosk device, including its actual microphone, camera, browser permissions, AudioWorklet, bundled Silero VAD v5, 250 ms speech / 1.2 s silence behavior, 30-second cap, echo cooldown, and noisy-store acceptance.
-2. Physical-device touch ordering, voice ordering, checkout outcome-unknown recovery, and payment-pending handoff on the target Kiosk.
-3. Live Admin AV Test and voice-aligned audiovisual Emotion evidence on the target camera/microphone. Host `/dev/video*`, `/dev/snd`, and an available NVIDIA GPU are not evidence for the target device.
+- Omitting any of `PILOT_ENV_FILE`, `PILOT_DATABASE_URL_FILE`, `PILOT_MIGRATION_DATABASE_URL_FILE` fails at `docker compose config`, before anything starts.
+- A configuration or secret file looser than `0600`, or not owned by uid 10001, fails closed.
 
-These are `ready-for-human` gates, not failures converted to pass. No P3 work may start until Local Pilot Admission is declared for this same artifact.
+### Backup, restore and migration reconciliation
 
-## Recovery and security notes
+- PostgreSQL custom-format dump (1,523,010 bytes) restored into an explicitly named temporary database.
+- Reconciled: 27 migration rows and 74 public tables in both; `md5(string_agg(version||':'||checksum))` identical at `cce1174aa91d4abbb4af0a36523ebeb6`.
+- The temporary database and the exact dump path were removed afterwards; `pg_database` count for the temporary name returned 0.
+- Migration reapply is idempotent: still 27 rows, head unchanged, no errors.
 
-- No PostgreSQL volume, backup, secret, customer record, or authoritative business data was deleted.
+### Restart, warm-up and degradation
+
+- App stopped: `/ready` unreachable (`HTTP 000`) — the measurement has a real zero point.
+- App started: Core `/ready` returned 200 **2611 ms** after container start, while `stt` and `rag` were still `pending` and listed in `warming_capabilities`. Optional warm-up does not gate Core HTTP, as [ADR-0060](../adr/0060-warm-capabilities-beside-the-service-not-in-front-of-it.md) requires.
+- Security attributes still enforced after restart; worker returned to `healthy`.
+- Shared infrastructure absent reports `skipped` with reason `shared_infrastructure_not_configured` without making the service unready.
+- After warm-up: `stt`, `rag` and `voice_llm` all `ready`, no degraded optional dependency, adapter coverage 19/19 complete.
+- Edge TTS synthesised 15,840 bytes for a Traditional Chinese probe.
+
+### Test suites
+
+| Suite | Result |
+| --- | --- |
+| `docker/scripts/test.sh` | 158 passed; Docker smoke test passed; RC=0 |
+| Frontend typecheck / syntax / build | passed |
+| Frontend coverage | statements 92.97%, branches 80.36%, functions 94.73%, lines 93.1% |
+| Playwright against the Pilot profile | **1 passed, 4 failed** — see below |
+| Playwright against the development profile | 5 passed |
+
+`docker/scripts/test.sh` needs `APP_PORT` overridden while a stack already holds `127.0.0.1:8000`; the smoke project has its own compose project name and volumes, only the published host port collides.
+
+### Playwright under the Pilot profile
+
+Four of five tests fail at `#startSystemBtn`, blocked by the `kioskDeviceAuthBackdrop` modal. **This is correct fail-closed behaviour, not a defect**: `SECURITY_ENFORCED=true` requires the Kiosk to present a device credential, and the suite has none.
+
+The consequence is that browser evidence under the Pilot profile depends on device credential provisioning, which belongs to target-device admission ([#20](https://github.com/s0966066980/Project_2026/issues/20), [#23](https://github.com/s0966066980/Project_2026/issues/23)). It was not substituted with development-profile evidence, and the development-profile run above is recorded as what it is.
+
+## Still not admissible
+
+Unchanged from the superseded record, and now joined by the missing configuration authority:
+
+1. Target Kiosk device admission: microphone, camera, browser permissions, AudioWorklet, bundled Silero VAD v5, 250 ms minimum speech, 1.2 s ending silence, 30 s cap, echo cooldown, noisy-store acceptance.
+2. Physical touch ordering, voice ordering, checkout outcome-unknown recovery and Payment Pending handoff on the target Kiosk.
+3. Live Admin AV Test and voice-aligned audiovisual Emotion evidence on the target camera and microphone. Host `/dev/video*`, `/dev/snd` and an available NVIDIA GPU are not evidence for the target device.
+4. Kiosk device credential provisioning, revocation and store scope.
+5. Pilot Recovery Objective observed against a backup copy separated from the primary runtime.
+
+## Open observations
+
+- [#47](https://github.com/s0966066980/Project_2026/issues/47): the interactive OpenAPI explorer at `/docs` answers 200 under the Pilot profile. Loopback-bound, but it is an unauthenticated enumeration of every operation and needs a decision rather than a default.
+- [#48](https://github.com/s0966066980/Project_2026/issues/48): `docker/Dockerfile` copies the application into `base` before the AI stage installs its dependencies, so any source change forces a full AI dependency reinstall. The candidate rebuild recorded here cost over an hour for that reason.
+- The application still connects as the owning database role. `project_runtime` is provisioned and granted but unused; moving the runtime connection onto it belongs to Operations & Configuration (P5.1).
+- The database role password is the compose default. A pilot-grade credential is a human decision and was not rotated here.
+
+## Safety notes
+
+- No PostgreSQL volume, backup, customer record or authoritative business data was deleted at any point.
 - The temporary restore database and dump had exact names and were removed after verification.
-- The app and worker run as the non-root `project2026` user. Their root filesystem is not read-only and no capability drop is currently configured; this is a remaining pilot security hardening item, not a passed claim. It is tracked as a corrective issue in [#44](https://github.com/s0966066980/Project_2026/issues/44), which is a precondition of [#20](https://github.com/s0966066980/Project_2026/issues/20). Landing #44 changes the runtime contract and the images, so this whole record becomes `EVIDENCE_STALE` at that point and the admission below must be re-run against the new digest-pinned candidate.
-- The host-only Playwright browser smoke test is supplementary; it does not replace target-device AV evidence.
+- Credential removal was limited to eleven explicitly enumerated files and one directory under `~/.config/project-2026/`, at the project owner's direction, with the enumeration printed before deletion.

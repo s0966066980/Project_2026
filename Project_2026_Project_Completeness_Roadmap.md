@@ -50,7 +50,9 @@ Independent Product Frontends passed: 2 / 2
 Current vertical slice: Catalog & Availability — COMPLETE
 P2 repository implementation: MERGED — PR #40 through #43
 P2 child issues: #21 / #22 / #24 CLOSED with evidence; #23 READY_FOR_HUMAN (target device)
-Next required gate: Local Pilot security hardening — Issue #44, then target-device admission — Issue #20
+Pilot security hardening: DONE — Issue #44 / PR #46 / ADR-0061
+Local Pilot Admission: BLOCKED — 憑證已移除且缺少目標實機（Issue #20）
+Current active stage: P3 Project Core Brain（2026-08-11 擁有者決定暫停 Pilot 先做架構收斂）
 ```
 
 已有 endpoint 或搬入新目錄不算完成。只有通過 Module Independence Gate 才能增加上述數字。
@@ -61,8 +63,8 @@ P2 之後採兩個明確終點：P2 通過後先對同一候選成品執行 Loca
 | 統一執行階段 | 目前狀態 | 前置 Gate |
 | --- | --- | --- |
 | P2 Kiosk Voice＋Emotion Diagnostics | REPOSITORY WORK MERGED；實機 evidence pending（#19 `ready-for-human`） | Batch R complete |
-| Local Pilot Admission | READY_FOR_HUMAN — NOT DECLARED | #44 security hardening → 新 candidate → target-device／AV evidence |
-| P3 Project Core Brain | WAITING LOCAL PILOT | Local Pilot Admission |
+| Local Pilot Admission | **BLOCKED — NOT DECLARED** | Pilot Configuration Authority＋target-device evidence（兩者皆缺） |
+| P3 Project Core Brain | **IN PROGRESS**（順序例外） | 擁有者決定暫停 Pilot；不得推論 Pilot 已通過 |
 | P4 Optimization Lab | WAITING P3 | P3 Functional Acceptance |
 | P5.1 Identity/Operations | WAITING P4 | P4 Functional Acceptance |
 | P5.2 Member/Campaign/Recommendation | WAITING P5.1 | P5.1 Module Gates |
