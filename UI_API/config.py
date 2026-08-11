@@ -373,9 +373,8 @@ DEFAULT_SETTINGS = {
     "TTS_API_URL": "https://api.openai.com",
     "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
     # ── 情緒分析 ─────────────────────────────────────────────
-    "EMOTION_ENABLED": False,
     "EMOTION_MODEL_PROFILE": "r1_omni",
-    "EMOTION_CAPTURE_MODE": "voice",  # voice | periodic; disabled is represented by EMOTION_ENABLED=false
+    "EMOTION_CAPTURE_MODE": "off",  # off | periodic_ordering | voice_only
     "EMOTION_CLIP_SEC": 5.0,
     "EMOTION_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
     "EMOTION_PROMPT": _prompts.EMOTION_PROMPT,
@@ -403,7 +402,6 @@ DEFAULT_SETTINGS = {
 
 PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
-    "EMOTION_ENABLED",
     "EMOTION_CLIP_SEC",
     "EMOTION_MODEL_PROFILE",
     "EMOTION_CAPTURE_MODE",
@@ -559,6 +557,15 @@ def _apply_ai_env_overrides(settings: dict) -> None:
 def _finalize_settings(settings: dict) -> dict:
     """Apply env-derived overrides shared by every settings source (JSON file or Postgres)."""
 
+    legacy_emotion_enabled = settings.pop("EMOTION_ENABLED", None)
+    legacy_emotion_mode = settings.get("EMOTION_CAPTURE_MODE")
+    if legacy_emotion_mode in {"voice", "periodic"}:
+        settings["EMOTION_CAPTURE_MODE"] = (
+            "voice_only" if legacy_emotion_mode == "voice" else "periodic_ordering"
+        ) if legacy_emotion_enabled is not False else "off"
+    elif legacy_emotion_enabled is False and legacy_emotion_mode is None:
+        settings["EMOTION_CAPTURE_MODE"] = "off"
+
     settings = migrate_llm_routing_settings(settings)
 
     if str(os.getenv("DEMO_PUBLIC_MODE", "")).lower() in ("1", "true", "yes", "on"):
@@ -574,6 +581,9 @@ def _finalize_settings(settings: dict) -> dict:
                     pass
             else:
                 settings[env_key] = env_value
+    emotion_mode_env = str(os.getenv("EMOTION_CAPTURE_MODE", "") or "").strip()
+    if emotion_mode_env in {"off", "periodic_ordering", "voice_only"}:
+        settings["EMOTION_CAPTURE_MODE"] = emotion_mode_env
     dual_write_env = str(os.getenv("ENABLE_MEMBER_DUAL_WRITE", "")).lower()
     if dual_write_env in ("1", "true", "yes", "on"):
         settings["ENABLE_MEMBER_DUAL_WRITE"] = True
@@ -663,8 +673,12 @@ def load_settings():
                     raw_settings = f.read().strip()
                     loaded_data = json.loads(raw_settings) if raw_settings else {}
                     if isinstance(loaded_data, dict):
+                        should_write = (
+                            "EMOTION_ENABLED" in loaded_data
+                            or loaded_data.get("EMOTION_CAPTURE_MODE") in {"voice", "periodic"}
+                        )
                         settings = _deep_merge(settings, loaded_data)
-                        should_write = any(key not in loaded_data for key in DEFAULT_SETTINGS) or any(
+                        should_write = should_write or any(key not in loaded_data for key in DEFAULT_SETTINGS) or any(
                             isinstance(DEFAULT_SETTINGS.get(k), dict) and
                             any(sk not in loaded_data.get(k, {}) for sk in DEFAULT_SETTINGS[k])
                             for k in DEFAULT_SETTINGS if isinstance(DEFAULT_SETTINGS.get(k), dict)
@@ -743,11 +757,6 @@ def get(key, default=None):
         "REDIS_URL": REDIS_URL,
         "SHARED_RATE_LIMIT_ENABLED": SHARED_RATE_LIMIT_ENABLED,
     }
-    emotion_enabled_env = str(os.getenv("EMOTION_ENABLED", "")).strip().lower()
-    if emotion_enabled_env in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
-        # Emotion enablement is process-local. A startup script must not be
-        # overridden by a stale value persisted in shared UI settings.
-        runtime_values["EMOTION_ENABLED"] = emotion_enabled_env in {"1", "true", "yes", "on"}
     if key in runtime_values:
         return runtime_values[key] if runtime_values[key] not in (None, "") else default
     value = load_settings().get(key)

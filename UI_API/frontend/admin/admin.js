@@ -488,11 +488,10 @@ function loadSettings() { return settingsAdmin.load(); }
 
 // ── 情緒分析欄位英→繁對照 ──
 const EMOTION_ZH = {
-  neutral: "中性", happy: "開心", sad: "難過", angry: "生氣",
-  frustrated: "沮喪", anxious: "焦慮", confused: "困惑", surprise: "驚訝", surprised: "驚訝",
-  disgust: "厭惡", fear: "害怕", fearful: "害怕", excited: "興奮", bored: "無聊",
+  neutral: "中性", happy: "開心", angry: "生氣", frustrated: "沮喪",
+  anxious: "焦慮", confused: "困惑", undetermined: "未判定",
 };
-const INTENSITY_ZH = { low: "低", medium: "中", high: "高" };
+const INTENSITY_ZH = { low: "低", medium: "中", high: "高", undetermined: "未判定" };
 
 function zhEmotion(value) {
   if (!value) return "";
@@ -824,7 +823,7 @@ function renderEmotionConsoleProfiles(data) {
 }
 
 function renderEmotionConsoleSettings(settings) {
-  setVal('emotion2-mode', settings.EMOTION_ENABLED === false ? 'off' : (settings.EMOTION_CAPTURE_MODE || 'voice'));
+  setVal('emotion2-mode', settings.EMOTION_CAPTURE_MODE || 'off');
   emotionConsoleSelectedProfile = settings.EMOTION_MODEL_PROFILE || 'r1_omni';
   setVal('emotion2-model', emotionConsoleSelectedProfile);
   setVal('emotion2-clip', settings.EMOTION_CLIP_SEC ?? 5);
@@ -837,9 +836,9 @@ function renderEmotionConsoleRecords(data) {
   const rows = data.records || [];
   body.innerHTML = rows.length ? rows.map(row => `<tr style="border-top:1px solid var(--border)">
     <td>${escHtml(formatDate(row.timestamp))}</td><td>${escHtml(row.event)}</td><td>${escHtml(row.model)}</td>
-    <td>${escHtml(zhIntensity(row.emotion_intensity))}</td>
+    <td>${escHtml(zhEmotion(row.emotion))}</td><td>${escHtml(zhIntensity(row.intensity))}</td>
     <td>${escHtml(row.expression)}</td><td>${escHtml(row.voice)}</td><td>${escHtml(row.description)}</td></tr>`).join('')
-    : '<tr><td colspan="7">尚無紀錄</td></tr>';
+    : '<tr><td colspan="8">尚無紀錄</td></tr>';
 }
 
 function updateEmotionSection(section, state) {
@@ -887,8 +886,7 @@ async function saveEmotionConsoleSettings() {
       credentials: 'same-origin',
       headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        EMOTION_ENABLED: mode !== 'off',
-        EMOTION_CAPTURE_MODE: mode === 'periodic' ? 'periodic' : 'voice',
+        EMOTION_CAPTURE_MODE: mode,
         EMOTION_MODEL_PROFILE: val('emotion2-model') || 'r1_omni',
         EMOTION_CLIP_SEC: emotionDuration('emotion2-clip'),
       }),

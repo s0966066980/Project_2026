@@ -5,6 +5,7 @@ side breaks nothing until a customer hits it. Regenerating here and comparing
 turns that into a failing test.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,11 +19,20 @@ def test_generated_catalog_types_match_the_published_schema():
     if not GENERATOR.is_file():
         raise AssertionError(f"generator missing at {GENERATOR}")
 
+    generator_env = os.environ.copy()
+    generator_env.update({
+        "APP_ENV": "test",
+        "DATABASE_BACKEND": "sqlite",
+        "DATABASE_URL": "",
+        "DATABASE_URL_FILE": "",
+        "MIGRATION_DATABASE_URL_FILE": "",
+    })
     result = subprocess.run(
         [sys.executable, str(GENERATOR), "--stdout"],
         capture_output=True,
         text=True,
         check=False,
+        env=generator_env,
     )
     assert result.returncode == 0, result.stderr
 

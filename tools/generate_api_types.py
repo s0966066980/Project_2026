@@ -69,7 +69,7 @@ def _load_schemas() -> dict:
         RUNTIME_DATA_ROOT=os.environ.get("RUNTIME_DATA_ROOT", "/tmp/project-2026-openapi"),
     )
     for leaked in ("DATABASE_URL", "MIGRATION_DATABASE_URL", "DATABASE_URL_FILE", "MIGRATION_DATABASE_URL_FILE"):
-        os.environ.pop(leaked, None)
+        os.environ[leaked] = ""
 
     ui_api_root = _find_ui_api_root()
     sys.path.insert(0, str(ui_api_root / "backend"))

@@ -12,6 +12,9 @@ from repositories import emotion_log_repository
 from services.multimodal_evidence_gateway import collect_evidence, configured_provider_status
 
 MODEL_PROFILE = "r1_omni"
+CAPTURE_MODES = {"off", "periodic_ordering", "voice_only"}
+EMOTIONS = {"neutral", "happy", "angry", "frustrated", "anxious", "confused", "undetermined"}
+INTENSITIES = {"low", "medium", "high", "undetermined"}
 EVENT_LABELS = {
     "voice_mode_ended": "語音模式",
     "ordering_periodic": "點餐中定期分析",
@@ -19,13 +22,9 @@ EVENT_LABELS = {
 }
 
 
-def is_enabled() -> bool:
-    return bool(config.get("EMOTION_ENABLED", False))
-
-
 def capture_mode() -> str:
-    value = str(config.get("EMOTION_CAPTURE_MODE", "voice") or "voice")
-    return value if value in {"voice", "periodic"} else "voice"
+    value = str(config.get("EMOTION_CAPTURE_MODE", "off") or "off")
+    return value if value in CAPTURE_MODES else "off"
 
 
 def default_prompt() -> str:
@@ -48,8 +47,13 @@ def model_profiles() -> list[dict]:
 def _event_allowed(event_type: str) -> bool:
     if event_type == "admin_live_test":
         return True
-    expected = "voice_mode_ended" if capture_mode() == "voice" else "ordering_periodic"
-    return is_enabled() and event_type == expected
+    expected = {"voice_only": "voice_mode_ended", "periodic_ordering": "ordering_periodic"}.get(capture_mode())
+    return expected is not None and event_type == expected
+
+
+def _canonical(value: object, allowed: set[str], default: str = "undetermined") -> str:
+    candidate = str(value or "").strip().lower().replace(" ", "_")
+    return candidate if candidate in allowed else default
 
 
 def _record(event_type: str, model: str, signals: dict, *, failed: bool = False) -> dict:
@@ -57,7 +61,8 @@ def _record(event_type: str, model: str, signals: dict, *, failed: bool = False)
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": EVENT_LABELS.get(event_type, event_type),
         "model": model,
-        "emotion_intensity": "undetermined" if failed else str(signals.get("intensity") or "undetermined")[:40],
+        "emotion": "undetermined" if failed else _canonical(signals.get("emotion"), EMOTIONS),
+        "intensity": "undetermined" if failed else _canonical(signals.get("intensity"), INTENSITIES),
         "expression": "not_observed" if failed else str(signals.get("facial") or "not_observed")[:120],
         "voice": "not_observed" if failed else str(signals.get("vocal") or "not_observed")[:120],
         "description": (

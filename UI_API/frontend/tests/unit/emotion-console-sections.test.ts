@@ -11,7 +11,7 @@ describe('emotion console section isolation', () => {
     const states: Array<[string, { status: string; data?: unknown; message?: string }]> = [];
     const loader = createEmotionSectionLoader({
       requests: {
-        settings: vi.fn(async () => ({ EMOTION_ENABLED: true })),
+        settings: vi.fn(async () => ({ EMOTION_CAPTURE_MODE: 'voice_only' })),
         model: vi.fn(async () => { throw Object.assign(new Error('unavailable'), { status: 503 }); }),
         records: vi.fn(async () => ({ records: [] })),
       },

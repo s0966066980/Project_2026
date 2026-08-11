@@ -1748,8 +1748,7 @@ async function runPosStartup() {
     setTimeout(() => aiRecommendationController.start(), 600);
     if (f.voiceAssist) await setupAskRecorder();
     if (
-      getRuntimeSettings().EMOTION_ENABLED
-      && getRuntimeSettings().EMOTION_CAPTURE_MODE === 'periodic'
+      getRuntimeSettings().EMOTION_CAPTURE_MODE === 'periodic_ordering'
     ) {
       const bufferSec = Math.max(2, Math.min(30, Number(getRuntimeSettings().EMOTION_CLIP_SEC) || 5));
       startPeriodicEmotionAnalysis(bufferSec);

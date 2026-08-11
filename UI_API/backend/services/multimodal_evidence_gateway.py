@@ -240,7 +240,7 @@ def collect_evidence(
 
     registry = dict(adapters or default_adapters())
     if enabled is None:
-        enabled = bool(config.get("EMOTION_ENABLED", False))
+        enabled = config.get("EMOTION_CAPTURE_MODE", "off") != "off"
     if not enabled:
         evidence = registry["null"].analyze(request)
         _metric("null", "disabled")

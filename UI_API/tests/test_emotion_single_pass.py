@@ -35,7 +35,7 @@ def _capture_records(monkeypatch):
     return records
 
 
-def test_success_persists_only_the_seven_record_columns(monkeypatch):
+def test_success_persists_only_the_eight_record_columns(monkeypatch):
     records = _capture_records(monkeypatch)
     monkeypatch.setattr(emotion_service, "model_profiles", lambda: [{"ready": True}])
     monkeypatch.setattr(emotion_service, "collect_evidence", lambda *_args, **_kwargs: _evidence())
@@ -45,9 +45,9 @@ def test_success_persists_only_the_seven_record_columns(monkeypatch):
     assert result["status"] == "ok"
     assert result["emotion"] == "happy"
     assert set(records[0]) == {
-        "timestamp", "event", "model", "emotion_intensity", "expression", "voice", "description"
+        "timestamp", "event", "model", "emotion", "intensity", "expression", "voice", "description"
     }
-    assert "emotion" not in records[0]
+    assert records[0]["emotion"] == "happy"
 
 
 def test_unready_model_is_skipped_before_submission_without_a_record(monkeypatch):
@@ -76,7 +76,8 @@ def test_failure_after_inference_submission_creates_safe_media_free_record(monke
     assert result["status"] == "error"
     assert result["emotion"] == "undetermined"
     assert len(records) == 1
-    assert records[0]["emotion_intensity"] == "undetermined"
+    assert records[0]["emotion"] == "undetermined"
+    assert records[0]["intensity"] == "undetermined"
     assert all(token not in records[0] for token in ("media", "prompt", "transcript", "session_id"))
 
 
