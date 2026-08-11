@@ -64,6 +64,7 @@ R1_MODELS_PATH=/srv/project-2026/models
 | `compose.yaml` | PostgreSQL、migration、app、worker 與 test profile |
 | `compose.ai.yaml` | AI dependencies、Ollama 與 CPU R1-Omni |
 | `compose.ai-gpu.yaml` | 將 Ollama／R1 切換為 NVIDIA GPU |
+| `compose.pilot.yaml` | Local Pilot 硬化契約；必須放在最後一個 `-f` |
 
 GPU 手動啟動：
 
@@ -154,4 +155,66 @@ docker/scripts/test-ai.sh
 
 ## 安全邊界
 
-目前 Compose 是 development/local profile。它包含裝置驗證 Admin 與 diagnostic routes，不得直接當成 Pilot 安全部署。後續 Pilot profile 必須使用主機外部 secrets、Redis、備份還原與 fail-closed 設定。
+`compose.yaml`、`compose.ai.yaml` 與 `compose.ai-gpu.yaml` 合起來是 development/local profile：`APP_ENV=development`、`SECURITY_ENFORCED=false`、diagnostic routes 開啟、PostgreSQL URL 內嵌預設密碼。**它不是 Pilot，也不能用來宣告 Local Pilot Readiness。**
+
+## Local Pilot 硬化 profile
+
+`compose.pilot.yaml` 是 Pilot runtime 契約（[ADR-0061](../docs/adr/0061-run-the-pilot-on-a-read-only-container-contract.md)）。它對 `migrate`、`app`、`worker` 套用 `read_only: true`、`cap_drop: [ALL]`、`no-new-privileges:true` 與 non-root uid 10001，只保留 `/tmp` 一個 `nosuid,nodev` tmpfs 作為可寫面；runtime data 仍在 `app_data` volume，model cache 與 media temp 在 AI overlay 的 named volumes。
+
+`postgres`、`ollama`、`r1-omni` 維持 upstream runtime 契約，不在本 overlay 範圍內。
+
+### 1. 建立主機外部設定授權
+
+設定與 secrets 必須在 repository 之外，且屬於 container runtime principal：
+
+```bash
+install -d -m 0700 ~/.config/project-2026
+cp config/profiles/local-pilot.env.example ~/.config/project-2026/pilot.env
+# 填入真實值後：
+printf 'postgresql://project_2026:<password>@postgres:5432/project_2026\n' \
+  > ~/.config/project-2026/database_url
+cp ~/.config/project-2026/database_url ~/.config/project-2026/migration_database_url
+sudo chown 10001:10001 ~/.config/project-2026/{pilot.env,database_url,migration_database_url}
+sudo chmod 0600 ~/.config/project-2026/{pilot.env,database_url,migration_database_url}
+```
+
+檔案權限寬於 0600 會被啟動流程拒絕；container 以 uid 10001 執行，其他 ownership 一律 fail closed。
+
+### 2. 建立 least-privilege 資料庫角色
+
+Pilot profile 宣告 `DATABASE_RUNTIME_ROLE=project_runtime`，migration 會授權它，但不會建立它。未先建立會讓第一次 migration 直接失敗：
+
+```bash
+bash docker/scripts/provision-pilot-database-role.sh
+```
+
+目前 application 仍以 owning role 連線；把 runtime 連線改到這個 least-privilege role 屬於 Operations & Configuration 的收斂債。
+
+### 3. 啟動 Pilot
+
+`compose.pilot.yaml` 必須是最後一個 `-f`，才能覆蓋 development 預設與 `compose.ai.yaml` 的 diagnostic route：
+
+```bash
+export PILOT_ENV_FILE=~/.config/project-2026/pilot.env
+export PILOT_DATABASE_URL_FILE=~/.config/project-2026/database_url
+export PILOT_MIGRATION_DATABASE_URL_FILE=~/.config/project-2026/migration_database_url
+
+docker compose --env-file .env \
+  -f docker/compose.yaml \
+  -f docker/compose.ai.yaml \
+  -f docker/compose.ai-gpu.yaml \
+  -f docker/compose.pilot.yaml \
+  up -d --wait
+```
+
+三個 `PILOT_*` 變數缺任何一個，`docker compose config` 會直接失敗，不會退回 development 預設啟動。
+
+### 4. 驗證硬化確實生效
+
+```bash
+bash docker/scripts/verify-pilot-security.sh
+```
+
+檢查 read-only rootfs、空的 capability bounding set、`NoNewPrivs`、non-root principal、rootfs 寫入被拒、allowlist 路徑可寫、secrets 私有可讀且未進入環境變數，以及 diagnostic/demo/debug routes 不存在。
+
+結構契約本身由 required check `UI_API/tests/test_pilot_container_security.py` 守住。
