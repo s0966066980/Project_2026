@@ -24,7 +24,7 @@ x-app-environment: &app-environment
   STRUCTURED_LOGGING_ENABLED: "true"
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
   OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/api/generate}
-  R1_OMNI_GRADIO_URL: ${R1_OMNI_GRADIO_URL:-http://host.docker.internal:7890}
+  R1_OMNI_GRADIO_URL: ${R1_OMNI_GRADIO_URL:-http://r1-omni:7890}
   NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
   NVIDIA_API_BASE_URL: ${NVIDIA_API_BASE_URL:-https://integrate.api.nvidia.com/v1}
 

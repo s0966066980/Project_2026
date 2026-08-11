@@ -22,7 +22,7 @@ services:
       STT_MODEL: ${STT_MODEL:-small}
       TTS_PROVIDER: edge
       EDGE_TTS_VOICE: ${EDGE_TTS_VOICE:-zh-TW-HsiaoChenNeural}
-      EMOTION_ENABLED: "true"
+      EMOTION_CAPTURE_MODE: ${EMOTION_CAPTURE_MODE:-off}
       R1_OMNI_GRADIO_URL: http://r1-omni:7890
       TMPDIR: /tmp/project-2026-media
       HF_HOME: /home/project2026/.cache/huggingface
@@ -53,7 +53,7 @@ services:
       STT_PROVIDER: faster_whisper
       STT_MODEL: ${STT_MODEL:-small}
       TTS_PROVIDER: edge
-      EMOTION_ENABLED: "true"
+      EMOTION_CAPTURE_MODE: ${EMOTION_CAPTURE_MODE:-off}
       R1_OMNI_GRADIO_URL: http://r1-omni:7890
       TMPDIR: /tmp/project-2026-media
       HF_HOME: /home/project2026/.cache/huggingface
