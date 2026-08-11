@@ -65,7 +65,6 @@ from api.v1.contracts import (
     PaginationMeta,
     PromotionCreateRequest,
     PromotionSummaryDTO,
-    RagDocumentDTO,
     RagKnowledgeActionRequest,
     RagKnowledgePublishRequest,
     RagKnowledgeTestRequest,
@@ -185,16 +184,6 @@ def _campaign_dto(snapshot) -> CampaignSnapshotDTO:
 
 def _admin_actor(request: Request) -> str:
     return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
-
-
-def _rag_document_dto(asset) -> RagDocumentDTO:
-    return RagDocumentDTO(
-        document_id=asset.document_id,
-        version=asset.version,
-        status=asset.status.value,
-        checksum=asset.checksum,
-        content_ref=asset.content_ref,
-    )
 
 
 def _rag_http_error(exc: rag_knowledge_service.RagKnowledgeError) -> HTTPException:
@@ -493,7 +482,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         audience: Annotated[str, Query(max_length=40)] = "",
     ) -> ApiResponse[RecommendationEffectivenessDTO]:
         scope = _scope(request, "recommendations.effectiveness.read")
-        events, attributions, settings_values = await asyncio.gather(
+        events, attributions = await asyncio.gather(
             asyncio.to_thread(
                 analytics_pipeline_service.list_events,
                 tenant_id=scope.tenant_id,
@@ -507,7 +496,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 since=since,
                 until=until,
             ),
-            asyncio.to_thread(commercial_settings_repository.get_settings_scoped, scope),
         )
         report = build_effectiveness_report(
             events,
@@ -519,7 +507,6 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 "variant_id": variant_id,
                 "audience": audience,
             },
-            targets=settings_values,
         )
         return ApiResponse(data=RecommendationEffectivenessDTO(**report.__dict__), meta=_meta(request))
 
