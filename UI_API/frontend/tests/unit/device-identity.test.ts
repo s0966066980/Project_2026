@@ -110,6 +110,27 @@ describe('device provisioning error messages', () => {
 });
 
 describe('device identity bootstrap', () => {
+  it('invokes browser timers with the global receiver', async () => {
+    let sequence = 0;
+    const timers = {
+      setTimeout: (function(this: unknown, _run: TimerHandler, _delay?: number, ..._args: unknown[]) {
+        expect(this).toBe(globalThis);
+        return ++sequence as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: (function(this: unknown, _handle: unknown) {
+        expect(this).toBe(globalThis);
+      }) as unknown as typeof clearTimeout,
+    };
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => jsonResponse({ authenticated: true, device_id: 'device-browser' })) as unknown as typeof fetch,
+      timers,
+    });
+
+    await expect(controller.bootstrap()).resolves.toBe(true);
+  });
+
   it('authenticates and hides the prompt when the session is valid', async () => {
     const onAuthenticated = vi.fn(async () => {});
     const fetchImpl = vi.fn(async () => jsonResponse({ authenticated: true, device_id: 'device-1' }));

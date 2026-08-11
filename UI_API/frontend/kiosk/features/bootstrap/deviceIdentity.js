@@ -41,6 +41,15 @@ export function createDeviceIdentityController({
   /** @type {any} */
   let scheduledRetry = null;
 
+  // Browser timer functions are receiver-sensitive Web APIs. Keeping them in
+  // the injectable `timers` object and invoking them as methods changes `this`
+  // to that object, which Chromium rejects with "Illegal invocation" before a
+  // valid device session can dismiss the verification boundary.
+  /** @param {TimerHandler} run @param {number} delay */
+  const schedule = (run, delay) => Reflect.apply(timers.setTimeout, globalThis, [run, delay]);
+  /** @param {any} handle */
+  const cancel = (handle) => Reflect.apply(timers.clearTimeout, globalThis, [handle]);
+
   const backdrop = () => document.getElementById('kioskDeviceAuthBackdrop');
 
   /** @param {boolean} visible */
@@ -71,7 +80,7 @@ export function createDeviceIdentityController({
 
   function cancelScheduledRetry() {
     if (scheduledRetry === null) return;
-    timers.clearTimeout(scheduledRetry);
+    cancel(scheduledRetry);
     scheduledRetry = null;
   }
 
@@ -90,14 +99,14 @@ export function createDeviceIdentityController({
       return await Promise.race([
         fetchImpl(url, { ...options, signal: controller.signal }),
         new Promise((_resolve, reject) => {
-          deadline = timers.setTimeout(() => {
+          deadline = schedule(() => {
             controller.abort();
             reject(new Error('device request timed out'));
           }, DEVICE_REQUEST_TIMEOUT_MS);
         }),
       ]);
     } finally {
-      if (deadline !== null) timers.clearTimeout(deadline);
+      if (deadline !== null) cancel(deadline);
     }
   }
 
@@ -109,7 +118,7 @@ export function createDeviceIdentityController({
     cancelScheduledRetry();
     const delay = retryDelayMs;
     retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS);
-    scheduledRetry = timers.setTimeout(() => {
+    scheduledRetry = schedule(() => {
       scheduledRetry = null;
       void bootstrap();
     }, delay);
