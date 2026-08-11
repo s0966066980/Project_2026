@@ -1,0 +1,101 @@
+# Local Pilot hardening overlay.
+#
+# This file is the Pilot runtime contract. It is an overlay, never a stack on
+# its own, and it must be the LAST `-f` so it wins over the development
+# defaults in compose.yaml and the diagnostic convenience in compose.ai.yaml:
+#
+#   docker compose \
+#     -f docker/compose.yaml \
+#     -f docker/compose.ai.yaml \
+#     -f docker/compose.ai-gpu.yaml \
+#     -f docker/compose.pilot.yaml \
+#     up -d --wait
+#
+# The Pilot Configuration Authority is host-external. The three PILOT_* paths
+# below use `${VAR:?message}`, so a missing one fails at `docker compose config`
+# time rather than booting a Pilot on development defaults. A repository `.env`
+# is not a Pilot Configuration Authority and cannot be used to declare Local
+# Pilot Readiness.
+#
+# Each referenced host file must be owned by uid/gid 10001 with mode 0600. The
+# application refuses to read a secret file whose permissions are looser than
+# 0600, and the container runs as 10001, so any other ownership fails closed.
+# Compose bind-mounts secret files with their host ownership preserved.
+#
+#   install -o 10001 -g 10001 -m 0600 /dev/null <path>
+
+x-pilot-hardening: &pilot-hardening
+  user: "10001:10001"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  # The only writable surface the root filesystem still offers. Runtime data
+  # lives on the app_data volume, the model cache and media temp on the AI
+  # overlay's named volumes; nothing else needs to be writable, which is what
+  # `docker diff` on a healthy app and worker container reports.
+  tmpfs:
+    - /tmp:mode=1777,size=256m,nosuid,nodev
+
+x-pilot-environment: &pilot-environment
+  APP_ENV: pilot
+  SECURITY_ENFORCED: "true"
+  ENABLE_NGROK: "false"
+  ENABLE_DEMO_ROUTES: "false"
+  ENABLE_DIAGNOSTIC_ROUTES: "false"
+  ENABLE_DEBUG_ROUTES: "false"
+  ENABLE_LEGACY_KIOSK_TOKEN: "false"
+  ALLOW_UNSAFE_PRODUCTION_ROUTES: "false"
+  ALLOW_POSTGRES_JSON_FALLBACK: "false"
+  STRUCTURED_LOGGING_ENABLED: "true"
+  # The external file is the one configuration authority. The inline URLs from
+  # compose.yaml are cleared so that the *_FILE secrets are the only source;
+  # the persistence profile refuses a value and a file for the same name.
+  PROJECT_2026_ENV_FILE: /run/secrets/pilot_env
+  DATABASE_URL: ""
+  MIGRATION_DATABASE_URL: ""
+  DATABASE_URL_FILE: /run/secrets/database_url
+  MIGRATION_DATABASE_URL_FILE: /run/secrets/migration_database_url
+
+services:
+  migrate:
+    <<: *pilot-hardening
+    environment:
+      <<: *pilot-environment
+    secrets:
+      - pilot_env
+      - database_url
+      - migration_database_url
+
+  app:
+    <<: *pilot-hardening
+    environment:
+      <<: *pilot-environment
+    secrets:
+      - pilot_env
+      - database_url
+      - migration_database_url
+
+  worker:
+    <<: *pilot-hardening
+    environment:
+      <<: *pilot-environment
+    secrets:
+      - pilot_env
+      - database_url
+      - migration_database_url
+
+# postgres, ollama and r1-omni keep their upstream runtime contract. They are
+# not application code, they own their own data directories, and forcing a
+# read-only root filesystem on them would be a claim this overlay cannot back
+# with observed evidence. Their exposure stays bound to the loopback interface
+# by compose.yaml and compose.ai.yaml.
+
+secrets:
+  pilot_env:
+    file: ${PILOT_ENV_FILE:?PILOT_ENV_FILE must point to a host-external Pilot Configuration Authority file owned by 10001:10001 with mode 0600}
+  database_url:
+    file: ${PILOT_DATABASE_URL_FILE:?PILOT_DATABASE_URL_FILE must point to a host-external file owned by 10001:10001 with mode 0600}
+  migration_database_url:
+    file: ${PILOT_MIGRATION_DATABASE_URL_FILE:?PILOT_MIGRATION_DATABASE_URL_FILE must point to a host-external file owned by 10001:10001 with mode 0600}
