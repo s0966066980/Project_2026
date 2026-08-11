@@ -2,7 +2,8 @@
 import threading
 import time
 
-from repositories import log_repository, menu_repository
+from capabilities import catalog
+from repositories import log_repository
 
 _cache: dict = {"top": [], "ts": 0.0}
 _cache_lock = threading.Lock()
@@ -23,7 +24,7 @@ def get_top_items(n: int = 3) -> list[dict]:
             if item_id:
                 freq[item_id] = freq.get(item_id, 0) + 1
 
-    menu_by_id = {i["id"]: i for i in menu_repository.get_menu() if i.get("id")}
+    menu_by_id = {i["id"]: i for i in catalog.list_active_items() if i.get("id")}
     ranked = sorted(freq.items(), key=lambda x: x[1], reverse=True)
     top = [
         {"id": iid, "name": menu_by_id[iid].get("name", iid), "count": cnt}

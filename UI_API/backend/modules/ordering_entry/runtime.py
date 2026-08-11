@@ -3,7 +3,8 @@ from threading import Lock
 from modules.checkout_confirmation import runtime as checkout_runtime
 from modules.runtime_persistence.runtime import sqlite_database_path
 
-from repositories import menu_repository, postgres_utils
+from capabilities import catalog
+from repositories import postgres_utils
 
 from .module import OrderingEntryFlowModule
 from .postgres_store import PostgresEntryFlowStore
@@ -18,7 +19,7 @@ class ProductionMenuBootstrap:
     def initialize(self, *, scope, session_id):
         if not session_id:
             raise RuntimeError("ordering_session_missing")
-        if not any(row.get("available", True) is not False for row in menu_repository.get_menu()):
+        if not any(row.get("available", True) is not False for row in catalog.list_active_items()):
             raise RuntimeError("available_menu_snapshot_missing")
         checkout_runtime.default_cart().get(scope=scope, session_id=session_id)
 

@@ -9,6 +9,7 @@ import { createRagAdmin } from './modules/ragAdmin.js';
 import { createOperationsOverviewAdmin } from './modules/operationsOverviewAdmin.js';
 import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { bindLayoutPreference, initZoom } from './modules/layoutPreference.js';
+import { createCatalogClient } from '../shared/api/catalogClient.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 import { llmTestErrorMessage } from './features/apiErrors.js';
 import {
@@ -19,6 +20,7 @@ import {
 } from './modules/emotionConsoleAdmin.js';
 
 const API = window.location.origin;
+const adminCatalogClient = createCatalogClient({ baseUrl: API, headers: () => adminHeaders() });
 
 // 在任何畫面繪製前先套用個人的介面縮放偏好，避免先閃一下預設大小再跳動。
 initZoom();
@@ -44,15 +46,14 @@ async function loadMenu() {
   if (menuLoadPromise) return menuLoadPromise;
   menuLoadPromise = (async () => {
   try {
-    const res = await fetch(`${API}/api/menu`);
-    const items = await res.json();
-    if (Array.isArray(items)) {
-      const nextMenuCache = {};
-      items.forEach(item => {
-        if (item.id) nextMenuCache[item.id] = item;
-      });
-      menuCache = nextMenuCache;
-    }
+    // Admin reads the catalog through the capability contract, so the item
+    // names it shows cannot drift from what the server publishes.
+    const { items } = await adminCatalogClient.listItems({ includeRetired: true });
+    const nextMenuCache = {};
+    items.forEach(item => {
+      if (item.id) nextMenuCache[item.id] = item;
+    });
+    menuCache = nextMenuCache;
   } catch { /* 靜默失敗，用 ID fallback */ }
     return menuCache;
   })().finally(() => {

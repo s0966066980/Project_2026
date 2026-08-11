@@ -32,6 +32,9 @@ REQUIRED_METRICS = (
     "postgres_operations_total",
     "migration_validation_failures_total",
     "auth_failures_total",
+    # Legacy catalog transport, counted so its deletion can rest on observed
+    # traffic reaching zero rather than on believing nothing calls it.
+    "legacy_catalog_requests_total",
     "device_auth_failures_total",
     "llm_provider_requests_total",
     "llm_task_total",

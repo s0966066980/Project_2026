@@ -1,3 +1,5 @@
+import { createCatalogClient } from '../../shared/api/catalogClient.js';
+
 const AVAILABILITY_STATUS_LABELS = {
   normal: '正常',
   low_stock: '低庫存',
@@ -20,6 +22,8 @@ export function createAvailabilityAdmin({
   hasPermission = () => false,
   confirmAction = message => window.confirm(message),
 }) {
+  const catalogClient = createCatalogClient({ baseUrl: apiBaseUrl, headers: () => adminHeaders() });
+
   let availabilityRows = [];
   let categories = [];
   let dialogMode = 'create';
@@ -150,34 +154,23 @@ export function createAvailabilityAdmin({
     const body = getElement('availabilityTableBody');
     if (body) body.innerHTML = '<tr><td colspan="7" class="adm-empty">載入中…</td></tr>';
     try {
-      const includeRetired = canWriteCatalog() && getElement('availabilityShowRetired')?.checked;
-      const res = await fetch(`${apiBaseUrl}/api/availability`, { headers: adminHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      let items = Array.isArray(data.items) ? data.items : [];
-      if (includeRetired) {
-        const catalogRes = await fetch(`${apiBaseUrl}/api/menu/items?include_retired=true`, { headers: adminHeaders() });
-        if (catalogRes.ok) {
-          const catalog = await catalogRes.json();
-          const activeById = Object.fromEntries(items.map(row => [row.id, row]));
-          items = (catalog.items || []).map(item => {
-            const active = activeById[item.id];
-            return {
-              ...item,
-              status: active?.status || 'disabled',
-              time_unavailable: active?.time_unavailable || false,
-              retired: Boolean(item.retired),
-            };
-          });
-          categories = Array.isArray(catalog.categories) ? catalog.categories : [];
-        }
-      } else {
-        categories = Array.isArray(data.categories) && data.categories.length
-          ? data.categories
-          : [...new Set(items.map(row => row.category).filter(Boolean))].sort();
-      }
-      availabilityRows = items;
-      setAvailabilityForm(data);
+      const includeRetired = Boolean(canWriteCatalog() && getElement('availabilityShowRetired')?.checked);
+      // Catalog and availability are separate contracts: one says what the
+      // store sells, the other overlays how it is selling right now. Joining
+      // them here keeps each honest instead of asking one to carry the other.
+      const [catalogList, availability] = await Promise.all([
+        catalogClient.listItems({ includeRetired }),
+        catalogClient.getAvailability(),
+      ]);
+      const overlayById = Object.fromEntries((availability.items || []).map(row => [row.id, row]));
+      availabilityRows = (catalogList.items || []).map(item => ({
+        ...item,
+        status: overlayById[item.id]?.status || (item.retired ? 'disabled' : 'normal'),
+        time_unavailable: overlayById[item.id]?.time_unavailable || false,
+        retired: Boolean(item.retired),
+      }));
+      categories = Array.isArray(catalogList.categories) ? catalogList.categories : [];
+      setAvailabilityForm(availability);
       syncCategoryFilter();
       renderAvailabilityRows();
     } catch (e) {
@@ -208,16 +201,20 @@ export function createAvailabilityAdmin({
       store_disabled_item_ids: statusIds('disabled'),
     };
     try {
-      const res = await fetch(`${apiBaseUrl}/api/availability`, {
-        method: 'POST',
-        headers: adminHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload),
+      const saved = await catalogClient.saveAvailability({
+        service_period: payload.service_period,
+        service_periods: payload.service_periods,
+        sold_out_item_ids: payload.sold_out_item_ids,
+        low_stock_item_ids: payload.low_stock_item_ids,
+        disabled_item_ids: payload.store_disabled_item_ids,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      availabilityRows = Array.isArray(data.items) ? data.items : [];
-      categories = Array.isArray(data.categories) ? data.categories : categories;
-      setAvailabilityForm(data);
+      const overlayById = Object.fromEntries((saved.items || []).map(row => [row.id, row]));
+      availabilityRows = availabilityRows.map(row => ({
+        ...row,
+        status: overlayById[row.id]?.status || row.status,
+        time_unavailable: overlayById[row.id]?.time_unavailable || false,
+      }));
+      setAvailabilityForm(saved);
       syncCategoryFilter();
       renderAvailabilityRows();
       alertUser('供應設定已儲存');
@@ -278,39 +275,12 @@ export function createAvailabilityAdmin({
     const btn = getElement('catalogItemSaveBtn');
     if (btn) btn.disabled = true;
     try {
-      let savedId = itemId;
-      if (dialogMode === 'create') {
-        const res = await fetch(`${apiBaseUrl}/api/menu/items`, {
-          method: 'POST',
-          headers: adminHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `HTTP ${res.status}`);
-        savedId = data.item?.id;
-      } else {
-        const res = await fetch(`${apiBaseUrl}/api/menu/items/${encodeURIComponent(itemId)}`, {
-          method: 'PUT',
-          headers: adminHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `HTTP ${res.status}`);
-        savedId = data.item?.id || itemId;
-      }
-      const fileInput = getElement('catalogItemImageFile');
-      const file = fileInput?.files?.[0];
-      if (file && savedId) {
-        const form = new FormData();
-        form.append('file', file);
-        const uploadRes = await fetch(`${apiBaseUrl}/api/menu/items/${encodeURIComponent(savedId)}/image`, {
-          method: 'POST',
-          headers: adminHeaders(),
-          body: form,
-        });
-        const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok) throw new Error(uploadData?.detail?.message || uploadData?.detail || `上傳失敗 HTTP ${uploadRes.status}`);
-      }
+      const saved = dialogMode === 'create'
+        ? await catalogClient.createItem(payload)
+        : await catalogClient.updateItem(itemId, payload);
+      const savedId = saved?.id || itemId;
+      const file = getElement('catalogItemImageFile')?.files?.[0];
+      if (file && savedId) await catalogClient.uploadItemImage(savedId, file);
       getElement('catalogItemDialog')?.close?.();
       await loadAvailability();
       alertUser(dialogMode === 'create' ? '商品已新增' : '商品已更新');
@@ -325,11 +295,7 @@ export function createAvailabilityAdmin({
     if (!canWriteCatalog()) return;
     if (!confirmAction('確定要刪除（退役）此商品？kiosk 將無法再點購，之後可還原。')) return;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/menu/items/${encodeURIComponent(itemId)}/retire`, {
-        method: 'POST',
-        headers: adminHeaders(),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await catalogClient.retireItem(itemId);
       await loadAvailability();
     } catch (e) {
       alertUser(`刪除失敗：${e.message}`);
@@ -339,11 +305,7 @@ export function createAvailabilityAdmin({
   async function restoreItem(itemId) {
     if (!canWriteCatalog()) return;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/menu/items/${encodeURIComponent(itemId)}/restore`, {
-        method: 'POST',
-        headers: adminHeaders(),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await catalogClient.restoreItem(itemId);
       await loadAvailability();
     } catch (e) {
       alertUser(`還原失敗：${e.message}`);

@@ -53,3 +53,46 @@ describe('independent product frontend boundaries', () => {
     expect(violations).toEqual([]);
   });
 });
+
+/**
+ * Admin used to run inside the kiosk bundle behind `isAdminMode()`. Admin is
+ * its own application (ADR-0024), so those branches were unreachable code that
+ * still had to be read and maintained by anyone touching the kiosk.
+ */
+describe('the kiosk bundle carries no Admin runtime mode', () => {
+  const kioskSources = () => sourceFiles(productRoots.kiosk);
+
+  it('no kiosk source decides behaviour by admin mode', () => {
+    const offenders = kioskSources().filter((path) => /\bisAdminMode\b/.test(readFileSync(path, 'utf8')));
+    expect(offenders.map((path) => relative(frontendRoot, path))).toEqual([]);
+  });
+
+  it('the shared surface holds no admin view for the kiosk to switch into', () => {
+    const shared = sourceFiles(sharedRoot)
+      .filter((path) => /\badminView\b|\badminNotificationBox\b|loadAdminData/.test(readFileSync(path, 'utf8')));
+    expect(shared.map((path) => relative(frontendRoot, path))).toEqual([]);
+  });
+});
+
+/**
+ * Gate 7: Admin and Kiosk reach the catalog through the generated contract.
+ * A raw call to the legacy route would keep working, which is exactly why it
+ * has to fail here instead.
+ */
+describe('catalog callers use the generated contract', () => {
+  const LEGACY_CATALOG_ROUTES = /['"`][^'"`]*\/api\/(menu|availability)\b/;
+
+  it('no product calls the legacy catalog routes directly', () => {
+    const offenders = [...sourceFiles(productRoots.admin), ...sourceFiles(productRoots.kiosk), ...sourceFiles(sharedRoot)]
+      .filter((path) => LEGACY_CATALOG_ROUTES.test(readFileSync(path, 'utf8')))
+      .map((path) => relative(frontendRoot, path));
+    expect(offenders).toEqual([]);
+  });
+
+  it('the catalog client is the only place that spells the v1 catalog path', () => {
+    const spellers = [...sourceFiles(productRoots.admin), ...sourceFiles(productRoots.kiosk), ...sourceFiles(sharedRoot)]
+      .filter((path) => /\/api\/v1\/catalog/.test(readFileSync(path, 'utf8')))
+      .map((path) => relative(frontendRoot, path));
+    expect(spellers).toEqual(['shared/api/catalogClient.js']);
+  });
+});

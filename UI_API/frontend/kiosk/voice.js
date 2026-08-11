@@ -11,7 +11,6 @@ import { createVoiceTurnProtocolState, consumeVoiceTurnEvent, assertVoiceTurnStr
 import { kioskText } from './constants/kiosk.js';
 import { playVoiceAudioChunk } from './voicePlayback.js';
 
-function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
 function isKioskActive() { return getRequiredRuntimeDependency('isKioskActive')(); }
 function trackInteractionEvent(event) { return getRequiredRuntimeDependency('trackInteractionEvent')(event); }
 function showPushNotice(text) { return getRequiredRuntimeDependency('showPushNotice')(text); }
@@ -260,7 +259,7 @@ export function hideVoiceAssistOverlay() {
 
 
 export async function setupAskRecorder() {
-  if (isAdminMode() || voiceDetector) return;
+  if (voiceDetector) return;
   if (!state.stream?.getAudioTracks?.().length) {
     setVoiceStatus('unavailable', '語音不可用');
     return;

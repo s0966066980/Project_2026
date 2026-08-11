@@ -2,9 +2,11 @@
 
 from datetime import datetime, time
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from repositories import availability_repository, menu_repository
+from repositories import availability_repository
 
 BREAKFAST_CATEGORY = "早餐"
 
@@ -123,17 +125,17 @@ def build_availability_context(
     if menu_items is not None:
         rows = menu_items
     elif scope is not None:
-        rows = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+        rows = catalog.list_items(scope, include_retired=False, ensure_seed=True)
     else:
-        rows = menu_repository.get_menu()
+        rows = catalog.list_active_items()
     return {"enabled": True, **_availability_base(rows, now=now, scope=scope)}
 
 
 def get_admin_state(now: datetime | None = None, scope: CommercialScope | None = None) -> dict:
     if scope is not None:
-        menu_items = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+        menu_items = catalog.list_items(scope, include_retired=False, ensure_seed=True)
     else:
-        menu_items = menu_repository.get_menu()
+        menu_items = catalog.list_active_items()
     context = build_availability_context(menu_items, now=now, scope=scope)
     sold_out_ids = set(context.get("sold_out_item_ids", []))
     low_stock_ids = set(context.get("low_stock_item_ids", []))
@@ -171,9 +173,9 @@ def get_admin_state(now: datetime | None = None, scope: CommercialScope | None =
 
 def save_admin_state(payload: dict, scope: CommercialScope | None = None) -> dict:
     if scope is not None:
-        menu_items = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+        menu_items = catalog.list_items(scope, include_retired=False, ensure_seed=True)
     else:
-        menu_items = menu_repository.get_menu()
+        menu_items = catalog.list_active_items()
     valid_ids = _valid_menu_ids(menu_items)
     source = payload if isinstance(payload, dict) else {}
     row = {

@@ -53,7 +53,7 @@ export function getMenuVisual(item) {
   else if (/玉米|湯/.test(name)) fallback = { ...fallback, emoji: '🌽' };
   else if (/鬆餅|滿福|焙果/.test(name)) fallback = { ...fallback, emoji: '🥞' };
   else if (/Happy Meal|快樂兒童餐/.test(name)) fallback = { ...fallback, emoji: '🧒' };
-  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : '') };
+  return { ...fallback, image: item.image || (id.startsWith('MCD') ? `/static/kiosk/assets/menu_images/${id}.jpg` : '') };
 }
 
 /**

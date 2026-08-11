@@ -237,7 +237,13 @@ CORS_ORIGINS = [
 for _public_origin in (PUBLIC_POS_ORIGIN, PUBLIC_ADMIN_ORIGIN):
     if _public_origin and _public_origin not in CORS_ORIGINS:
         CORS_ORIGINS.append(_public_origin)
-MENU_JSON_PATH = os.getenv("MENU_JSON_PATH", os.path.join(PROJECT_DIR, "menu_data", "menu.json"))
+# The seed belongs to the catalog capability that owns the tables it fills, not
+# to a top-level data folder shared with nothing. It is read once per empty
+# store and never overwrites an existing catalog.
+MENU_JSON_PATH = os.getenv(
+    "MENU_JSON_PATH",
+    os.path.join(PROJECT_DIR, "backend", "capabilities", "catalog", "seed", "menu.json"),
+)
 LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", str(_RUNTIME_PATHS.exports))
 SETTINGS_JSON_PATH = os.getenv("SETTINGS_JSON_PATH", os.path.join(LEARNING_DATA_DIR, "settings.json"))
 RAG_DOCUMENTS_DIR = os.getenv("RAG_DOCUMENTS_DIR") or str(_RUNTIME_PATHS.imports)

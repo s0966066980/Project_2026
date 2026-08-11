@@ -1,5 +1,6 @@
 // @ts-check
 
+import { createCatalogClient } from './api/catalogClient.js';
 import { fetchJson, postFormJson, postJson } from './httpClient.js';
 
 /** @typedef {import('../types.d.ts').InteractionEventPayload} InteractionEventPayload */
@@ -142,6 +143,8 @@ function kioskHeaders(extra = {}) {
   return token ? { ...extra, 'X-Kiosk-Token': token } : extra;
 }
 
+const catalogClient = createCatalogClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+
 /** @returns {Promise<Record<string, unknown>>} */
 export async function getPublicSettings() {
   if (!publicSettingsRequest) {
@@ -162,7 +165,12 @@ export async function getSettings() {
 /** @returns {Promise<import('../types.d.ts').MenuItem[]>} */
 export async function getMenu() {
   if (!menuRequest) {
-    menuRequest = fetchJson(`${API_BASE}/api/menu`)
+    // The kiosk reads the catalog through the capability's published contract
+    // rather than the legacy menu route, so a field it depends on
+    // cannot change without failing the generated-contract drift gate.
+    menuRequest = catalogClient
+      .listItems()
+      .then(list => list.items)
       .catch(error => {
         menuRequest = null;
         throw error;

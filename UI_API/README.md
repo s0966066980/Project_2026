@@ -65,7 +65,7 @@ frontend/
 - `backend/schemas/migrations/` 是 schema source of truth；目前 migration head 為 `0027_remove_pre_pilot_rag_history`。
 - Redis 只提供 shared cache、rate limiting 與 distributed lock，不持有 authoritative business data。
 - Object bytes 使用 local/S3 adapter；PostgreSQL 保存 metadata。
-- `menu_data/menu.json` 是待搬入 Catalog 的 seed，不是 runtime source of truth。
+- `backend/capabilities/catalog/seed/menu.json` 是 Catalog 的 seed，只在門市尚無品項時匯入一次，不是 runtime source of truth。
 - `learning_data/settings.json` 是待移除的 compatibility/test data，不得成為 Pilot settings authority。
 - AI、RAG、STT/TTS、Emotion provider 可以 degraded，但不得改寫 checkout transaction authority。
 

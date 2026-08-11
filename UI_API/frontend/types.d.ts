@@ -192,7 +192,6 @@ export interface KioskRuntime {
   clearAllPushCards?: () => void;
   getFeatures?: () => Record<string, unknown>;
   getRuntimeSettings?: () => Record<string, unknown>;
-  isAdminMode?: () => boolean;
   isKioskActive?: () => boolean;
   isKioskMode?: () => boolean;
   isPosActive?: () => boolean;

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import io
 import re
 from typing import Any
-from uuid import UUID
 
-import config
 from models.commercial_scope import CommercialScope
 from repositories import menu_repository
 from services import menu_validation_service, object_storage_service
@@ -188,12 +185,7 @@ def upload_item_image(
 def load_item_image_bytes(scope: CommercialScope | None, item_id: str) -> tuple[bytes, str]:
     resolved = _scope(scope)
     item = get_item(resolved, item_id, include_retired=True)
-    image = str(
-        item.get("image_storage")
-        or item.get("image_ref")
-        or item.get("image")
-        or ""
-    ).strip()
+    image = str(item.get("image_storage") or item.get("image_ref") or item.get("image") or "").strip()
     if image.startswith("object:"):
         object_id = image.removeprefix("object:")
         try:
@@ -204,13 +196,3 @@ def load_item_image_bytes(scope: CommercialScope | None, item_id: str) -> tuple[
     if image.startswith("/static/") or image.startswith("http://") or image.startswith("https://"):
         raise MenuCatalogError("image_external", "external image; fetch the image URL directly")
     raise MenuCatalogError("image_not_found", "image not found")
-
-
-def replace_catalog(scope: CommercialScope | None, items: list) -> list[dict]:
-    """Bulk replace used by legacy admin POST /api/menu — writes Postgres/JSON scoped master."""
-
-    try:
-        validated = menu_validation_service.validate_menu_payload(items)
-    except menu_validation_service.MenuValidationError as exc:
-        raise MenuCatalogError("invalid_menu", str(exc)) from exc
-    return menu_repository.replace_all_scoped(_scope(scope), validated, preserve_ids=True)

@@ -115,7 +115,9 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
     讓操作者知道還有哪些要補。
     """
 
-    from repositories import menu_repository, push_copy_batch_repository, push_copy_repository
+    from capabilities import catalog
+
+    from repositories import push_copy_batch_repository, push_copy_repository
     from services import push_copy_authoring_service
 
     batch_id = str(job.payload_ref.get("batch_id") or "").strip()
@@ -128,7 +130,7 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
         return JobHandlerResult(success=False, retryable=False, safe_error="push_copy_batch_not_found")
 
     push_copy_batch_repository.mark_running(scope, batch_id)
-    menu_by_id = {str(row.get("id")): row for row in menu_repository.get_menu() if row.get("id")}
+    menu_by_id = {str(row.get("id")): row for row in catalog.list_active_items() if row.get("id")}
     existing = push_copy_repository.list_copy_scoped(scope)
 
     for item_id in batch["item_ids"]:

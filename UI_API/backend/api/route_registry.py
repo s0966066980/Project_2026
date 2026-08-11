@@ -5,7 +5,6 @@ import config
 from routes import (
     admin_identity_routes,
     ai_push_routes,
-    availability_routes,
     checkout_confirmation_routes,
     core_routes,
     debug_routes,
@@ -15,12 +14,13 @@ from routes import (
     emotion_routes,
     interaction_routes,
     member_routes,
-    menu_routes,
     ordering_entry_routes,
     project_brain_routes,
+    promotion_banner_routes,
     push_copy_routes,
     realtime_routes,
     recommendation_event_routes,
+    v1_catalog_routes,
     v1_routes,
     voice_routes,
 )
@@ -54,12 +54,12 @@ def _debug_routes_enabled() -> bool:
 
 ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("public", v1_routes),
+    RouteRegistration("public", v1_catalog_routes),
     RouteRegistration("public", admin_identity_routes),
     RouteRegistration("public", device_identity_routes),
     RouteRegistration("public", core_routes),
     RouteRegistration("public", checkout_confirmation_routes),
-    RouteRegistration("public", menu_routes),
-    RouteRegistration("admin", availability_routes),
+    RouteRegistration("public", promotion_banner_routes),
     RouteRegistration("admin", push_copy_routes),
     RouteRegistration("admin", project_brain_routes),
     RouteRegistration("ai", voice_routes),

@@ -4,9 +4,10 @@
 """
 import asyncio
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from repositories import menu_repository
 from services import (
     availability_service,
     member_preference_service,
@@ -71,8 +72,8 @@ async def build_context(
     scope: CommercialScope | None = None,
 ) -> dict:
     menu_rows = menu_items if menu_items is not None else await asyncio.to_thread(
-        menu_repository.get_menu_scoped, scope, include_retired=False, ensure_seed=True
-    ) if scope is not None else await asyncio.to_thread(menu_repository.get_menu)
+        catalog.list_items, scope, include_retired=False, ensure_seed=True
+    ) if scope is not None else await asyncio.to_thread(catalog.list_active_items)
     member = await asyncio.to_thread(
         member_service.get_session_member,
         session_id,

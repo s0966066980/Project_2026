@@ -5,10 +5,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from capabilities import catalog
 from modules.promotion import PromotionContext, quote_promotion, select_promotion_quote
 
 from models.commercial_scope import CommercialScope
-from repositories import menu_repository
 from services import availability_service, commercial_shadow_service, promotion_service
 
 CHECKOUT_CALCULATION_VERSION = "checkout-v1"
@@ -85,9 +85,9 @@ def price_checkout_cart(
     scope: CommercialScope | None = None,
 ) -> dict:
     if scope is not None:
-        menu_rows = menu_repository.get_menu_scoped(scope, include_retired=False, ensure_seed=True)
+        menu_rows = catalog.list_items(scope, include_retired=False, ensure_seed=True)
     else:
-        menu_rows = menu_repository.get_menu()
+        menu_rows = catalog.list_active_items()
     menu_by_id = {
         str(item.get("id") or "").strip(): item
         for item in menu_rows

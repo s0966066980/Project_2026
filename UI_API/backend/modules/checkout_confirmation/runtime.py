@@ -8,7 +8,8 @@ from modules.runtime_persistence.runtime import sqlite_database_path
 
 import config
 from models.commercial_scope import LEGACY_DEFAULT_DEVICE_ID, CommercialScope
-from repositories import menu_repository, postgres_utils
+from capabilities import catalog
+from repositories import postgres_utils
 from services import checkout_pricing_service, member_service
 
 from .module import CheckoutConfirmationModule
@@ -34,7 +35,7 @@ class ProductionPricing:
 
 class ProductionFulfillment:
     def validate(self, *, scope, lines):
-        menu = {str(row.get("id") or ""): row for row in menu_repository.get_menu()}
+        menu = {str(row.get("id") or ""): row for row in catalog.list_active_items()}
         return [
             {"item_id": row["item_id"], "reason": "unavailable"}
             for row in lines
