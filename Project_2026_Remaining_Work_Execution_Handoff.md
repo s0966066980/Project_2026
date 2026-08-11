@@ -411,6 +411,29 @@ Security/Compose 變更會使舊 evidence stale。必須重新記錄：
 
 Sidecar isolation、provider readiness、evidence allowlist、latest-report atomicity、proposal no-apply、Admin consumer與Docker evidence同artifact通過；更新Issue #26後進P4。
 
+### 9.4 P3 執行結果（2026-08-12）
+
+| Field | Value |
+| --- | --- |
+| Stage / capability | P3 Project Core Brain |
+| Status | **PASSED（repository scope）**；provider 實際執行為 `ready-for-human` |
+| Issue / PR | #26；PR #51、#52、#53、#54 |
+| Commit | `d32e46f`、`66a8232`、`8c86b47`、`74a509f` |
+| Image digests | `project-2026-project-analyst:local`（`analyst` 與 `proposer` 兩個 target） |
+| Config fingerprint | `docker/compose.project-analyst.yaml`（opt-in overlay，不在預設 stack） |
+| Migration head | 未變更；P3 不引入 migration |
+| Runtime / hardware | 單機 Docker Compose；sidecar 容器實測 |
+| Focused tests | evidence allowlist 71；sidecar 35；wiring 26；proposal workflow 36 |
+| Full required checks | 六項全綠（#51～#54）；backend 全套 325 passed |
+| Failure/degradation evidence | 無憑證時三個 profile 全 `cli_not_installed`；`/analyze` 回 409 且 provider 呼叫清單為空；sidecar 不可達轉為 bounded reason |
+| Security/retention evidence | sidecar 零掛載、capability 全空、`NoNewPrivs=1`、uid 10002、`/tmp` 外全 `EROFS`、無 docker socket；provider 回應不符契約整筆拒絕 |
+| Consumer/legacy zero evidence | UI API 進程無 `llm_gateway_service`／`subprocess`／shell（AST 驗證）；in-process 提案產生器已刪除；`RECOMMENDATION_TARGET_EFFECTIVE_FROM` 由 persisted settings 移除並加負向測試 |
+| Recovery/rollback | 失敗 rescan 保留舊報告並標 `stale`；成功 rescan 以 `os.replace` 原子替換 |
+| Remaining debt | Provider CLI 安裝與自動化憑證未提供，`/analyze` 與提案產生皆無法實際執行——`ready-for-human` |
+| Evidence timestamp | 2026-08-12 |
+
+**未通過的部分（不得計為完成）**：ADR-0037 要求的 CLI 版本探測、憑證驗證、non-interactive 執行與 contract probe 都需要實際安裝的 Codex／Claude／Grok 與自動化憑證。目前的證據只涵蓋「無憑證時必須 fail closed 且不切換」這條路徑，不涵蓋「provider 成功執行一次分析」。
+
 ## 10. P4 — Optimization Lab
 
 ### 10.1 修改工作包

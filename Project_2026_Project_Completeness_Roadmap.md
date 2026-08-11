@@ -52,7 +52,9 @@ P2 repository implementation: MERGED — PR #40 through #43
 P2 child issues: #21 / #22 / #24 CLOSED with evidence; #23 READY_FOR_HUMAN (target device)
 Pilot security hardening: DONE — Issue #44 / PR #46 / ADR-0061
 Local Pilot Admission: BLOCKED — 憑證已移除且缺少目標實機（Issue #20）
-Current active stage: P3 Project Core Brain（2026-08-11 擁有者決定暫停 Pilot 先做架構收斂）
+P3 Project Core Brain: REPOSITORY SCOPE PASSED — sidecar 隔離、證據 allowlist、報告原子性、提案不套用
+P3 remaining: provider CLI 與自動化憑證未提供，實際執行為 ready-for-human
+Current active stage: P4 Optimization Lab（2026-08-11 擁有者決定暫停 Pilot 先做架構收斂）
 ```
 
 已有 endpoint 或搬入新目錄不算完成。只有通過 Module Independence Gate 才能增加上述數字。
@@ -64,8 +66,8 @@ P2 之後採兩個明確終點：P2 通過後先對同一候選成品執行 Loca
 | --- | --- | --- |
 | P2 Kiosk Voice＋Emotion Diagnostics | REPOSITORY WORK MERGED；實機 evidence pending（#19 `ready-for-human`） | Batch R complete |
 | Local Pilot Admission | **BLOCKED — NOT DECLARED** | Pilot Configuration Authority＋target-device evidence（兩者皆缺） |
-| P3 Project Core Brain | **IN PROGRESS**（順序例外） | 擁有者決定暫停 Pilot；不得推論 Pilot 已通過 |
-| P4 Optimization Lab | WAITING P3 | P3 Functional Acceptance |
+| P3 Project Core Brain | **REPOSITORY SCOPE PASSED**（PR #51～#54）；provider 執行 `ready-for-human` | 順序例外；不得推論 Pilot 已通過 |
+| P4 Optimization Lab | NEXT | P3 repository scope 完成 |
 | P5.1 Identity/Operations | WAITING P4 | P4 Functional Acceptance |
 | P5.2 Member/Campaign/Recommendation | WAITING P5.1 | P5.1 Module Gates |
 | P5.3 Ordering & Checkout | WAITING P5.2 | P5.2 Module Gates |
