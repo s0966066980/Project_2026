@@ -116,6 +116,7 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
     """
 
     from capabilities import catalog
+
     from repositories import push_copy_batch_repository, push_copy_repository
     from services import push_copy_authoring_service
 
