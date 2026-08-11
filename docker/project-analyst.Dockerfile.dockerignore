@@ -1,0 +1,12 @@
+.git
+.github
+.codegraph
+**/__pycache__
+**/*.py[cod]
+**/.env
+UI_API
+docs
+docker
+tools
+R1-Omni
+config
