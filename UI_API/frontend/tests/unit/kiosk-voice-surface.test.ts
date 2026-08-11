@@ -31,13 +31,15 @@ describe('kiosk open-speech voice surface', () => {
     expect(voice).not.toContain('pausePassiveListener');
   });
 
-  it('renders the transcript before the assistant result', () => {
+  it('routes transcript and assistant events through one per-turn reducer', () => {
     const voice = read('kiosk/voice.js');
-    const transcriptHandler = voice.indexOf('onTranscript(data)');
-    const assistantHandler = voice.indexOf('onAssistantText(data)');
+    const reducer = read('kiosk/voiceDialogueReducer.js');
 
-    expect(transcriptHandler).toBeGreaterThan(-1);
-    expect(assistantHandler).toBeGreaterThan(transcriptHandler);
+    expect(voice).toContain('applyVoiceDialogueEvent');
+    expect(voice).toContain('reduceVoiceDialogue(activeVoiceDialogue');
+    expect(voice).not.toContain('onTranscript(data)');
+    expect(voice).not.toContain('onAssistantText(data)');
+    expect(reducer).toContain('語音辨識中…');
   });
 
   it('checks emotion readiness before requesting a periodic-analysis camera', () => {

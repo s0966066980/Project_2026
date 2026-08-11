@@ -19,7 +19,7 @@ x-app-environment: &app-environment
   ENABLE_DEMO_ROUTES: "false"
   ENABLE_DIAGNOSTIC_ROUTES: "false"
   ENABLE_DEBUG_ROUTES: "false"
-  EMOTION_ENABLED: "false"
+  EMOTION_CAPTURE_MODE: "off"
   SHARED_RATE_LIMIT_ENABLED: "false"
   STRUCTURED_LOGGING_ENABLED: "true"
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
@@ -122,6 +122,9 @@ services:
       APP_ENV: test
       DATABASE_BACKEND: sqlite
       DATABASE_URL: ""
+      DATABASE_URL_FILE: ""
+      MIGRATION_DATABASE_URL_FILE: ""
+      DATABASE_TOPOLOGY: single
       ENABLE_NGROK: "false"
       ENABLE_DIAGNOSTIC_ROUTES: "false"
       RUNTIME_DATA_ROOT: /tmp/project-2026-test-runtime

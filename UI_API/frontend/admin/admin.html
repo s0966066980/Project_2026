@@ -2350,7 +2350,7 @@ tbody tr:hover td { background: #f8fafd; }
       <div class="card-title"><i class="fas fa-sliders-h"></i> 情緒分析設定</div>
       <div style="display:flex;align-items:center;gap:8px"><span id="emotion2-settings-load-status" class="setting-help" aria-live="polite">載入中…</span><button id="emotion2-settings-retry" class="btn" type="button" hidden>重試設定</button></div>
       <div class="setting-row"><label class="setting-label" for="emotion2-mode">使用情緒分析的地方</label><div class="setting-field">
-        <select id="emotion2-mode" class="setting-input"><option value="off">關閉分析</option><option value="voice">語音模式</option><option value="periodic">開始點餐後定期分析</option></select>
+        <select id="emotion2-mode" class="setting-input"><option value="off">關閉分析</option><option value="voice_only">只在語音模式分析</option><option value="periodic_ordering">點餐期間定期分析</option></select>
       </div></div>
       <div class="setting-row"><label class="setting-label" for="emotion2-model">模型</label><div class="setting-field"><select id="emotion2-model" class="setting-input"></select><div id="emotion2-model-status" class="setting-help">檢查模型中…</div><div style="display:flex;align-items:center;gap:8px"><span id="emotion2-model-load-status" class="setting-help" aria-live="polite">載入中…</span><button id="emotion2-model-retry" class="btn" type="button" hidden>重試模型狀態</button></div></div></div>
       <div class="setting-row"><label class="setting-label" for="emotion2-clip">正式片段時長</label><div class="setting-field"><input id="emotion2-clip" class="setting-input" type="number" min="2" max="30" step="1" value="5"><div class="setting-help">2–30 秒；執行方案固定為「選定模型、單次影音、一次輸出」。</div></div></div>
@@ -2365,7 +2365,7 @@ tbody tr:hover td { background: #f8fafd; }
       <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1fr);gap:16px">
         <div><video id="emotion2-video" autoplay muted playsinline style="width:100%;min-height:220px;background:#111;border-radius:12px"></video><div style="display:flex;gap:8px;margin-top:10px"><button id="emotion2-start" class="btn btn-primary" type="button" onclick="startEmotionConsoleTest()" disabled><i class="fas fa-circle"></i> 開始錄製並分析</button><button id="emotion2-cancel" class="btn" type="button" onclick="stopEmotionConsoleTest()" disabled>取消</button></div><p id="emotion2-test-status" class="setting-help" aria-live="polite">模型就緒後可開始測試。</p></div>
         <dl id="emotion2-result" class="emotion-customer-result" aria-live="polite">
-          <div><dt>情緒</dt><dd data-emotion-field="emotion">—</dd></div><div><dt>情緒強度</dt><dd data-emotion-field="emotion_intensity">—</dd></div>
+          <div><dt>情緒</dt><dd data-emotion-field="emotion">—</dd></div><div><dt>情緒強度</dt><dd data-emotion-field="intensity">—</dd></div>
           <div><dt>表情</dt><dd data-emotion-field="expression">—</dd></div><div><dt>聲音</dt><dd data-emotion-field="voice">—</dd></div>
           <div><dt>整體描述</dt><dd data-emotion-field="description">尚無結果</dd></div>
         </dl>
@@ -2375,7 +2375,7 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between"><span><i class="fas fa-list"></i> 分析紀錄（保留 30 天）</span><button class="btn" type="button" onclick="clearEmotionConsoleRecords()"><i class="fas fa-trash"></i> 清除</button></div>
       <div style="display:flex;align-items:center;gap:8px"><span id="emotion2-records-load-status" class="setting-help" aria-live="polite">載入中…</span><button id="emotion2-records-retry" class="btn" type="button" hidden>重試紀錄</button></div>
-      <div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>時間</th><th>事件</th><th>模型</th><th>情緒強度</th><th>表情</th><th>聲音</th><th>描述</th></tr></thead><tbody id="emotion2-records"><tr><td colspan="7">載入中…</td></tr></tbody></table></div>
+      <div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>時間</th><th>事件</th><th>模型</th><th>情緒</th><th>強度</th><th>表情</th><th>聲音</th><th>描述</th></tr></thead><tbody id="emotion2-records"><tr><td colspan="8">載入中…</td></tr></tbody></table></div>
     </div>
   </section>
 

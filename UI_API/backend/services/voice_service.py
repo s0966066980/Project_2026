@@ -23,7 +23,7 @@ async def _analyze_current_voice_emotion_pair(
     voice_turn_index: int,
 ) -> dict | None:
     """Analyze one completed turn for media-free observability."""
-    if not emotion_service.is_enabled() or emotion_service.capture_mode() != "voice":
+    if emotion_service.capture_mode() != "voice_only":
         return None
 
     try:
@@ -53,7 +53,7 @@ def _schedule_voice_emotion_observation(
     legacy async path calls this function from an event loop. Support both
     callers without constructing an orphaned coroutine when no loop is running.
     """
-    if not emotion_service.is_enabled() or emotion_service.capture_mode() != "voice":
+    if emotion_service.capture_mode() != "voice_only":
         return None
 
     suffix = os.path.splitext(media_path)[1] or ".webm"

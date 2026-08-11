@@ -8,6 +8,7 @@ import { getRequiredRuntimeDependency } from './runtime.js';
 import { createSileroVoiceActivityDetector } from './voiceActivity.js';
 import { createVoiceOrderDraftController } from './voiceOrderDraft.js';
 import { createVoiceTurnProtocolState, consumeVoiceTurnEvent, assertVoiceTurnStreamEnded } from './voiceTurnProtocol.js';
+import { createVoiceDialogueState, reduceVoiceDialogue } from './voiceDialogueReducer.js';
 import { kioskText } from './constants/kiosk.js';
 import { playVoiceAudioChunk } from './voicePlayback.js';
 
@@ -19,6 +20,7 @@ function sessionId() { return getRequiredRuntimeDependency('sessionId'); }
 let voiceEmotionRoundId = '';
 let voiceTurnSequence = 0;
 let activeVoiceTurn = null;
+let activeVoiceDialogue = null;
 let voiceDetector = null;
 let voiceListening = false;
 let voiceSuspended = false;
@@ -48,6 +50,7 @@ export function resetVoiceEmotionRound() {
   voiceEmotionRoundId = createVoiceFlowId('order');
   voiceTurnSequence = 0;
   activeVoiceTurn = null;
+  activeVoiceDialogue = null;
 }
 
 function currentVoiceEmotionRoundId() {
@@ -62,6 +65,7 @@ function beginVoiceTurn() {
     turnId: `voice_${voiceTurnSequence}_${Date.now()}`,
     turnIndex: voiceTurnSequence,
   };
+  activeVoiceDialogue = createVoiceDialogueState(activeVoiceTurn.turnId);
   return activeVoiceTurn;
 }
 
@@ -183,31 +187,48 @@ export function closeVoiceBubble(stopAudio = true) {
   }
 }
 
-function showVoiceBubble(data) {
+function renderVoiceDialogue(playbackWarning = '') {
   if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
+  const rows = activeVoiceDialogue?.rows || [];
+  ui.voiceDialogueGrid.innerHTML = rows.map((row) => `
+    <div class="voice-reply-row ${row.role === 'customer' ? 'voice-reply-question' : 'voice-reply-answer'}">
+      <i class="fas ${row.role === 'customer' ? 'fa-microphone' : 'fa-volume-up'}"></i>
+      <div>${escapeHTML(row.text || '-')}</div>
+    </div>`).join('') + (playbackWarning ? `
+    <div class="voice-reply-row voice-reply-playback-warning">
+      <i class="fas fa-triangle-exclamation"></i>
+      <div>${escapeHTML(playbackWarning)}</div>
+    </div>` : '');
+  ui.voiceBubble.classList.remove('hidden');
+  ui.voiceBubble.setAttribute('aria-hidden', 'false');
+}
+
+function showVoiceBubble(data = {}) {
+  if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
+  if (!activeVoiceDialogue && (data.user_text || data.ai_response)) {
+    activeVoiceDialogue = createVoiceDialogueState(String(data.voice_turn_id || 'message'));
+    const turnId = activeVoiceDialogue.voiceTurnId;
+    if (data.user_text) reduceVoiceDialogue(activeVoiceDialogue, {
+      type: 'transcript', voice_turn_id: turnId, sequence: 1, text: data.user_text, final: true,
+    });
+    if (data.ai_response) reduceVoiceDialogue(activeVoiceDialogue, {
+      type: 'assistant_text', voice_turn_id: turnId, sequence: 2, text: data.ai_response,
+    });
+  }
+  if (activeVoiceDialogue && data.ai_response
+    && !activeVoiceDialogue.rows.some((row) => row.role === 'assistant')) {
+    reduceVoiceDialogue(activeVoiceDialogue, {
+      type: 'assistant_text',
+      voice_turn_id: activeVoiceDialogue.voiceTurnId,
+      sequence: Number.MAX_SAFE_INTEGER,
+      text: data.ai_response,
+    });
+  }
   hideVoiceAssistOverlay();
-  const userText = String(data.user_text || '').trim();
-  const answerText = String(data.ai_response || '-').trim();
   const playbackWarning = ['degraded', 'unavailable', 'failed'].includes(data.playback_status)
     ? (data.playback_message || kioskText('voicePlaybackUnavailable'))
     : '';
-  ui.voiceDialogueGrid.innerHTML = `
-    ${userText ? `
-      <div class="voice-reply-row voice-reply-question">
-        <i class="fas fa-microphone"></i>
-        <div>${escapeHTML(userText)}</div>
-      </div>` : ''}
-    <div class="voice-reply-row voice-reply-answer">
-      <i class="fas fa-volume-up"></i>
-      <div>${escapeHTML(answerText || '-')}</div>
-    </div>
-    ${playbackWarning ? `
-      <div class="voice-reply-row voice-reply-playback-warning">
-        <i class="fas fa-triangle-exclamation"></i>
-        <div>${escapeHTML(playbackWarning)}</div>
-      </div>` : ''}`;
-  ui.voiceBubble.classList.remove('hidden');
-  ui.voiceBubble.setAttribute('aria-hidden', 'false');
+  renderVoiceDialogue(playbackWarning);
   const timerBar = document.getElementById('voiceReplyTimerBar');
   if (timerBar) {
     timerBar.style.transition = 'none';
@@ -229,18 +250,31 @@ function showVoiceAssistMessage(message) {
 }
 
 function showVoiceTranscript(data) {
-  if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
-  const userText = String(data?.user_text || data?.transcript || '').trim();
-  if (!userText) return;
-  ui.voiceDialogueGrid.innerHTML = `
-    <div class="voice-reply-row voice-reply-question">
-      <i class="fas fa-microphone"></i><div>${escapeHTML(userText)}</div>
-    </div>
-    <div class="voice-reply-row voice-reply-answer">
-      <i class="fas fa-circle-notch fa-spin"></i><div>正在整理回覆…</div>
-    </div>`;
-  ui.voiceBubble.classList.remove('hidden');
-  ui.voiceBubble.setAttribute('aria-hidden', 'false');
+  if (!activeVoiceDialogue) return;
+  reduceVoiceDialogue(activeVoiceDialogue, {
+    type: 'transcript',
+    voice_turn_id: activeVoiceDialogue.voiceTurnId,
+    sequence: Number(data?.sequence || 0),
+    text: data?.user_text || data?.transcript || data?.text || '',
+    final: Boolean(data?.final),
+  });
+  renderVoiceDialogue();
+}
+
+function applyVoiceDialogueEvent(event) {
+  if (!activeVoiceDialogue || !event?.payload) return;
+  if (event.type === 'transcript') {
+    showVoiceTranscript({ ...event.payload, sequence: event.sequence });
+  }
+  if (event.type === 'assistant_result') {
+    reduceVoiceDialogue(activeVoiceDialogue, {
+      type: 'assistant_text',
+      voice_turn_id: activeVoiceDialogue.voiceTurnId,
+      sequence: event.sequence,
+      text: event.payload.ai_response || event.payload.text || event.payload.response || '',
+    });
+    renderVoiceDialogue();
+  }
 }
 
 function setVoiceStatus(status, text) {
@@ -347,17 +381,12 @@ async function submitVoiceSegment(blob) {
         // 否則語音回合會停在「處理中」而沒有任何終局。
         if (protocolViolation) return;
         try {
-          protocolState = consumeVoiceTurnEvent(protocolState, event).state;
+          const consumed = consumeVoiceTurnEvent(protocolState, event);
+          protocolState = consumed.state;
+          if (!consumed.duplicate) applyVoiceDialogueEvent(consumed.event);
         } catch (error) {
           protocolViolation = error;
         }
-      },
-      onTranscript(data) {
-        showVoiceTranscript(data);
-      },
-      onAssistantText(data) {
-        hideVoiceAssistOverlay();
-        showVoiceBubble(data);
       },
       onAudio(b64, fmt) {
         if (!firstAudioReceived) {
@@ -503,6 +532,7 @@ export function cancelActiveVoiceTurn() {
   void voiceDetector?.pause();
   voiceListening = false;
   activeVoiceTurn = null;
+  activeVoiceDialogue = null;
   if (voiceOrderDraftController.hasPending()) voiceOrderDraftController.close('cancelled');
   hideVoiceAssistOverlay();
   setVoiceStatus('paused', '語音已暫停');

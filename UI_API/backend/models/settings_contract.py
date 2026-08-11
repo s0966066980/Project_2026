@@ -51,9 +51,8 @@ class SettingsUpdateRequest(BaseModel):
     TTS_VOICE: str | None = Field(default=None, min_length=1, max_length=120)
 
     # ── 情緒診斷 ─────────────────────────────────────────────
-    EMOTION_ENABLED: bool | None = None
     EMOTION_MODEL_PROFILE: Literal["r1_omni"] | None = None
-    EMOTION_CAPTURE_MODE: Literal["voice", "periodic"] | None = None
+    EMOTION_CAPTURE_MODE: Literal["off", "periodic_ordering", "voice_only"] | None = None
     EMOTION_CLIP_SEC: float | None = Field(default=None, ge=2, le=30)
     EMOTION_PROMPT: str | None = Field(default=None, max_length=20_000)
 

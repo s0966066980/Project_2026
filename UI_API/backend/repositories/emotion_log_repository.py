@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 import config
 
 _RECORD_PATH = os.path.join(config.LEARNING_DATA_DIR, "emotion_analysis_records.json")
-_LEGACY_PATH = os.path.join(config.LEARNING_DATA_DIR, "emotion_intervention_logs.json")
 _lock = threading.Lock()
 
 
@@ -44,17 +43,8 @@ def _write_unlocked(rows: list[dict]) -> None:
     os.replace(temp_path, _RECORD_PATH)
 
 
-def purge_legacy() -> None:
-    """Permanent cutover: legacy intervention/effectiveness evidence is not retained."""
-    try:
-        os.remove(_LEGACY_PATH)
-    except FileNotFoundError:
-        pass
-
-
 def append_record(entry: dict) -> dict:
     with _lock:
-        purge_legacy()
         rows = _pruned(_load_unlocked())
         rows.append(dict(entry))
         _write_unlocked(rows)
@@ -63,7 +53,6 @@ def append_record(entry: dict) -> dict:
 
 def get_records(limit: int = 200) -> list[dict]:
     with _lock:
-        purge_legacy()
         rows = _pruned(_load_unlocked())
         _write_unlocked(rows)
     return list(reversed(rows[-max(1, min(int(limit), 1000)):]))
@@ -71,7 +60,6 @@ def get_records(limit: int = 200) -> list[dict]:
 
 def clear_records() -> int:
     with _lock:
-        purge_legacy()
         count = len(_load_unlocked())
         _write_unlocked([])
     return count

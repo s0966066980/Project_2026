@@ -7,15 +7,13 @@ from models.settings_contract import SettingsUpdateRequest
 
 def test_emotion_settings_expose_only_the_single_pass_contract():
     update = SettingsUpdateRequest(
-        EMOTION_ENABLED=True,
         EMOTION_MODEL_PROFILE="r1_omni",
-        EMOTION_CAPTURE_MODE="periodic",
+        EMOTION_CAPTURE_MODE="periodic_ordering",
         EMOTION_CLIP_SEC=30,
     )
     assert update.changed_settings() == {
-        "EMOTION_ENABLED": True,
         "EMOTION_MODEL_PROFILE": "r1_omni",
-        "EMOTION_CAPTURE_MODE": "periodic",
+        "EMOTION_CAPTURE_MODE": "periodic_ordering",
         "EMOTION_CLIP_SEC": 30,
     }
     with pytest.raises(ValidationError):

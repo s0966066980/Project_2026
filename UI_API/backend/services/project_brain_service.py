@@ -49,8 +49,7 @@ async def _snapshot(run_tests: bool) -> dict:
         },
         "features": {
             "rag_enabled": bool(config.get("RAG_ENABLED", False)),
-            "emotion_enabled": bool(config.get("EMOTION_ENABLED", False)),
-            "emotion_mode": config.get("EMOTION_CAPTURE_MODE", "voice"),
+            "emotion_mode": config.get("EMOTION_CAPTURE_MODE", "off"),
             "voice_model": config.get("VOICE_ASSIST_MODEL", ""),
             "database_backend": config.get("DATABASE_BACKEND", ""),
         },
