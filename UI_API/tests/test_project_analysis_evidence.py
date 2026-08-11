@@ -131,18 +131,40 @@ def test_backslash_separators_cannot_smuggle_a_traversal():
         evidence.read_evidence(r"UI_API\backend\..\..\..\etc\passwd")
 
 
-def test_a_symlink_component_is_refused(tmp_path):
-    """A symlink inside the repository can point anywhere on the host."""
+def test_a_symlink_component_is_refused(tmp_path, monkeypatch):
+    """A symlink inside the repository can point anywhere on the host.
 
-    link = evidence.REPOSITORY_ROOT / "UI_API" / "backend" / "project_analysis" / "escape_probe"
+    Built against a stand-in repository root rather than the real one. A test
+    that plants a symlink in the source tree fails on a read-only checkout and
+    leaves debris if the process dies — and this project's own proposal
+    workflow refuses exactly that kind of write.
+    """
+
+    fake_root = tmp_path / "repo"
+    inside = fake_root / "UI_API" / "backend" / "project_analysis"
+    inside.mkdir(parents=True)
     outside = tmp_path / "outside.py"
     outside.write_text("secret", encoding="utf-8")
-    link.symlink_to(outside)
-    try:
-        with pytest.raises(evidence.EvidenceNotAllowed, match="symlink_component"):
-            evidence.read_evidence("UI_API/backend/project_analysis/escape_probe")
-    finally:
-        link.unlink()
+    (inside / "escape_probe.py").symlink_to(outside)
+
+    monkeypatch.setattr(evidence, "REPOSITORY_ROOT", fake_root)
+    with pytest.raises(evidence.EvidenceNotAllowed, match="symlink_component"):
+        evidence.read_evidence("UI_API/backend/project_analysis/escape_probe.py")
+
+
+def test_a_symlinked_parent_directory_is_refused(tmp_path, monkeypatch):
+    """The walk checks every component, not just the final one."""
+
+    fake_root = tmp_path / "repo"
+    (fake_root / "UI_API" / "backend").mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "evidence.py").write_text("secret", encoding="utf-8")
+    (fake_root / "UI_API" / "backend" / "project_analysis").symlink_to(elsewhere)
+
+    monkeypatch.setattr(evidence, "REPOSITORY_ROOT", fake_root)
+    with pytest.raises(evidence.EvidenceNotAllowed, match="symlink_component"):
+        evidence.read_evidence("UI_API/backend/project_analysis/evidence.py")
 
 
 # --- Runtime state, customer data and generated output ----------------------

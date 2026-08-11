@@ -14,6 +14,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TARGET_SETTING_KEYS = {
     "RECOMMENDATION_PURCHASE_RATE_TARGET",
     "RECOMMENDATION_IGNORE_RATE_GUARDRAIL",
+    # Retired with the other two, but it outlived them in the persisted settings
+    # document: the contract and the public projection both refused it while
+    # load_settings still merged it in, so every internal caller kept seeing it.
+    # A key that survives in the stored document is not a retired key.
+    "RECOMMENDATION_TARGET_EFFECTIVE_FROM",
 }
 TARGET_REPORT_FIELDS = {
     "purchase_rate_target",
@@ -29,6 +34,22 @@ def test_recommendation_targets_are_not_settings_or_report_contracts():
     assert "targets" not in signature(build_effectiveness_report).parameters
 
 
+def test_no_retired_target_key_survives_in_the_persisted_settings_document():
+    """A refused contract is not the same as a removed key.
+
+    `RECOMMENDATION_TARGET_EFFECTIVE_FROM` was rejected by the settings contract
+    and absent from the public projection, and still sat in the stored document
+    where `load_settings` merged it into what every internal caller sees. The
+    checks above would have kept passing indefinitely.
+    """
+
+    import json
+
+    stored = json.loads((PROJECT_ROOT / "learning_data" / "settings.json").read_text(encoding="utf-8"))
+    surviving = {key for key in stored if "RECOMMENDATION_TARGET" in key}
+    assert surviving == set(), f"retired target keys still stored: {sorted(surviving)}"
+
+
 def test_admin_has_no_recommendation_target_controls_or_target_judgement():
     sources = [
         PROJECT_ROOT / "frontend/admin/admin.html",
@@ -37,11 +58,15 @@ def test_admin_has_no_recommendation_target_controls_or_target_judgement():
     ]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
 
-    forbidden = TARGET_SETTING_KEYS | TARGET_REPORT_FIELDS | {
-        "推薦表現目標",
-        "inp-recommendation-purchase-target",
-        "inp-recommendation-ignore-guardrail",
-    }
+    forbidden = (
+        TARGET_SETTING_KEYS
+        | TARGET_REPORT_FIELDS
+        | {
+            "推薦表現目標",
+            "inp-recommendation-purchase-target",
+            "inp-recommendation-ignore-guardrail",
+        }
+    )
 
     still_present = {token for token in forbidden if token in combined}
     assert still_present == set(), f"Admin still exposes recommendation targets: {sorted(still_present)}"
