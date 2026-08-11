@@ -48,10 +48,7 @@ ALLOWED_ROOT_FILES: frozenset[str] = frozenset(
         "AGENTS.md",
         "CONTEXT.md",
         "README.md",
-        "Project_2026_Project_Completeness_Roadmap.md",
-        "Project_2026_P2_to_P7_Execution_Plan.md",
-        "Project_2026_Remaining_Work_Execution_Handoff.md",
-        "Project_2026_Remaining_Work_Codex_Prompt.md",
+        "Project_2026_Execution_Plan.md",
     }
 )
 

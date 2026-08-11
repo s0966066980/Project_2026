@@ -9,7 +9,7 @@ Two independent inputs are missing, and neither can be substituted from this rep
 1. **Pilot Configuration Authority.** On 2026-08-11 the project owner directed that all pilot login credentials be removed and that no login authentication be created for now. Every file under `~/.config/project-2026/` was deleted at their instruction. Local Pilot Readiness is defined by one host-external, privately permissioned configuration and secret source; without it the gate cannot be entered, let alone passed.
 2. **Target Kiosk device.** Microphone, camera, browser permissions, AudioWorklet, bundled Silero VAD v5 timing, physical ordering and Live AV Emotion evidence.
 
-The project owner has decided to **pause Local Pilot Admission and proceed to the P3–P7 architecture convergence work instead**. This deliberately crosses the fixed stage order in [the remaining-work handoff](../../Project_2026_Remaining_Work_Execution_Handoff.md), which places every later stage behind this gate. It is recorded here as an explicit decision, not as a passed gate. Local Pilot Readiness remains **NOT DECLARED**.
+The project owner has decided to **pause Local Pilot Admission and proceed to the P3–P7 architecture convergence work instead**. This deliberately crosses the fixed stage order in [the execution plan](../../Project_2026_Execution_Plan.md), which places every later stage behind this gate. It is recorded here as an explicit decision, not as a passed gate. Local Pilot Readiness remains **NOT DECLARED**.
 
 Issues: [#19](https://github.com/s0966066980/Project_2026/issues/19), [#20](https://github.com/s0966066980/Project_2026/issues/20), [#23](https://github.com/s0966066980/Project_2026/issues/23).
 

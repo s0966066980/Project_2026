@@ -199,11 +199,11 @@ Project_2026/
 ├── config/profiles/        # 待由 Docker Pilot external config 取代的過渡設定
 ├── docs/adr/               # 架構決策紀錄
 ├── CONTEXT.md              # 專案 domain glossary
-├── Project_2026_Project_Completeness_Roadmap.md
+├── Project_2026_Execution_Plan.md
 └── tools/                  # 非 production 的一次性工具
 ```
 
-更完整的 Docker 操作說明見 [docker/README.md](docker/README.md)，核心應用邊界見 [UI_API/README.md](UI_API/README.md)，能力遷移與清理流程見 [Project Roadmap](Project_2026_Project_Completeness_Roadmap.md)，R1 權重與服務合約見 [R1-Omni/README.md](R1-Omni/README.md)。
+更完整的 Docker 操作說明見 [docker/README.md](docker/README.md)，核心應用邊界見 [UI_API/README.md](UI_API/README.md)，完成狀態、能力遷移與清理流程見 [執行計畫](Project_2026_Execution_Plan.md)，R1 權重與服務合約見 [R1-Omni/README.md](R1-Omni/README.md)。
 
 ## 目前限制
 
