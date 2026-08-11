@@ -4,46 +4,71 @@ import { adminHeaders, createAdminAuthController } from '../../admin/features/au
 
 class StubElement {
   textContent = '';
+  disabled = false;
   readonly style: Record<string, string> = {};
-  private readonly flags = new Set<string>();
   private readonly listeners = new Map<string, Array<(event: unknown) => unknown>>();
-  focus = vi.fn();
-
-  toggleAttribute(name: string, force?: boolean) {
-    const next = force ?? !this.flags.has(name);
-    if (next) this.flags.add(name);
-    else this.flags.delete(name);
-    return next;
-  }
-
-  hasAttribute(name: string) { return this.flags.has(name); }
 
   addEventListener(type: string, listener: (event: unknown) => unknown) {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
   }
 
-  async dispatch(type: string, event: unknown) {
+  async dispatch(type: string, event: unknown = {}) {
     for (const listener of this.listeners.get(type) ?? []) await listener(event);
   }
 }
 
-class StubInput extends StubElement {
-  value = '';
-}
-
 const elements = new Map<string, StubElement>();
-const documentListeners: string[] = [];
 
 function element(id: string): StubElement {
   const existing = elements.get(id);
   if (existing) return existing;
-  const created = id === 'adminLoginPassword' ? new StubInput() : new StubElement();
+  const created = new StubElement();
   elements.set(id, created);
   return created;
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
-  return { ok, status, json: async () => body };
+  return { ok, status, headers: { get: () => '' }, json: async () => body };
+}
+
+/**
+ * Drives the controller's own clock so a bounded wait can be observed without
+ * spending it.  Every pending deadline fires in schedule order.
+ */
+function createTestTimers() {
+  let sequence = 0;
+  const pending = new Map<number, { at: number; run: () => void }>();
+  let now = 0;
+  return {
+    timers: {
+      setTimeout: ((run: () => void, delay = 0) => {
+        const handle = ++sequence;
+        pending.set(handle, { at: now + delay, run });
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: ((handle: unknown) => {
+        pending.delete(handle as number);
+      }) as unknown as typeof clearTimeout,
+    },
+    /** Fire everything due within `ms`, letting each callback settle. */
+    async advance(ms: number) {
+      now += ms;
+      for (let guard = 0; guard < 50; guard += 1) {
+        const due = [...pending.entries()]
+          .filter(([, entry]) => entry.at <= now)
+          .sort((left, right) => left[1].at - right[1].at);
+        if (due.length === 0) break;
+        for (const [handle, entry] of due) {
+          pending.delete(handle);
+          entry.run();
+        }
+        for (let tick = 0; tick < 8; tick += 1) await Promise.resolve();
+      }
+    },
+    get scheduled() {
+      return pending.size;
+    },
+  };
 }
 
 function controllerWith(fetchImpl: unknown, overrides: Record<string, unknown> = {}) {
@@ -58,158 +83,142 @@ function controllerWith(fetchImpl: unknown, overrides: Record<string, unknown> =
 
 beforeEach(() => {
   elements.clear();
-  documentListeners.length = 0;
   Object.assign(globalThis, {
-    document: {
-      getElementById: (id: string) => element(id),
-      addEventListener: (type: string) => { documentListeners.push(type); },
-    },
-    HTMLInputElement: StubInput,
+    document: { getElementById: (id: string) => element(id) },
   });
 });
 
-describe('admin headers', () => {
-  // Session cookies carry admin identity; a header helper that invents one would be a
-  // second, weaker authentication path.
-  it('adds nothing of its own to the request', () => {
+describe('device-authenticated Admin access', () => {
+  it('adds no alternate credential to requests', () => {
     expect(adminHeaders()).toEqual({});
     expect(adminHeaders({ 'X-Trace': 'abc' })).toEqual({ 'X-Trace': 'abc' });
   });
-});
 
-describe('admin auth bootstrap', () => {
-  it('admits a manager session and hides the login prompt', async () => {
+  it('uses only the device-backed /me endpoint and opens Admin directly', async () => {
     const onAuthenticated = vi.fn(async () => {});
     const onPrincipal = vi.fn();
-    const fetchImpl = vi.fn(async (url: string) => (
-      url.endsWith('/ui-config')
-        ? jsonResponse({ manager_login_identity: 'manager', manager_idle_timeout_sec: 60 })
-        : jsonResponse({ principal: { id: 'admin-1' }, manager: true })
-    ));
+    const fetchImpl = vi.fn(async (_url: string, _options?: RequestInit) => jsonResponse({
+      principal: { user_id: 'device-admin', permissions: ['*'], auth_method: 'device_admin' },
+      access: 'device_admin',
+    }));
 
     await controllerWith(fetchImpl, { onAuthenticated, onPrincipal }).bootstrap();
 
-    expect(onPrincipal).toHaveBeenCalledWith({ id: 'admin-1' });
-    expect(onAuthenticated).toHaveBeenCalledWith({ id: 'admin-1' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const firstCall = fetchImpl.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (!firstCall) throw new Error('missing Admin bootstrap request');
+    expect(String(firstCall[0])).toBe('http://api/api/admin/auth/me');
+    expect(firstCall[1]).toMatchObject({ credentials: 'same-origin' });
+    expect(onPrincipal).toHaveBeenCalledWith(expect.objectContaining({ permissions: ['*'] }));
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
     expect(element('adminAuthBackdrop').style.display).toBe('none');
-    expect(element('managerAccessStatus').textContent).toBe('已登入');
-    expect(element('managerLockBtn').hasAttribute('hidden')).toBe(false);
+    expect(element('adminAccessStatus').textContent).toBe('裝置已驗證');
   });
 
-  // Without a manager session the backend still issues a staff principal, and the page
-  // has to stay usable rather than dead-ending on a login prompt.
-  it('keeps a staff principal usable while showing manager as locked', async () => {
-    const onAuthenticated = vi.fn(async () => {});
-    const fetchImpl = vi.fn(async (url: string) => (
-      url.endsWith('/ui-config')
-        ? jsonResponse({})
-        : jsonResponse({ principal: { id: 'staff-1' }, manager: false })
-    ));
-
-    await controllerWith(fetchImpl, { onAuthenticated }).bootstrap();
-
-    expect(onAuthenticated).toHaveBeenCalledWith({ id: 'staff-1' });
-    expect(element('adminAuthBackdrop').style.display).toBe('none');
-    expect(element('managerAccessStatus').textContent).toBe('未登入');
-    expect(element('managerUnlockBtn').hasAttribute('hidden')).toBe(false);
-  });
-
-  it('requires login when the session check is refused', async () => {
+  it('shows a recoverable device-verification error without a password prompt', async () => {
     const onAuthenticated = vi.fn(async () => {});
     const onPrincipal = vi.fn();
-    const fetchImpl = vi.fn(async (url: string) => (
-      url.endsWith('/ui-config') ? jsonResponse({}) : jsonResponse({}, false, 401)
-    ));
+    const fetchImpl = vi.fn(async (_url: string, _options?: RequestInit) => jsonResponse({}, false, 401));
 
     await controllerWith(fetchImpl, { onAuthenticated, onPrincipal }).bootstrap();
 
     expect(onAuthenticated).not.toHaveBeenCalled();
     expect(onPrincipal).toHaveBeenCalledWith(null);
     expect(element('adminAuthBackdrop').style.display).toBe('flex');
-    expect(element('adminLoginPassword').focus).toHaveBeenCalled();
+    expect(element('adminAuthMessage').textContent).toContain('裝置尚未完成驗證');
+    expect(element('adminAccessStatus').textContent).toBe('裝置未驗證');
   });
 
-  it('still checks the session when ui-config is unavailable', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      if (url.endsWith('/ui-config')) throw new Error('offline');
-      return jsonResponse({ principal: null, manager: false });
-    });
+  it('reaches a bounded outcome when the service accepts the connection but never answers', async () => {
+    const onPrincipal = vi.fn();
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn(() => new Promise<never>(() => {}));
+    const controller = controllerWith(fetchImpl, { onPrincipal, timers: timers.timers });
 
-    await controllerWith(fetchImpl).bootstrap();
+    const settled = controller.bootstrap();
+    await timers.advance(5000);
+    await timers.advance(5000);
+    await settled;
 
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(element('adminAccessStatus').textContent).toBe('服務啟動中');
+    expect(element('adminAuthRetry').disabled).toBe(false);
+    expect(timers.scheduled).toBeGreaterThan(0);
+    expect(onPrincipal).toHaveBeenCalledWith(null);
   });
-});
 
-describe('manager login', () => {
-  const submitEvent = () => ({ preventDefault: vi.fn() });
+  it('never reports a starting service as an unauthorised device', async () => {
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn(() => new Promise<never>(() => {}));
+    const controller = controllerWith(fetchImpl, { timers: timers.timers });
 
-  it('sends the identity from ui-config and clears the password field', async () => {
-    const calls: Array<Record<string, unknown>> = [];
-    const fetchImpl = vi.fn(async (url: string, init?: Record<string, unknown>) => {
-      calls.push({ url, ...(init ?? {}) });
-      if (url.endsWith('/ui-config')) return jsonResponse({ manager_login_identity: 'store-manager' });
-      if (url.endsWith('/login')) return jsonResponse({});
-      return jsonResponse({ principal: { id: 'admin-1' }, manager: true });
+    const settled = controller.bootstrap();
+    await timers.advance(5000);
+    await timers.advance(5000);
+    await settled;
+
+    const message = element('adminAuthMessage').textContent;
+    expect(message).toContain('自動重試');
+    expect(message).not.toContain('重新註冊');
+    expect(element('adminAccessStatus').textContent).not.toBe('裝置未驗證');
+  });
+
+  it('recovers on its own once the service starts answering', async () => {
+    let meAttempts = 0;
+    const onAuthenticated = vi.fn(async () => {});
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn((url: string) => {
+      if (String(url).endsWith('/ready')) return new Promise<never>(() => {});
+      meAttempts += 1;
+      if (meAttempts === 1) return new Promise<never>(() => {});
+      return Promise.resolve(jsonResponse({
+        principal: { permissions: ['*'], auth_method: 'device_admin' },
+      }));
     });
-    const controller = controllerWith(fetchImpl);
+    const controller = controllerWith(fetchImpl, { onAuthenticated, timers: timers.timers });
+
+    const settled = controller.bootstrap();
+    await timers.advance(5000);
+    await timers.advance(5000);
+    await settled;
+    await timers.advance(1000);
+
+    expect(meAttempts).toBe(2);
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
+    expect(element('adminAccessStatus').textContent).toBe('裝置已驗證');
+    expect(element('adminAuthBackdrop').style.display).toBe('none');
+  });
+
+  it('keeps an unauthorised device terminal instead of retrying it forever', async () => {
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn(async () => jsonResponse({}, false, 403));
+    const controller = controllerWith(fetchImpl, { timers: timers.timers });
+
     await controller.bootstrap();
 
-    controller.bind();
-    (element('adminLoginPassword') as StubInput).value = 'secret';
-    await element('adminAuthForm').dispatch('submit', submitEvent());
-
-    const login = calls.find((call) => String(call.url).endsWith('/login'));
-    expect(JSON.parse(String(login?.body))).toEqual({ login_identity: 'store-manager', password: 'secret' });
-    expect((element('adminLoginPassword') as StubInput).value).toBe('');
+    expect(element('adminAccessStatus').textContent).toBe('裝置未驗證');
+    expect(element('adminAuthMessage').textContent).toContain('沒有管理後台權限');
+    expect(element('adminAuthRetry').disabled).toBe(false);
+    expect(timers.scheduled).toBe(0);
   });
 
-  it('reports a rejected password without leaving it in the field', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      if (url.endsWith('/ui-config')) return jsonResponse({});
-      if (url.endsWith('/login')) return jsonResponse({}, false, 401);
-      return jsonResponse({}, false, 401);
+  it('retries device verification from the blocking state', async () => {
+    let attempts = 0;
+    const onAuthenticated = vi.fn(async () => {});
+    const fetchImpl = vi.fn(async (_url: string, _options?: RequestInit) => {
+      attempts += 1;
+      if (attempts === 1) return jsonResponse({}, false, 401);
+      return jsonResponse({ principal: { permissions: ['*'], auth_method: 'device_admin' } });
     });
-    const controller = controllerWith(fetchImpl);
+    const controller = controllerWith(fetchImpl, { onAuthenticated });
     controller.bind();
-    (element('adminLoginPassword') as StubInput).value = 'wrong';
+    await Promise.resolve();
+    await Promise.resolve();
 
-    await element('adminAuthForm').dispatch('submit', submitEvent());
+    await element('adminAuthRetry').dispatch('click');
 
-    expect((element('adminLoginPassword') as StubInput).value).toBe('');
-    expect(element('adminAuthError').textContent).not.toBe('');
-  });
-
-  it('opens and closes the manager prompt on demand', async () => {
-    const controller = controllerWith(vi.fn(async () => jsonResponse({}, false, 401)));
-    controller.bind();
-
-    controller.openManagerLogin();
-    expect(element('adminAuthBackdrop').style.display).toBe('flex');
-
-    await element('adminAuthCancel').dispatch('click', {});
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
     expect(element('adminAuthBackdrop').style.display).toBe('none');
-  });
-
-  it('logs the manager out and falls back to staff rather than locking the page', async () => {
-    const seen: string[] = [];
-    const fetchImpl = vi.fn(async (url: string) => {
-      seen.push(new URL(url).pathname);
-      if (url.endsWith('/ui-config')) return jsonResponse({});
-      if (url.endsWith('/logout')) return jsonResponse({});
-      return jsonResponse({ principal: { id: 'staff-1' }, manager: false });
-    });
-
-    await controllerWith(fetchImpl).lockManager();
-
-    expect(seen).toContain('/api/admin/auth/logout');
-    expect(element('managerAccessStatus').textContent).toBe('未登入');
-    expect(element('adminAuthBackdrop').style.display).toBe('none');
-  });
-
-  it('binds idle activity listeners so a manager session can time out', () => {
-    controllerWith(vi.fn(async () => jsonResponse({}, false, 401))).bind();
-
-    expect(documentListeners).toEqual(['pointerdown', 'keydown']);
   });
 });

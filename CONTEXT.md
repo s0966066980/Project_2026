@@ -28,6 +28,10 @@ _Avoid_: Direct repository import, Cross-module SQL, Internal HTTP API, Global s
 The declared operational class of a Business Capability Module: Core capabilities fail closed when their invariants cannot be protected, Operational capabilities follow an explicit fallback, and Optional capabilities degrade independently without stopping core ordering. Its Traditional Chinese display term is 「能力關鍵性」.
 _Avoid_: Global health flag, Every-feature optional, Silent fallback, Process-alive status
 
+**Capability Warm-Up State**:
+The condition of one Business Capability Module whose model, index, or connection has not finished loading. It makes that capability report itself unready and never delays the HTTP service from accepting requests, so an Optional capability's loading cannot withhold Core ordering or the Admin surface. A process that never began warm-up makes no readiness claim at all and loads on first use instead. It is not a global startup gate, and a health endpoint that cannot answer during it is not evidence of anything; its Traditional Chinese display term is 「能力暖機狀態」.
+_Avoid_: Global startup gate, Service not started, Readiness probe failure, Blocking prewarm
+
 **Independent Product Frontend**:
 Either the Admin or Kiosk browser application, independently built and tested with ownership of its own UI/UX, state, features, styles, and bootstrap. The two applications never import each other and may share only stateless generated contracts, design tokens, primitives, and transports; its Traditional Chinese display term is 「獨立產品前端」.
 _Avoid_: Runtime Admin mode, Shared feature state, Cross-product import, One frontend with two routes
@@ -80,17 +84,17 @@ _Avoid_: Secured pilot, Production runtime, Public deployment
 The Pilot operating state in which customer ordering remains available with bounded process-local protection while Redis-backed cache and rate-limit coordination are unavailable, but operations requiring a distributed lock are refused. The state must be visible as degraded and trigger operator attention, and its Traditional Chinese display term is 「共享基礎設施降級狀態」.
 _Avoid_: Redis optional, Full service outage, Silent fail-open, Lock fallback
 
-**Staff Mode**:
-The default Admin surface presented without a password to a store device that holds a valid Kiosk device credential. It carries only [[Catalog Availability]] changes and scoped recommendation-effectiveness capability, and never [[Store Menu Item]] authoring (create, edit, image upload, or retirement), member records, campaigns, operational health, knowledge governance, emotion diagnostics, runtime settings, or diagnostics. A device credential is never a substitute for manager capability; its Traditional Chinese display term is 「員工模式」.
-_Avoid_: Anonymous Admin, Unauthenticated Admin, Manager session, Kiosk customer surface, Catalog editor
+**Device-Authenticated Admin Access**:
+The sole Admin access boundary issued to a store device that holds a valid Kiosk device credential. It grants the Admin surface its complete scoped management capabilities without a separate password or Manager Mode, while an anonymous browser without the device credential remains unauthorised; its Traditional Chinese display term is 「裝置認證 Admin 存取」.
+_Avoid_: Staff Mode, Manager Mode, Anonymous Admin, Unauthenticated Admin, Kiosk customer surface
 
-**Manager Mode**:
-The Admin surface unlocked by a password-authenticated manager session on top of Staff Mode. Leaving it returns the device to Staff Mode rather than to a locked page. Only Manager Mode may author [[Store Menu Item]] records and upload menu images; its Traditional Chinese display term is 「主管模式」.
-_Avoid_: Admin login gate, Staff Mode, Device credential
+**Device Verification Boundary**:
+The bounded wait in which Admin or Kiosk establishes its device identity before opening its surface. Every attempt has a time limit, and the surface always rests in exactly one of three visible outcomes: verified, service starting — which retries on its own — or device unauthorised, which needs a person. A connection that is accepted and then never answered is a starting service, not an unauthorised device: reporting it as one sends staff to re-provision hardware that was never in question. A control disabled for an attempt is returned when that attempt ends, because a bound that leaves the recovery action dead has not bounded anything; its Traditional Chinese display term is 「裝置驗證邊界」.
+_Avoid_: Unbounded wait, Starting service shown as unverified device, Locked retry control, Browser-only timeout
 
-**Manager LLM Debug Access**:
-The Admin-only capability for listing configured models and running diagnostic prompts. It requires a password-authenticated manager session with `system.debug`; staff mode must not expose or execute it. This is distinct from customer-facing AI assistance, which follows the Kiosk request boundary; its Traditional Chinese display term is 「主管 LLM 測試權限」.
-_Avoid_: Staff LLM access, Customer AI permission, Public model test
+**Admin LLM Debug Access**:
+The Admin-only capability for listing configured models and running diagnostic prompts under Device-Authenticated Admin Access. It is distinct from customer-facing AI assistance, which follows the Kiosk request boundary; its Traditional Chinese display term is 「Admin LLM 測試權限」.
+_Avoid_: Manager LLM Debug Access, Customer AI permission, Public model test
 
 **Containerized Application Runtime**:
 The sole supported execution boundary for development, verification, and single-store pilot operation. Completion and release-readiness evidence must come from this boundary; host-native Python or Conda execution is outside the Project runtime contract, and its Traditional Chinese display term is 「容器化應用執行環境」.
@@ -109,7 +113,7 @@ NVIDIA NIM, the one external service filling the cloud half of the chain. It is 
 _Avoid_: Persisted provider field, Provider setting, Gemini, OpenAI-compatible endpoint, Configured-means-working
 
 **Diagnostic Provider Override**:
-The provider and model a manager holding [[Manager LLM Debug Access]] names for one diagnostic prompt. It is never persisted, never consulted by customer traffic, and never changes the [[Text Model Routing Policy]] for any other caller — it exists so that one half of the chain can be exercised in isolation, which is the only way to tell an unready half apart from a policy that never reaches it. It must name a half that exists: an absent or unrecognised provider is refused rather than resolved into the local runtime, because a diagnostic that quietly answers from somewhere else reports the opposite of what happened; its Traditional Chinese display term is 「診斷提供者覆寫」.
+The provider and model an Admin holding [[Admin LLM Debug Access]] names for one diagnostic prompt. It is never persisted, never consulted by customer traffic, and never changes the [[Text Model Routing Policy]] for any other caller — it exists so that one half of the chain can be exercised in isolation, which is the only way to tell an unready half apart from a policy that never reaches it. It must name a half that exists: an absent or unrecognised provider is refused rather than resolved into the local runtime, because a diagnostic that quietly answers from somewhere else reports the opposite of what happened; its Traditional Chinese display term is 「診斷提供者覆寫」.
 _Avoid_: Provider setting, Per-caller model choice, Default provider, Fallback to local
 
 **NIM Model Catalog**:
@@ -137,11 +141,11 @@ An installed emotion adapter and model version that satisfies the project's stru
 _Avoid_: Arbitrary model ID, Ollama text model, Provider URL, Automatic fallback target
 
 **Emotion Model Readiness**:
-Runtime evidence that the selected [[Emotion Model Profile]] has loaded its model, identifies its adapter and version, and declares the media or audio capabilities required by the requested Admin or Voice flow. An open network port alone is not readiness. A failed handshake disables the affected emotion diagnostics with an explicit reason but does not prevent UI API, ordering, or checkout from starting; its Traditional Chinese display term is 「情緒模型就緒狀態」.
+Runtime evidence that the selected [[Emotion Model Profile]] has loaded its model, identifies its adapter and version, and declares the media or audio capabilities required by the requested Admin or Voice flow. A failed handshake pauses new customer emotion captures with an explicit reason without clearing the selected analysis mode; capture resumes when readiness returns, while UI API, ordering, and checkout remain available. Its Traditional Chinese display term is 「情緒模型就緒狀態」.
 _Avoid_: Port open, Saved model name, Process alive
 
 **Customer Emotion Analysis Mode**:
-The one mutually exclusive store setting that governs customer emotion capture: Off captures nothing, Periodic Ordering captures one bounded media clip after another only after the previous analysis finishes until ordering ends, and Voice Only analyzes only media aligned to a Voice Turn. Modes never run together or accumulate concurrent inference work; its Traditional Chinese display term is 「顧客情緒分析模式」.
+The one mutually exclusive store setting that governs customer emotion capture: Off captures nothing, Periodic Ordering captures one bounded media clip after another only after the previous analysis finishes until ordering ends, and Voice Only analyzes only media aligned to a Voice Turn. A non-Off mode remains enabled while Emotion Model Readiness is unavailable, but starts no capture until readiness returns; modes never run together or accumulate concurrent inference work. Its Traditional Chinese display term is 「顧客情緒分析模式」.
 _Avoid_: Multiple trigger checkboxes, Continuous full-session recording, Concurrent analysis queue, Automatic mode fallback
 
 **Ordering Emotion Capture Boundary**:
@@ -172,6 +176,10 @@ _Avoid_: Customer recording archive, Training corpus, Provider health check, Fre
 A store-scoped structured result retained for 30 days from Periodic Ordering, Voice Only, or a Live Admin Emotion Test. Its visible and retained analysis fields are time, event, model, emotion, intensity, facial evidence, vocal evidence, and overall description; only opaque record identity and store scope may accompany them for isolation and deletion. An inference submitted but ending in failure still creates one record with Undetermined emotion and intensity, Not Observed facial and vocal evidence, and a safe failure description without internal exception details. Raw image, video, audio, and transcript content are discarded after inference, and the record is permanently deleted when its retention period expires. Emotion and intensity remain separate data fields even when the UI combines them into one cell; its Traditional Chinese display term is 「情緒分析紀錄」.
 _Avoid_: Raw media archive, Transcript history, Permanent diagnostic log, Effectiveness evidence, Intervention outcome
 
+**Emotion Legacy Purge**:
+The one-time permanent removal, without backup, of pre-P2 emotion intervention modes, rollout and confidence controls, human evaluations, effectiveness evidence, voice-influence records, assistance outcomes, and their UI, APIs, code, and storage. Emotion Model Profiles, Customer Emotion Analysis Mode, Live Admin Emotion Test, and the minimal Emotion Analysis Record remain authoritative; its Traditional Chinese display term is 「情緒舊功能永久清除」.
+_Avoid_: Archive, Hidden legacy UI, Retained effectiveness table, Reversible retirement
+
 ## Store Catalog Language
 
 **Store Menu Item**:
@@ -187,7 +195,7 @@ The operational sellability overlay on a [[Store Menu Item]] for its store: norm
 _Avoid_: Menu deletion, Stock ledger, Inventory count
 
 **Menu Item Retirement**:
-The soft-removal of a [[Store Menu Item]] from the sellable catalog. Retired items are hidden from kiosk and new orders, remain addressable for history and admin recovery, and are distinct from disabled (still listed, temporarily not sold). Only Manager Mode may retire or restore; its Traditional Chinese display term is 「商品退役」.
+The soft-removal of a [[Store Menu Item]] from the sellable catalog. Retired items are hidden from kiosk and new orders, remain addressable for history and admin recovery, and are distinct from disabled (still listed, temporarily not sold). Only a [[Device-Authenticated Admin Access|device-authenticated Admin]] may retire or restore; its Traditional Chinese display term is 「商品退役」.
 _Avoid_: Hard delete, Sold out, Disabled, Knowledge Deletion
 
 **Menu Item Image**:
@@ -205,19 +213,19 @@ The immutable, versioned store policy snapshot that controls entry choices for o
 _Avoid_: Runtime settings blob, Mid-flow UI switch, Store availability
 
 **Guest Ordering Choice**:
-The single customer choice to begin ordering without member identity. Every 「直接點餐」 and 「略過，直接點餐」 action within the Ordering Entry Flow has exactly this meaning and enters the same guest path; its Traditional Chinese display term is 「訪客點餐選擇」.
-_Avoid_: Registration cancellation, Offline menu entry, Separate skip path, Anonymous member
+The single customer choice on the initial ordering-mode screen to begin ordering without member identity. Member login and registration screens do not carry a standing 「略過，直接點餐」 action; customers return to the ordering-mode screen before choosing guest entry, and its Traditional Chinese display term is 「訪客點餐選擇」.
+_Avoid_: Registration cancellation, Member-flow skip button, Offline menu entry, Separate skip path, Anonymous member
 
 **Guest Ordering Start Failure**:
 The recoverable state after the system cannot establish the guest ordering session requested by a Guest Ordering Choice. The customer remains in the entry flow with a visible explanation and retry action; no offline or incomplete menu is opened, and its Traditional Chinese display term is 「訪客點餐啟動失敗」.
 _Avoid_: Silent button failure, Automatic offline ordering, Abandoned entry flow, Permanent failure
 
 **Member Login Service Failure**:
-A technical failure while checking a customer's phone number. It keeps the customer on the login screen and offers 「重試」 and 「訪客點餐」; it is distinct from a successful lookup that confirms the phone number is not registered and must never open registration automatically.
+A technical failure while checking a customer's phone number. It keeps the customer on the login screen and offers 「重試」 or a return to the initial ordering-mode screen; guest entry is available only through that screen's [[Guest Ordering Choice]]. It is distinct from a successful lookup that confirms the phone number is not registered and must never open registration automatically.
 _Avoid_: Member not found, Automatic registration
 
 **Member Registration Service Failure**:
-A technical failure after a customer submits registration. It keeps the entered phone number, nickname, and consent state on the registration screen, explains that registration was not completed, and offers 「重試」 and 「訪客點餐」. It never silently starts a guest order.
+A technical failure after a customer submits registration. It keeps the entered phone number, nickname, and consent state on the registration screen, explains that registration was not completed, and offers 「重試」 or a return to the initial ordering-mode screen. It never exposes a member-flow guest shortcut or silently starts a guest order.
 _Avoid_: Successful registration, Automatic guest fallback
 
 **Menu Initialization Failure**:
@@ -250,13 +258,37 @@ _Avoid_: Checkout failed, Retry with new key, Duplicate order
 
 ## Voice Ordering Language
 
+**Menu-Wide Voice Listening**:
+The customer-ordering state in which the Kiosk automatically monitors microphone input from Menu Ready until Order Confirmation, ordering cancellation, ordering-session inactivity timeout, or Kiosk reset, and begins Voice Turns through [[Open Speech Activation]] without a customer pressing a voice control. It is bounded to the active menu rather than the browser-page lifetime, and its Traditional Chinese display term is 「菜單全程語音監聽」.
+_Avoid_: Per-turn voice button, Startup-screen listening, Unbounded background listening, Voice Turn
+
+**Open Speech Activation**:
+The Voice Turn activation rule that accepts every complete speech segment detected during [[Menu-Wide Voice Listening]] without requiring a wake phrase, confirmation prompt, or button press. Background conversation may therefore create a Voice Turn and must be treated as an explicit accepted product trade-off rather than silently filtered by an undeclared intent rule; its Traditional Chinese display term is 「開放語音觸發」.
+_Avoid_: Wake phrase, Keyword activation, Confirmation-before-submit, Intent-gated speech
+
+**Half-Duplex Voice Listening**:
+The turn-taking rule that pauses [[Menu-Wide Voice Listening]] as soon as [[Open Speech Activation]] accepts a segment and keeps it paused through transcription, assistant work, synthesis, and audio playback. Listening resumes only after playback completes or fails and a short echo cooldown of no more than 500 milliseconds has elapsed, so the Kiosk cannot hear its own reply or accept an overlapping Voice Turn; its Traditional Chinese display term is 「半雙工語音監聽」.
+_Avoid_: Barge-in, Overlapping Voice Turns, Listening during TTS, Discarded customer speech during playback
+
+**Voice Speech Boundary**:
+The speech-segmentation rule for [[Open Speech Activation]]: speech shorter than 250 milliseconds is rejected as noise, 1.2 seconds of silence after accepted speech submits the Voice Turn, and one turn may capture for at most 30 seconds. These customer-facing timing bounds remain stable while model thresholds are calibrated separately; its Traditional Chinese display term is 「語音發話邊界」.
+_Avoid_: Sound-level threshold, Unlimited utterance, Immediate pause split, Fixed recording window
+
+**Voice Listening Indicator**:
+The always-visible Kiosk microphone state shown throughout [[Menu-Wide Voice Listening]], distinguishing listening, processing, playback, and unavailable states without requiring customer interaction. It has no pause or mute action; a customer ends monitoring only by reaching the ordering boundary or cancelling the ordering session, and its Traditional Chinese display term is 「語音監聽指示」.
+_Avoid_: Voice activation button, Customer mute control, Browser-only microphone indicator, Hidden listening state
+
+**Voice Listening Unavailable**:
+The visible Kiosk degradation state when the required browser voice-activity model, audio worklet, or microphone permission cannot support [[Menu-Wide Voice Listening]]. Voice Turns are disabled for that ordering session without falling back to RMS detection or a manual voice button, while touch ordering remains fully available; its Traditional Chinese display term is 「語音監聽不可用」.
+_Avoid_: RMS fallback, Manual voice fallback, Ordering failure, Silent voice disablement
+
 **Fixed Voice Language Policy**:
 The Kiosk UI, speech recognition, voice-assistant text, and synthesized speech use Traditional Chinese only. Voice turns do not expose a language selector, detect a response language, or carry an English prompt/voice setting; its Traditional Chinese display term is 「固定語音語言政策」.
 _Avoid_: Voice language switching, automatic response-language detection, English voice reply
 
 **Voice Turn**:
-A single customer voice interaction with a stable `voice_turn_id` scoped to its store and ordering session. It begins when the customer taps the voice control, listens without requiring the control to be held, and submits automatically after detected speech followed by 1.5 seconds of silence. It ends as no recognizable speech when speech has not begun within 8 seconds and may record for at most 30 seconds. While listening, visible 「立即送出」 and 「取消」 controls remain available as manual recovery paths. Every Voice Turn reaches exactly one visible terminal outcome: completed, cancelled, no recognizable speech, permission unavailable, recording failure, transcription failure, assistant failure, or playback failure. Completion requires text-to-speech to produce playable audio for the assistant reply; retaining generated text after a playback failure is recovery evidence and never converts the turn into success. Whether that audio reached the customer is confirmed by TTS service availability and on-site verification rather than a per-turn playback report, so a recorded completion means speech was produced and delivered rather than heard. Retrying the same `voice_turn_id` resumes or replays that Voice Turn and never creates a second assistant execution, Voice Order Draft, or Voice Emotion Observation request; its Traditional Chinese display term is 「語音回合」.
-_Avoid_: Hold-to-talk, Indefinite recording, Voice session
+A single customer voice interaction with a stable `voice_turn_id` scoped to its store and ordering session. During [[Menu-Wide Voice Listening]], it begins through [[Open Speech Activation]] without a customer pressing a voice control and submits according to the [[Voice Speech Boundary]]. Visible 「立即送出」 and 「取消」 controls remain available as manual recovery paths after a turn begins. Every Voice Turn reaches exactly one visible terminal outcome: completed, cancelled, no recognizable speech, permission unavailable, recording failure, transcription failure, assistant failure, or playback failure. Completion requires text-to-speech to produce playable audio for the assistant reply; retaining generated text after a playback failure is recovery evidence and never converts the turn into success. Whether that audio reached the customer is confirmed by TTS service availability and on-site verification rather than a per-turn playback report, so a recorded completion means speech was produced and delivered rather than heard. Retrying the same `voice_turn_id` resumes or replays that Voice Turn and never creates a second assistant execution, Voice Order Draft, or Voice Emotion Observation request; its Traditional Chinese display term is 「語音回合」.
+_Avoid_: Hold-to-talk, Per-turn voice button, Indefinite recording, Voice session
 
 **Voice Media Degradation**:
 The fallback boundary that keeps a Voice Turn available with microphone input alone when camera permission, capture, or emotion-video analysis is unavailable. Camera-derived emotion is optional enrichment and must never block recording, transcription, assistant execution, synthesized-speech playback, or ordering. Until the selected [[Emotion Model Profile]] has [[Validated Audio-Only Emotion Capability]], a microphone-only Voice Turn records an explicit skipped emotion outcome rather than invoking audio-only emotion inference; its Traditional Chinese display term is 「語音媒體降級」.
@@ -291,11 +323,11 @@ A store-scoped, de-identified individual record retained for 30 days solely for 
 _Avoid_: Raw transcript with personal data, Voice session history, Customer profile, Order analytics, Training corpus
 
 **Voice Model Warm State**:
-The runtime condition in which the configured local voice LLM has been loaded before the kiosk accepts Voice Turns and is kept resident for the configured interval. Model loading belongs to service readiness rather than the first customer's Voice Response Wait; its Traditional Chinese display term is 「語音模型預熱狀態」.
-_Avoid_: First-customer warm-up, Permanent GPU assumption, STT warm state
+The runtime condition in which the configured local voice LLM has been loaded before the kiosk accepts Voice Turns and is kept resident for the configured interval. Model loading belongs to the voice capability's own readiness — one [[Capability Warm-Up State]] — rather than to the first customer's Voice Response Wait or to the readiness of the service as a whole. A Voice Turn arriving before it completes is refused as [[Voice Listening Unavailable]] rather than made to wait for the load; its Traditional Chinese display term is 「語音模型預熱狀態」.
+_Avoid_: First-customer warm-up, Permanent GPU assumption, STT warm state, Global startup gate
 
 **Live Admin Emotion Test**:
-An isolated Admin diagnostic that records exactly one audiovisual clip for the selected [[Live Emotion Diagnostic Duration]], then analyzes it with the selected [[Emotion Model Profile]] and one [[Live Emotion Diagnostic Prompt]]. It runs once per explicit test action, discards raw media after inference, and never changes Kiosk production settings; its Traditional Chinese display term is 「管理端即時情緒測試」.
+An isolated Admin diagnostic that records exactly one audiovisual clip for the selected [[Live Emotion Diagnostic Duration]], then analyzes it with the selected [[Emotion Model Profile]] and one [[Live Emotion Diagnostic Prompt]]. It remains available independently of the Customer Emotion Analysis Mode, runs once per explicit test action, discards raw media after inference, and never changes or starts Kiosk customer capture; its Traditional Chinese display term is 「管理端即時情緒測試」.
 _Avoid_: Automatic test loop, Production capture, Persisted raw media, Kiosk intervention
 
 **Live Emotion Diagnostic Prompt**:
@@ -309,10 +341,6 @@ _Avoid_: Production clip duration, Adaptive speech window, Automatic cadence, Un
 **Validated Audio-Only Emotion Capability**:
 A provider capability declared only after its explicit audio-only inference contract passes controlled comparisons covering the same semantic content with differing prosody and differing semantic content with the same neutral prosody. Before validation, audio-only inference may exist only as an isolated Admin experiment and must not run in Kiosk customer flows; wrapping synthetic audio in a blank video or advertising `audio_only` in a health response does not qualify. Its Traditional Chinese display term is 「已驗證純音訊情緒能力」.
 _Avoid_: Assumed Whisper capability, Blank-video wrapper, Port readiness, Experimental result presented as reliable
-
-**Emotion Observation Explanation**:
-An Admin-facing second-stage summary and staff response recommendation generated by the configured default LLM from only the authoritative emotion classification and provider-authored textual analysis in one Emotion Model Observation. The LLM does not receive raw media or transcript content, must preserve the provider's emotion classification, and may not independently reclassify or override it. The UI displays the source model observation separately from this downstream advice. If the configured LLM fails or times out, the successful model observation remains valid and visible while advice is marked unavailable; the system does not switch LLMs. Its Traditional Chinese display term is 「情緒觀測解說」.
-_Avoid_: Primary emotion classification, Raw media prompt, Transcript prompt, Hidden emotion override, Model observation merged with advice
 
 ## Campaign Language
 

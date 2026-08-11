@@ -20,6 +20,40 @@ let menuRequest = null;
 /** @type {Map<string, Promise<Record<string, unknown>>>} */
 const posPromotionBannersRequests = new Map();
 
+/**
+ * Default deadline for the request paths that keep their own error vocabulary
+ * and so cannot route through `httpClient`. A connection that is accepted and
+ * then goes quiet must still end: without this, ordering entry, cart and
+ * checkout reads hang forever and their modelled recovery states — Guest
+ * Ordering Start Failure, Menu Initialization Failure — never get to happen.
+ */
+const KIOSK_REQUEST_TIMEOUT_MS = 15000;
+
+/**
+ * @param {string} url
+ * @param {RequestInit} [options]
+ * @param {number} [timeoutMs]
+ * @returns {Promise<Response>}
+ */
+async function boundedFetch(url, options = {}, timeoutMs = KIOSK_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  /** @type {any} */
+  let deadline = null;
+  try {
+    return /** @type {Response} */ (await Promise.race([
+      fetch(url, { ...options, signal: options.signal || controller.signal }),
+      new Promise((_resolve, reject) => {
+        deadline = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`request timed out after ${timeoutMs}ms: ${url}`));
+        }, timeoutMs);
+      }),
+    ]));
+  } finally {
+    if (deadline !== null) clearTimeout(deadline);
+  }
+}
+
 /** @param {URLSearchParams} params */
 function stripSensitiveTokenParams(params) {
   const sensitiveKeys = ['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'];
@@ -227,9 +261,27 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
     }
   }
 
-  /** @param {Response} response */
+  /**
+   * A refusal carries the reason the service gave. Collapsing it into
+   * `HTTP 503` would leave the kiosk unable to tell a capability that is
+   * still starting from one that failed, which are different things to a
+   * customer standing at the machine.
+   *
+   * @param {Response} response
+   */
   async function consumeResponse(response) {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      let code = '';
+      try {
+        const body = await response.json();
+        code = String(body?.detail?.code || body?.code || '');
+      } catch {
+        code = '';
+      }
+      const failure = new Error(code ? `HTTP ${response.status} ${code}` : `HTTP ${response.status}`);
+      Object.assign(failure, { status: response.status, code });
+      throw failure;
+    }
     if (!response.body) throw new Error('Empty streaming response body');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -244,13 +296,19 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
     consumeLine(leftover + decoder.decode());
   }
 
+  /** @param {unknown} error @returns {{status: number, code: string}} */
+  function refusal(error) {
+    const detail = /** @type {any} */ (error);
+    return { status: Number(detail?.status || 0), code: String(detail?.code || '') };
+  }
+
   try {
     await consumeResponse(await fetch(`${API_BASE}/api/ask/stream`, {
       method: 'POST', body: formData, headers: kioskHeaders(),
     }));
   } catch (e) {
     if (!voiceTurnId || lastSequence === 0) {
-      onError(String(e));
+      onError(String(e), refusal(e));
       throw e;
     }
   }
@@ -265,14 +323,14 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
       ));
     } catch (error) {
       if (reconnect === 2) {
-        onError(String(error));
+        onError(String(error), refusal(error));
         throw error;
       }
     }
   }
   if (!terminal) {
     const error = new Error('voice_turn_eof_before_terminal');
-    onError(String(error));
+    onError(String(error), refusal(error));
     throw error;
   }
 }
@@ -283,10 +341,10 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function syncCart(sessionId, cartItems) {
-  const currentResponse = await fetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, { headers: kioskHeaders() });
+  const currentResponse = await boundedFetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, { headers: kioskHeaders() });
   if (!currentResponse.ok) throw new Error(`cart_read_failed:${currentResponse.status}`);
   const current = await currentResponse.json();
-  const response = await fetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, {
+  const response = await boundedFetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
     body: JSON.stringify({
@@ -300,7 +358,7 @@ export async function syncCart(sessionId, cartItems) {
 
 /** @param {string} sessionId @returns {Promise<Record<string, unknown>>} */
 export async function prepareCheckout(sessionId) {
-  const response = await fetch(`${API_BASE}/api/checkout/prepare`, {
+  const response = await boundedFetch(`${API_BASE}/api/checkout/prepare`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify({ session_id: sessionId }),
   });
   if (!response.ok) throw new Error(`checkout_prepare_failed:${response.status}`);
@@ -327,14 +385,14 @@ export async function confirmCheckout(quoteId, idempotencyKey, signal) {
  */
 export async function getCheckoutOutcome(quoteId, idempotencyKey) {
   const params = new URLSearchParams({ idempotency_key: idempotencyKey });
-  const response = await fetch(`${API_BASE}/api/checkout/outcome/${encodeURIComponent(quoteId)}?${params}`, { headers: kioskHeaders() });
+  const response = await boundedFetch(`${API_BASE}/api/checkout/outcome/${encodeURIComponent(quoteId)}?${params}`, { headers: kioskHeaders() });
   if (!response.ok) throw new Error(`checkout_outcome_failed:${response.status}`);
   return response.json();
 }
 
 /** @param {Record<string, unknown>} [payload] @returns {Promise<Record<string, unknown>>} */
 export async function startEntryFlow(payload = {}) {
-  const response = await fetch(`${API_BASE}/api/entry-flow/start`, {
+  const response = await boundedFetch(`${API_BASE}/api/entry-flow/start`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`entry_flow_start_failed:${response.status}`);
@@ -349,7 +407,7 @@ export async function startEntryFlow(payload = {}) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function commandEntryFlow(entryFlowId, phaseRevision, command, payload = {}) {
-  const response = await fetch(`${API_BASE}/api/entry-flow/${encodeURIComponent(entryFlowId)}/command`, {
+  const response = await boundedFetch(`${API_BASE}/api/entry-flow/${encodeURIComponent(entryFlowId)}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
     body: JSON.stringify({ phase_revision: phaseRevision, command, payload }),
@@ -384,22 +442,32 @@ export async function reportCommercialTouch(payload) {
 
 /**
  * @param {string} sessionId
- * @param {'voice_mode_started' | 'voice_mode_ended'} phase
+ * @param {'voice_mode_ended' | 'ordering_periodic'} phase
  * @param {Blob} mediaBlob
- * @param {{emotionRoundId: string, voiceTurnId: string, voiceTurnIndex: number, observedAtMs: number, speechText?: string}} context
  * @returns {Promise<Record<string, unknown>>}
  */
-export async function analyzeVoiceEmotionEvent(sessionId, phase, mediaBlob, context) {
+export async function analyzeVoiceEmotionEvent(sessionId, phase, mediaBlob) {
   const formData = new FormData();
   formData.append('session_id', sessionId);
   formData.append('event_type', phase);
-  formData.append('emotion_round_id', context.emotionRoundId);
-  formData.append('voice_turn_id', context.voiceTurnId);
-  formData.append('voice_turn_index', String(context.voiceTurnIndex));
-  formData.append('observed_at_ms', String(context.observedAtMs));
-  if (context.speechText) formData.append('speech_text', context.speechText.slice(0, 500));
   formData.append('media', mediaBlob, `voice_emotion_${phase}.webm`);
-  return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData, { headers: kioskHeaders() });
+  // Emotion inference runs a model over a clip of up to thirty seconds, so it
+  // needs a budget of its own rather than the default request deadline. It is
+  // still bounded: an enrichment that never returns must not hold a request
+  // open for the rest of the ordering session.
+  return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData, {
+    headers: kioskHeaders(),
+    timeoutMs: 90000,
+  });
+}
+
+/**
+ * Check the selected emotion provider before Kiosk requests a camera or records
+ * a customer clip.
+ * @returns {Promise<{ready: boolean, status: string, provider?: Record<string, unknown>}>}
+ */
+export async function getEmotionReadiness() {
+  return fetchJson(`${API_BASE}/api/emotion/readiness`, { headers: kioskHeaders() });
 }
 
 /**
@@ -413,18 +481,6 @@ export async function getAssistRecommendations(sessionId, cartIds = []) {
     cart_ids: JSON.stringify(cartIds),
   });
   return fetchJson(`${API_BASE}/api/assist_recommend?${params.toString()}`, { headers: kioskHeaders() });
-}
-
-/**
- * @param {string} sessionId
- * @param {Blob} audioBlob
- * @returns {Promise<Record<string, unknown>>}
- */
-export async function checkPassiveVoice(sessionId, audioBlob) {
-  const formData = new FormData();
-  formData.append('session_id', sessionId);
-  formData.append('media', audioBlob, 'passive.webm');
-  return postFormJson(`${API_BASE}/api/passive_check`, formData, { headers: kioskHeaders() });
 }
 
 /**

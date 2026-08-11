@@ -1,5 +1,6 @@
+import asyncio
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,8 +18,19 @@ from services import health_service, observability_service
 @asynccontextmanager
 async def lifespan(app):
     observability_service.apply_runtime_retention()
-    await background_init()
-    yield
+    # Warm-up runs beside the service, never in front of it. Awaiting it here
+    # kept uvicorn from answering anything until STT, RAG and the voice model
+    # had loaded, while Docker had already published the port — so Admin and
+    # Kiosk device verification hung with no response to react to. Each
+    # capability now reports its own readiness (ADR-0060).
+    warmup = asyncio.create_task(background_init())
+    try:
+        yield
+    finally:
+        if not warmup.done():
+            warmup.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await warmup
 
 
 def create_app() -> FastAPI:

@@ -11,6 +11,9 @@
 
 /** @typedef {{key: string, label: string, status: string, latency_ms: number | null, observed_at: string, safe_error: string}} ServiceStatus */
 
+/** One maintenance-health read may never outlive this bound. */
+const HEALTH_REQUEST_TIMEOUT_MS = 5000;
+
 /** @type {Record<string, string>} */
 const STATUS_LABELS = {
   ok: '正常',
@@ -87,6 +90,8 @@ export function serviceHealthSummary(services = []) {
  *   setText: (id: string, value: string) => void,
  *   escapeHtml: (value: any) => string,
  *   hasPermission?: (permission: string) => boolean,
+ *   fetchImpl?: typeof fetch,
+ *   timers?: { setTimeout: typeof setTimeout, clearTimeout: typeof clearTimeout },
  * }} options
  */
 export function createHealthAdmin({
@@ -96,6 +101,8 @@ export function createHealthAdmin({
   setText,
   escapeHtml,
   hasPermission = () => false,
+  fetchImpl = fetch,
+  timers = { setTimeout, clearTimeout },
 }) {
   /** @param {string} status */
   function pill(status) {
@@ -124,13 +131,43 @@ export function createHealthAdmin({
     `).join('');
   }
 
+  /**
+   * Resolve or reject within HEALTH_REQUEST_TIMEOUT_MS whatever the transport
+   * does. The abort signal is the polite path; the deadline is the guarantee.
+   *
+   * @param {string} url
+   * @param {RequestInit} [options]
+   */
+  async function fetchBounded(url, options = {}) {
+    const controller = new AbortController();
+    /** @type {any} */
+    let deadline = null;
+    try {
+      return await Promise.race([
+        fetchImpl(url, { ...options, signal: controller.signal }),
+        new Promise((_resolve, reject) => {
+          deadline = timers.setTimeout(() => {
+            controller.abort();
+            reject(new Error('維運健康讀取逾時'));
+          }, HEALTH_REQUEST_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (deadline !== null) timers.clearTimeout(deadline);
+    }
+  }
+
   async function loadAdminHealth() {
     if (!hasPermission('operations.read')) {
       setText('healthGeneratedAt', '沒有維運健康查看權限');
       return;
     }
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/operations/service-health`, { headers: adminHeaders() });
+      // A maintenance-health panel that can hang is worse than one that is
+      // missing: it reports nothing while looking like it is still working.
+      const res = await fetchBounded(`${apiBaseUrl}/api/v1/operations/service-health`, {
+        headers: adminHeaders(),
+      });
       if (!res.ok) throw new Error(`維運健康讀取失敗（${res.status}）`);
       const body = await res.json();
       const services = /** @type {ServiceStatus[]} */ (body?.data?.services || []);

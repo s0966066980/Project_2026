@@ -9,6 +9,46 @@ _background_init_done = False
 _background_init_claim_lock = threading.Lock()
 _background_init_ready = threading.Event()
 
+# Warm-up is the readiness of one capability, not a gate on the whole process.
+# A capability that has not finished loading reports itself unready; it never
+# decides whether the HTTP service may answer, because an Optional capability
+# must not be able to take Admin and ordering down with it.
+_WARMUP_CAPABILITIES = ("stt", "tts", "rag", "voice_llm")
+_warmup_state: dict[str, str] = {name: "pending" for name in _WARMUP_CAPABILITIES}
+_warmup_started = False
+_warmup_lock = threading.Lock()
+
+
+def _mark_warmup(capability: str, status: str) -> None:
+    with _warmup_lock:
+        _warmup_state[capability] = status
+
+
+def warmup_state() -> dict[str, str]:
+    """Per-capability warm-up status: pending, ready, failed or skipped."""
+
+    with _warmup_lock:
+        return dict(_warmup_state)
+
+
+def capability_warm(capability: str) -> bool:
+    """
+    True once a capability can serve.  A skipped capability is not this
+    process's to warm, and a process that never started warm-up makes no claim
+    about readiness at all — there, loading on first use is still the contract,
+    so the gate must not refuse.
+    """
+
+    with _warmup_lock:
+        if not _warmup_started:
+            return True
+        return _warmup_state.get(capability) in {"ready", "skipped"}
+
+
+def warmup_complete() -> bool:
+    with _warmup_lock:
+        return all(status != "pending" for status in _warmup_state.values())
+
 
 async def background_init():
     global _background_init_done
@@ -21,9 +61,6 @@ async def background_init():
         try:
             await _background_init_once()
         finally:
-            # The kiosk and admin servers run in separate event-loop threads.
-            # Do not let either port report startup complete before the shared
-            # voice/RAG warm-up attempt has finished.
             _background_init_ready.set()
         return
 
@@ -31,6 +68,9 @@ async def background_init():
 
 
 async def _background_init_once():
+    global _warmup_started
+    with _warmup_lock:
+        _warmup_started = True
     tasks = []
 
     async def _cleanup_voice_turns():
@@ -54,20 +94,29 @@ async def _background_init_once():
             try:
                 from services.stt_service import FasterWhisperSTT
                 await asyncio.to_thread(FasterWhisperSTT()._init)
+                _mark_warmup("stt", "ready")
                 print("✅ STT 模型預載完成")
             except Exception as e:
+                _mark_warmup("stt", "failed")
                 print(f"⚠️ STT 預載失敗（不影響服務）: {e}")
         tasks.append(_init_stt())
+    else:
+        # A remote provider is not this process's model to load.
+        _mark_warmup("stt", "skipped")
 
     if config.get("TTS_PROVIDER", "edge") == "melo":
         async def _init_tts():
             try:
                 from services.tts_service import MeloTTSProvider
                 await asyncio.to_thread(MeloTTSProvider()._init)
+                _mark_warmup("tts", "ready")
                 print("✅ TTS 模型預載完成")
             except Exception as e:
+                _mark_warmup("tts", "failed")
                 print(f"⚠️ TTS 預載失敗（不影響服務）: {e}")
         tasks.append(_init_tts())
+    else:
+        _mark_warmup("tts", "skipped")
 
     if config.get("RAG_ENABLED", False):
         async def _init_rag():
@@ -75,8 +124,10 @@ async def _background_init_once():
                 from services.rag_provider import get_rag
                 await asyncio.to_thread(get_rag()._init)
                 count = await get_rag().count()
+                _mark_warmup("rag", "ready")
                 print(f"✅ RAG 模型預載完成（文件數：{count}）")
             except Exception as e:
+                _mark_warmup("rag", "failed")
                 print(f"⚠️ RAG 預載失敗（不影響服務）: {e}")
         tasks.append(_init_rag())
 
@@ -87,16 +138,29 @@ async def _background_init_once():
             except Exception as e:
                 print(f"⚠️ Knowledge artifact retention cleanup 失敗（不影響服務）: {e}")
         tasks.append(_cleanup_knowledge_artifacts())
+    else:
+        _mark_warmup("rag", "skipped")
 
     if config.get("VOICE_LLM_PREWARM_ENABLED", True):
         async def _init_voice_llm():
             model = str(config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b") or "qwen3.5:4b")
-            result = await asyncio.to_thread(ai_services.warm_ollama_model, model)
+            try:
+                result = await asyncio.to_thread(ai_services.warm_ollama_model, model)
+            except Exception as e:
+                _mark_warmup("voice_llm", "failed")
+                print(f"⚠️ 語音 LLM 預熱失敗（不影響服務）: {e}")
+                return
             if result.get("status") == "ready":
+                _mark_warmup("voice_llm", "ready")
                 print(f"✅ 語音 LLM 預熱完成（{model}, {result.get('latency_ms')}ms）")
             else:
+                _mark_warmup("voice_llm", "failed")
                 print(f"⚠️ 語音 LLM 預熱失敗（不影響服務）: {result.get('message') or result.get('reason')}")
         tasks.append(_init_voice_llm())
+    else:
+        # Prewarm disabled means the first request loads the model; that is a
+        # configured choice, not an unready capability.
+        _mark_warmup("voice_llm", "skipped")
 
     if tasks:
         await asyncio.gather(*tasks)

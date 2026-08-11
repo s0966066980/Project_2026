@@ -3,10 +3,9 @@
 // =========================================================
 import * as api from '../shared/apiClient.js';
 import { ui, escapeHTML } from '../shared/ui.js';
-import { createVoiceRecorder } from './media.js';
 import { state } from './state.js';
 import { getRequiredRuntimeDependency } from './runtime.js';
-import { startVoiceActivityMonitor } from './voiceActivity.js';
+import { createSileroVoiceActivityDetector } from './voiceActivity.js';
 import { createVoiceOrderDraftController } from './voiceOrderDraft.js';
 import { createVoiceTurnProtocolState, consumeVoiceTurnEvent, assertVoiceTurnStreamEnded } from './voiceTurnProtocol.js';
 import { kioskText } from './constants/kiosk.js';
@@ -14,20 +13,16 @@ import { playVoiceAudioChunk } from './voicePlayback.js';
 
 function isAdminMode() { return getRequiredRuntimeDependency('isAdminMode')(); }
 function isKioskActive() { return getRequiredRuntimeDependency('isKioskActive')(); }
-function getFeatures() { return getRequiredRuntimeDependency('getFeatures')(); }
-function getRuntimeSettings() { return getRequiredRuntimeDependency('getRuntimeSettings')(); }
 function trackInteractionEvent(event) { return getRequiredRuntimeDependency('trackInteractionEvent')(event); }
 function showPushNotice(text) { return getRequiredRuntimeDependency('showPushNotice')(text); }
-function clearAllPushCards() { return getRequiredRuntimeDependency('clearAllPushCards')(); }
-function pausePassiveListener() { return getRequiredRuntimeDependency('pausePassiveListener')(); }
-function resumePassiveListener() { return getRequiredRuntimeDependency('resumePassiveListener')(); }
 function sessionId() { return getRequiredRuntimeDependency('sessionId'); }
 
 let voiceEmotionRoundId = '';
 let voiceTurnSequence = 0;
 let activeVoiceTurn = null;
-let voiceActivityMonitor = null;
-let voiceStopIntent = 'submit';
+let voiceDetector = null;
+let voiceListening = false;
+let voiceSuspended = false;
 let voiceMaxTimer = null;
 
 /** 回傳事件序列未正常收尾的原因，正常收尾則回傳 null。 */
@@ -45,8 +40,10 @@ function createVoiceFlowId(prefix) {
 }
 
 export function resetVoiceEmotionRound() {
-  voiceActivityMonitor?.stop();
-  voiceActivityMonitor = null;
+  void voiceDetector?.destroy?.();
+  voiceDetector = null;
+  voiceListening = false;
+  voiceSuspended = false;
   if (voiceMaxTimer) clearTimeout(voiceMaxTimer);
   voiceMaxTimer = null;
   voiceEmotionRoundId = createVoiceFlowId('order');
@@ -116,8 +113,7 @@ export function isVoiceAssistantActive() {
   // 等待文字或播放 TTS 時 overlay 可能先收起；仍須視為同一個 Voice Turn，
   // 避免被動推薦在語音尚未真正完成時重新蓋上畫面。
   return Boolean(
-    (ui.voiceAssistOverlay && !ui.voiceAssistOverlay.classList.contains('hidden'))
-    || state.askRecorder?.state === 'recording'
+    activeVoiceTurn
     || state.isVoiceProcessing,
   );
 }
@@ -233,77 +229,87 @@ function showVoiceAssistMessage(message) {
   });
 }
 
-function showVoiceAssistOverlay(state = 'listening') {
-  if (!ui.voiceAssistOverlay) return;
-  const listening = state !== 'thinking';
-  ui.voiceAssistOverlay.classList.remove('hidden');
-  ui.voiceAssistOverlay.classList.toggle('thinking', !listening);
-  ui.voiceAssistOverlay.setAttribute('aria-hidden', 'false');
-  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = '語音模式';
-  if (ui.voiceAssistOverlaySubtitle) {
-    ui.voiceAssistOverlaySubtitle.textContent = listening
-      ? '我正在聽，請說出您的需求'
-      : '正在處理您的語音...';
+function showVoiceTranscript(data) {
+  if (!isKioskActive() || !ui.voiceBubble || !ui.voiceDialogueGrid) return;
+  const userText = String(data?.user_text || data?.transcript || '').trim();
+  if (!userText) return;
+  ui.voiceDialogueGrid.innerHTML = `
+    <div class="voice-reply-row voice-reply-question">
+      <i class="fas fa-microphone"></i><div>${escapeHTML(userText)}</div>
+    </div>
+    <div class="voice-reply-row voice-reply-answer">
+      <i class="fas fa-circle-notch fa-spin"></i><div>正在整理回覆…</div>
+    </div>`;
+  ui.voiceBubble.classList.remove('hidden');
+  ui.voiceBubble.setAttribute('aria-hidden', 'false');
+}
+
+function setVoiceStatus(status, text) {
+  const surface = document.getElementById('voiceAssistBtn');
+  const label = document.getElementById('voiceAssistBtnText');
+  if (surface) {
+    surface.dataset.voiceStatus = status;
+    surface.classList.toggle('recording', status === 'listening' || status === 'speaking');
   }
-  if (ui.voiceAssistStopText) {
-    ui.voiceAssistStopText.textContent = listening
-      ? '說完後停頓 1.5 秒會自動送出'
-      : '處理中...';
-  }
-  if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.disabled = !listening;
-  if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.disabled = !listening;
-  globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
+  if (label) label.textContent = text;
 }
 
 export function hideVoiceAssistOverlay() {
-  ui.voiceAssistOverlay?.classList.add('hidden');
-  ui.voiceAssistOverlay?.setAttribute('aria-hidden', 'true');
   globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
 }
 
 
-export function setupAskRecorder() {
-  if (isAdminMode()) return;
-  if (state.askRecorder) return; // 避免重複設定
-  if (!state.stream || !state.stream.getAudioTracks().length) return;
+export async function setupAskRecorder() {
+  if (isAdminMode() || voiceDetector) return;
+  if (!state.stream?.getAudioTracks?.().length) {
+    setVoiceStatus('unavailable', '語音不可用');
+    return;
+  }
+  setVoiceStatus('loading', '語音模型載入中');
+  try {
+    voiceDetector = await createSileroVoiceActivityDetector(state.stream, {
+      onSpeechStart() {
+        if (state.isVoiceProcessing || activeVoiceTurn) return;
+        activeVoiceTurn = beginVoiceTurn();
+        state.askRecordingStartedAt = Date.now();
+        setVoiceStatus('speaking', '偵測到語音');
+        clearTimeout(voiceMaxTimer);
+        voiceMaxTimer = setTimeout(() => { void voiceDetector?.pause(); }, 30000);
+        trackInteractionEvent({ event_type: 'voice_assist_started', button_id: 'silero_vad_v5', metadata: {} });
+      },
+      onVADMisfire() {
+        activeVoiceTurn = null;
+        state.askRecordingStartedAt = 0;
+        setVoiceStatus('listening', '自動聆聽中');
+      },
+      onSpeechEnd(blob) { return submitVoiceSegment(blob); },
+    });
+    await voiceDetector.start();
+    voiceListening = true;
+    setVoiceStatus('listening', '自動聆聽中');
+  } catch (error) {
+    console.error('[voice] Silero VAD v5 無法啟動。', error);
+    voiceDetector = null;
+    voiceListening = false;
+    setVoiceStatus('unavailable', '語音不可用');
+    showVoiceAssistMessage('語音模型暫時無法使用，仍可觸控點餐。');
+  }
+}
 
-  // clone stream：讓 askRecorder 有獨立的 encoded track pipeline，
-  // 避免與 _rollingRecorder 共用 encoder 導致 rolling buffer 被餓死（Bug 2）
-  state.askRecorder = createVoiceRecorder(state.stream.clone());
-  let chunks = [];
-  state.askRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-  state.askRecorder.onstop = async () => {
-    if (state.isVoiceProcessing) {
-      // 上一次 onstop 還在跑（正常情況不應發生）：放棄本次，但不能把 UI 留在「處理中」。
-      hideVoiceAssistOverlay();
-      resumePassiveListener();
-      return;
-    }
-    const stopIntent = voiceStopIntent;
-    voiceStopIntent = 'submit';
-    const mediaType = chunks[0]?.type || state.askRecorder?.mimeType || 'audio/webm';
-    const blob = new Blob(chunks, { type: mediaType });
+async function submitVoiceSegment(blob) {
+    clearTimeout(voiceMaxTimer);
+    voiceMaxTimer = null;
+    if (state.isVoiceProcessing || !activeVoiceTurn) return;
+    await voiceDetector?.pause();
+    voiceListening = false;
+    const mediaType = blob.type || 'audio/wav';
     const durationMs = state.askRecordingStartedAt ? Date.now() - state.askRecordingStartedAt : 0;
     const voiceTurn = activeVoiceTurn;
     state.askRecordingStartedAt = 0;
-    chunks = [];
-
-    if (stopIntent === 'cancel' || stopIntent === 'no_speech') {
-      hideVoiceAssistOverlay();
-      trackInteractionEvent({
-        event_type: stopIntent === 'cancel' ? 'voice_assist_cancelled' : 'voice_assist_failed',
-        button_id: 'voiceAssistBtn',
-        metadata: { reason: stopIntent, duration_ms: durationMs },
-      });
-      if (stopIntent === 'no_speech') showVoiceAssistMessage(kioskText('voiceNoSpeech'));
-      activeVoiceTurn = null;
-      resumePassiveListener();
-      return;
-    }
-
     state.isVoiceProcessing = true;
+    setVoiceStatus('processing', '語音處理中');
     try {
-    if (blob.size < 1500 || durationMs < 650) {
+    if (blob.size < 1000 || durationMs < 250) {
       hideVoiceAssistOverlay();
       trackInteractionEvent({
         event_type: 'voice_assist_failed',
@@ -316,11 +322,11 @@ export function setupAskRecorder() {
     trackInteractionEvent({
       event_type: 'voice_assist_submitted',
       button_id: 'voiceAssistBtn',
-      metadata: { reason: stopIntent, duration_ms: durationMs, bytes: blob.size, media_type: mediaType },
+      metadata: { reason: 'silero_vad_speech_end', duration_ms: durationMs, bytes: blob.size, media_type: mediaType },
     });
     const formData = new FormData();
     formData.append('session_id', getRequiredRuntimeDependency('sessionId'));
-    formData.append('media', blob, 'voice_ask.webm');
+    formData.append('media', blob, 'voice_ask.wav');
     formData.append('emotion_round_id', voiceTurn?.roundId || currentVoiceEmotionRoundId());
     formData.append('voice_turn_id', voiceTurn?.turnId || '');
     formData.append('voice_turn_index', String(voiceTurn?.turnIndex || 0));
@@ -347,6 +353,9 @@ export function setupAskRecorder() {
           protocolViolation = error;
         }
       },
+      onTranscript(data) {
+        showVoiceTranscript(data);
+      },
       onAssistantText(data) {
         hideVoiceAssistOverlay();
         showVoiceBubble(data);
@@ -367,11 +376,23 @@ export function setupAskRecorder() {
       onDone(data) {
         terminalData = data;
       },
-      onError() {
+      onError(_message, refusal) {
         streamFailed = true;
         hideVoiceAssistOverlay();
-        trackInteractionEvent({ event_type: 'voice_assist_failed', button_id: 'voiceAssistBtn', metadata: { reason: 'api_error' } });
-        showVoiceAssistMessage(kioskText('voiceOrderFailed'));
+        // A capability that is still loading is not a failed turn and not
+        // Voice Listening Unavailable either: that state disables voice for
+        // the whole ordering session, and this one clears in seconds.
+        // Listening resumes in the `finally` below, so the customer only has
+        // to say it again.
+        const warming = refusal?.code === 'voice_capability_warming';
+        trackInteractionEvent({
+          event_type: 'voice_assist_failed',
+          button_id: 'voiceAssistBtn',
+          metadata: { reason: warming ? 'voice_capability_warming' : 'api_error' },
+        });
+        showVoiceAssistMessage(
+          warming ? '語音服務正在啟動，請稍候再說一次；期間仍可觸控點餐。' : kioskText('voiceOrderFailed'),
+        );
       },
     }).catch(error => {
       // streamVoiceAssistantResponse 在呼叫 onError 後仍會 rethrow；
@@ -439,54 +460,36 @@ export function setupAskRecorder() {
         }
       }
     }
-    const doneButtonText = document.getElementById('voiceAssistBtnText');
-    if (doneButtonText) doneButtonText.textContent = kioskText('holdVoiceOrder');
     hideVoiceAssistOverlay();
     } finally {
       activeVoiceTurn = null;
       state.isVoiceProcessing = false;
-      resumePassiveListener();
+      if (!voiceSuspended && isKioskActive()) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        try {
+          await voiceDetector?.start();
+          voiceListening = Boolean(voiceDetector);
+          setVoiceStatus(voiceListening ? 'listening' : 'unavailable', voiceListening ? '自動聆聽中' : '語音不可用');
+        } catch (error) {
+          console.error('[voice] Silero VAD v5 無法恢復監聽。', error);
+          setVoiceStatus('unavailable', '語音不可用');
+        }
+      }
       globalThis.dispatchEvent?.(new Event('kiosk:recommendation-eligibility-changed'));
     }
-  };
 }
 
-export function startAskRecording(sourceBtn) {
+export async function startAskRecording() {
   if (voiceOrderDraftController.hasPending()) {
     showVoiceAssistMessage('請先確認或取消目前的餐點草稿。');
     return;
   }
-  if (!state.askRecorder) setupAskRecorder();
-  if (!state.askRecorder || state.askRecorder.state !== 'inactive' || state.isVoiceProcessing) {
-    showVoiceAssistMessage(kioskText('voiceMicNotReady'));
-    return;
-  }
-  if (state.askRecorder && state.askRecorder.state === 'inactive') {
-    // 開始錄音前先清除推播卡與殘留計時器，避免語音模式與推播卡重疊
-    if (state.interactionModalTimer) { clearTimeout(state.interactionModalTimer); state.interactionModalTimer = null; }
-    clearAllPushCards();
-    trackInteractionEvent({
-      event_type: 'voice_assist_started',
-      button_id: sourceBtn?.id || 'voiceAssistBtn',
-      metadata: {}
-    });
-    pausePassiveListener();
-    const voiceTurn = beginVoiceTurn();
-    state.askRecordingStartedAt = Date.now();
-    voiceStopIntent = 'submit';
-    state.askRecorder.start(250);
-    document.getElementById('voiceAssistBtn')?.classList.add('recording');
-    showVoiceAssistOverlay('listening');
-    const startButtonText = document.getElementById('voiceAssistBtnText');
-    if (startButtonText) startButtonText.textContent = kioskText('listeningAsk');
-    try {
-      voiceActivityMonitor = startVoiceActivityMonitor(state.stream, (decision) => {
-        finishAskRecording(decision === 'no_speech' ? 'no_speech' : 'silence_detected');
-      });
-    } catch (error) {
-      console.warn('[voice] 無法啟動停頓偵測，仍可使用立即送出或取消。', error);
-    }
-    voiceMaxTimer = setTimeout(() => finishAskRecording('max_duration'), 30000);
+  voiceSuspended = false;
+  if (!voiceDetector) await setupAskRecorder();
+  else if (!voiceListening && !state.isVoiceProcessing) {
+    await voiceDetector.start();
+    voiceListening = true;
+    setVoiceStatus('listening', '自動聆聽中');
   }
 }
 
@@ -495,48 +498,13 @@ export function startAskRecording(sourceBtn) {
  * 而不是讓它在背景跑完後無處可去。
  */
 export function cancelActiveVoiceTurn() {
-  if (state.askRecorder?.state === 'recording') {
-    finishAskRecording('cancel');
-    return;
-  }
+  voiceSuspended = true;
+  clearTimeout(voiceMaxTimer);
+  voiceMaxTimer = null;
+  void voiceDetector?.pause();
+  voiceListening = false;
+  activeVoiceTurn = null;
   if (voiceOrderDraftController.hasPending()) voiceOrderDraftController.close('cancelled');
   hideVoiceAssistOverlay();
+  setVoiceStatus('paused', '語音已暫停');
 }
-
-function finishAskRecording(intent = 'manual_submit') {
-  if (state.askRecorder && state.askRecorder.state === 'recording') {
-    voiceStopIntent = intent;
-    voiceActivityMonitor?.stop();
-    voiceActivityMonitor = null;
-    if (voiceMaxTimer) clearTimeout(voiceMaxTimer);
-    voiceMaxTimer = null;
-    state.askRecorder.stop();
-    document.getElementById('voiceAssistBtn')?.classList.remove('recording');
-    const buttonText = document.getElementById('voiceAssistBtnText');
-    if (buttonText) buttonText.textContent = kioskText('holdVoiceOrder');
-    if (intent === 'cancel' || intent === 'no_speech') hideVoiceAssistOverlay();
-    else showVoiceAssistOverlay('thinking');
-  }
-}
-const voiceAssistantFloatingButton = document.getElementById('voiceAssistBtn');
-if (voiceAssistantFloatingButton) {
-  voiceAssistantFloatingButton.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (state.askRecorder?.state === 'recording') finishAskRecording('manual_submit');
-    else startAskRecording(voiceAssistantFloatingButton);
-  });
-}
-function stopOrHideVoiceAssistOverlay(event) {
-  event?.preventDefault?.();
-  if (state.askRecorder?.state === 'recording') {
-    finishAskRecording('cancel');
-  } else {
-    hideVoiceAssistOverlay();
-  }
-}
-
-ui.voiceAssistSendBtn?.addEventListener('click', (event) => {
-  event.preventDefault();
-  finishAskRecording('manual_submit');
-});
-ui.voiceAssistStopBtn?.addEventListener('click', stopOrHideVoiceAssistOverlay);

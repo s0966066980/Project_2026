@@ -1,6 +1,39 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { healthLabel, serviceHealthSummary, serviceHealthView } from '../../admin/modules/healthAdmin.js';
+import {
+  createHealthAdmin,
+  healthLabel,
+  serviceHealthSummary,
+  serviceHealthView,
+} from '../../admin/modules/healthAdmin.js';
+
+/** Drives the panel's own clock so a bounded wait can be observed without spending it. */
+function createTestTimers() {
+  let sequence = 0;
+  const pending = new Map<number, { at: number; run: () => void }>();
+  let now = 0;
+  return {
+    timers: {
+      setTimeout: ((run: () => void, delay = 0) => {
+        const handle = ++sequence;
+        pending.set(handle, { at: now + delay, run });
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: ((handle: unknown) => {
+        pending.delete(handle as number);
+      }) as unknown as typeof clearTimeout,
+    },
+    async advance(ms: number) {
+      now += ms;
+      for (const [handle, entry] of [...pending.entries()]) {
+        if (entry.at > now) continue;
+        pending.delete(handle);
+        entry.run();
+      }
+      for (let tick = 0; tick < 8; tick += 1) await Promise.resolve();
+    },
+  };
+}
 
 const service = (overrides = {}) => ({
   key: 'ollama',
@@ -100,5 +133,56 @@ describe('service health summary', () => {
 
     expect(summary.tone).toBe('ok');
     expect(summary.headline).toContain('都正常');
+  });
+});
+
+// The panel that tells an operator which dependency stopped answering must not
+// itself be able to hang on a service that accepts the connection and goes quiet.
+describe('maintenance health read', () => {
+  const panelWith = (fetchImpl: unknown, timers: ReturnType<typeof createTestTimers>) => {
+    const text = new Map<string, string>();
+    const elements = new Map<string, { className: string; textContent: string; innerHTML: string }>();
+    const panel = createHealthAdmin({
+      apiBaseUrl: 'http://api',
+      adminHeaders: () => ({}),
+      getElement: ((id: string) => {
+        if (!elements.has(id)) elements.set(id, { className: '', textContent: '', innerHTML: '' });
+        return elements.get(id) ?? null;
+      }) as unknown as (id: string) => HTMLElement | null,
+      setText: (id: string, value: string) => text.set(id, value),
+      escapeHtml: (value: string) => String(value),
+      hasPermission: () => true,
+      fetchImpl: fetchImpl as typeof fetch,
+      timers: timers.timers,
+    });
+    return { panel, text, elements };
+  };
+
+  it('reaches a bounded failure when the service-health read never answers', async () => {
+    const timers = createTestTimers();
+    const { panel, text, elements } = panelWith(() => new Promise<never>(() => {}), timers);
+
+    const settled = panel.loadAdminHealth();
+    await timers.advance(5000);
+    await settled;
+
+    expect(text.get('healthGeneratedAt')).toBe('本次更新失敗');
+    expect(elements.get('healthOverallStatus')?.className).toContain('not_ready');
+  });
+
+  it('renders the services when the read answers', async () => {
+    const timers = createTestTimers();
+    const { panel, text } = panelWith(
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { services: [service()] } }),
+      })),
+      timers,
+    );
+
+    await panel.loadAdminHealth();
+
+    expect(text.get('healthGeneratedAt')).toContain('更新於');
   });
 });
