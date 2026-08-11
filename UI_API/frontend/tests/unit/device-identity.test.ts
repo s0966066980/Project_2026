@@ -218,6 +218,21 @@ describe('device identity bootstrap', () => {
     expect(onAuthenticated).not.toHaveBeenCalled();
     expect(element('kioskDeviceAuthBackdrop').style.display).toBe('flex');
   });
+
+  it('treats an unreadable success body as an unauthenticated device', async () => {
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => { throw new Error('invalid json'); },
+      })) as unknown as typeof fetch,
+    });
+
+    await expect(controller.bootstrap()).resolves.toBe(false);
+    expect(element('kioskDeviceAuthBackdrop').style.display).toBe('flex');
+  });
 });
 
 describe('device provisioning', () => {
@@ -294,6 +309,36 @@ describe('device provisioning', () => {
     expect(element('kioskDeviceAuthError').textContent).toBe(deviceProvisioningErrorMessage(401));
     expect(element('kioskDeviceAuthSubmit').disabled).toBe(false);
     expect(element('kioskDeviceAuthStatus').textContent).toBe('');
+  });
+
+  it('reports a bounded network failure and hands the form back', async () => {
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => { throw new Error('offline'); }) as unknown as typeof fetch,
+    });
+    input('kioskDeviceKeyId').value = 'key-1';
+    input('kioskDeviceCredential').value = 'secret';
+
+    await controller.provision(submitEvent() as unknown as SubmitEvent);
+
+    expect(element('kioskDeviceAuthError').textContent).toBe(deviceProvisioningErrorMessage(0));
+    expect(element('kioskDeviceAuthSubmit').disabled).toBe(false);
+  });
+
+  it('ignores provisioning when the expected controls are not input elements', async () => {
+    elements.set('kioskDeviceKeyId', new StubElement());
+    elements.set('kioskDeviceCredential', new StubElement());
+    const fetchImpl = vi.fn();
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await controller.provision(submitEvent() as unknown as SubmitEvent);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('binds the form so a submit provisions the device', async () => {
