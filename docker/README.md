@@ -154,4 +154,4 @@ docker/scripts/test-ai.sh
 
 ## 安全邊界
 
-目前 Compose 是 development/local profile。它包含本機 manager auth 與 diagnostic routes，不得直接當成 Pilot 安全部署。後續 Pilot profile 必須使用主機外部 secrets、Redis、備份還原與 fail-closed 設定。
+目前 Compose 是 development/local profile。它包含裝置驗證 Admin 與 diagnostic routes，不得直接當成 Pilot 安全部署。後續 Pilot profile 必須使用主機外部 secrets、Redis、備份還原與 fail-closed 設定。

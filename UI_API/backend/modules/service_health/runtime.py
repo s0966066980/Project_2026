@@ -99,15 +99,14 @@ class HttpServiceProbe:
 
         started = time.perf_counter()
         try:
-            from services import rag_document_service
+            from services.rag_provider import get_rag
 
-            health = asyncio.run(rag_document_service.health_status()) or {}
-            status = str(health.get("status") or "").strip()
+            asyncio.run(get_rag().count())
             return {
-                "status": "ok" if status == "ok" else "degraded",
+                "status": "ok",
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "observed_at": _now(),
-                "safe_error": "" if status == "ok" else str(health.get("reason") or status)[:_MAX_ERROR],
+                "safe_error": "",
             }
         except Exception as exc:
             return {

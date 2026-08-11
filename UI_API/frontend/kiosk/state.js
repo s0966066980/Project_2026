@@ -13,7 +13,6 @@ export const state = {
   currentChoiceHesitationItem: null,
   currentChoiceHesitationRecommendationRecord: null,
   lastCartAddAt: Date.now(),
-  passiveLastTriggerAt: 0,
   // 付款倒數
   paymentCountdownTimer: null,
   paymentCountdownCartIds: [],

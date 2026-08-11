@@ -1,8 +1,8 @@
-"""Structured promotion signals loaded from RAG source documents.
+"""Structured promotion signals loaded from the promotion repository.
 
 Vector search remains useful for voice answers, but recommendation scoring needs
-deterministic, validated promotion data. This service reads JSON promotion
-documents from rag_documents/promotions and returns menu-safe offer signals.
+deterministic, validated promotion data. This service reads validated promotion
+records and returns menu-safe offer signals.
 """
 from __future__ import annotations
 

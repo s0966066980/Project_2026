@@ -235,15 +235,6 @@ class RecommendationEffectivenessDTO(BaseModel):
     add_to_cart_rate: float = Field(ge=0)
     purchase_rate: float = Field(ge=0)
     ignore_rate: float = Field(ge=0)
-    purchase_rate_target: float = Field(ge=0, le=1)
-    ignore_rate_guardrail: float = Field(ge=0, le=1)
-    target_status: Literal[
-        "insufficient_data",
-        "on_target",
-        "below_purchase_target",
-        "high_ignore_rate",
-        "below_target_and_high_ignore",
-    ]
     attributed_revenue: int = Field(ge=0)
     attributed_discount: int = Field(ge=0)
     provisional_attributions: int = Field(ge=0)
@@ -260,13 +251,6 @@ class AuditRecordDTO(BaseModel):
     target_type: str
     target_id: str
     created_at: datetime | None = None
-
-
-class RagReviewDTO(BaseModel):
-    review_id: str
-    status: str
-    title: str
-    updated_at: datetime | None = None
 
 
 class SettingsDTO(BaseModel):
@@ -394,23 +378,6 @@ class RagDocumentCreateRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=200)
 
 
-class RagDocumentActionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    version: int = Field(ge=1)
-    reason: str = Field(default="", max_length=500)
-    # Deprecated compatibility field. Routes always use the authenticated principal.
-    actor: str = Field(default="admin", max_length=100)
-
-
-class RagDocumentDTO(BaseModel):
-    document_id: str
-    version: int
-    status: str
-    checksum: str
-    content_ref: str = ""
-
-
 RagKnowledgeCategory = Literal[
     "store_and_hours",
     "menu_and_products",
@@ -455,13 +422,6 @@ class RagKnowledgePublishRequest(BaseModel):
     retry_failures_only: bool = False
 
 
-class RagCsvImportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    csv_text: str = Field(min_length=1, max_length=5_000_000)
-    override_near_duplicates: bool = False
-
-
 class RagKnowledgeTestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -478,18 +438,6 @@ class RagRetrievalConfigurationRequest(BaseModel):
     top_k: Literal[3, 5, 10] = 5
     relevance_policy: Literal["lenient", "balanced", "strict"] = "balanced"
     source_version: int | None = Field(default=None, ge=1)
-
-
-class RagTestCaseRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    test_case_id: str = Field(default="", max_length=100)
-    question: str = Field(min_length=1, max_length=2_000)
-    expected_knowledge_ids: list[str] = Field(min_length=1, max_length=100)
-    enabled: bool = True
-
-
-RagKnowledgeDTO = dict
 
 
 class FleetCommandRequest(BaseModel):

@@ -28,7 +28,7 @@ class WorkerPublicationJobs:
         job = worker_service.enqueue_job(
             tenant_id=scope.tenant_id,
             store_id=scope.store_id,
-            job_type="rag.studio.index",
+            job_type="knowledge.publication.index",
             payload_ref={"attempt_id": attempt_id},
             idempotency_key=f"knowledge-publication:{scope.store_id}:{attempt_id}",
             max_attempts=3,

@@ -57,8 +57,6 @@
             "traffic": 50
         }
     ],
-    "RECOMMENDATION_PURCHASE_RATE_TARGET": 0.1,
-    "RECOMMENDATION_IGNORE_RATE_GUARDRAIL": 0.35,
     "RECOMMENDATION_TARGET_EFFECTIVE_FROM": "",
     "MEMBER_STORAGE_BACKEND": "json",
     "DATABASE_URL": "",
@@ -88,18 +86,6 @@
     "AI_PUSH_TEXT_MIN": 30,
     "AI_PUSH_TEXT_MAX": 50,
     "AI_PUSH_REFRESH_SEC": 15,
-    "PASSIVE_VOICE_KEYWORDS": [
-        "找不到",
-        "在哪裡",
-        "哪邊有",
-        "哪裡有",
-        "哪裡可以"
-    ],
-    "PASSIVE_VOICE_ALIASES": {
-        "MCD132": [
-            "冰炫風"
-        ]
-    },
     "AI_PUSH_PRIORITY_CATS": [
         "超值全餐",
         "極選系列",
@@ -125,18 +111,11 @@
     "TTS_API_KEY": "",
     "TTS_HTTP_TIMEOUT_SEC": 30,
     "EMOTION_ENABLED": true,
+    "EMOTION_MODEL_PROFILE": "r1_omni",
+    "EMOTION_CAPTURE_MODE": "voice",
     "EMOTION_CLIP_SEC": 5,
     "EMOTION_TIMEOUT_SEC": 120,
-    "EMOTION_QUALITY_CHECK": false,
-    "EMOTION_AFFECT_VOICE": true,
-    "EMOTION_ASSISTANCE_MODE": "shadow",
-    "EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD": 0.7,
-    "EMOTION_ASSISTANCE_ROLLOUT_PERCENT": 0,
-    "EMOTION_EVENT_VOICE": true,
-    "EMOTION_INCLUDE_STT": true,
-    "EMOTION_ANALYSIS_MODE": "paired",
     "EMOTION_PROMPT": "",
-    "EMOTION_PROMPT_MAX_CHARS": 800,
     "BARRIER_DWELL_TIMEOUT_SEC": 40,
     "BARRIER_CATEGORY_SWITCH_MAX": 4,
     "BARRIER_CART_REMOVE_MAX": 2,

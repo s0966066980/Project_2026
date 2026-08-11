@@ -24,9 +24,6 @@ class EffectivenessReport:
     add_to_cart_rate: float
     purchase_rate: float
     ignore_rate: float
-    purchase_rate_target: float
-    ignore_rate_guardrail: float
-    target_status: str
     attributed_revenue: int
     attributed_discount: int
     provisional_attributions: int

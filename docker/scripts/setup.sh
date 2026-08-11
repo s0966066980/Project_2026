@@ -171,7 +171,6 @@ env_set() {
 
 echo "[3/8] 建立環境設定..."
 created_env=false
-generated_admin_password=""
 if [[ ! -f .env ]]; then
   [[ -f "$DOCKER_DIR/.env.example" ]] || die "找不到 docker/.env.example。"
   cp "$DOCKER_DIR/.env.example" .env
@@ -182,13 +181,8 @@ fi
 # Generate safe local defaults when the file is new or still contains the
 # example placeholders. Existing non-placeholder values are never overwritten.
 current_pg_password="$(env_get POSTGRES_PASSWORD || true)"
-current_admin_password="$(env_get ADMIN_MANAGER_PASSWORD || true)"
 if [[ "$created_env" == true || -z "$current_pg_password" || "$current_pg_password" == replace-with-* ]]; then
   env_set POSTGRES_PASSWORD "$(openssl rand -hex 24)"
-fi
-if [[ "$created_env" == true || -z "$current_admin_password" || "$current_admin_password" == replace-with-* ]]; then
-  generated_admin_password="$(openssl rand -hex 24)"
-  env_set ADMIN_MANAGER_PASSWORD "$generated_admin_password"
 fi
 
 COMPOSE_FILES=(-f "$DOCKER_DIR/compose.yaml" -f "$DOCKER_DIR/compose.ai.yaml")
@@ -287,12 +281,6 @@ dc up -d --wait
 echo
 echo "完成。服務狀態："
 dc ps
-if [[ -n "$generated_admin_password" ]]; then
-  echo
-  echo "首次建立的 Admin 登入資訊（已保存於 .env）："
-  echo "  帳號：admin"
-  echo "  密碼：${generated_admin_password}"
-fi
 echo
 echo "R1-Omni：使用主機本地權重，未下載任何 R1 權重。"
 echo "Ollama 模型：${model_name}（已準備完成）"

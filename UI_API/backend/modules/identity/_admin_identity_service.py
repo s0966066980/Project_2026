@@ -1,28 +1,23 @@
-"""Admin password, session, and principal application service."""
+"""Dormant Admin identity persistence for future external integrations."""
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
-import threading
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from modules.identity.adapters import postgres as admin_identity_repository
 
 import config
 from models.admin_identity import AdminPrincipal, AdminSessionResult
 from models.admin_permissions import ADMIN_PERMISSION_CATALOG
 from models.commercial_scope import CommercialScope
-from modules.identity.adapters import postgres as admin_identity_repository
 from repositories import admin_audit_repository, postgres_utils
 
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
-_LOCAL_MANAGER_USER_ID = UUID("00000000-0000-4000-8000-000000000005")
-_local_sessions: dict[str, dict] = {}
-_local_sessions_lock = threading.Lock()
 
 
 class AdminAuthenticationError(ValueError):
@@ -31,10 +26,6 @@ class AdminAuthenticationError(ValueError):
 
 def normalize_admin_login(value: str) -> str:
     return " ".join(str(value or "").strip().lower().split())
-
-
-def _constant_time_text_equal(left: object, right: object) -> bool:
-    return hmac.compare_digest(str(left).encode("utf-8"), str(right).encode("utf-8"))
 
 
 def hash_admin_password(password: str) -> str:
@@ -63,65 +54,6 @@ def hash_admin_session_token(token: str) -> str:
 
 def _new_session_token() -> str:
     return secrets.token_urlsafe(48)
-
-
-def _local_manager_enabled() -> bool:
-    return bool(
-        config.ADMIN_LOCAL_MANAGER_AUTH_ENABLED
-        and not config.is_commercial_runtime()
-        and config.ADMIN_MANAGER_PASSWORD
-    )
-
-
-def _local_manager_principal(scope: CommercialScope, session_id: UUID) -> AdminPrincipal:
-    return AdminPrincipal(
-        user_id=_LOCAL_MANAGER_USER_ID,
-        tenant_id=scope.tenant_id,
-        allowed_store_ids=(scope.store_id,),
-        roles=("local-manager",),
-        permissions=("*",),
-        session_id=session_id,
-        auth_method="session",
-    )
-
-
-def _issue_local_manager_session(scope: CommercialScope, now: datetime) -> AdminSessionResult:
-    token = f"local-manager.{_new_session_token()}"
-    token_hash = hash_admin_session_token(token)
-    session_id = uuid4()
-    ttl_seconds = max(
-        int(config.ADMIN_MANAGER_IDLE_TIMEOUT_SEC or 1800),
-        int(config.ADMIN_SESSION_TTL_SEC or 28800),
-    )
-    expires_at = now + timedelta(seconds=ttl_seconds)
-    with _local_sessions_lock:
-        _local_sessions[token_hash] = {
-            "session_id": session_id,
-            "scope": scope,
-            "last_used_at": now,
-            "expires_at": expires_at,
-        }
-    return AdminSessionResult(
-        token=token,
-        principal=_local_manager_principal(scope, session_id),
-        expires_at=expires_at,
-    )
-
-
-def _authenticate_local_manager_session(token: str, now: datetime) -> AdminPrincipal | None:
-    if not _local_manager_enabled() or not str(token).startswith("local-manager."):
-        return None
-    token_hash = hash_admin_session_token(token)
-    idle_seconds = max(1, int(config.ADMIN_MANAGER_IDLE_TIMEOUT_SEC or 1800))
-    with _local_sessions_lock:
-        row = _local_sessions.get(token_hash)
-        if row is None:
-            return None
-        if row["expires_at"] <= now or row["last_used_at"] + timedelta(seconds=idle_seconds) <= now:
-            _local_sessions.pop(token_hash, None)
-            return None
-        row["last_used_at"] = now
-        return _local_manager_principal(row["scope"], row["session_id"])
 
 
 def _principal_from_record(record: dict, auth_method: str = "session") -> AdminPrincipal:
@@ -153,14 +85,6 @@ def _record_auth_event(action: str, scope: CommercialScope, *, user_id: object =
 
 def login_admin(login_identity: str, password: str, scope: CommercialScope) -> AdminSessionResult:
     normalized = normalize_admin_login(login_identity)
-    expected_login = normalize_admin_login(config.ADMIN_MANAGER_LOGIN_IDENTITY)
-    if _local_manager_enabled() and _constant_time_text_equal(normalized, expected_login):
-        if not _constant_time_text_equal(password, config.ADMIN_MANAGER_PASSWORD):
-            _record_auth_event("admin_login_failure", scope, reason="invalid_credentials")
-            raise AdminAuthenticationError("Invalid credentials")
-        result = _issue_local_manager_session(scope, datetime.now(timezone.utc))
-        _record_auth_event("admin_login_success", scope, user_id=result.principal.user_id)
-        return result
     user = admin_identity_repository.find_admin_user(scope.tenant_id, normalized)
     if (
         user is None
@@ -200,9 +124,6 @@ def authenticate_admin_session(token: str, *, now: datetime | None = None) -> Ad
     if not token:
         return None
     resolved_now = now or datetime.now(timezone.utc)
-    local_principal = _authenticate_local_manager_session(token, resolved_now)
-    if local_principal is not None:
-        return local_principal
     if not postgres_utils.use_postgres():
         return None
     row = admin_identity_repository.find_admin_session(hash_admin_session_token(token))
@@ -218,12 +139,6 @@ def authenticate_admin_session(token: str, *, now: datetime | None = None) -> Ad
 def logout_admin(token: str, scope: CommercialScope) -> bool:
     if not token:
         return False
-    if str(token).startswith("local-manager."):
-        with _local_sessions_lock:
-            revoked = _local_sessions.pop(hash_admin_session_token(token), None) is not None
-        if revoked:
-            _record_auth_event("admin_logout", scope)
-        return revoked
     if not postgres_utils.use_postgres():
         return False
     revoked = admin_identity_repository.revoke_admin_session(
@@ -239,11 +154,6 @@ def rotate_admin_session(token: str, scope: CommercialScope) -> AdminSessionResu
     if principal is None or principal.tenant_id != scope.tenant_id or scope.store_id not in principal.allowed_store_ids:
         raise AdminAuthenticationError("Admin session is not valid")
     now = datetime.now(timezone.utc)
-    if str(token).startswith("local-manager."):
-        logout_admin(token, scope)
-        result = _issue_local_manager_session(scope, now)
-        _record_auth_event("admin_session_rotated", scope, user_id=result.principal.user_id)
-        return result
     expires_at = now + timedelta(seconds=max(300, int(config.get("ADMIN_SESSION_TTL_SEC", 28800) or 28800)))
     raw_token = _new_session_token()
     session_id = uuid4()

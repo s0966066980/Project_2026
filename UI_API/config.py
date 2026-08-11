@@ -109,8 +109,6 @@ def validate_startup_config() -> None:
         errors.append(f"SECURITY_ENFORCED must be true in {label}")
     if APP_ENV == "pilot" and ENABLE_NGROK:
         errors.append("ENABLE_NGROK must be false for the local-pilot HTTP deployment")
-    if ADMIN_LOCAL_MANAGER_AUTH_ENABLED:
-        errors.append("ADMIN_LOCAL_MANAGER_AUTH_ENABLED is development-only and must be false in commercial runtime")
     if ENABLE_LEGACY_KIOSK_TOKEN and not _token_configured(KIOSK_DEVICE_TOKEN):
         errors.append("KIOSK_DEVICE_TOKEN must be configured when legacy Kiosk authentication is enabled")
     if not _token_configured(os.getenv("ADMIN_MEMBER_REF_SECRET", "")):
@@ -218,10 +216,6 @@ KIOSK_DEVICE_TOKEN = os.getenv("KIOSK_DEVICE_TOKEN", POS_DEMO_TOKEN)
 ENABLE_LEGACY_KIOSK_TOKEN = _env_bool("ENABLE_LEGACY_KIOSK_TOKEN", not is_production())
 ADMIN_SESSION_COOKIE_NAME = os.getenv("ADMIN_SESSION_COOKIE_NAME", "admin_session")
 ADMIN_SESSION_TTL_SEC = int(os.getenv("ADMIN_SESSION_TTL_SEC", "28800"))
-ADMIN_LOCAL_MANAGER_AUTH_ENABLED = _env_bool("ADMIN_LOCAL_MANAGER_AUTH_ENABLED", False)
-ADMIN_MANAGER_LOGIN_IDENTITY = os.getenv("ADMIN_MANAGER_LOGIN_IDENTITY", "admin").strip() or "admin"
-ADMIN_MANAGER_PASSWORD = os.getenv("ADMIN_MANAGER_PASSWORD", "")
-ADMIN_MANAGER_IDLE_TIMEOUT_SEC = int(os.getenv("ADMIN_MANAGER_IDLE_TIMEOUT_SEC", "1800"))
 DEVICE_SESSION_COOKIE_NAME = os.getenv("DEVICE_SESSION_COOKIE_NAME", "kiosk_device_session")
 DEVICE_SESSION_TTL_SEC = int(os.getenv("DEVICE_SESSION_TTL_SEC", "3600"))
 DEVICE_CREDENTIAL_TTL_DAYS = int(os.getenv("DEVICE_CREDENTIAL_TTL_DAYS", "90"))
@@ -317,8 +311,6 @@ DEFAULT_SETTINGS = {
         {"variant_id": "control", "strategy": "weighted_random", "traffic": 50},
         {"variant_id": "ranked", "strategy": "ranked_top_score", "traffic": 50},
     ],
-    "RECOMMENDATION_PURCHASE_RATE_TARGET": 0.10,  # 主管設定：有效曝光後確認購買率
-    "RECOMMENDATION_IGNORE_RATE_GUARDRAIL": 0.35,  # 主管設定：有效曝光忽略率警戒值
     "DATABASE_BACKEND": os.getenv("DATABASE_BACKEND", "postgresql"),
     "DATABASE_TOPOLOGY": os.getenv("DATABASE_TOPOLOGY", "single"),
     "DATABASE_URL": os.getenv("DATABASE_URL", ""),
@@ -355,8 +347,6 @@ DEFAULT_SETTINGS = {
     "AI_PUSH_SCOPE_CATEGORIES": [],         # AI_PUSH_SCOPE_MODE 為 categories 時生效
     "AI_PUSH_EXCLUDE_SEEN": True,           # 「換一個」累積排除本次已看過的品項
     "AI_PUSH_PREFETCH": True,               # 預先取回候選，讓「換一個」不必等待
-    "PASSIVE_VOICE_KEYWORDS": ["找不到", "在哪裡", "哪邊有", "哪裡有", "哪裡可以"],
-    "PASSIVE_VOICE_ALIASES": {},   # {"MCDxxx": ["別名1", "別名2"]}
     "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效
         "超值全餐", "極選系列", "點心", "飲料", "麥當勞分享盒"
     ],
@@ -378,18 +368,11 @@ DEFAULT_SETTINGS = {
     "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
     # ── 情緒分析 ─────────────────────────────────────────────
     "EMOTION_ENABLED": False,
-    "EMOTION_CLIP_SEC": 2.0,
+    "EMOTION_MODEL_PROFILE": "r1_omni",
+    "EMOTION_CAPTURE_MODE": "voice",  # voice | periodic; disabled is represented by EMOTION_ENABLED=false
+    "EMOTION_CLIP_SEC": 5.0,
     "EMOTION_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
-    "EMOTION_QUALITY_CHECK": True,
-    "EMOTION_AFFECT_VOICE": False,
-    "EMOTION_ASSISTANCE_MODE": "shadow",     # disabled | shadow | active
-    "EMOTION_ASSISTANCE_CONFIDENCE_THRESHOLD": 0.70,
-    "EMOTION_ASSISTANCE_ROLLOUT_PERCENT": 0,  # active mode deterministic 0/5/25/50/100 rollout
-    "EMOTION_EVENT_VOICE": True,       # 語音模式開始／結束皆在背景觸發分析
-    "EMOTION_INCLUDE_STT": True,        # 語音結束分析同時提供 STT 逐字稿與影音
-    "EMOTION_ANALYSIS_MODE": "media_plus_stt",  # media_only | media_plus_stt | paired
     "EMOTION_PROMPT": _prompts.EMOTION_PROMPT,
-    "EMOTION_PROMPT_MAX_CHARS": 800,
     # ── 互動障礙偵測閾值 ──────────────────────
     "BARRIER_DWELL_TIMEOUT_SEC": 40,        # 選單頁停留超過此秒數視為 menu_hesitation
     "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
@@ -416,14 +399,12 @@ PUBLIC_SETTINGS_KEYS = {
     "DEMO_PUBLIC_MODE",
     "EMOTION_ENABLED",
     "EMOTION_CLIP_SEC",
-    "EMOTION_EVENT_VOICE",        # Kiosk 需要：控制語音模式開始／結束的背景分析
-    "EMOTION_INCLUDE_STT",         # Kiosk 需要：STT 完成後啟動影音＋逐字稿分析
-    "EMOTION_ANALYSIS_MODE",
+    "EMOTION_MODEL_PROFILE",
+    "EMOTION_CAPTURE_MODE",
     "AI_PUSH_REFRESH_SEC",
     # Kiosk 決定「換一個」行為時需要，故列為公開投影。
     "AI_PUSH_EXCLUDE_SEEN",
     "AI_PUSH_PREFETCH",
-    "PASSIVE_VOICE_KEYWORDS",
     "MEMBER_ENABLED",
     "MEMBER_USUALS_COUNT",
 }
@@ -746,7 +727,6 @@ def get(key, default=None):
         "ENABLE_LEGACY_KIOSK_TOKEN": ENABLE_LEGACY_KIOSK_TOKEN,
         "ADMIN_SESSION_COOKIE_NAME": ADMIN_SESSION_COOKIE_NAME,
         "ADMIN_SESSION_TTL_SEC": ADMIN_SESSION_TTL_SEC,
-        "ADMIN_MANAGER_IDLE_TIMEOUT_SEC": ADMIN_MANAGER_IDLE_TIMEOUT_SEC,
         "DEVICE_SESSION_COOKIE_NAME": DEVICE_SESSION_COOKIE_NAME,
         "DEVICE_SESSION_TTL_SEC": DEVICE_SESSION_TTL_SEC,
         "DEVICE_CREDENTIAL_TTL_DAYS": DEVICE_CREDENTIAL_TTL_DAYS,

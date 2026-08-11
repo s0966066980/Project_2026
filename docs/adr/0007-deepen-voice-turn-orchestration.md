@@ -1,5 +1,7 @@
 # Deepen Voice Turn orchestration
 
+> The per-turn customer activation boundary in this ADR is amended by ADR-0056. Its durable backend lifecycle, streaming protocol, replay, draft, and optional emotion decisions remain accepted.
+
 Status: accepted
 
 Voice ordering will be split into two deep modules joined by a strict streaming protocol. The Backend Voice Turn module owns STT, Voice Menu Candidate Set selection, assistant execution, Voice Order Draft creation, TTS synthesis reporting, and the durable lifecycle `Accepted → Transcribing → Assisting → Synthesizing → Completed`, with Transcription Failed and Assistant Failed terminal states. The Kiosk Voice Turn module owns recording, cancellation, no-speech detection, transport, display, actual audio playback, draft confirmation, and the single visible terminal outcome.

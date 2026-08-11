@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from models.commercial_scope import CommercialScope
 from modules.analytics.contracts import EffectivenessReport, TouchReceipt
+
+from models.commercial_scope import CommercialScope
 from services import analytics_pipeline_service
 
 TOUCH_TYPES = {
@@ -180,7 +181,6 @@ def build_effectiveness_report(
     attributions: list[dict],
     *,
     filters: dict[str, str] | None = None,
-    targets: dict[str, Any] | None = None,
 ) -> EffectivenessReport:
     """Build a deduplicated recommendation/campaign funnel from durable facts."""
 
@@ -277,28 +277,8 @@ def build_effectiveness_report(
                 "conclusion": "樣本不足，僅顯示觀察差異" if min(control_impressions, row["impressions"]) < 100 else "可持續觀察此差異",
             })
     warning = "" if impressions >= 100 else "目前樣本少於 100 次有效曝光，成效趨勢僅供參考。"
-    target_values = targets or {}
-
-    def target_rate(key: str, default: float) -> float:
-        try:
-            return min(1.0, max(0.0, float(target_values.get(key, default))))
-        except (TypeError, ValueError):
-            return default
-
     purchase_rate = round(purchases / impressions, 4) if impressions else 0.0
     ignore_rate = round(len(ignored_keys) / impressions, 4) if impressions else 0.0
-    purchase_target = target_rate("RECOMMENDATION_PURCHASE_RATE_TARGET", 0.10)
-    ignore_guardrail = target_rate("RECOMMENDATION_IGNORE_RATE_GUARDRAIL", 0.35)
-    if impressions < 100:
-        target_status = "insufficient_data"
-    elif purchase_rate >= purchase_target and ignore_rate <= ignore_guardrail:
-        target_status = "on_target"
-    elif purchase_rate < purchase_target and ignore_rate > ignore_guardrail:
-        target_status = "below_target_and_high_ignore"
-    elif ignore_rate > ignore_guardrail:
-        target_status = "high_ignore_rate"
-    else:
-        target_status = "below_purchase_target"
     return EffectivenessReport(
         filters=active_filters,
         impressions=impressions,
@@ -310,9 +290,6 @@ def build_effectiveness_report(
         add_to_cart_rate=round(len(add_keys) / impressions, 4) if impressions else 0.0,
         purchase_rate=purchase_rate,
         ignore_rate=ignore_rate,
-        purchase_rate_target=purchase_target,
-        ignore_rate_guardrail=ignore_guardrail,
-        target_status=target_status,
         attributed_revenue=sum(max(0, int(row.get("attributed_revenue") or 0)) for row in confirmed),
         attributed_discount=sum(max(0, int(row.get("attributed_discount") or 0)) for row in confirmed),
         provisional_attributions=sum(1 for row in scoped_attributions if row.get("status") == "provisional"),

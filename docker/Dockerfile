@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
+FROM node:24-bookworm-slim AS frontend-runtime-deps
+
+WORKDIR /frontend
+COPY UI_API/frontend/package.json UI_API/frontend/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
 FROM python:3.10-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,6 +24,7 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install --requirement /tmp/requirements-docker.txt
 
 COPY UI_API/ /app/UI_API/
+COPY --from=frontend-runtime-deps /frontend/node_modules /app/UI_API/frontend/node_modules
 
 RUN mkdir -p /var/lib/project-2026 \
     && chown -R project2026:project2026 /app/UI_API /var/lib/project-2026

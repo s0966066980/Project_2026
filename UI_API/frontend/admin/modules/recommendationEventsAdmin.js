@@ -152,9 +152,6 @@ export function createRecommendationEventsAdmin({
       ignored: Number(report.ignored || 0),
       purchaseRate: Number(report.purchase_rate || 0),
       ignoreRate: Number(report.ignore_rate || 0),
-      purchaseRateTarget: Number(report.purchase_rate_target || 0),
-      ignoreRateGuardrail: Number(report.ignore_rate_guardrail || 0),
-      targetStatus: String(report.target_status || 'insufficient_data'),
       sampleWarning: String(report.sample_warning || ''),
     };
     onSummary(summary);
