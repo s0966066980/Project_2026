@@ -8,6 +8,8 @@ import {
 import {
   ensureMediaTracks as ensureMediaTracksCore,
   startRollingBuffer,
+  stopRollingBuffer,
+  capturePreEventClip,
 } from './media.js';
 import { createCartManager } from './cart.js';
 import { createRealtimeClient } from '../shared/realtimeClient.js';
@@ -25,8 +27,7 @@ import {
 } from './constants/kiosk.js';
 import {
   hideChoiceHesitationModal,
-  isChoiceHesitationVisible, pickChoiceHesitationItem, renderChoiceHesitationItem,
-  getChoiceHesitationModal,
+  pickChoiceHesitationItem, renderChoiceHesitationItem,
 } from './choiceHesitation.js';
 import { openPaymentCountdown, closePaymentCountdown, showPaymentCountdownSection } from './paymentCountdown.js';
 import { showMemberChoice, renderMemberMenuHeader } from './member.js';
@@ -59,14 +60,8 @@ let lastInterventionEventAt = 0;
 let lastInteractionAt = Date.now();
 let pageDwellTimer = null;
 let kioskRealtime = null;
-let passiveAudioStream = null;
-let passiveAudioRecorder = null;
-let passiveRecordingTimer = null;
-let isPassiveListening = false;
-let isPassivePaused = false;
-let isPassiveRequestInFlight = false;
-const PASSIVE_TRIGGER_COOLDOWN_MS = 10000;
-const PASSIVE_CHUNK_MS = 5000;
+let periodicEmotionTimer = null;
+let periodicEmotionGeneration = 0;
 const interactionState = {
   pageId: 'startup',
   pageEnteredAt: Date.now(),
@@ -451,8 +446,6 @@ configureKioskRuntime({
   sessionId,
   showPushNotice,
   trackInteractionEvent,
-  pausePassiveListener,
-  resumePassiveListener,
 });
 
 function trackedAddToCart(item, metadata = {}) {
@@ -1122,12 +1115,7 @@ function applyKioskText() {
   const checkoutDoneSub = document.querySelector('#checkoutOverlay p');
   if (checkoutDoneSub) checkoutDoneSub.textContent = kioskText('thankYou');
   const voiceAssistantLanguageText = document.getElementById('voiceAssistBtnText');
-  if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = kioskText('holdVoiceOrder');
-  if (ui.voiceAssistOverlayTitle) ui.voiceAssistOverlayTitle.textContent = '語音模式';
-  if (ui.voiceAssistOverlaySubtitle) ui.voiceAssistOverlaySubtitle.textContent = '我正在聽，請說出您的需求';
-  if (ui.voiceAssistStopText) ui.voiceAssistStopText.textContent = '說完後停頓 1.5 秒會自動送出';
-  if (ui.voiceAssistSendBtn) ui.voiceAssistSendBtn.querySelector('span').textContent = '立即送出';
-  if (ui.voiceAssistStopBtn) ui.voiceAssistStopBtn.querySelector('span').textContent = '取消';
+  if (voiceAssistantLanguageText) voiceAssistantLanguageText.textContent = '語音準備中';
   if (ui.cartCountBadge) {
     const quantity = cartManager?.getCartItems?.().reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
     ui.cartCountBadge.textContent = kioskText('cartCount').replace('{count}', String(quantity));
@@ -1690,6 +1678,68 @@ function midSessionMemberHooks() {
   };
 }
 
+function stopPeriodicEmotionAnalysis() {
+  periodicEmotionGeneration += 1;
+  if (periodicEmotionTimer) clearTimeout(periodicEmotionTimer);
+  periodicEmotionTimer = null;
+  stopRollingBuffer();
+}
+
+function releaseEmotionVideoTracks() {
+  state.stream?.getVideoTracks().forEach(track => {
+    track.stop();
+    state.stream?.removeTrack?.(track);
+  });
+}
+
+function startPeriodicEmotionAnalysis(clipSec) {
+  stopPeriodicEmotionAnalysis();
+  const generation = periodicEmotionGeneration;
+  const intervalMs = Math.max(10, Number(clipSec) || 5) * 1000;
+
+  const schedule = delay => {
+    if (generation !== periodicEmotionGeneration) return;
+    periodicEmotionTimer = setTimeout(runOnce, delay);
+  };
+
+  async function runOnce() {
+    periodicEmotionTimer = null;
+    if (generation !== periodicEmotionGeneration) return;
+    if (!isSystemRunning || !isKioskActive() || state.isVoiceProcessing) {
+      schedule(intervalMs);
+      return;
+    }
+    try {
+      const readiness = await api.getEmotionReadiness();
+      if (generation !== periodicEmotionGeneration) return;
+      if (!readiness?.ready) {
+        stopRollingBuffer();
+        releaseEmotionVideoTracks();
+        schedule(intervalMs);
+        return;
+      }
+
+      const mediaReady = await ensureMediaTracks({ video: true });
+      if (generation !== periodicEmotionGeneration) return;
+      if (!mediaReady.videoReady || !state.stream?.getVideoTracks().some(track => track.readyState === 'live')) {
+        stopRollingBuffer();
+        schedule(intervalMs);
+        return;
+      }
+      startRollingBuffer(state.stream, clipSec);
+      const clip = capturePreEventClip();
+      if (clip) await api.analyzeVoiceEmotionEvent(sessionId, 'ordering_periodic', clip);
+    } catch (error) {
+      stopRollingBuffer();
+      releaseEmotionVideoTracks();
+      console.warn('[emotion] 模型未就緒或定期分析未完成，已暫停擷取並等待恢復。', error);
+    }
+    schedule(intervalMs);
+  }
+
+  schedule(0);
+}
+
 async function runPosStartup() {
   if (isMenuStarting) return false;
   isMenuStarting = true;
@@ -1700,14 +1750,10 @@ async function runPosStartup() {
     await loadMenu();
     if (entryFlow?.state === 'initializing_menu') await advanceEntryFlow('menu_initialized');
     const needAudio = Boolean(f.voiceAssist);
-    const needVideo = Boolean(
-      f.voiceAssist
-      && getRuntimeSettings().EMOTION_ENABLED
-      && getRuntimeSettings().EMOTION_EVENT_VOICE,
-    );
-    const mediaReady = await ensureMediaTracks({ video: needVideo, audio: needAudio });
+    // Periodic emotion analysis requests the camera only after its model gate is
+    // ready. Voice assistance can still request the microphone independently.
+    const mediaReady = await ensureMediaTracks({ video: false, audio: needAudio });
     if (!mediaReady.audioReady && needAudio) console.warn('Microphone unavailable; Kiosk flow continues without voice assistance.');
-    if (!mediaReady.videoReady && needVideo) console.warn('Camera unavailable; voice assistance continues without emotion video.');
     promoBannerController.load();
     cartPromoBannerController.load();
     applyFeaturesToKiosk();
@@ -1719,18 +1765,14 @@ async function runPosStartup() {
     setInteractionPage('menu_page', { source: 'start_system' });
     renderMemberMenuHeader();
     setTimeout(() => aiRecommendationController.start(), 600);
-    if (f.voiceAssist) setupAskRecorder();
+    if (f.voiceAssist) await setupAskRecorder();
     if (
-      f.voiceAssist
-      && getRuntimeSettings().EMOTION_ENABLED
-      && getRuntimeSettings().EMOTION_EVENT_VOICE
-      && mediaReady.videoReady
-      && state.stream?.getVideoTracks().length
+      getRuntimeSettings().EMOTION_ENABLED
+      && getRuntimeSettings().EMOTION_CAPTURE_MODE === 'periodic'
     ) {
-      const bufferSec = Number(getRuntimeSettings().EMOTION_CLIP_SEC) || 2.0;
-      startRollingBuffer(state.stream, bufferSec);
+      const bufferSec = Math.max(2, Math.min(30, Number(getRuntimeSettings().EMOTION_CLIP_SEC) || 5));
+      startPeriodicEmotionAnalysis(bufferSec);
     }
-    startPassiveListener();
     return true;
   } catch (error) {
     if (entryFlow?.state === 'initializing_menu') {
@@ -1794,9 +1836,8 @@ import {
 } from './voice.js';
 
 window.addEventListener('beforeunload', () => {
-  try {
-    if (state.askRecorder?.state === 'recording') state.askRecorder.stop();
-  } catch { }
+  cancelActiveVoiceTurn();
+  stopPeriodicEmotionAnalysis();
   if (pageDwellTimer) clearInterval(pageDwellTimer);
   if (entryIdleTimer) clearTimeout(entryIdleTimer);
   aiRecommendationController.stop();
@@ -1911,6 +1952,11 @@ document.getElementById('confirmationPendingAssist')?.addEventListener('click', 
 // 直到找到訂單或收到權威拒絕為止。不確定不等於失敗，因此期間顯示的是進行中狀態。
 const CONFIRMATION_RESOLVE_TIMEOUT_MS = 60000;
 const CONFIRMATION_POLL_MAX_DELAY_MS = 3000;
+// Confirm 有時限，但逾時的意義是「結果未知」而不是「失敗」：中止只代表這個瀏覽器
+// 不知道訂單建立了沒有，之後由同一個 quote_id 與 idempotency key 查出真相。
+// 二十秒是為了不把一個只是比較慢、其實會成功的 confirm 誤推進不確定狀態——
+// 那條路徑會自己恢復，但顧客會先看到一次不必要的「仍在確認訂單」。
+const CONFIRMATION_REQUEST_TIMEOUT_MS = 20000;
 
 async function resolveUnknownConfirmation(quoteId, idempotencyKey) {
   showConfirmationPendingNotice();
@@ -1948,7 +1994,7 @@ async function writeCheckoutLog(cartIds = []) {
   const quoteId = String(quote.quote_id || '');
   const idempotencyKey = checkoutIdempotencyKey || `checkout:${sessionId}:${quoteId}`;
   const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 5000);
+  const tid = setTimeout(() => ctrl.abort(), CONFIRMATION_REQUEST_TIMEOUT_MS);
   try {
     const res = await api.confirmCheckout(quoteId, idempotencyKey, ctrl.signal);
     if (!res?.ok) {
@@ -2164,7 +2210,8 @@ ui.kioskHomeBtn?.addEventListener('click', () => {
   totalClickCount = 0;
   clearKioskFloatingUI();
   hideChoiceHesitationModal();
-  stopPassiveListener();
+  cancelActiveVoiceTurn();
+  stopPeriodicEmotionAnalysis();
   aiRecommendationController.stop();
   cartManager.clearCart();
   resetRecommendationTracking();
@@ -2555,69 +2602,6 @@ document.getElementById('cancelGuideConfirmCancel')?.addEventListener('click', (
 });
 
 
-// =========================================================
-// 被動語音監聽（MediaRecorder + 服務端 Whisper STT）
-// =========================================================
-
-function startPassiveListener() {
-  if (isPassiveListening) return;
-  if (!navigator.mediaDevices?.getUserMedia) return;
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-      passiveAudioStream = stream;
-      isPassiveListening = true;
-      isPassivePaused = false;
-      console.log('[PassiveVoice] ✅ 被動語音監聽已啟動');
-      schedulePassiveAudioChunk();
-    })
-    .catch(e => console.warn('[PassiveVoice] 麥克風失敗:', e.message));
-}
-
-function schedulePassiveAudioChunk() {
-  if (!isPassiveListening || !passiveAudioStream) return;
-  const chunks = [];
-  try {
-    passiveAudioRecorder = new MediaRecorder(passiveAudioStream, { mimeType: 'audio/webm' });
-  } catch {
-    passiveAudioRecorder = new MediaRecorder(passiveAudioStream);
-  }
-  passiveAudioRecorder.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
-  passiveAudioRecorder.onstop = () => {
-    if (!isPassiveListening) return;
-    schedulePassiveAudioChunk();
-    if (isPassivePaused || isPassiveRequestInFlight) return;
-    const blob = new Blob(chunks, { type: 'audio/webm' });
-    if (blob.size < 500) return;
-    isPassiveRequestInFlight = true;
-    api.checkPassiveVoice(sessionId, blob)
-      .then(result => { if (result?.status === 'hit') handlePassiveVoiceHit(result); })
-      .catch(e => console.warn('[PassiveVoice] API 錯誤:', e))
-      .finally(() => { isPassiveRequestInFlight = false; });
-  };
-  passiveAudioRecorder.start();
-  passiveRecordingTimer = setTimeout(() => {
-    if (passiveAudioRecorder?.state === 'recording') passiveAudioRecorder.stop();
-  }, PASSIVE_CHUNK_MS);
-}
-
-function stopPassiveListener() {
-  isPassiveListening = false;
-  isPassivePaused = false;
-  clearTimeout(passiveRecordingTimer);
-  try { passiveAudioRecorder?.stop(); } catch {}
-  passiveAudioStream?.getTracks().forEach(t => t.stop());
-  passiveAudioStream = null;
-  passiveAudioRecorder = null;
-}
-
-export function pausePassiveListener() {
-  isPassivePaused = true;
-}
-
-export function resumePassiveListener() {
-  isPassivePaused = false;
-}
-
 function markCurrentChoiceHesitationIgnored(reason = 'dismissed') {
   const item = state.currentChoiceHesitationItem;
   const record = state.currentChoiceHesitationRecommendationRecord;
@@ -2646,39 +2630,13 @@ function showChoiceHesitationRecommendation(item) {
     source: 'choice_hesitation',
     rank: item.rank || 0,
     score: item.score || 0,
-    reasons: item.reasons || ['passive_voice_hesitation'],
+    reasons: item.reasons || ['choice_hesitation'],
     offer_ids: item.offer_ids || [],
     experiment_id: item.experiment_id || '',
     variant_id: item.variant_id || '',
     strategy: item.strategy || '',
   });
   renderChoiceHesitationItem(item);
-}
-
-function handlePassiveVoiceHit(result) {
-  if (!isKioskActive() || orderCompleted || isVoiceAssistantActive()) return;
-  if (Date.now() - state.passiveLastTriggerAt < PASSIVE_TRIGGER_COOLDOWN_MS) return;
-  const item = state.menuData.find(m => m.id === result.item?.id) || result.item;
-  if (!item) return;
-  state.passiveLastTriggerAt = Date.now();
-  console.log(`[PassiveVoice] ✅ 命中「${item.name}」（${result.matched_label}）→ 顯示猶豫彈跳視窗`);
-  showHesitationForItem(item);
-}
-
-function showHesitationForItem(item) {
-  if (isChoiceHesitationVisible()) {
-    console.log('[PassiveVoice] 猶豫彈跳視窗已顯示，略過');
-    return;
-  }
-  if (!isSystemRunning || orderCompleted || !isKioskActive()) {
-    console.log('[PassiveVoice] showHesitationForItem 被系統狀態攔截');
-    return;
-  }
-  showChoiceHesitationRecommendation(item);
-  const modal = getChoiceHesitationModal();
-  modal?.classList.remove('hidden');
-  modal?.setAttribute('aria-hidden', 'false');
-  console.log(`[PassiveVoice] 🎯 猶豫彈跳視窗已顯示（${item.name}）`);
 }
 
 Object.assign(window, {

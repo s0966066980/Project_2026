@@ -164,7 +164,8 @@ export interface VoiceStreamHandlers {
   onTranscript?: (payload: VoiceTurnEventPayload) => void;
   onAssistantText?: (payload: VoiceTurnEventPayload) => void;
   onDone: (payload: VoiceTurnEventPayload) => void;
-  onError: (message: string) => void;
+  /** `refusal` carries the service's own reason when it declined the turn. */
+  onError: (message: string, refusal?: { status: number; code: string }) => void;
 }
 
 export interface RealtimeEvent {
@@ -201,8 +202,6 @@ export interface KioskRuntime {
   sessionId?: string;
   showPushNotice?: (text: string) => void;
   trackInteractionEvent?: (event: InteractionEventPayload) => void | Promise<unknown>;
-  pausePassiveListener?: () => void;
-  resumePassiveListener?: () => void;
 }
 
 export interface PointOfSaleRuntime extends KioskRuntime {}

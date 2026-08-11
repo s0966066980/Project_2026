@@ -47,6 +47,45 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
   return { ok, status, json: async () => body };
 }
 
+/**
+ * Drives the controller's own clock so a bounded wait can be observed without
+ * spending it.  Every pending deadline fires in schedule order.
+ */
+function createTestTimers() {
+  let sequence = 0;
+  const pending = new Map<number, { at: number; run: () => void }>();
+  let now = 0;
+  return {
+    timers: {
+      setTimeout: ((run: () => void, delay = 0) => {
+        const handle = ++sequence;
+        pending.set(handle, { at: now + delay, run });
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: ((handle: unknown) => {
+        pending.delete(handle as number);
+      }) as unknown as typeof clearTimeout,
+    },
+    async advance(ms: number) {
+      now += ms;
+      for (let guard = 0; guard < 50; guard += 1) {
+        const due = [...pending.entries()]
+          .filter(([, entry]) => entry.at <= now)
+          .sort((left, right) => left[1].at - right[1].at);
+        if (due.length === 0) break;
+        for (const [handle, entry] of due) {
+          pending.delete(handle);
+          entry.run();
+        }
+        for (let tick = 0; tick < 8; tick += 1) await Promise.resolve();
+      }
+    },
+    get scheduled() {
+      return pending.size;
+    },
+  };
+}
+
 beforeEach(() => {
   elements.clear();
   Object.assign(globalThis, {
@@ -71,6 +110,27 @@ describe('device provisioning error messages', () => {
 });
 
 describe('device identity bootstrap', () => {
+  it('invokes browser timers with the global receiver', async () => {
+    let sequence = 0;
+    const timers = {
+      setTimeout: (function(this: unknown, _run: TimerHandler, _delay?: number, ..._args: unknown[]) {
+        expect(this).toBe(globalThis);
+        return ++sequence as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: (function(this: unknown, _handle: unknown) {
+        expect(this).toBe(globalThis);
+      }) as unknown as typeof clearTimeout,
+    };
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => jsonResponse({ authenticated: true, device_id: 'device-browser' })) as unknown as typeof fetch,
+      timers,
+    });
+
+    await expect(controller.bootstrap()).resolves.toBe(true);
+  });
+
   it('authenticates and hides the prompt when the session is valid', async () => {
     const onAuthenticated = vi.fn(async () => {});
     const fetchImpl = vi.fn(async () => jsonResponse({ authenticated: true, device_id: 'device-1' }));
@@ -85,16 +145,64 @@ describe('device identity bootstrap', () => {
     expect(element('kioskDeviceAuthBackdrop').style.display).toBe('none');
   });
 
-  it('prompts and focuses the key field when the API is unreachable', async () => {
+  // An unreachable service says nothing about whether this device is registered,
+  // so it must not send staff to the provisioning field.
+  it('treats an unreachable service as starting rather than a credential problem', async () => {
+    const timers = createTestTimers();
     const controller = createDeviceIdentityController({
       apiBaseUrl: 'http://api',
       onAuthenticated: vi.fn(async () => {}),
       fetchImpl: (async () => { throw new Error('offline'); }) as unknown as typeof fetch,
+      timers: timers.timers,
     });
 
     await expect(controller.bootstrap()).resolves.toBe(false);
     expect(element('kioskDeviceAuthBackdrop').style.display).toBe('flex');
-    expect(element('kioskDeviceKeyId').focus).toHaveBeenCalled();
+    expect(element('kioskDeviceAuthStatus').textContent).toContain('服務啟動中');
+    expect(element('kioskDeviceKeyId').focus).not.toHaveBeenCalled();
+    expect(timers.scheduled).toBeGreaterThan(0);
+  });
+
+  it('reaches a bounded outcome when the service accepts the connection but never answers', async () => {
+    const timers = createTestTimers();
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (() => new Promise<never>(() => {})) as unknown as typeof fetch,
+      timers: timers.timers,
+    });
+
+    const settled = controller.bootstrap();
+    await timers.advance(5000);
+
+    await expect(settled).resolves.toBe(false);
+    expect(element('kioskDeviceAuthStatus').textContent).toContain('服務啟動中');
+    expect(timers.scheduled).toBeGreaterThan(0);
+  });
+
+  it('recovers on its own once the service starts answering', async () => {
+    let attempts = 0;
+    const onAuthenticated = vi.fn(async () => {});
+    const timers = createTestTimers();
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated,
+      fetchImpl: (() => {
+        attempts += 1;
+        if (attempts === 1) return new Promise<never>(() => {});
+        return Promise.resolve(jsonResponse({ authenticated: true, device_id: 'device-9' }));
+      }) as unknown as typeof fetch,
+      timers: timers.timers,
+    });
+
+    const settled = controller.bootstrap();
+    await timers.advance(5000);
+    await settled;
+    await timers.advance(1000);
+
+    expect(attempts).toBe(2);
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
+    expect(element('kioskDeviceAuthBackdrop').style.display).toBe('none');
   });
 
   // A 200 that does not actually authenticate must not be treated as a session.
@@ -108,6 +216,21 @@ describe('device identity bootstrap', () => {
 
     await expect(controller.bootstrap()).resolves.toBe(false);
     expect(onAuthenticated).not.toHaveBeenCalled();
+    expect(element('kioskDeviceAuthBackdrop').style.display).toBe('flex');
+  });
+
+  it('treats an unreadable success body as an unauthenticated device', async () => {
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => { throw new Error('invalid json'); },
+      })) as unknown as typeof fetch,
+    });
+
+    await expect(controller.bootstrap()).resolves.toBe(false);
     expect(element('kioskDeviceAuthBackdrop').style.display).toBe('flex');
   });
 });
@@ -186,6 +309,36 @@ describe('device provisioning', () => {
     expect(element('kioskDeviceAuthError').textContent).toBe(deviceProvisioningErrorMessage(401));
     expect(element('kioskDeviceAuthSubmit').disabled).toBe(false);
     expect(element('kioskDeviceAuthStatus').textContent).toBe('');
+  });
+
+  it('reports a bounded network failure and hands the form back', async () => {
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: (async () => { throw new Error('offline'); }) as unknown as typeof fetch,
+    });
+    input('kioskDeviceKeyId').value = 'key-1';
+    input('kioskDeviceCredential').value = 'secret';
+
+    await controller.provision(submitEvent() as unknown as SubmitEvent);
+
+    expect(element('kioskDeviceAuthError').textContent).toBe(deviceProvisioningErrorMessage(0));
+    expect(element('kioskDeviceAuthSubmit').disabled).toBe(false);
+  });
+
+  it('ignores provisioning when the expected controls are not input elements', async () => {
+    elements.set('kioskDeviceKeyId', new StubElement());
+    elements.set('kioskDeviceCredential', new StubElement());
+    const fetchImpl = vi.fn();
+    const controller = createDeviceIdentityController({
+      apiBaseUrl: 'http://api',
+      onAuthenticated: vi.fn(async () => {}),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await controller.provision(submitEvent() as unknown as SubmitEvent);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('binds the form so a submit provisions the device', async () => {

@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from modules.voice_turn import VoiceTurnError
 from modules.voice_turn import runtime as voice_turn_runtime
 
+from bootstrap import startup
 from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
@@ -83,6 +84,12 @@ def create_router(deps: dict) -> APIRouter:
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
         check_rate_limit(request, "voice_stream", limit=30, key=session_id)
+        # Voice keeps its own readiness gate. Accepting a turn whose STT model
+        # is still loading would silently charge the model load to the
+        # customer's Voice Response Wait; refusing it is the declared
+        # Voice Listening Unavailable state instead (ADR-0060).
+        if not startup.capability_warm("stt"):
+            raise HTTPException(status_code=503, detail={"code": "voice_capability_warming"})
         turn_id = str(voice_turn_id or uuid4())
         media_bytes = await read_limited_upload(media)
         suffix = os.path.splitext(media.filename or ".webm")[1] or ".webm"

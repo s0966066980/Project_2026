@@ -31,7 +31,12 @@ services:
       - ai_cache:/home/project2026/.cache
       - shared_media:/tmp/project-2026-media
     healthcheck:
-      start_period: 10m
+      # Ten minutes was the price of warm-up blocking the lifespan: the service
+      # answered nothing until the models had loaded. Warm-up now runs beside
+      # the service (ADR-0060) and `/ready` answers within seconds, so a long
+      # grace period no longer buys anything — it only keeps a genuinely broken
+      # app looking like it is still starting.
+      start_period: 120s
 
   worker:
     build:
