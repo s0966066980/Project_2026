@@ -189,8 +189,9 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | Kiosk bundle 不含 Admin runtime mode | `tests/unit/product-boundaries.test.ts` | 已完成 |
 | seed 與 Kiosk assets 已歸位 | `capabilities/catalog/seed/menu.json`、`kiosk/assets/`、`tests/unit/kiosk-assets.test.ts` | 已完成 |
 | static consumer gate | Admin、Kiosk 與 shared source 不得出現 `/api/menu*`、`/api/availability` literal | 已完成 |
-| frontend regression | `121 passed`、typecheck、syntax、production build；Playwright 5/5 | 已完成 |
+| frontend regression | `124 passed`、typecheck、syntax、production build；Playwright 5/5 | 已完成 |
 | runtime smoke | PostgreSQL 18、migration head `0027`、app/worker healthy；`/api/admin/health` 回報 ready | 已完成 |
+| required checks | PR #15：Backend Python 3.10/3.12、PostgreSQL、Redis、frontend、shell 全數通過 | 已完成 |
 
 步驟 3 的契約決定：儲存列有 23 個 key，其中 `image_ref`、`image_source`、`image_storage`、`official_image_url`、`official_name`、`source_category`、`source_url`、`rag_metadata`、`extra` 是匯入相容與儲存細節，不是 [[Store Menu Item]] 的定義。`CatalogItemDTO` 只發布 12 個領域欄位。versioned contract 加欄位相容、刪欄位不相容，所以起點取窄——這個取捨值得你複核，因為它決定 Admin 與 Kiosk 之後能拿到什麼。
 
@@ -475,9 +476,9 @@ Batch R 的兩個未決項已處理，並揭露一個更嚴重的問題：
 
 本輪交付以三層依賴明確的 Issue/PR 收尾，不改寫原始安全分支歷史：
 
-1. Issue #10：P1 Admin operations and retained RAG。
-2. Issue #11：restart availability and device verification；依賴 #10。
-3. Issue #12：Catalog Module Independence Gate；依賴 #11。
+1. Issue #10／PR #13：P1 Admin operations and retained RAG；已合併。
+2. Issue #11／PR #16：restart availability and device verification；已合併（原 stacked PR #14 因 base branch 刪除由 GitHub 自動關閉，#16 為保留歷史的替代 PR）。
+3. Issue #12／PR #15：Catalog Module Independence Gate；依賴 #16，required checks 已通過。
 
 三層都必須由 required checks 驗證後依序合併；Roadmap 的 Catalog 完成證據與第三層使用同一 commit/artifact。
 
