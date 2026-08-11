@@ -1,10 +1,12 @@
 # Project_2026 P2～P7 完整修改與收斂執行計畫
 
-> 狀態：**規劃完成，P2 尚未開始實作**  
-> 建立日期：2026-08-11  
-> 規劃基線：`main@3dd51f4`  
-> 架構與既有完成證據：[Project_2026_Project_Completeness_Roadmap.md](Project_2026_Project_Completeness_Roadmap.md)  
-> Domain language：[CONTEXT.md](CONTEXT.md)  
+> 狀態：**原始全程設計；P2 repository work 已合併，當前剩餘工作由 handoff 接續**
+> 建立日期：2026-08-11
+> 原始規劃基線：`main@3dd51f4`；目前查證基線：`main@00132a5`
+> 當前執行權威：[Project_2026_Remaining_Work_Execution_Handoff.md](Project_2026_Remaining_Work_Execution_Handoff.md)
+> Codex Prompt：[Project_2026_Remaining_Work_Codex_Prompt.md](Project_2026_Remaining_Work_Codex_Prompt.md)
+> 架構與既有完成證據：[Project_2026_Project_Completeness_Roadmap.md](Project_2026_Project_Completeness_Roadmap.md)
+> Domain language：[CONTEXT.md](CONTEXT.md)
 > 決策歷史：[docs/adr/](docs/adr/)
 
 ## 1. 文件責任與完成邊界
@@ -40,12 +42,12 @@ Phase 0～2 已完成，不重新編號，也不重做其歷史工作。
 ## 3. 嚴格現況基線
 
 ```text
-Primary delivery endpoint — Local Pilot Readiness: NOT YET DECLARED
+Primary delivery endpoint — Local Pilot Readiness: READY_FOR_HUMAN — NOT YET DECLARED
 Business Capability Modules passed: 1 / 10
 Independent Product Frontends passed: 2 / 2
 Current completed vertical slice: Catalog & Availability
-Next executable stage: P2
-P2 implementation status: NOT STARTED by this plan
+P2 repository implementation: MERGED — PR #40 through #43
+Next executable gate: Local Pilot target-device and security admission
 ```
 
 「已有檔案、route 或測試」只代表存在雛形，不代表 Gate 通過。P2 開工前必須把現況逐項分類成 `retain`、`refactor`、`migrate`、`purge` 或 `generated artifact`：
@@ -471,9 +473,9 @@ P2～P4 採 Product Batch Functional Acceptance；可進下一批不等於 Modul
 
 | Stage/Gate | 初始狀態 | 前置條件 | 完成時必填 |
 | --- | --- | --- | --- |
-| P2 Functional Acceptance | NOT_STARTED | Batch R complete | issues、PRs、commit、digests、tests、migration、hardware evidence |
-| Local Pilot Admission | NOT YET DECLARED | P2 passed | release artifact、config fingerprint、full gate evidence、sign-off |
-| P3 Functional Acceptance | WAITING P2/Pilot | Pilot declared | sidecar/proposal/security/provider evidence |
+| P2 Functional Acceptance | REPOSITORY WORK MERGED；hardware pending | Batch R complete | PR #40～#43、candidate evidence、target hardware |
+| Local Pilot Admission | READY_FOR_HUMAN — NOT DECLARED | Target-device/security admission | new artifact、config fingerprint、full gate evidence、sign-off |
+| P3 Functional Acceptance | WAITING LOCAL PILOT | Pilot declared | sidecar/proposal/security/provider evidence |
 | P4 Functional Acceptance | WAITING P3 | P3 passed | isolation/evidence/report/egress/TTL evidence |
 | P5.1 | WAITING P4 | P4 passed | two Module Independence Gate evidence sets |
 | P5.2 | WAITING P5.1 | P5.1 passed | three Module Independence Gate evidence sets |
@@ -509,9 +511,9 @@ P2～P4 採 Product Batch Functional Acceptance；可進下一批不等於 Modul
 - 任何 destructive target 不精確、migration 無 recovery、customer evidence 未授權、實機條件未提供時停止並標 `ready-for-human`。
 - P7 通過前不得宣告 Project Completion；P7 通過後仍不代表 production HA 或本計畫外能力完成。
 
-## 17. 本次規劃交付的停止點
+## 17. 當前交接點
 
-本文件與 Roadmap 索引完成後，本次工作停止於 **P2 implementation 前**。下一次開始 P2 時，第一個動作是建立 P2 parent issue、P2.0 inventory child issue 與 failure-first acceptance evidence slots；本次不修改 Kiosk、Admin、backend、migration、Docker 或 tests。
+P2 repository implementation 已由 PR #40～#43 合併；本文件保留原始設計。新的執行 Codex 不重做 P2，應依 [Remaining Work Handoff](Project_2026_Remaining_Work_Execution_Handoff.md) 從 Local Pilot target-device/security admission 開始，通過後依序完成 P3～P7。
 
 ## 18. 決策索引
 

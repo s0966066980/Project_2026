@@ -47,5 +47,5 @@ These are `ready-for-human` gates, not failures converted to pass. No P3 work ma
 
 - No PostgreSQL volume, backup, secret, customer record, or authoritative business data was deleted.
 - The temporary restore database and dump had exact names and were removed after verification.
-- The app and worker run as the non-root `project2026` user. Their root filesystem is not read-only and no capability drop is currently configured; this is a remaining pilot security hardening item, not a passed claim.
+- The app and worker run as the non-root `project2026` user. Their root filesystem is not read-only and no capability drop is currently configured; this is a remaining pilot security hardening item, not a passed claim. It is tracked as a corrective issue in [#44](https://github.com/s0966066980/Project_2026/issues/44), which is a precondition of [#20](https://github.com/s0966066980/Project_2026/issues/20). Landing #44 changes the runtime contract and the images, so this whole record becomes `EVIDENCE_STALE` at that point and the admission below must be re-run against the new digest-pinned candidate.
 - The host-only Playwright browser smoke test is supplementary; it does not replace target-device AV evidence.

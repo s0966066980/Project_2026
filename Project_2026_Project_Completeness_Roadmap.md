@@ -1,10 +1,12 @@
 # Project_2026 架構完整度與能力模組 Roadmap
 
 > 更新日期：2026-08-11
-> Baseline：`949479d`（repository hygiene 與 capability boundaries）
+> 架構基線：`949479d`（repository hygiene 與 capability boundaries）；目前查證基線：`main@00132a5`
 > 目標：單店 Admin＋Kiosk 點餐系統，維持 modular monolith，逐能力建立可驗證的獨立契約
 > Runtime：Docker Compose；host Python/Conda 不屬於支援路徑
-> P2～P7 canonical 修改流程：[Project_2026_P2_to_P7_Execution_Plan.md](Project_2026_P2_to_P7_Execution_Plan.md)
+> P2～P7 原始設計流程：[Project_2026_P2_to_P7_Execution_Plan.md](Project_2026_P2_to_P7_Execution_Plan.md)
+> 當前 canonical 未完成工作交接：[Project_2026_Remaining_Work_Execution_Handoff.md](Project_2026_Remaining_Work_Execution_Handoff.md)
+> Codex 執行 Prompt：[Project_2026_Remaining_Work_Codex_Prompt.md](Project_2026_Remaining_Work_Codex_Prompt.md)
 
 ## 1. 本輪結論
 
@@ -42,23 +44,25 @@
 ### 2.3 嚴格完成狀態
 
 ```text
-Primary delivery endpoint — Local Pilot Readiness: NOT YET DECLARED
+Primary delivery endpoint — Local Pilot Readiness: READY_FOR_HUMAN — NOT YET DECLARED
 Business Capability Modules passed: 1 / 10
 Independent Product Frontends passed: 2 / 2
 Current vertical slice: Catalog & Availability — COMPLETE
-Next approved batch: P2 Kiosk Voice + Emotion Diagnostics
+P2 repository implementation: MERGED — PR #40 through #43
+P2 child issues: #21 / #22 / #24 CLOSED with evidence; #23 READY_FOR_HUMAN (target device)
+Next required gate: Local Pilot security hardening — Issue #44, then target-device admission — Issue #20
 ```
 
 已有 endpoint 或搬入新目錄不算完成。只有通過 Module Independence Gate 才能增加上述數字。
 不使用主觀百分比表示進度；Local Pilot Readiness 是主要交付終點，Module Independence Gate 是次要結構指標。P1、Batch R 與 Catalog closure 已完成，不等於整體 Local Pilot 已完成。
 
-P2 之後採兩個明確終點：P2 通過後先對同一候選成品執行 Local Pilot Admission；P7 完成 `10/10`、legacy closure 與完整候選成品驗收後才是 Project Completion。詳細工作包、遷移、測試、收斂債與 Gate 證據格式以 [P2～P7 執行計畫](Project_2026_P2_to_P7_Execution_Plan.md) 為準。
+P2 之後採兩個明確終點：P2 通過後先對同一候選成品執行 Local Pilot Admission；P7 完成 `10/10`、legacy closure 與完整候選成品驗收後才是 Project Completion。原始設計範圍保留在 [P2～P7 執行計畫](Project_2026_P2_to_P7_Execution_Plan.md)；目前尚未完成的工作包、遷移、測試與 Gate 證據格式以 [Remaining Work Handoff](Project_2026_Remaining_Work_Execution_Handoff.md) 為準。
 
 | 統一執行階段 | 目前狀態 | 前置 Gate |
 | --- | --- | --- |
-| P2 Kiosk Voice＋Emotion Diagnostics | NOT_STARTED | Batch R complete |
-| Local Pilot Admission | NOT YET DECLARED | P2 Functional Acceptance |
-| P3 Project Core Brain | WAITING P2/Pilot | Local Pilot Admission |
+| P2 Kiosk Voice＋Emotion Diagnostics | REPOSITORY WORK MERGED；實機 evidence pending（#19 `ready-for-human`） | Batch R complete |
+| Local Pilot Admission | READY_FOR_HUMAN — NOT DECLARED | #44 security hardening → 新 candidate → target-device／AV evidence |
+| P3 Project Core Brain | WAITING LOCAL PILOT | Local Pilot Admission |
 | P4 Optimization Lab | WAITING P3 | P3 Functional Acceptance |
 | P5.1 Identity/Operations | WAITING P4 | P4 Functional Acceptance |
 | P5.2 Member/Campaign/Recommendation | WAITING P5.1 | P5.1 Module Gates |
@@ -377,7 +381,7 @@ AI/GPU stack 重啟實測（`docker/compose.yaml` + `compose.ai.yaml` + `compose
 
 ### Batch P2 — Kiosk Voice + Emotion Diagnostics
 
-狀態：**NOT_STARTED，可開始規劃的第一個實作階段**（Batch R Gate 已通過；本輪文件工作停在 P2 實作前）
+狀態：**Repository implementation 已合併；Local Pilot 為 READY_FOR_HUMAN**（PR #40～#43 required checks 全綠；目標 Kiosk、實體影音與 Pilot security evidence 尚未通過）
 
 - Kiosk Voice Turn 先建立使用者訊息槽：partial transcript 或「語音辨識中…」必須先於 assistant 文字；final transcript 原位替換，音訊串流不額外等待。
 - 保留點餐方式頁唯一的「直接點餐」訪客入口；永久清除舊「略過，直接點餐」handler、selector、copy、fixture 與 stale bundle/source-map 內容。
@@ -389,11 +393,11 @@ AI/GPU stack 重啟實測（`docker/compose.yaml` + `compose.ai.yaml` + `compose
 - 紀錄只保留時間、事件、模型、情緒、強度、表情、聲音、描述；固定 emotion/intensity enum，store-scoped 保存 30 天。
 - Emotion 永遠只作客服參考，不得自動改變回答、推薦、價格或訂單。
 
-Gate：Voice 顯示順序不反轉、舊 skip 入口與產物歸零、Silero VAD v5 自動監聽與失效邊界成立、三模式互斥、ordering boundary 正確、submitted failure 可安全記錄、raw media/transcript 不落地、30 天清除可驗證。通過後還要執行 Local Pilot Admission；未通過前不開始 P3。
+Gate：Repository/host 可驗證項目已記錄於 `docs/agents/p2-local-pilot-readiness.md`；目標設備的 Voice 顯示/VAD/實體交易、Live AV Emotion，以及 app/worker read-only root filesystem/capability-drop security 必須在同一新 candidate 重驗。Local Pilot 未宣告前不開始 P3。
 
 ### Batch P3 — Project Core Brain
 
-狀態：**WAITING P2/Pilot**
+狀態：**WAITING LOCAL PILOT**
 
 - 建立獨立 `project-analyst` sidecar，只接受手動 analyze/reanalyze。
 - 從 Admin 功能設定移除「推薦表現目標」及其舊 consumer；合法 analytics authority 若仍需保留，轉入 P5.2 收斂清單，不以隱藏 UI 冒充刪除。
@@ -453,7 +457,9 @@ Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evid
 - `R1-Omni/README.md`：R1 runtime/weights。
 - `CONTEXT.md`：專案詞彙。
 - 本 Roadmap：完成度、wave、gate 與下一步。
-- `Project_2026_P2_to_P7_Execution_Plan.md`：P2～P7 canonical 修改順序、遷移、測試、收斂債與 Gate 流程。
+- `Project_2026_P2_to_P7_Execution_Plan.md`：P2～P7 原始設計範圍、遷移、測試、收斂債與 Gate 流程。
+- `Project_2026_Remaining_Work_Execution_Handoff.md`：從目前 main 繼續的 canonical 未完成工作、測試矩陣與 evidence 格式。
+- `Project_2026_Remaining_Work_Codex_Prompt.md`：交付給執行 Codex 的完整 Prompt。
 - `docs/adr/`：難逆轉的決策歷史。
 - `docs/agents/` 與 `AGENTS.md`：agent workflow。
 - `tools/README.md`：非 production tools。
@@ -462,7 +468,7 @@ Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evid
 
 ## 9. 工作流程
 
-以下是摘要；P2～P7 每個工作包都必須遵守 [完整修改流程](Project_2026_P2_to_P7_Execution_Plan.md#4-所有階段共用的修改流程)。
+以下是摘要；目前剩餘的每個工作包都必須遵守 [handoff 共用修改流程](Project_2026_Remaining_Work_Execution_Handoff.md#5-每個工作包共用的修改流程)。
 
 ```text
 Roadmap capability/wave
@@ -506,14 +512,15 @@ Batch R 的兩個未決項已處理，並揭露一個更嚴重的問題：
 
 三層都必須由 required checks 驗證後依序合併；Roadmap 的 Catalog 完成證據與第三層使用同一 commit/artifact。
 
-接著是 P2：
+接著是 Local Pilot Admission：
 
-1. 建立 P2 parent issue、P2.0 as-is inventory 與 failure-first evidence slots；先分類現有 Voice/Silero/Emotion 路徑為 retain、refactor、migrate、purge。
-2. 依執行計畫完成 Voice 顯示順序、舊 skip 入口清除、Silero VAD v5 與 Emotion Diagnostics 四個工作流。
-3. 在同一 Docker artifact 執行 contract、migration、raw media、retention、安全、frontend 與目標硬體測試。
-4. P2 Functional Acceptance 後執行 Local Pilot Admission；全部有效才宣告 Pilot Ready，之後才開啟 P3。
+1. 對照 PR #40～#43 與 Issues #19～#24，關閉已證明的 repository scope，將實機 scope 收斂到 Issue #20。**已完成**：#21／#22／#24 附證據關閉，#23／#19 改 `ready-for-human`。
+2. 建立並驗證 Pilot app/worker read-only root filesystem、`cap_drop: ALL`、必要 writable mounts 與 host-external configuration。**Issue #44**。
+3. Security/Compose 變更後建立新的 digest-pinned candidate，將舊 evidence 標為 stale 並重跑 repository/host admission。
+4. 在目標 Kiosk 執行 Silero VAD/noisy-store、touch/voice checkout、outcome recovery、Payment Pending 與 Live Admin/Emotion AV tests。
+5. 全部同 artifact evidence 通過後宣告 Local Pilot Ready、關閉 #19/#20，才開啟 P3。
 
-目前只完成規劃與索引，尚未建立 P2 implementation commit、issue、branch 或 PR。
+詳細剩餘工作與測試以 [Remaining Work Handoff](Project_2026_Remaining_Work_Execution_Handoff.md) 為準。
 
 相關決策：
 
