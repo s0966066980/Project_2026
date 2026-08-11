@@ -161,7 +161,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ### Phase 2 — Catalog & Availability vertical slice
 
-狀態：**進行中**（步驟 1 完成、步驟 2 讀取側完成、步驟 3 讀取端點完成；其餘未開始）
+狀態：**進行中**（步驟 1–6、8 完成；步驟 7 待 legacy usage telemetry 歸零證據）
 
 資料權威校正結果（步驟 1）：`store_menu_items` 只被 `menu_repository` 觸及，`store_availability` 只被 `availability_repository` 與一支驗證腳本觸及。**寫入本來就只有一個入口**——`create_item_scoped`、`update_item_scoped`、`retire_item_scoped`、`restore_item_scoped`、`replace_all_scoped`、`ensure_seeded_scoped` 全部只出現在 `services/menu_catalog_service.py`。違反 Gate 第 3 條的是**讀取**：13 個跨能力呼叫點直接 import `menu_repository`，分佈在 ordering、voice、member、promotion、recommendation 與 worker。
 
@@ -177,7 +177,15 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | port 在執行期真的接上 | 測試容器實測：`_LegacyMenuRepositoryCatalogAdapter`，回傳 138 筆 active items | 已完成 |
 | `/api/v1/catalog/items` 讀取端點 | `routes/v1_catalog_routes.py`, `tests/test_v1_catalog_contract.py` | 已完成 |
 | 發布契約不外洩儲存與匯入細節 | `tests/test_v1_catalog_contract.py` 逐欄位鎖定 | 已完成 |
-| backend regression | Docker test image：`104 passed` | 已完成 |
+| backend regression | Docker test image：`118 passed` | 已完成 |
+| 寫入與 availability 走同一能力介面 | `capabilities/catalog/ports.py`、`bootstrap/container.py` | 已完成 |
+| legacy `/api/menu*`、`/api/availability` 只轉接 | `routes/menu_routes.py`、`routes/availability_routes.py` | 已完成 |
+| legacy 使用量可觀測 | `legacy_catalog_requests_total`，contract test 驗證計數 | 已完成 |
+| TypeScript client 由 OpenAPI 產生 | `tools/generate_api_types.py`、`tests/test_generated_api_types.py`（實測會因漂移而紅） | 已完成 |
+| Admin/Kiosk 使用產生的 client，無 raw legacy fetch | `tests/unit/product-boundaries.test.ts` | 已完成 |
+| Kiosk bundle 不含 Admin runtime mode | `tests/unit/product-boundaries.test.ts` | 已完成 |
+| seed 與 Kiosk assets 已歸位 | `capabilities/catalog/seed/menu.json`、`kiosk/assets/`、`tests/unit/kiosk-assets.test.ts` | 已完成 |
+| frontend regression | `120 passed`、typecheck、syntax、build | 已完成 |
 
 步驟 3 的契約決定：儲存列有 23 個 key，其中 `image_ref`、`image_source`、`image_storage`、`official_image_url`、`official_name`、`source_category`、`source_url`、`rag_metadata`、`extra` 是匯入相容與儲存細節，不是 [[Store Menu Item]] 的定義。`CatalogItemDTO` 只發布 12 個領域欄位。versioned contract 加欄位相容、刪欄位不相容，所以起點取窄——這個取捨值得你複核，因為它決定 Admin 與 Kiosk 之後能拿到什麼。
 
@@ -404,8 +412,6 @@ Gate：reference-only policy 由 API 強制、敏感證據需 `optimization.evid
 | `config/profiles/local-pilot.env.example` | Docker Pilot external config 與 fail-fast validation 完成 |
 | `UI_API/deploy/postgres/` | runtime role、secret 與 WAL/backup requirements 搬入 canonical Docker path |
 | `UI_API/learning_data/settings.json` | Operations settings authority 與 test fixtures 完成 |
-| `UI_API/menu_data/menu.json` | Catalog seed/fixture 完成 |
-| frontend root images/categories | Kiosk assets 搬移且 build/E2E 通過 |
 | horizontal `routes/services/repositories/modules` | 對應 capability 通過 Independence Gate |
 
 永遠不得以清理名義刪除 `.env`、R1 weights、PostgreSQL business data、Docker volumes、backups 或 secrets。

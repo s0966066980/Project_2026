@@ -12,16 +12,16 @@
 
 /** @type {KioskGroup[]} */
 export const KIOSK_GROUPS = [
-  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/mcd_categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
-  { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/mcd_categories/value.jpg', categories: ['超值全餐'] },
-  { id: 'premium', label: '極選系列', labelEn: 'Signature Meals', image: '/static/menu_images/MCD014.jpg', categories: ['極選系列'] },
-  { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/mcd_categories/single.jpg', categories: ['超值全餐配餐'] },
-  { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/mcd_categories/value.jpg', categories: ['1+1星級點'] },
-  { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/mcd_categories/recommended.jpg', categories: ['麥當勞分享盒'] },
-  { id: 'happymeal', label: 'Happy Meal', labelEn: 'Happy Meal', image: '/static/mcd_categories/kids.jpg', categories: ['Happy Meal'] },
-  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/mcd_categories/deals.jpg', categories: ['點心'] },
-  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/mcd_categories/drinks.jpg', categories: ['飲料', 'McCafé', 'McCafé'] },
-  { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/menu_images/MCD029.jpg', categories: ['早餐'] },
+  { id: 'recommended', label: '推薦套餐', labelEn: 'Recommended Meals', image: '/static/kiosk/assets/categories/recommended.jpg', categories: ['超值全餐', '極選系列'], featuredLimit: 10 },
+  { id: 'value', label: '超值全餐', labelEn: 'Value Meals', image: '/static/kiosk/assets/categories/value.jpg', categories: ['超值全餐'] },
+  { id: 'premium', label: '極選系列', labelEn: 'Signature Meals', image: '/static/kiosk/assets/menu_images/MCD014.jpg', categories: ['極選系列'] },
+  { id: 'side', label: '超值配餐', labelEn: 'Value Sides', image: '/static/kiosk/assets/categories/single.jpg', categories: ['超值全餐配餐'] },
+  { id: 'plusone', label: '1+1星級點', labelEn: '1+1 Star Picks', image: '/static/kiosk/assets/categories/value.jpg', categories: ['1+1星級點'] },
+  { id: 'sharebox', label: '分享盒', labelEn: 'Share Box', image: '/static/kiosk/assets/categories/recommended.jpg', categories: ['麥當勞分享盒'] },
+  { id: 'happymeal', label: 'Happy Meal', labelEn: 'Happy Meal', image: '/static/kiosk/assets/categories/kids.jpg', categories: ['Happy Meal'] },
+  { id: 'single', label: '單點餐品', labelEn: 'A La Carte', image: '/static/kiosk/assets/categories/deals.jpg', categories: ['點心'] },
+  { id: 'drinks', label: '飲料甜點', labelEn: 'Drinks & Desserts', image: '/static/kiosk/assets/categories/drinks.jpg', categories: ['飲料', 'McCafé', 'McCafé'] },
+  { id: 'breakfast', label: '早餐', labelEn: 'Breakfast', image: '/static/kiosk/assets/menu_images/MCD029.jpg', categories: ['早餐'] },
 ];
 
 /** @type {{ [key: string]: string | Record<string, string> | undefined, filters?: Record<string, string> }} */

@@ -9,7 +9,7 @@ function asIds(value) {
 function itemVisual(item) {
   const id = String(item?.id || '').toUpperCase();
   return {
-    image: String(item?.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : '')),
+    image: String(item?.image || (id.startsWith('MCD') ? `/static/kiosk/assets/menu_images/${id}.jpg` : '')),
     emoji: String(item?.emoji || '🍔'),
   };
 }

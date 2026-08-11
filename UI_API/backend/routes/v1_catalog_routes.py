@@ -263,6 +263,11 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             scope,
             {
                 "service_period": payload.service_period,
+                "service_periods": (
+                    {name: window.model_dump() for name, window in payload.service_periods.items()}
+                    if payload.service_periods is not None
+                    else None
+                ),
                 "sold_out_item_ids": payload.sold_out_item_ids,
                 "low_stock_item_ids": payload.low_stock_item_ids,
                 # The stored row still calls this `store_disabled_item_ids`;

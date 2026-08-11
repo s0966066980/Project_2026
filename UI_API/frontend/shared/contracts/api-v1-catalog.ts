@@ -35,6 +35,11 @@ export interface CatalogItemWriteDTO {
   aliases?: Array<string> | null;
 }
 
+export interface ServicePeriodWindowDTO {
+  start?: string;
+  end?: string;
+}
+
 export interface CatalogAvailabilityRowDTO {
   id: string;
   name?: string;
@@ -45,11 +50,14 @@ export interface CatalogAvailabilityRowDTO {
 
 export interface CatalogAvailabilityDTO {
   service_period?: string;
+  configured_service_period?: string;
+  service_periods?: Record<string, ServicePeriodWindowDTO>;
   items: Array<CatalogAvailabilityRowDTO>;
 }
 
 export interface CatalogAvailabilityCommandDTO {
   service_period?: string | null;
+  service_periods?: Record<string, ServicePeriodWindowDTO> | null;
   sold_out_item_ids?: Array<string>;
   low_stock_item_ids?: Array<string>;
   disabled_item_ids?: Array<string>;

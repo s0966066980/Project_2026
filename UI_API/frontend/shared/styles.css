@@ -905,7 +905,7 @@
     width: var(--kiosk-width) !important;
     height: var(--kiosk-height) !important;
     transform: translate(-50%, -50%);
-    background: url('/static/image2.png') center / cover no-repeat !important;
+    background: url('/static/kiosk/assets/startup-background.png') center / cover no-repeat !important;
     color: #1a1a1a !important;
     overflow: hidden !important;
     padding: 0 !important;

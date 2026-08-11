@@ -19,7 +19,7 @@ _REPO_DIR = _SCRIPT_DIR.parent
 _UI_API_DIR = _REPO_DIR / "UI_API"
 load_dotenv(_UI_API_DIR / ".env")
 
-MENU_PATH        = _UI_API_DIR / "menu_data" / "menu.json"
+MENU_PATH        = _UI_API_DIR / "backend" / "capabilities" / "catalog" / "seed" / "menu.json"
 SETTINGS_PATH    = _UI_API_DIR / "learning_data" / "settings.json"
 DEMO_PORT        = int(os.getenv("DEMO_PORT", "8088"))
 DEFAULT_KEYWORDS = ["找不到", "在哪裡", "哪邊有", "哪裡有", "哪裡可以"]

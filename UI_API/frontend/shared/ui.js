@@ -2,9 +2,7 @@ import { hideFlexElement, showFlexElement } from './components/VisibilityDisplay
 
 export const ui = {
   kioskView: document.getElementById('view-kiosk'),
-  adminView: document.getElementById('view-admin'),
   overlay: document.getElementById('startupOverlay'),
-  adminNotificationBox: document.getElementById('adminNotificationBox'),
   checkoutOverlay: document.getElementById('checkoutOverlay'),
   kioskPaymentScreen: document.getElementById('kioskPaymentScreen'),
   kioskFastPayBtn: document.getElementById('kioskFastPayBtn'),
@@ -70,18 +68,10 @@ export function escapeHTML(value) {
   }[ch]));
 }
 
-export function switchMainView(view, callbacks = {}) {
-  if (view === 'admin') {
-    callbacks.clearKioskFloatingUI?.();
-    callbacks.clearPOSFloatingUI?.();
-    hideFlexElement(ui.kioskView);
-    showFlexElement(ui.adminView);
-    callbacks.loadAdminData?.();
-  } else {
-    hideFlexElement(ui.adminView);
-    showFlexElement(ui.kioskView);
-    callbacks.applyFeaturesToKiosk?.();
-    callbacks.applyFeaturesToPOS?.();
-    callbacks.loadMenu?.();
-  }
+// Admin is a separate application (ADR-0024): this only ever shows the kiosk.
+export function switchMainView(_view, callbacks = {}) {
+  showFlexElement(ui.kioskView);
+  callbacks.applyFeaturesToKiosk?.();
+  callbacks.applyFeaturesToPOS?.();
+  callbacks.loadMenu?.();
 }

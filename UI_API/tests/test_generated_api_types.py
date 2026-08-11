@@ -34,9 +34,22 @@ def test_generated_catalog_types_match_the_published_schema():
 
 
 def test_the_generator_publishes_only_the_catalog_contract():
-    """Generating every schema would ship internal request models to the browser."""
+    """Generating every schema would ship internal request models to the browser.
+
+    The set is pinned rather than pattern-matched: `ServicePeriodWindowDTO`
+    belongs to the availability contract without carrying `Catalog` in its
+    name, and a rule loose enough to admit it would also admit anything else.
+    """
 
     source = GENERATOR.read_text(encoding="utf-8")
-    assert "EXPORTED_SCHEMAS" in source
     exported = source.split("EXPORTED_SCHEMAS = (", 1)[1].split(")", 1)[0]
-    assert all("Catalog" in name for name in exported.replace('"', "").split(",") if name.strip())
+    names = {name.strip().strip('"') for name in exported.split(",") if name.strip()}
+    assert names == {
+        "CatalogItemDTO",
+        "CatalogItemListDTO",
+        "CatalogItemWriteDTO",
+        "ServicePeriodWindowDTO",
+        "CatalogAvailabilityRowDTO",
+        "CatalogAvailabilityDTO",
+        "CatalogAvailabilityCommandDTO",
+    }

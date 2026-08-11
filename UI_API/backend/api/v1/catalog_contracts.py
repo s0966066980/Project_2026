@@ -69,8 +69,17 @@ class CatalogAvailabilityRowDTO(BaseModel):
     time_unavailable: bool = False
 
 
+class ServicePeriodWindowDTO(BaseModel):
+    start: str = ""
+    end: str = ""
+
+
 class CatalogAvailabilityDTO(BaseModel):
+    #: The period currently in force, resolved from the windows below.
     service_period: str = ""
+    #: `auto` resolves by clock; naming a period pins it until changed.
+    configured_service_period: str = "auto"
+    service_periods: dict[str, ServicePeriodWindowDTO] = Field(default_factory=dict)
     items: list[CatalogAvailabilityRowDTO]
 
 
@@ -83,6 +92,7 @@ class CatalogAvailabilityCommandDTO(BaseModel):
     """
 
     service_period: str | None = None
+    service_periods: dict[str, ServicePeriodWindowDTO] | None = None
     sold_out_item_ids: list[str] = Field(default_factory=list)
     low_stock_item_ids: list[str] = Field(default_factory=list)
     disabled_item_ids: list[str] = Field(default_factory=list)
@@ -119,4 +129,16 @@ def catalog_availability_dto(state: dict) -> CatalogAvailabilityDTO:
         for row in (state.get("items") or [])
         if str(row.get("id") or "")
     ]
-    return CatalogAvailabilityDTO(service_period=str(state.get("service_period") or ""), items=rows)
+    periods = {
+        name: ServicePeriodWindowDTO(
+            start=str((window or {}).get("start") or ""),
+            end=str((window or {}).get("end") or ""),
+        )
+        for name, window in (state.get("service_periods") or {}).items()
+    }
+    return CatalogAvailabilityDTO(
+        service_period=str(state.get("service_period") or ""),
+        configured_service_period=str(state.get("configured_service_period") or "auto"),
+        service_periods=periods,
+        items=rows,
+    )

@@ -42,7 +42,8 @@ import { recommendationEligibility, recommendationRefreshAction } from './recomm
 
 const APP_MODE = resolveKioskAppMode(window.location);
 
-export function isAdminMode() { return APP_MODE === 'admin'; }
+// Admin is its own application (ADR-0024). The kiosk bundle is only ever
+// served at /kiosk, so it no longer carries an Admin runtime mode.
 export function isKioskMode() { return APP_MODE === 'kiosk'; }
 export function isPosMode() { return isKioskMode(); }
 
@@ -93,7 +94,7 @@ function isDemoPublicMode() {
 
 async function loadRuntimeSettings(timeoutMs = 3000) {
   try {
-    const settingsRequest = isAdminMode() ? api.getSettings() : api.getPublicSettings();
+    const settingsRequest = api.getPublicSettings();
     const settings = await Promise.race([
       settingsRequest,
       new Promise((_, reject) => {
@@ -226,11 +227,8 @@ function clearKioskFloatingUI() {
 
 
 function switchMainView(view) {
-  if (view === 'admin' && !isAdminMode()) return;
   switchMainViewUI(view, { clearKioskFloatingUI, applyFeaturesToKiosk, loadMenu });
-  if (view !== 'admin') {
-    startKioskRealtime();
-  }
+  startKioskRealtime();
   setInteractionPage(view === 'admin' ? 'admin_page' : 'menu_page', { source: 'switch_main_view' });
 }
 
@@ -436,7 +434,6 @@ configureKioskRuntime({
   clearAllPushCards,
   getFeatures,
   getRuntimeSettings,
-  isAdminMode,
   isKioskActive,
   isKioskMode,
   isPosActive,
@@ -1163,7 +1160,6 @@ function hidePaymentScreen() {
 // Kiosk 互動障礙事件追蹤
 // =========================================================
 function currentPageId() {
-  if (ui.adminView && !ui.adminView.classList.contains('hidden')) return 'admin_page';
   if (orderCompleted) return 'completed_page';
   if (ui.kioskPaymentScreen && !ui.kioskPaymentScreen.classList.contains('hidden')) return 'payment_page';
   if (document.querySelector('.cart-shell')?.classList.contains('kiosk-cart-open')) return 'checkout_page';
@@ -1222,20 +1218,6 @@ function normalizeInteractionPayload(event = {}) {
     metadata,
     ui_context: buildUIContext(metadata.ui_context || {}),
   };
-}
-
-function showAdminNotice(message, type = 'info') {
-  if (!ui.adminNotificationBox) return;
-  const palette = type === 'error'
-    ? { bg: '#fff0f0', border: '#efb2b2', color: '#8a1f1f' }
-    : type === 'success'
-      ? { bg: '#ecf8ef', border: '#b7dfc3', color: '#245b34' }
-      : { bg: '#fff4e8', border: '#f0c9a5', color: '#6b3b19' };
-  ui.adminNotificationBox.textContent = message;
-  ui.adminNotificationBox.style.background = palette.bg;
-  ui.adminNotificationBox.style.borderColor = palette.border;
-  ui.adminNotificationBox.style.color = palette.color;
-  ui.adminNotificationBox.classList.remove('hidden');
 }
 
 function setVisible(element, visible) {
@@ -1477,7 +1459,6 @@ function reportRecommendationEvent(eventType, item = {}, options = {}) {
 }
 
 function startPageDwellWatcher() {
-  if (isAdminMode()) return;
   if (pageDwellTimer) clearInterval(pageDwellTimer);
   pageDwellTimer = setInterval(() => {
     if (!isSystemRunning || !isKioskActive()) return;
@@ -1568,7 +1549,7 @@ function showMenuLoadError(mode = 'menu') {
 }
 
 async function beginEntryFlow() {
-  if (isAdminMode() || isStartTransitionPending) return;
+  if (isStartTransitionPending) return;
   setStartButtonPending(true);
   try {
     hideMenuLoadError();
@@ -2659,12 +2640,7 @@ async function initializeAuthenticatedKiosk() {
   initRealtimeClients();
 }
 
-if (isAdminMode()) {
-  switchMainView('admin');
-  initRealtimeClients();
-} else {
-  createDeviceIdentityController({
-    apiBaseUrl: api.API_BASE,
-    onAuthenticated: initializeAuthenticatedKiosk,
-  }).bind();
-}
+createDeviceIdentityController({
+  apiBaseUrl: api.API_BASE,
+  onAuthenticated: initializeAuthenticatedKiosk,
+}).bind();

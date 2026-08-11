@@ -46,6 +46,7 @@ EXPORTED_SCHEMAS = (
     "CatalogItemDTO",
     "CatalogItemListDTO",
     "CatalogItemWriteDTO",
+    "ServicePeriodWindowDTO",
     "CatalogAvailabilityRowDTO",
     "CatalogAvailabilityDTO",
     "CatalogAvailabilityCommandDTO",
@@ -91,6 +92,8 @@ def _ts_type(schema: dict, schemas: dict) -> str:
     kind = schema.get("type")
     if kind == "array":
         return f"Array<{_ts_type(schema.get('items', {}), schemas)}>"
+    if kind == "object" and "additionalProperties" in schema:
+        return f"Record<string, {_ts_type(schema['additionalProperties'], schemas)}>"
     return {
         "string": "string",
         "integer": "number",

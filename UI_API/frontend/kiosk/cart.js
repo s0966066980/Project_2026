@@ -38,7 +38,7 @@ export function createCartManager({ ui, escapeHTML, findMenuItems, onCartChange,
     if (typeof getVisual === 'function') return getVisual(item);
     const id = String(item.id || '').toUpperCase();
     return {
-      image: item.image || (id.startsWith('MCD') ? `/static/menu_images/${id}.jpg` : ''),
+      image: item.image || (id.startsWith('MCD') ? `/static/kiosk/assets/menu_images/${id}.jpg` : ''),
       emoji: '🍔',
     };
   }
