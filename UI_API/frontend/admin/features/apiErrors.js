@@ -1,6 +1,23 @@
 // @ts-check
 
 /**
+ * Return a bounded Traditional Chinese message for the manager-login surface
+ * retained until the restart-availability layer replaces it with device-only
+ * verification.
+ *
+ * @param {number} status
+ * @returns {string}
+ */
+export function adminLoginErrorMessage(status) {
+  if (!status) return '無法連線至 API 服務，請確認後端已啟動。';
+  if (status === 401) return '主管密碼錯誤，請重新輸入。';
+  if (status === 403) return '此帳號沒有主管權限。';
+  if (status === 422) return '登入資料格式錯誤，請重新整理頁面後再試。';
+  if (status >= 500) return `登入服務暫時不可用（HTTP ${status}），請稍後再試。`;
+  return `主管登入失敗（HTTP ${status}），請稍後再試。`;
+}
+
+/**
  * Return a bounded Traditional Chinese message for Admin LLM diagnostic APIs.
  *
  * @param {number} status

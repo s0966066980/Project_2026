@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
+from modules.knowledge_publication import runtime as knowledge_publication_runtime
 
 from models.commercial_scope import CommercialScope
 from models.worker_jobs import BackgroundJob, JobHandlerResult
-from modules.knowledge_publication import runtime as knowledge_publication_runtime
-from services import (
-    analytics_pipeline_service,
-    observability_service,
-    rag_document_service,
-    rag_governance_service,
-    rag_knowledge_service,
-)
+from services import analytics_pipeline_service, observability_service
 from services.worker_handler_registry import JobHandlerRegistry, default_registry
 
 _SIDE_EFFECT_LEDGER: dict[str, str] = {}
@@ -34,30 +27,6 @@ def _record_side_effect(side_effect_id: str, marker: str = "completed") -> str:
     return side_effect_id
 
 
-def _mark_terminal_rag_failure(
-    *,
-    document_id: str,
-    version: object,
-    actor: str,
-    reason: str,
-) -> None:
-    if not document_id or version is None:
-        return
-    try:
-        rag_governance_service.fail_indexing(
-            document_id,
-            int(version),
-            actor=actor,
-            reason=reason,
-        )
-        rag_document_service.exclude_source_from_index(document_id)
-        asyncio.run(rag_document_service.get_rag().delete_document(document_id))
-    except Exception:
-        # The job result must remain the source of truth for worker retries even
-        # when best-effort index cleanup encounters an unavailable provider.
-        pass
-
-
 def handle_report_generate(job: BackgroundJob) -> JobHandlerResult:
     report_id = str(job.payload_ref.get("report_id") or "").strip()
     if not report_id:
@@ -71,81 +40,7 @@ def handle_report_generate(job: BackgroundJob) -> JobHandlerResult:
     )
 
 
-def handle_rag_rebuild(job: BackgroundJob) -> JobHandlerResult:
-    selected_source_ids = job.payload_ref.get("selected_source_ids")
-    document_id = str(job.payload_ref.get("document_id") or "")
-    version = job.payload_ref.get("version")
-    actor = str(job.payload_ref.get("actor") or "system")
-    if not isinstance(selected_source_ids, list):
-        return JobHandlerResult(success=False, retryable=False, safe_error="missing_selection_snapshot")
-    try:
-        result = asyncio.run(
-            rag_document_service.rebuild_from_source_documents(
-                selected_source_ids=[str(source_id) for source_id in selected_source_ids],
-            )
-        )
-    except Exception as exc:
-        safe_error = observability_service.redact_sensitive_text(str(exc))[:200]
-        if job.attempt_count >= job.max_attempts:
-            _mark_terminal_rag_failure(
-                document_id=document_id,
-                version=version,
-                actor=actor,
-                reason=safe_error,
-            )
-        return JobHandlerResult(
-            success=False,
-            retryable=True,
-            safe_error=safe_error,
-        )
-    side_effect_id = f"rag-rebuild:{job.job_id}:{job.attempt_count}"
-    status = str(result.get("status") or "error")
-    failed = int(result.get("failed") or 0)
-    if status == "error":
-        _mark_terminal_rag_failure(
-            document_id=document_id,
-            version=version,
-            actor=actor,
-            reason=f"rag_rebuild_validation_failed:{failed}",
-        )
-        return JobHandlerResult(
-            success=False,
-            retryable=False,
-            safe_error=f"rag_rebuild_validation_failed:{failed}",
-            result_ref=f"rag-rebuild-status:{result.get('rebuild_at') or ''}",
-        )
-    if status == "partial" or failed:
-        if job.attempt_count >= job.max_attempts:
-            _mark_terminal_rag_failure(
-                document_id=document_id,
-                version=version,
-                actor=actor,
-                reason=f"rag_rebuild_partial:{failed}",
-            )
-        _record_side_effect(side_effect_id, marker="partial")
-        return JobHandlerResult(
-            success=False,
-            retryable=True,
-            safe_error=f"rag_rebuild_partial:{failed}",
-            result_ref=f"rag-rebuild-status:{result.get('rebuild_at') or ''}",
-            side_effect_id=side_effect_id,
-        )
-    _record_side_effect(side_effect_id)
-    if document_id and version is not None:
-        rag_governance_service.complete_indexing(
-            document_id,
-            int(version),
-            actor=actor,
-        )
-    observability_service.increment_metric("worker_job_succeeded", status=job.job_type)
-    return JobHandlerResult(
-        success=True,
-        result_ref=f"rag-rebuild-status:{result.get('rebuild_at') or ''}",
-        side_effect_id=side_effect_id,
-    )
-
-
-def handle_rag_studio_index(job: BackgroundJob) -> JobHandlerResult:
+def handle_knowledge_publication_index(job: BackgroundJob) -> JobHandlerResult:
     attempt_id = str(job.payload_ref.get("attempt_id") or "").strip()
     if not attempt_id or job.store_id is None:
         return JobHandlerResult(
@@ -180,48 +75,10 @@ def handle_rag_studio_index(job: BackgroundJob) -> JobHandlerResult:
             safe_error=str(result["status"]),
             result_ref=attempt_id,
         )
-    side_effect_id = _record_side_effect(
-        f"knowledge-publication:{job.store_id}:{attempt_id}"
-    )
+    side_effect_id = _record_side_effect(f"knowledge-publication:{job.store_id}:{attempt_id}")
     return JobHandlerResult(
         success=True,
         result_ref=attempt_id,
-        side_effect_id=side_effect_id,
-    )
-
-
-def handle_rag_studio_evaluate(job: BackgroundJob) -> JobHandlerResult:
-    run_id = str(job.payload_ref.get("run_id") or "").strip()
-    if not run_id or job.store_id is None:
-        return JobHandlerResult(
-            success=False,
-            retryable=False,
-            safe_error="invalid_rag_studio_evaluation_reference",
-        )
-    try:
-        asyncio.run(
-            rag_knowledge_service.execute_evaluation_job(
-                tenant_id=job.tenant_id,
-                store_id=job.store_id,
-                run_id=run_id,
-            )
-        )
-    except Exception as exc:
-        rag_knowledge_service.fail_evaluation(
-            tenant_id=job.tenant_id,
-            store_id=job.store_id,
-            run_id=run_id,
-            reason=observability_service.redact_sensitive_text(str(exc))[:200],
-        )
-        return JobHandlerResult(
-            success=False,
-            retryable=False,
-            safe_error=observability_service.redact_sensitive_text(str(exc))[:200],
-        )
-    side_effect_id = _record_side_effect(f"rag-studio-evaluation:{run_id}")
-    return JobHandlerResult(
-        success=True,
-        result_ref=run_id,
         side_effect_id=side_effect_id,
     )
 
@@ -277,15 +134,15 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
     for item_id in batch["item_ids"]:
         item = menu_by_id.get(item_id)
         if item is None:
-            push_copy_batch_repository.record_item_result(
-                scope, batch_id, ok=False, error=f"{item_id} 已不在菜單中"
-            )
+            push_copy_batch_repository.record_item_result(scope, batch_id, ok=False, error=f"{item_id} 已不在菜單中")
             continue
         try:
             draft, error, _terms = push_copy_authoring_service.draft_copy(item, slot="base")
         except Exception as exc:  # noqa: BLE001 - 單項失敗不得讓整批崩潰
             push_copy_batch_repository.record_item_result(
-                scope, batch_id, ok=False,
+                scope,
+                batch_id,
+                ok=False,
                 error=observability_service.redact_sensitive_text(str(exc))[:200],
             )
             continue
@@ -363,8 +220,7 @@ def handle_outbox_order_job(job: BackgroundJob) -> JobHandlerResult:
 def register_production_handlers(*, registry: JobHandlerRegistry | None = None) -> JobHandlerRegistry:
     active = registry or default_registry()
     active.register("report.generate", handle_report_generate)
-    active.register("rag.studio.index", handle_rag_studio_index)
-    active.register("rag.studio.evaluate", handle_rag_studio_evaluate)
+    active.register("knowledge.publication.index", handle_knowledge_publication_index)
     active.register("event.deliver", handle_event_deliver)
     active.register("ai.background", handle_ai_background)
     active.register("data.export", handle_data_export)

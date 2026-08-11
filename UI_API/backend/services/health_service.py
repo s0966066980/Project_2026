@@ -10,7 +10,7 @@ from modules.runtime_persistence.evidence import inspect_persistence
 
 import config
 from repositories import postgres_utils, recommendation_event_repository
-from services import observability_service, rag_alert_service, rag_document_service, shared_infrastructure_service
+from services import observability_service, shared_infrastructure_service
 from services.commercial_scope_readiness_service import validate_configured_commercial_scope
 
 
@@ -155,22 +155,6 @@ def _recommendation_health() -> dict:
         return _degraded("recommendation_events", str(exc)[:500])
 
 
-def _rag_alert_health() -> dict:
-    try:
-        open_alerts = rag_alert_service.list_alerts(status="open", limit=1000)
-        acknowledged = rag_alert_service.list_alerts(status="acknowledged", limit=1000)
-        status = "degraded" if open_alerts else "ok"
-        return {
-            "name": "rag_alerts",
-            "status": status,
-            "open_count": len(open_alerts),
-            "acknowledged_count": len(acknowledged),
-            "latest_open_alert": open_alerts[0] if open_alerts else {},
-        }
-    except Exception as exc:
-        return _degraded("rag_alerts", str(exc)[:500])
-
-
 def _overall_status(checks: dict) -> str:
     unhealthy = {"degraded", "failed", "not_ready"}
     return "degraded" if any(check.get("status") in unhealthy for check in checks.values()) else "ok"
@@ -206,18 +190,6 @@ _INCIDENT_GUIDE = {
         "會員、訂單、活動與管理寫入可能失敗。",
         "值班技術人員",
         "確認資料庫連線、migration 與儲存 backend。",
-    ),
-    "rag": (
-        "知識回答降級",
-        "點餐與結帳可繼續，但知識回答可能缺少資料。",
-        "知識管理者",
-        "檢查最後一次成功建索引與已發布來源。",
-    ),
-    "rag_alerts": (
-        "RAG 有未處理警示",
-        "知識索引可能過期、不完整或存在驗證失敗。",
-        "知識管理者",
-        "前往 RAG 頁檢查並處理未結警示。",
     ),
     "recommendation_events": (
         "推薦成效量測降級",
@@ -309,7 +281,6 @@ def build_operational_health(checks: dict, readiness: dict, incident_actions: li
         impact = "必要條件與本次選用功能檢查均正常。"
 
     required_ready = bool(readiness.get("ready"))
-    rag_ok = checks.get("rag", {}).get("status") == "ok" and checks.get("rag_alerts", {}).get("status") == "ok"
     measurement_ok = checks.get("recommendation_events", {}).get("status") == "ok"
     return {
         "state": state,
@@ -331,7 +302,6 @@ def build_operational_health(checks: dict, readiness: dict, incident_actions: li
                 "label": "推薦成效量測",
                 "status": "available" if measurement_ok else "degraded",
             },
-            {"key": "rag_answers", "label": "RAG 知識回答", "status": "available" if rag_ok else "degraded"},
         ],
         "incidents": incidents,
     }
@@ -342,13 +312,7 @@ async def build_admin_health(incident_actions: list[dict] | None = None) -> dict
         "postgres": _postgres_health(),
         "runtime_logs": _runtime_health(),
         "recommendation_events": _recommendation_health(),
-        "rag_alerts": _rag_alert_health(),
     }
-    try:
-        rag_health = await rag_document_service.health_status()
-        checks["rag"] = {"name": "rag", **rag_health}
-    except Exception as exc:
-        checks["rag"] = _degraded("rag", str(exc)[:500])
 
     readiness = build_readiness()
     operational = build_operational_health(checks, readiness, incident_actions)
