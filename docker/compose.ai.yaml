@@ -5,6 +5,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: ai-runtime
+      args:
+        APP_GIT_REVISION: ${APP_GIT_REVISION:-unknown}
     image: project-2026:ai
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
@@ -43,6 +45,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: ai-runtime
+      args:
+        APP_GIT_REVISION: ${APP_GIT_REVISION:-unknown}
     image: project-2026:ai
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
