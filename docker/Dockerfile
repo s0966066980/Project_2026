@@ -37,6 +37,11 @@ RUN python -m pip install --requirement requirements-ci.txt
 # schema, so the generator has to be in the image. A gate that skips when its
 # tool is missing is a gate that reports green without checking anything.
 COPY tools/ /app/tools/
+# Same reason for the Pilot container-security gate: it asserts the contract
+# written in docker/compose.pilot.yaml, so the overlay has to be in the image.
+# Without it the gate errors out inside docker/scripts/test.sh while still
+# passing in CI, where pytest runs against a checkout.
+COPY docker/ /app/docker/
 USER project2026
 
 FROM base AS ai-base
