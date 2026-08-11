@@ -75,9 +75,7 @@ def handle_knowledge_publication_index(job: BackgroundJob) -> JobHandlerResult:
             safe_error=str(result["status"]),
             result_ref=attempt_id,
         )
-    side_effect_id = _record_side_effect(
-        f"knowledge-publication:{job.store_id}:{attempt_id}"
-    )
+    side_effect_id = _record_side_effect(f"knowledge-publication:{job.store_id}:{attempt_id}")
     return JobHandlerResult(
         success=True,
         result_ref=attempt_id,
@@ -137,15 +135,15 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
     for item_id in batch["item_ids"]:
         item = menu_by_id.get(item_id)
         if item is None:
-            push_copy_batch_repository.record_item_result(
-                scope, batch_id, ok=False, error=f"{item_id} 已不在菜單中"
-            )
+            push_copy_batch_repository.record_item_result(scope, batch_id, ok=False, error=f"{item_id} 已不在菜單中")
             continue
         try:
             draft, error, _terms = push_copy_authoring_service.draft_copy(item, slot="base")
         except Exception as exc:  # noqa: BLE001 - 單項失敗不得讓整批崩潰
             push_copy_batch_repository.record_item_result(
-                scope, batch_id, ok=False,
+                scope,
+                batch_id,
+                ok=False,
                 error=observability_service.redact_sensitive_text(str(exc))[:200],
             )
             continue
