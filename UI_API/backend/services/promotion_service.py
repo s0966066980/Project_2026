@@ -12,9 +12,10 @@ from datetime import datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from repositories import promotion_repository
 
 VALID_STATUSES = {"active", "draft", "inactive"}

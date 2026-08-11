@@ -1,6 +1,6 @@
 # Project_2026 架構完整度與能力模組 Roadmap
 
-> 更新日期：2026-08-10
+> 更新日期：2026-08-11
 > Baseline：`949479d`（repository hygiene 與 capability boundaries）
 > 目標：單店 Admin＋Kiosk 點餐系統，維持 modular monolith，逐能力建立可驗證的獨立契約
 > Runtime：Docker Compose；host Python/Conda 不屬於支援路徑
@@ -34,19 +34,22 @@
 - `backend/routes/v1_routes.py:create_router()` 仍有 1,128 行，跨至少 48 個 route/application dependencies。
 - Backend 同時存在 `modules/`、`routes/`、`services/`、`repositories/`，單一功能規則散在多個水平資料夾。
 - `AppContainer` 尚未成為十個能力的一致 composition root；多數 route 直接使用 global service/repository。
-- Frontend 至少 10 個檔案存在 raw `fetch`，掃描到 46 個呼叫點，並混用 `/api/*`、`/api/settings/*`、`/api/rag/*` 與 `/api/v1/*`。
-- Kiosk `app.js` 約 2,627 行，仍包含 Admin runtime mode；`shared/styles.css` 仍混有兩個產品 selector。
+- Admin 仍有 5 個 source files、23 個 raw `fetch` 呼叫點，尚未全部收斂到 generated client；Catalog 的 Admin/Kiosk consumer 已完成收斂。
+- Kiosk `app.js` 仍是約 2,670 行的大型 composition surface；Admin runtime mode 與跨產品 CSS 已移除並由 product-boundary tests 鎖定。
 - `UI_API/deploy/postgres`、`config/profiles/local-pilot.env.example`、`learning_data/settings.json` 與 repository runtime paths 存在不同年代的執行假設。
 
 ### 2.3 嚴格完成狀態
 
 ```text
-Business Capability Modules passed: 0 / 10
-Independent Product Frontends passed: 0 / 2
-Current vertical slice: Catalog & Availability
+Primary delivery endpoint — Local Pilot Readiness: NOT YET DECLARED
+Business Capability Modules passed: 1 / 10
+Independent Product Frontends passed: 2 / 2
+Current vertical slice: Catalog & Availability — COMPLETE
+Next approved batch: P2 Emotion Diagnostics
 ```
 
 已有 endpoint 或搬入新目錄不算完成。只有通過 Module Independence Gate 才能增加上述數字。
+不使用主觀百分比表示進度；Local Pilot Readiness 是主要交付終點，Module Independence Gate 是次要結構指標。P1、Batch R 與 Catalog closure 已完成，不等於整體 Local Pilot 已完成。
 
 ## 3. 目標結構
 
@@ -161,7 +164,7 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 ### Phase 2 — Catalog & Availability vertical slice
 
-狀態：**進行中**（步驟 1–6、8 完成；步驟 7 待 legacy usage telemetry 歸零證據）
+狀態：**已完成**（Issue #12；legacy consumer、runtime usage 與 routes 均已歸零）
 
 資料權威校正結果（步驟 1）：`store_menu_items` 只被 `menu_repository` 觸及，`store_availability` 只被 `availability_repository` 與一支驗證腳本觸及。**寫入本來就只有一個入口**——`create_item_scoped`、`update_item_scoped`、`retire_item_scoped`、`restore_item_scoped`、`replace_all_scoped`、`ensure_seeded_scoped` 全部只出現在 `services/menu_catalog_service.py`。違反 Gate 第 3 條的是**讀取**：13 個跨能力呼叫點直接 import `menu_repository`，分佈在 ordering、voice、member、promotion、recommendation 與 worker。
 
@@ -177,15 +180,17 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 | port 在執行期真的接上 | 測試容器實測：`_LegacyMenuRepositoryCatalogAdapter`，回傳 138 筆 active items | 已完成 |
 | `/api/v1/catalog/items` 讀取端點 | `routes/v1_catalog_routes.py`, `tests/test_v1_catalog_contract.py` | 已完成 |
 | 發布契約不外洩儲存與匯入細節 | `tests/test_v1_catalog_contract.py` 逐欄位鎖定 | 已完成 |
-| backend regression | Docker test image：`118 passed` | 已完成 |
+| backend regression | 支援的 Docker test runtime：`119 passed` | 已完成 |
 | 寫入與 availability 走同一能力介面 | `capabilities/catalog/ports.py`、`bootstrap/container.py` | 已完成 |
-| legacy `/api/menu*`、`/api/availability` 只轉接 | `routes/menu_routes.py`、`routes/availability_routes.py` | 已完成 |
-| legacy 使用量可觀測 | `legacy_catalog_requests_total`，contract test 驗證計數 | 已完成 |
+| legacy `/api/menu*`、`/api/availability` 已刪除 | route registry 不再註冊；contract test 鎖定 404；promotion banner 已移至獨立 route | 已完成 |
+| legacy 使用量可觀測且歸零 | 同一 Docker artifact 完成 Admin/Kiosk Playwright 5/5；316 個 HTTP requests 後 `legacy_catalog_requests_total={}` | 已完成 |
 | TypeScript client 由 OpenAPI 產生 | `tools/generate_api_types.py`、`tests/test_generated_api_types.py`（實測會因漂移而紅） | 已完成 |
 | Admin/Kiosk 使用產生的 client，無 raw legacy fetch | `tests/unit/product-boundaries.test.ts` | 已完成 |
 | Kiosk bundle 不含 Admin runtime mode | `tests/unit/product-boundaries.test.ts` | 已完成 |
 | seed 與 Kiosk assets 已歸位 | `capabilities/catalog/seed/menu.json`、`kiosk/assets/`、`tests/unit/kiosk-assets.test.ts` | 已完成 |
-| frontend regression | `120 passed`、typecheck、syntax、build | 已完成 |
+| static consumer gate | Admin、Kiosk 與 shared source 不得出現 `/api/menu*`、`/api/availability` literal | 已完成 |
+| frontend regression | `121 passed`、typecheck、syntax、production build；Playwright 5/5 | 已完成 |
+| runtime smoke | PostgreSQL 18、migration head `0027`、app/worker healthy；`/api/admin/health` 回報 ready | 已完成 |
 
 步驟 3 的契約決定：儲存列有 23 個 key，其中 `image_ref`、`image_source`、`image_storage`、`official_image_url`、`official_name`、`source_category`、`source_url`、`rag_metadata`、`extra` 是匯入相容與儲存細節，不是 [[Store Menu Item]] 的定義。`CatalogItemDTO` 只發布 12 個領域欄位。versioned contract 加欄位相容、刪欄位不相容，所以起點取窄——這個取捨值得你複核，因為它決定 Admin 與 Kiosk 之後能拿到什麼。
 
@@ -193,16 +198,16 @@ Admin/Kiosk 各自 build、typecheck、unit test 與 E2E。`shared/` 不得 impo
 
 順帶修好一條空轉的架構閘門：`test_architecture_boundaries.py` 的 `PLATFORM_ROOT` 指向 `backend/platform`，但該層在 `633c7d2` 已改名為 `foundation`；`rglob` 對不存在的目錄回空集合，所以那條規則自改名以來一直是空過。已改指 `foundation` 並加上 `test_boundary_roots_exist()`，讓同類空轉不會再發生。
 
-剩餘步驟：
+完成步驟：
 
 1. ~~校正 `store_menu_items`、`store_availability`、圖片 metadata 的唯一 owner。~~（完成）
-2. 建立 Catalog domain/application/interface/ports/adapters。（讀取側完成；寫入側與 availability 未搬）
-3. 建立 `/api/v1/catalog/items`、item image 與 availability commands。
-4. 由 FastAPI OpenAPI 產生 TypeScript client。
-5. Admin 與 Kiosk 各自建立 Catalog feature；移除 Kiosk/Admin mode 共享。
-6. Legacy `/menu*`、`/availability*` 只轉接新 interface，記錄 usage。
-7. Contract、PostgreSQL、permission、failure、Admin/Kiosk consumer tests 通過後刪 legacy routes。
-8. 將 `menu_data/menu.json` 移至 Catalog seed/fixture；將 menu/category images 移至 Kiosk assets。
+2. ~~建立 Catalog domain/application/interface/ports/adapters。~~（完成）
+3. ~~建立 `/api/v1/catalog/items`、item image 與 availability commands。~~（完成）
+4. ~~由 FastAPI OpenAPI 產生 TypeScript client。~~（完成）
+5. ~~Admin 與 Kiosk 各自建立 Catalog feature；移除 Kiosk/Admin mode 共享。~~（完成）
+6. ~~Legacy `/menu*`、`/availability*` 轉接新 interface 並記錄 usage。~~（完成，之後已由步驟 7 刪除）
+7. ~~Contract、PostgreSQL、permission、failure、Admin/Kiosk consumer tests 通過，usage 歸零後刪除 legacy routes。~~（完成）
+8. ~~將 `menu_data/menu.json` 移至 Catalog seed/fixture；將 menu/category images 移至 Kiosk assets。~~（完成）
 
 ### Phase 3 — Wave 1 remaining capabilities
 
@@ -466,7 +471,15 @@ Batch R 的兩個未決項已處理，並揭露一個更嚴重的問題：
 
 **4. checkout confirm 的時限 5 秒 → 20 秒**。confirm 原本就有時限，而且逾時已導向 [[Confirmation Outcome Unknown]]（`app.js` 的 `AbortController` 加 `resolveUnknownConfirmation()`），所以這裡不是補上缺口而是調整刻度。五秒對一個要做原子履約驗證與寫入的訂單建立太短：一個只是比較慢、其實會成功的 confirm 會被推進不確定狀態，那條路徑會自己查出訂單而恢復，但顧客會先看到一次不必要的「仍在確認訂單」。
 
-**5. Admin 端 33 個 raw `fetch` 仍無界**（`admin.js` 14、`availabilityAdmin` 8、`memberServiceDeskAdmin` 5、`recommendationEventsAdmin` 3、其餘 3）。風險層級不同——卡住的是操作人員的面板而非顧客點餐——且其中含檔案上傳，需要逐點判斷合適的時限，未在本批處理。
+**5. Admin 端剩餘 23 個 raw `fetch` 仍無界**（`admin.js` 13、`memberServiceDeskAdmin` 5、`recommendationEventsAdmin` 3、campaign 與 settings 各 1）。Catalog/availability 的 8 個呼叫已改用 generated client。剩餘風險層級不同——卡住的是操作人員的面板而非顧客點餐——且其中含檔案上傳，需要逐點判斷合適的時限，不併入已完成的 Catalog closure。
+
+本輪交付以三層依賴明確的 Issue/PR 收尾，不改寫原始安全分支歷史：
+
+1. Issue #10：P1 Admin operations and retained RAG。
+2. Issue #11：restart availability and device verification；依賴 #10。
+3. Issue #12：Catalog Module Independence Gate；依賴 #11。
+
+三層都必須由 required checks 驗證後依序合併；Roadmap 的 Catalog 完成證據與第三層使用同一 commit/artifact。
 
 接著是 P2：
 

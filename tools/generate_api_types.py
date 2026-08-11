@@ -40,6 +40,7 @@ def _find_ui_api_root() -> Path:
             return nested
     raise SystemExit("could not locate UI_API/main.py from this working directory")
 
+
 #: Only the catalog capability's published DTOs. Generating every schema would
 #: publish internal request models the frontend has no business knowing.
 EXPORTED_SCHEMAS = (

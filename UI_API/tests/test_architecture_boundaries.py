@@ -88,7 +88,6 @@ CATALOG_OWNED_REPOSITORIES = {"menu_repository"}
 CATALOG_INTERNAL_PATHS = {
     "backend/repositories/menu_repository.py",
     "backend/services/menu_catalog_service.py",
-    "backend/routes/menu_routes.py",
     "backend/bootstrap/container.py",
 }
 
@@ -116,4 +115,25 @@ def test_catalog_tables_have_one_reader_surface() -> None:
                 for owned in CATALOG_OWNED_REPOSITORIES:
                     if f"import {owned}" in source or f", {owned}" in source:
                         violations.append(f"{relative} -> repositories.{owned}")
+    assert violations == []
+
+
+def test_catalog_has_no_legacy_transport_or_frontend_consumer() -> None:
+    """The measured compatibility window is closed for repository-owned clients."""
+
+    assert not (UI_API_ROOT / "backend" / "routes" / "menu_routes.py").exists()
+    assert not (UI_API_ROOT / "backend" / "routes" / "availability_routes.py").exists()
+
+    forbidden = ("/api/menu", "/api/availability")
+    violations = [
+        f"{path.relative_to(UI_API_ROOT)} -> {literal}"
+        for root in (
+            UI_API_ROOT / "frontend" / "admin",
+            UI_API_ROOT / "frontend" / "kiosk",
+            UI_API_ROOT / "frontend" / "shared",
+        )
+        for path in root.rglob("*.js")
+        for literal in forbidden
+        if literal in path.read_text(encoding="utf-8")
+    ]
     assert violations == []

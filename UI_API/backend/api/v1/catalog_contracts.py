@@ -14,7 +14,7 @@ that costs least when wrong is to start narrow.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -123,7 +123,7 @@ def catalog_availability_dto(state: dict) -> CatalogAvailabilityDTO:
             id=str(row.get("id") or ""),
             name=str(row.get("name") or ""),
             category=str(row.get("category") or ""),
-            status=str(row.get("status") or "normal"),
+            status=cast(AvailabilityStatus, str(row.get("status") or "normal")),
             time_unavailable=bool(row.get("time_unavailable") or False),
         )
         for row in (state.get("items") or [])

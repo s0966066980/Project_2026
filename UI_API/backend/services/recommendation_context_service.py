@@ -4,9 +4,10 @@
 """
 import asyncio
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from services import (
     availability_service,
     member_preference_service,

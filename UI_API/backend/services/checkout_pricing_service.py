@@ -5,10 +5,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from capabilities import catalog
 from modules.promotion import PromotionContext, quote_promotion, select_promotion_quote
 
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from services import availability_service, commercial_shadow_service, promotion_service
 
 CHECKOUT_CALCULATION_VERSION = "checkout-v1"

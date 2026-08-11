@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from models.commercial_scope import CommercialScope
-
 from capabilities.catalog.contracts import CatalogAvailabilityState, CatalogItem
+
+from models.commercial_scope import CommercialScope
 
 
 class CatalogReadPort(Protocol):
@@ -54,8 +54,6 @@ class CatalogWritePort(Protocol):
     ) -> CatalogItem: ...
 
     def load_item_image(self, scope: CommercialScope, item_id: str) -> tuple[bytes, str]: ...
-
-    def replace_catalog(self, scope: CommercialScope, items: list) -> list[CatalogItem]: ...
 
 
 class CatalogAvailabilityPort(Protocol):

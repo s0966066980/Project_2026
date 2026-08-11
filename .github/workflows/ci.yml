@@ -58,6 +58,7 @@ jobs:
           main.py
           backend/app_factory.py
           backend/api
+          backend/capabilities/catalog
           backend/core
           backend/models
           backend/repositories/postgres_utils.py
@@ -74,14 +75,14 @@ jobs:
           backend/repositories/worker_job_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
-          backend/routes/availability_routes.py
           backend/routes/ai_push_routes.py
           backend/routes/core_routes.py
           backend/routes/interaction_routes.py
-          backend/routes/menu_routes.py
+          backend/routes/promotion_banner_routes.py
           backend/routes/member_routes.py
           backend/routes/recommendation_event_routes.py
           backend/routes/realtime_routes.py
+          backend/routes/v1_catalog_routes.py
           backend/routes/voice_routes.py
           backend/routes/v1_routes.py
           backend/scripts/manage_admin_identity.py
@@ -113,6 +114,7 @@ jobs:
           backend/services/ai_push_service.py
           backend/services/voice_service.py
           backend/utils
+          ../tools/generate_api_types.py
 
       - name: Ruff format check
         if: matrix.python-version == '3.10'
@@ -121,6 +123,7 @@ jobs:
           main.py
           backend/app_factory.py
           backend/api
+          backend/capabilities/catalog
           backend/core
           backend/models
           backend/repositories/postgres_utils.py
@@ -135,11 +138,12 @@ jobs:
           backend/repositories/worker_job_repository.py
           backend/routes/admin_identity_routes.py
           backend/routes/device_identity_routes.py
-          backend/routes/availability_routes.py
           backend/routes/interaction_routes.py
           backend/routes/member_routes.py
           backend/routes/recommendation_event_routes.py
           backend/routes/realtime_routes.py
+          backend/routes/promotion_banner_routes.py
+          backend/routes/v1_catalog_routes.py
           backend/routes/v1_routes.py
           backend/scripts/manage_admin_identity.py
           backend/scripts/manage_postgres_migrations.py
@@ -157,6 +161,7 @@ jobs:
           backend/services/worker_service.py
           backend/services/commercial_context_service.py
           backend/utils
+          ../tools/generate_api_types.py
 
       - name: Mypy gradual type check
         if: matrix.python-version == '3.10'

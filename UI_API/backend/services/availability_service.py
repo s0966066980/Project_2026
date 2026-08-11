@@ -2,9 +2,10 @@
 
 from datetime import datetime, time
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from repositories import availability_repository
 
 BREAKFAST_CATEGORY = "早餐"

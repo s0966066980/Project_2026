@@ -41,7 +41,9 @@ def test_published_item_contract_excludes_storage_and_import_detail():
 
     assert items, "expected a seeded catalog"
     for item in items:
-        assert INTERNAL_KEYS.isdisjoint(item), f"published contract leaked internals: {sorted(INTERNAL_KEYS & set(item))}"
+        assert INTERNAL_KEYS.isdisjoint(item), (
+            f"published contract leaked internals: {sorted(INTERNAL_KEYS & set(item))}"
+        )
         assert set(item) == {
             "id",
             "name",
@@ -200,40 +202,35 @@ def test_a_stale_item_id_is_dropped_rather_than_refusing_the_whole_change():
     assert all(row["status"] != "sold_out" for row in saved.json()["data"]["items"])
 
 
-def test_legacy_routes_hold_no_rules_of_their_own():
-    """The compatibility surface must agree with the capability, not reimplement it."""
-
+def test_legacy_catalog_routes_are_absent_after_consumer_migration():
     with TestClient(app) as client:
-        item = _created(client, name="轉接測試").json()["data"]
+        responses = (
+            client.get("/api/menu"),
+            client.get("/api/menu/items"),
+            client.post("/api/availability", json={}),
+        )
 
-        legacy = client.get("/api/menu/items").json()
-        v1 = client.get("/api/v1/catalog/items?include_retired=false").json()["data"]
-
-    legacy_ids = {row["id"] for row in legacy["items"]}
-    v1_ids = {row["id"] for row in v1["items"]}
-    assert item["id"] in legacy_ids
-    assert legacy_ids == v1_ids
-    assert legacy["categories"] == v1["categories"]
+    assert {response.status_code for response in responses} == {404}
 
 
-def test_legacy_refusals_still_name_their_reason_after_adapting():
-    with TestClient(app) as client:
-        response = client.put("/api/menu/items/no-such-item", json={"price": 1})
-
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "item_not_found"
-
-
-def test_legacy_catalog_use_is_counted_so_deletion_can_rest_on_evidence():
+def test_supported_catalog_flow_leaves_the_legacy_counter_at_zero():
     from services import observability_service
 
     def counted() -> float:
         snapshot = observability_service.metrics_snapshot()
-        return snapshot.get("legacy_catalog_requests_total", {}).get("menu.get_menu", 0.0)
+        return sum(snapshot.get("legacy_catalog_requests_total", {}).values())
 
+    observability_service.reset_metrics_for_tests()
     with TestClient(app) as client:
         before = counted()
-        client.get("/api/menu")
+        items = client.get("/api/v1/catalog/items")
+        availability = client.get("/api/v1/catalog/availability")
         after = counted()
 
-    assert after == before + 1
+    assert items.status_code == 200
+    assert availability.status_code == 200
+    assert before == after == 0
+
+
+def test_promotion_banner_transport_survives_catalog_legacy_removal():
+    assert "/api/promotions/pos-banner" in {route.path for route in app.routes}

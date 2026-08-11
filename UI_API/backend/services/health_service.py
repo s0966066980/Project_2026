@@ -6,10 +6,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
-from bootstrap import startup
 from modules.runtime_persistence.evidence import inspect_persistence
 
 import config
+from bootstrap import startup
 from repositories import postgres_utils, recommendation_event_repository
 from services import observability_service, shared_infrastructure_service
 from services.commercial_scope_readiness_service import validate_configured_commercial_scope
@@ -91,12 +91,8 @@ def build_readiness() -> dict:
         "status": "ready" if ready else "not_ready",
         "required_checks": required_checks,
         "optional_capabilities": warmup,
-        "warming_capabilities": sorted(
-            name for name, status in warmup.items() if status == "pending"
-        ),
-        "degraded_optional_dependencies": sorted(
-            name for name, status in warmup.items() if status == "failed"
-        ),
+        "warming_capabilities": sorted(name for name, status in warmup.items() if status == "pending"),
+        "degraded_optional_dependencies": sorted(name for name, status in warmup.items() if status == "failed"),
     }
 
 

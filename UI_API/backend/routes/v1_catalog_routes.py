@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
+from capabilities import catalog
+from capabilities.catalog import CatalogWriteError
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 
@@ -24,9 +26,8 @@ from api.v1.catalog_contracts import (
     catalog_item_dto,
 )
 from api.v1.contracts import ApiErrorResponse, ApiMeta, ApiResponse
-from capabilities import catalog
-from capabilities.catalog import CatalogWriteError
 from models.commercial_scope import CommercialScope
+from services import admin_audit_service
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope
@@ -157,9 +158,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         scope = _write_scope(request)
         request.state.commercial_scope = scope
         try:
-            row = await asyncio.to_thread(
-                catalog.update_item, scope, item_id, payload.model_dump(exclude_none=True)
-            )
+            row = await asyncio.to_thread(catalog.update_item, scope, item_id, payload.model_dump(exclude_none=True))
         except CatalogWriteError as exc:
             raise _refused(exc) from exc
         return ApiResponse(data=catalog_item_dto(row), meta=_meta(request))
@@ -274,6 +273,15 @@ def create_router(_deps: dict | None = None) -> APIRouter:
                 # the published contract uses the domain's word.
                 "store_disabled_item_ids": payload.disabled_item_ids,
             },
+        )
+        await asyncio.to_thread(
+            admin_audit_service.record_admin_action,
+            "admin_availability.update",
+            target_type="availability",
+            target_id=str(scope.store_id),
+            request=request,
+            metadata={"actor_type": "manager"},
+            scope=scope,
         )
         return ApiResponse(data=catalog_availability_dto(state), meta=_meta(request))
 

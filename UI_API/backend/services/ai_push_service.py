@@ -7,11 +7,11 @@ import asyncio
 import logging
 import time
 
+from capabilities import catalog
 from modules.recommendation import decide
 
 import config
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from repositories import push_copy_repository
 from services import (
     push_copy_service,

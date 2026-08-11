@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from models.commercial_scope import CommercialScope
-
 from capabilities.catalog.contracts import CatalogAvailabilityState, CatalogItem
 from capabilities.catalog.ports import CatalogAvailabilityPort, CatalogReadPort, CatalogWritePort
+
+from models.commercial_scope import CommercialScope
 
 _read_port: CatalogReadPort | None = None
 _write_port: CatalogWritePort | None = None
@@ -110,12 +110,6 @@ def upload_item_image(
 
 def load_item_image(scope: CommercialScope, item_id: str) -> tuple[bytes, str]:
     return _writes().load_item_image(scope, item_id)
-
-
-def replace_catalog(scope: CommercialScope, items: list) -> list[CatalogItem]:
-    """Bulk replace the store's catalog. Still one writer, just a wider change."""
-
-    return _writes().replace_catalog(scope, items)
 
 
 def get_availability(scope: CommercialScope) -> CatalogAvailabilityState:

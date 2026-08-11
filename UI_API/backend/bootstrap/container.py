@@ -144,9 +144,6 @@ class _MenuCatalogServiceWriteAdapter:
     def load_item_image(self, scope, item_id: str):
         return self._call("load_item_image_bytes", scope, item_id)
 
-    def replace_catalog(self, scope, items: list):
-        return self._call("replace_catalog", scope, items)
-
 
 class _AvailabilityServiceAdapter:
     """Satisfies `CatalogAvailabilityPort` from the existing availability service."""

@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from itertools import combinations
 from uuid import UUID, uuid4
 
+from capabilities import catalog
+
 import config
 from models.commercial_scope import CommercialScope
-from capabilities import catalog
 from repositories import member_repository, member_session_repository, recommendation_event_repository
 from services.member_pii_service import configured_key_provider, phone_lookup_hash, protect_phone
 

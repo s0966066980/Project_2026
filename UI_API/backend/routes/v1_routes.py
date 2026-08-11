@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, TypeVar
 from uuid import UUID, uuid5
 
+from capabilities import catalog
 from fastapi import APIRouter, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
-from capabilities import catalog
 from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
 from modules.knowledge_publication import PublicationError
 from modules.knowledge_publication import runtime as knowledge_publication_runtime
@@ -360,9 +360,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         member = None
         if body.session_id:
             member = await asyncio.to_thread(member_service.get_session_member, body.session_id, scope)
-        menu = await asyncio.to_thread(
-            catalog.list_items, scope, include_retired=False, ensure_seed=True
-        )
+        menu = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         promotions = await asyncio.to_thread(promotion_service.list_promotions, scope)
         now = datetime.now(timezone.utc)
         data = []
@@ -620,9 +618,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def campaign_preview(request: Request, body: CampaignPreviewRequest) -> ApiResponse[CampaignPreviewDTO]:
         scope = _scope(request, "campaigns.read")
         payload = body.model_dump(exclude={"campaign_id"})
-        catalog_items = await asyncio.to_thread(
-            catalog.list_items, scope, include_retired=False, ensure_seed=True
-        )
+        catalog_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         result = await asyncio.to_thread(
             preview_campaign,
             payload,
@@ -640,9 +636,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     )
     async def create_campaign(request: Request, body: CampaignDraftRequest) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(
-            catalog.list_items, scope, include_retired=False, ensure_seed=True
-        )
+        catalog_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         try:
             row = await asyncio.to_thread(
                 create_campaign_draft,
@@ -671,9 +665,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
         body: CampaignDraftUpdateRequest,
     ) -> ApiResponse[CampaignSnapshotDTO]:
         scope = _scope(request, "campaigns.write")
-        catalog_items = await asyncio.to_thread(
-            catalog.list_items, scope, include_retired=False, ensure_seed=True
-        )
+        catalog_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         try:
             row = await asyncio.to_thread(
                 revise_campaign_draft,
@@ -714,9 +706,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
     async def campaign_publish(request: Request, body: CampaignPublishRequest) -> ApiResponse[CampaignSnapshotDTO]:
         _scope(request, "campaigns.write")
         scope = _scope(request, "campaigns.publish")
-        catalog_items = await asyncio.to_thread(
-            catalog.list_items, scope, include_retired=False, ensure_seed=True
-        )
+        catalog_items = await asyncio.to_thread(catalog.list_items, scope, include_retired=False, ensure_seed=True)
         try:
             row = await asyncio.to_thread(
                 publish_campaign,

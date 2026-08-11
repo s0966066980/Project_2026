@@ -23,9 +23,7 @@ from utils.commercial_scope_config import resolve_commercial_scope
 _menu_cache = None
 _menu_cache_mtime = None
 
-CORE_FIELDS = frozenset(
-    {"id", "name", "category", "price", "description", "image", "retired_at", "retired"}
-)
+CORE_FIELDS = frozenset({"id", "name", "category", "price", "description", "image", "retired_at", "retired"})
 
 
 def _store_menu_json_path() -> str:
@@ -90,7 +88,7 @@ def _public_item(row: dict, *, include_retired_flag: bool = True) -> dict:
     item["image_storage"] = image
     if image.startswith("object:"):
         item["image_ref"] = image
-        item["image"] = f"/api/menu/items/{item_id}/image"
+        item["image"] = f"/api/v1/catalog/items/{item_id}/image"
     else:
         item["image_ref"] = ""
     return item
@@ -295,10 +293,10 @@ def update_item_scoped(scope: CommercialScope, item_id: str, payload: dict) -> d
         raise KeyError("item_not_found")
     source = payload if isinstance(payload, dict) else {}
     stored_image = _text(existing.get("image_storage") or existing.get("image_ref") or existing.get("image"))
-    if stored_image.startswith("/api/menu/items/"):
+    if stored_image.startswith(("/api/menu/items/", "/api/v1/catalog/items/")):
         stored_image = _text(existing.get("image_storage") or existing.get("image_ref"))
     next_image = source.get("image", stored_image)
-    if isinstance(next_image, str) and next_image.startswith("/api/menu/items/"):
+    if isinstance(next_image, str) and next_image.startswith(("/api/menu/items/", "/api/v1/catalog/items/")):
         next_image = stored_image
     # Identity is immutable after create.
     merged = {
@@ -475,13 +473,6 @@ def replace_all_scoped(scope: CommercialScope, items: list, *, preserve_ids: boo
         store[_scope_key(scope)] = normalized
         _write_json_store(store)
     return list_items_scoped(scope, include_retired=True)
-
-
-def save_menu(menu_data: list) -> list:
-    """Bulk replace for the resolved scope (legacy POST /api/menu contract)."""
-
-    scope = resolve_commercial_scope()
-    return replace_all_scoped(scope, menu_data if isinstance(menu_data, list) else [], preserve_ids=True)
 
 
 def reset_for_tests() -> None:
