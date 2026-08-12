@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from services import observability_service
+from capabilities.operations_configuration import interface as _operations
+
+observability_service = _operations.observability_service
 
 
 def compare_pricing(

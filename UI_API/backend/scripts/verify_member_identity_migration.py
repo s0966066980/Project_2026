@@ -13,9 +13,9 @@ BACKEND_DIR = ROOT_DIR / "backend"
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(BACKEND_DIR))
 
+from modules.member._pii import configured_key_provider, phone_lookup_hash, protect_phone  # noqa: E402
 from repositories import postgres_utils  # noqa: E402
 from services.member_key_provider import MemberKeyProvider  # noqa: E402
-from services.member_pii_service import configured_key_provider, phone_lookup_hash, protect_phone  # noqa: E402
 
 
 class Violation(TypedDict):

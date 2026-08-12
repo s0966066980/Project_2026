@@ -5,11 +5,12 @@ from uuid import UUID
 
 import config
 from capabilities import catalog
+from capabilities.member import member_service
 from models.commercial_scope import LEGACY_DEFAULT_DEVICE_ID, CommercialScope
 from modules.cart import CartModule, PostgresCartStore, SQLiteCartStore
+from modules.checkout_confirmation import _pricing_service as checkout_pricing_service
 from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
-from services import checkout_pricing_service, member_service
 
 from .module import CheckoutConfirmationModule
 from .postgres_store import PostgresCheckoutStore

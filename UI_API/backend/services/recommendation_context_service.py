@@ -7,11 +7,11 @@ import asyncio
 
 import config
 from capabilities import catalog
+from capabilities.member import member_service
 from models.commercial_scope import CommercialScope
 from services import (
     availability_service,
     member_preference_service,
-    member_service,
     rag_offer_service,
     recommendation_feedback_service,
 )

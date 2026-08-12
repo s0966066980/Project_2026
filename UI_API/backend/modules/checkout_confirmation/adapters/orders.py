@@ -5,10 +5,12 @@ from __future__ import annotations
 import hashlib
 from uuid import UUID, uuid4
 
+from capabilities.operations_configuration import interface as _operations
 from models.commercial_scope import CommercialScope
 from models.order import OrderStatus, transition_order_status
 from repositories import postgres_utils
-from services import observability_service
+
+observability_service = _operations.observability_service
 
 
 class CheckoutIdempotencyConflictError(ValueError):

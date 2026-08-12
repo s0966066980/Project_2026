@@ -7,9 +7,9 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime
 
+from capabilities.member import member_service
 from models.commercial_scope import CommercialScope
 from repositories import recommendation_event_repository
-from services import member_service
 
 EVENT_TYPES = {
     "recommendation_generated",

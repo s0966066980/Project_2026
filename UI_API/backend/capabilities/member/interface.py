@@ -5,48 +5,41 @@ from __future__ import annotations
 from typing import Any
 
 from capabilities.member.contracts import MemberCapabilityError, MemberView
+from modules.member import member_service as _member
+
+# Every function here opened with a call-time import into services/, which is
+# what kept this capability on the frozen legacy-layer list. The implementation
+# now lives in modules/member.
 
 
 def login(session_id: str, phone: str, scope: Any = None) -> dict[str, Any]:
-    from services import member_service
-
-    return member_service.login(session_id, phone, scope)
+    return _member.login(session_id, phone, scope)
 
 
 def register(session_id: str, phone: str, *, scope: Any = None, **values: Any) -> dict[str, Any]:
-    from services import member_service
-
-    return member_service.register(session_id, phone, scope=scope, **values)
+    return _member.register(session_id, phone, scope=scope, **values)
 
 
 def get_session_member(session_id: str, scope: Any = None) -> MemberView | None:
-    from services import member_service
-
-    return member_service.get_session_member(session_id, scope)  # type: ignore[return-value]
+    return _member.get_session_member(session_id, scope)  # type: ignore[return-value]
 
 
 def normalize_phone(value: Any) -> str:
-    from services import member_service
-
-    return member_service.normalize_phone(value)
+    return _member.normalize_phone(value)
 
 
 def mask_phone(value: Any) -> str:
-    from services import member_service
-
-    return member_service.mask_phone(value)
+    return _member.mask_phone(value)
 
 
 def public_member(value: dict[str, Any] | None) -> dict[str, Any] | None:
-    from services import member_service
-
-    return member_service._public_member(value) if value else None
+    return _member._public_member(value) if value else None
 
 
 def _forward(name: str, *args: Any, **kwargs: Any) -> Any:
-    from services import member_service
-
-    return getattr(member_service, name)(*args, **kwargs)
+    # `member_service` below is the published proxy, whose __getattr__ resolves
+    # back into this module. Forwarding has to reach the implementation.
+    return getattr(_member, name)(*args, **kwargs)
 
 
 def admin_clear_records(*args: Any, **kwargs: Any) -> Any:
@@ -94,9 +87,7 @@ def __getattr__(name: str):
         "export_members_csv",
         "record_abandoned_order",
     }:
-        from services import member_service
-
-        return getattr(member_service, name)
+        return getattr(_member, name)
     raise AttributeError(name)
 
 

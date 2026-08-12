@@ -54,10 +54,15 @@ def _module_parts(imported: str) -> list[str]:
 # the execution plan still counts it against the Module Independence Gate.
 # This list may only shrink: a converged capability is deleted from it, and a
 # new one may never be added.
+#
+# Converging one does not empty services/. Some of what remains there is shared
+# by several capabilities — `rag_provider`, `availability_service`,
+# `postgres_utils` — and a module reaching those is a cross-capability
+# dependency, not a capability failing to own its implementation. Those move on
+# their own terms; putting them inside one capability would make the others
+# import a third capability's internals.
 CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
-    "backend/capabilities/member/interface.py",
     "backend/capabilities/operations_configuration/interface.py",
-    "backend/capabilities/ordering/interface.py",
     "backend/capabilities/recommendation_analytics/interface.py",
 }
 

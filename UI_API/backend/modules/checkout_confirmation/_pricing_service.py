@@ -13,7 +13,13 @@ from capabilities.campaign_promotion import (
     select_promotion_quote,
 )
 from models.commercial_scope import CommercialScope
-from services import availability_service, commercial_shadow_service
+
+# availability_service stays in services/ on purpose: the context it builds is
+# shared with recommendation, so it is a cross-capability dependency rather
+# than this capability's private implementation. Tracked as shared
+# infrastructure, not as an ordering tail.
+from modules.checkout_confirmation import _pricing_shadow as commercial_shadow_service
+from services import availability_service
 
 CHECKOUT_CALCULATION_VERSION = "checkout-v1"
 CHECKOUT_CURRENCY = "TWD"

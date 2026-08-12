@@ -10,9 +10,14 @@ from uuid import UUID, uuid4
 
 import config
 from capabilities import catalog
+
+# Recommendation events belong to another capability; they are read through its
+# published surface rather than by reaching for its table.
+from capabilities.recommendation_analytics import recommendation_event_repository
 from models.commercial_scope import CommercialScope
-from repositories import member_repository, member_session_repository, recommendation_event_repository
-from services.member_pii_service import configured_key_provider, phone_lookup_hash, protect_phone
+from modules.member._pii import configured_key_provider, phone_lookup_hash, protect_phone
+from modules.member.adapters import member as member_repository
+from modules.member.adapters import sessions as member_session_repository
 
 _session_member: dict[str, str] = {}
 _lock = threading.Lock()

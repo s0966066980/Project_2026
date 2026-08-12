@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
 COMMERCIAL_REPO_FILES = (
-    "repositories/member_repository.py",
-    "repositories/checkout_order_repository.py",
+    "modules/member/adapters/member.py",
+    "modules/checkout_confirmation/adapters/orders.py",
     "repositories/admin_identity_repository.py",
     "modules/identity/adapters/device_identity.py",
     "repositories/worker_job_repository.py",

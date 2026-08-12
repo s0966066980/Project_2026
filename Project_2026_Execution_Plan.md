@@ -35,7 +35,8 @@ Independent Product Frontends:    2 / 2 passed
 Project Core Brain (P3):          REPOSITORY SCOPE PASSED；provider 執行 ready-for-human
 Current active stage:             P4→P7 repository convergence（local Ollama；外部/hardware evidence blocked）
 Legacy HTTP compatibility surface: ZERO（2026-08-12 撤除 67 條，見 ADR-0062）
-Legacy horizontal layer usage:    未清零 — 4 個 capability interface 仍讀 services／repositories（Identity、Emotion、Campaign/Promotion、Knowledge/RAG 已收斂）
+Legacy horizontal layer usage:    未清零 — 2 個 capability interface 仍讀 services／repositories
+                                  （已收斂：Identity、Emotion、Campaign/Promotion、Knowledge/RAG、Ordering、Member）
 Project Completion:               NOT ACHIEVED
 ```
 
@@ -381,10 +382,16 @@ import zero-use、frontend shared transport、capability ownership inventory、�
 與只為遷移存在的 runtime code；保留 migrations、ADR、audit 與必要歷史。
 
 **capability 收斂清單**：`tests/test_architecture_boundaries.py` 的
-`CAPABILITIES_STILL_ON_LEGACY_LAYERS` 是這項工作的權威盤點 —— 目前四個 capability
-interface 仍向 `services`/`repositories` 取值（member、operations_configuration、
-ordering、recommendation_analytics）。Identity、Emotion、Campaign/Promotion 與
-Knowledge/RAG 已於 2026-08-12 收斂並從清單移除。該清單只能縮短：capability 收斂後從清單刪除，測試會強制
+`CAPABILITIES_STILL_ON_LEGACY_LAYERS` 是這項工作的權威盤點 —— 目前兩個 capability
+interface 仍向 `services`/`repositories` 取值（operations_configuration、
+recommendation_analytics）。Identity、Emotion、Campaign/Promotion、Knowledge/RAG、
+Ordering 與 Member 已於 2026-08-12 收斂並從清單移除。
+
+收斂一個 capability 不會清空 `services/`。剩下的一部分是多個 capability 共用的
+（`rag_provider`、`availability_service`、`postgres_utils`、observability），module
+取用它們是跨能力依賴，不是 capability 沒有擁有自己的實作；把它們塞進某一個
+capability 只會讓其他 capability 去 import 第三方的內部。這類共用基礎設施要各自
+獨立處理。該清單只能縮短：capability 收斂後從清單刪除，測試會強制
 要求刪除已收斂的項目；新項目一律不得加入。清單清空即為此段「horizontal 層已清空」的證據。
 
 **全候選成品測試矩陣**（同一 commit／digests／config／migration／environment）：
