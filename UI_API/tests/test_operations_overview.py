@@ -5,11 +5,15 @@ included, which is exactly how a reporting number stops meaning what its label
 says. These pin the exclusions and the definitions that must reach the screen.
 """
 
+import pytest
+
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.operations_overview.module import (
     PLACEHOLDER_RECOMMENDATION_SOURCES,
     OperationsOverviewModule,
 )
+
+pytestmark = [pytest.mark.unit]
 
 SCOPE = LEGACY_DEFAULT_SCOPE
 SINCE = "2026-08-06T00:00:00+00:00"

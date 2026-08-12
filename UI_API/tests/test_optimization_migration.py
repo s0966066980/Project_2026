@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 MIGRATION = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0028_optimization_lab.sql"
 
 

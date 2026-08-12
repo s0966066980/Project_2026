@@ -17,7 +17,11 @@ from repositories.redis_shared_adapter import RedisSharedInfrastructureAdapter, 
 
 REDIS_URL = str(os.environ.get("REDIS_URL", "") or "").strip()
 
-pytestmark = pytest.mark.skipif(not REDIS_URL, reason="REDIS_URL is not configured")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.redis,
+    pytest.mark.skipif(not REDIS_URL, reason="REDIS_URL is not configured"),
+]
 
 
 @pytest.fixture()

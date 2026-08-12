@@ -8,9 +8,13 @@ database the pilot actually runs on.
 
 import os
 
+import pytest
+
 from modules.voice_turn.postgres_store import PostgresVoiceTurnStore
 from modules.voice_turn.sqlite_store import SQLiteVoiceTurnStore
 from repositories import postgres_utils
+
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 
 def _requested_backend() -> str:

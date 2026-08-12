@@ -43,21 +43,20 @@ known-first-party = [
 "main.py" = ["E402"]
 
 [tool.pytest.ini_options]
+# Layer markers. Every test file carries at least one, enforced by
+# tests/test_test_taxonomy.py — the previous set was fourteen domain markers
+# that no test ever used, so `pytest -m integration` selected nothing and the
+# selection gate could not be met.
 markers = [
-  "smoke: fastest process import and critical path probes",
-  "core: pure domain contracts used in daily local gate",
-  "security: auth, permission, scope, secret redaction",
-  "identity: admin/device/member identity",
-  "checkout: order pricing and transitions",
-  "worker: jobs outbox handlers",
-  "rag: rag governance",
-  "recommendation: recommendation/promotion",
-  "fleet: fleet management",
-  "analytics: analytics pipeline",
-  "api: http contract",
-  "integration: requires host postgres/redis",
-  "extended: full suite / milestone only",
-  "external: payment cloud pos telemetry",
+  "unit: domain and service logic with no application or I/O dependency",
+  "contract: published HTTP or schema contracts, including the app surface",
+  "architecture: static structure rules over the source tree",
+  "security: auth, permission, scope, secret redaction, container contract",
+  "integration: requires a real database, Redis, or an external process",
+  "postgres: requires PostgreSQL specifically",
+  "redis: requires Redis specifically",
+  "slow: builds real repositories or runs sidecar processes",
+  "hardware: requires the target Kiosk device; never runs in CI",
 ]
 
 [tool.mypy]

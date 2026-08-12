@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from project_analyst import contract, profiles
 from project_analyst.service import create_app
 
+pytestmark = [pytest.mark.slow]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 OVERLAY = REPOSITORY_ROOT / "docker" / "compose.project-analyst.yaml"
 

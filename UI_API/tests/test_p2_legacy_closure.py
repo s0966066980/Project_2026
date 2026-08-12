@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.architecture]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 

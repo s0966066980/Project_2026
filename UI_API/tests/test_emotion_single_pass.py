@@ -1,7 +1,11 @@
 import asyncio
 
+import pytest
+
 from models.multimodal_evidence import MultimodalEvidence
 from services import emotion_service
+
+pytestmark = [pytest.mark.unit]
 
 
 def _evidence(*, status="ok", quality="ok", has_evidence=True):

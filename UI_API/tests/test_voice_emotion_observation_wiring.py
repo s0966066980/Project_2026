@@ -9,8 +9,12 @@ only when a customer finishes a Voice Turn. This pins the seam.
 import inspect
 import re
 
+import pytest
+
 import services.voice_service as voice_service
 from modules.voice_turn import runtime
+
+pytestmark = [pytest.mark.unit]
 
 
 def test_voice_turn_runtime_lazy_imports_resolve():

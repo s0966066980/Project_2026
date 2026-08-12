@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.architecture]
 DOCKERFILE = Path(__file__).resolve().parents[2] / "docker/Dockerfile"
 DOCKERFILE_IGNORE = DOCKERFILE.with_name("Dockerfile.dockerignore")
 

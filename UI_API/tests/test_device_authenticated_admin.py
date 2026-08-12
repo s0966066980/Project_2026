@@ -1,8 +1,11 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
 from services import emotion_service
 from utils import auth_utils
+
+pytestmark = [pytest.mark.contract, pytest.mark.security]
 
 
 def test_device_identity_receives_complete_admin_access():

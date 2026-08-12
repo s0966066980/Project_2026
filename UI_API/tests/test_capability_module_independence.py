@@ -9,9 +9,12 @@ PostgreSQL/restart/E2E evidence is collected per wave.
 import ast
 from pathlib import Path
 
+import pytest
+
 from backend.api.route_registry import ROUTE_REGISTRY
 from backend.capabilities import CAPABILITIES
 
+pytestmark = [pytest.mark.architecture]
 UI_API_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = UI_API_ROOT / "backend"
 ROUTE_ROOT = BACKEND_ROOT / "routes"

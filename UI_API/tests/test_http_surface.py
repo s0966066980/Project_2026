@@ -1,6 +1,9 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+
+pytestmark = [pytest.mark.contract]
 
 
 def test_live_kiosk_and_admin_http_surfaces_are_available():

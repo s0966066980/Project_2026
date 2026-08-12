@@ -19,6 +19,9 @@ from project_analysis import evidence
 # --- Accepted evidence ------------------------------------------------------
 
 
+pytestmark = [pytest.mark.architecture]
+
+
 @pytest.mark.parametrize(
     "path",
     [

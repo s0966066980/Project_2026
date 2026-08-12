@@ -1,6 +1,10 @@
 import asyncio
 
+import pytest
+
 from services import ai_push_service
+
+pytestmark = [pytest.mark.unit]
 
 
 def test_assist_recommendations_do_not_apply_push_scope(monkeypatch):

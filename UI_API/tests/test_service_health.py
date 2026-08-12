@@ -7,7 +7,11 @@ that is not there leaves a broken kiosk running. Every case here is about keepin
 the claim no stronger than the observation.
 """
 
+import pytest
+
 from modules.service_health.module import WATCHED_SERVICES, ServiceHealthModule
+
+pytestmark = [pytest.mark.unit]
 
 
 class _Probe:

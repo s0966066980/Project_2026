@@ -1,6 +1,10 @@
+import pytest
+
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.voice_turn.module import VoiceTurnModule
 from modules.voice_turn.sqlite_store import SQLiteVoiceTurnStore
+
+pytestmark = [pytest.mark.contract]
 
 
 class _STT:

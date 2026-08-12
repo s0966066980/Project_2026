@@ -13,6 +13,9 @@ one of them was edited.
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.contract]
 BACKEND = Path(__file__).resolve().parents[1] / "backend"
 MIGRATIONS = BACKEND / "schemas" / "migrations"
 

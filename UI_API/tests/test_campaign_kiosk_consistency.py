@@ -2,8 +2,12 @@ from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from services import promotion_banner_service
+
+pytestmark = [pytest.mark.unit]
 
 
 def _banner(campaign_id: str, *, title: str) -> dict:

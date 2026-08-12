@@ -21,6 +21,7 @@ import pytest
 from project_analysis import report_store, sidecar_client, snapshot
 from services import project_brain_service
 
+pytestmark = [pytest.mark.slow]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 

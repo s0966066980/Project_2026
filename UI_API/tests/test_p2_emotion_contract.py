@@ -4,6 +4,8 @@ from pydantic import ValidationError
 import config
 from models.settings_contract import SettingsUpdateRequest
 
+pytestmark = [pytest.mark.contract]
+
 
 @pytest.mark.parametrize("mode", ["off", "periodic_ordering", "voice_only"])
 def test_emotion_settings_use_only_the_three_canonical_modes(mode):

@@ -4,10 +4,13 @@ import asyncio
 from types import SimpleNamespace
 from uuid import UUID
 
+import pytest
+
 from models.commercial_scope import CommercialScope
 from services import rag_knowledge_service
 from services.rag_provider import RAGProvider
 
+pytestmark = [pytest.mark.unit]
 SCOPE = CommercialScope(
     tenant_id=UUID("00000000-0000-4000-8000-000000000001"),
     store_id=UUID("00000000-0000-4000-8000-000000000002"),

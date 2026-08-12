@@ -5,6 +5,8 @@ import pytest
 from models.commercial_scope import CommercialScope
 from modules.checkout_confirmation.module import CheckoutConfirmationModule, CheckoutError
 
+pytestmark = [pytest.mark.contract]
+
 
 class Cart:
     def get(self, *, scope, session_id):

@@ -2,8 +2,11 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 from backend.capabilities import CAPABILITIES
 
+pytestmark = [pytest.mark.architecture]
 UI_API_ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES_ROOT = UI_API_ROOT / "backend" / "capabilities"
 FOUNDATION_ROOT = UI_API_ROOT / "backend" / "foundation"

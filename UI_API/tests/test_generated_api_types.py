@@ -10,6 +10,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.contract, pytest.mark.integration]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = REPO_ROOT / "tools" / "generate_api_types.py"
 GENERATED = REPO_ROOT / "UI_API" / "frontend" / "shared" / "contracts" / "api-v1-catalog.ts"

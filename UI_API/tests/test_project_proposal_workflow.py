@@ -19,6 +19,8 @@ from pathlib import Path
 import pytest
 from project_analyst import proposer
 
+pytestmark = [pytest.mark.slow]
+
 
 def _git(*args: str, cwd: Path) -> str:
     result = subprocess.run(

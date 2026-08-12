@@ -16,6 +16,7 @@ from modules.knowledge_publication.sqlite_store import SQLitePublicationStore
 from modules.retrieval_check.module import RetrievalCheckError, RetrievalCheckModule, RetrievalIdentity
 from modules.retrieval_check.sqlite_store import SQLiteRetrievalCheckStore
 
+pytestmark = [pytest.mark.unit]
 SCOPE = LEGACY_DEFAULT_SCOPE
 ACTOR = "admin-1"
 

@@ -4,6 +4,8 @@ from pydantic import ValidationError
 import config
 from models.settings_contract import SettingsUpdateRequest
 
+pytestmark = [pytest.mark.contract]
+
 
 def test_emotion_settings_expose_only_the_single_pass_contract():
     update = SettingsUpdateRequest(

@@ -11,8 +11,11 @@ and anything added back shows up as an unexpected path.
 
 from pathlib import Path
 
+import pytest
+
 from routes.v1_knowledge_routes import create_router
 
+pytestmark = [pytest.mark.contract]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # Knowledge Item CRUD, including the retirement step that makes deletion safe.

@@ -1,5 +1,9 @@
+import pytest
+
 from models.multimodal_evidence import MultimodalEvidence, MultimodalEvidenceRequest
 from services import multimodal_evidence_gateway as gateway
+
+pytestmark = [pytest.mark.contract]
 
 
 def request() -> MultimodalEvidenceRequest:

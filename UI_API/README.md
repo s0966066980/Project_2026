@@ -124,6 +124,24 @@ docker compose --env-file .env \
 
 寫入型 maintenance command 必須 dry-run、明確 flag 或具備可觀測的冪等語意，且不得輸出 secrets、完整 PII 或 document content。
 
+## 測試分層
+
+每個測試檔至少帶一個層級 marker，可以單獨選取：
+
+```bash
+pytest -m unit           # domain 與 service 邏輯，不碰應用程式或 I/O
+pytest -m contract       # 已發佈的 HTTP 與 schema 契約
+pytest -m architecture   # 對原始碼樹的靜態結構規則
+pytest -m security       # 認證、權限、scope、secret、容器契約
+pytest -m integration    # 需要真實資料庫、Redis 或外部程序
+pytest -m slow           # 會建立真實 repository 或啟動 sidecar
+pytest -m "not hardware" # 排除需要目標 Kiosk 實機的測試
+```
+
+`postgres`、`redis`、`hardware` 是附加的環境 marker。分層由
+`tests/test_test_taxonomy.py` 強制：新增測試檔沒掛 marker、或宣告了沒人用的
+marker，都會讓測試失敗。
+
 ## 驗證
 
 核心 container tests 與 health smoke：

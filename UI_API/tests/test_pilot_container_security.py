@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+pytestmark = [pytest.mark.security]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PILOT_OVERLAY = REPOSITORY_ROOT / "docker" / "compose.pilot.yaml"
 BASE_COMPOSE = REPOSITORY_ROOT / "docker" / "compose.yaml"

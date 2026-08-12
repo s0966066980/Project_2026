@@ -7,10 +7,13 @@ port, so Admin and Kiosk device verification hung with nothing to react to.
 
 import asyncio
 
+import pytest
 from fastapi.testclient import TestClient
 
 from bootstrap import startup
 from main import app
+
+pytestmark = [pytest.mark.contract]
 
 
 async def _no_warmup():

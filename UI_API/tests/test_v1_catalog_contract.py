@@ -5,10 +5,12 @@ of what a Store Menu Item is. A published contract that leaked them would make
 every one of them a promise the capability has to keep.
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
 
+pytestmark = [pytest.mark.contract]
 INTERNAL_KEYS = {
     "image_ref",
     "image_source",

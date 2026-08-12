@@ -1,8 +1,11 @@
 """The Admin member service owns one versioned browser surface."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+
+pytestmark = [pytest.mark.contract]
 
 
 def test_member_list_and_missing_detail_use_the_versioned_envelope():

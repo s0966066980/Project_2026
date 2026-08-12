@@ -9,6 +9,8 @@ from modules.optimization_lab import OptimizationLabError
 from modules.optimization_lab.module import AnalyzerRegistry, OptimizationLabModule
 from modules.optimization_lab.sqlite_store import SQLiteOptimizationLabStore
 
+pytestmark = [pytest.mark.unit]
+
 
 def _clock_box():
     return [datetime(2026, 8, 12, 4, 0, tzinfo=timezone.utc)]

@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+pytestmark = [pytest.mark.unit]
 MIGRATION = Path(__file__).resolve().parents[1] / "backend/schemas/migrations/0027_remove_pre_pilot_rag_history.sql"
 
 

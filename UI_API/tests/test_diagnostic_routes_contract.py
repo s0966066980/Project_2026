@@ -1,6 +1,10 @@
+import pytest
+
 import config
 from app_factory import _api_documentation_urls
 from routes.v1_diagnostic_routes import create_router
+
+pytestmark = [pytest.mark.contract]
 
 
 def test_diagnostic_surface_has_explicit_paths_and_no_legacy_test_routes():
