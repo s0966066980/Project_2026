@@ -150,5 +150,6 @@ Project_2026/
 | [docker/README.md](docker/README.md) | Compose 分層、更新與除錯、安全邊界、Local Pilot 硬化流程 |
 | [UI_API/README.md](UI_API/README.md) | 能力邊界、Admin/Kiosk 分工、maintenance CLI |
 | [Project_2026_Execution_Plan.md](Project_2026_Execution_Plan.md) | 完成度與阻塞證據 |
+| [docs/upgrade/](docs/upgrade/) | Commercial V1 升級路線與 gate 證據 |
 | [CONTEXT.md](CONTEXT.md) | domain glossary |
 | [docs/adr/](docs/adr/) | 架構決策紀錄 |

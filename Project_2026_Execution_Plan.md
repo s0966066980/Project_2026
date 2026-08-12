@@ -3,6 +3,9 @@
 > **狀態基線**：`main@9ac0a1c`，2026-08-12
 > **本文件是唯一的流程權威**。它取代並合併了先前的四份文件：`Project_2026_P2_to_P7_Execution_Plan.md`、`Project_2026_Project_Completeness_Roadmap.md`、`Project_2026_Remaining_Work_Execution_Handoff.md`、`Project_2026_Remaining_Work_Codex_Prompt.md`。
 > **領域詞彙**以 [`CONTEXT.md`](CONTEXT.md) 為準，**決策**以 [`docs/adr/`](docs/adr/) 為準，兩者不受本文件取代。
+> **本文件是「狀態」的權威**：現在通過了什麼、證據在哪、缺什麼輸入。
+> **[`docs/upgrade/`](docs/upgrade/) 是「路線」的權威**：要成為 Commercial V1 還要做什麼、順序與 Gate。
+> 兩者對「已達成什麼」若有出入，以本文件為準並修正路線文件。
 
 ---
 
