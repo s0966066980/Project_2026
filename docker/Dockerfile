@@ -65,6 +65,9 @@ COPY docker/ /app/docker/
 # The sidecar tests import project_analyst directly. Missing, they do not skip —
 # collection fails and takes the whole suite with it.
 COPY project_analyst/ /app/project_analyst/
+# Same reason again for the retired-settings-key gate: it reads the stored
+# settings document, which the runtime images deliberately do not carry.
+COPY UI_API/learning_data/settings.json /app/UI_API/learning_data/settings.json
 USER project2026
 
 # Keep the CPU runtime target before the optional AI stages. This also lets
