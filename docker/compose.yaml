@@ -35,6 +35,7 @@ x-app-image: &app-image
     target: runtime
     args:
       APP_GIT_REVISION: ${APP_GIT_REVISION:-unknown}
+      APP_BUILD_TIME: ${APP_BUILD_TIME:-unknown}
   image: project-2026:local
 
 services:

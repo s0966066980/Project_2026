@@ -35,6 +35,27 @@ class _WorkerServiceProxy:
 worker_service = _WorkerServiceProxy()
 
 
+def build_metadata() -> dict[str, str]:
+    """What this running build is, for an operator standing in front of the device.
+
+    Every field is a property of the build or its configuration; none is a
+    secret, and none reads the database. `schema_version` is the migration head
+    the build carries, not the head the database is at — those differ exactly
+    when a deployment is half-applied, which is when the difference matters.
+    """
+
+    import config
+    from modules.runtime_persistence.migrations import local_schema_head
+
+    return {
+        "version": config.APP_VERSION,
+        "git_sha": config.APP_GIT_REVISION or "unknown",
+        "build_time": config.APP_BUILD_TIME or "unknown",
+        "schema_version": local_schema_head() or "unknown",
+        "deployment_profile": config.APP_ENV,
+    }
+
+
 def readiness_snapshot() -> ReadinessSnapshot:
     from services import health_service
 
@@ -174,6 +195,7 @@ __all__ = [
     "delete_session_log",
     "compute_session_stats",
     "readiness_snapshot",
+    "build_metadata",
     "service_health_runtime",
     "observability_service",
     "worker_service",

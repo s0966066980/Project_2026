@@ -13,6 +13,18 @@ MigrationPlan = postgres_utils.MigrationPlan
 MigrationValidationError = postgres_utils.MigrationValidationError
 
 
+def local_schema_head() -> str:
+    """The newest migration this build carries, read from disk rather than the database.
+
+    A build reports the schema it was built against even when the database is
+    unreachable, which is exactly when an operator is trying to find out which
+    version is deployed.
+    """
+
+    files = postgres_utils.migration_files()
+    return files[-1].stem if files else ""
+
+
 def inspect_schema() -> MigrationPlan:
     """Read migration state without changing schema."""
 
@@ -37,6 +49,7 @@ __all__ = [
     "MigrationPlan",
     "MigrationValidationError",
     "inspect_schema",
+    "local_schema_head",
     "migrate_to_head",
     "require_schema_head",
 ]

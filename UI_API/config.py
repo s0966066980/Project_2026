@@ -34,6 +34,11 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower() or "development"
+#: The application version. app_factory publishes it as the OpenAPI version and
+#: the build-metadata endpoint reports it, so the two cannot drift apart.
+APP_VERSION = os.getenv("APP_VERSION", "9.0").strip() or "9.0"
+APP_GIT_REVISION = os.getenv("APP_GIT_REVISION", "").strip()
+APP_BUILD_TIME = os.getenv("APP_BUILD_TIME", "").strip()
 SECURITY_ENFORCED = _env_bool("SECURITY_ENFORCED", APP_ENV in ("production", "staging"))
 ALLOW_UNSAFE_PRODUCTION_ROUTES = _env_bool("ALLOW_UNSAFE_PRODUCTION_ROUTES", False)
 ALLOW_POSTGRES_JSON_FALLBACK = _env_bool("ALLOW_POSTGRES_JSON_FALLBACK", False)

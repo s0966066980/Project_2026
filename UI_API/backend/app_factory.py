@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
     observability_service.configure_logging()
     app = FastAPI(
         title="Smart Ordering Kiosk API",
-        version="9.0",
+        version=config.APP_VERSION,
         lifespan=lifespan,
         **_api_documentation_urls(),
     )

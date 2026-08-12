@@ -19,6 +19,18 @@ from utils.auth_utils import authorize_admin_request, check_rate_limit
 def create_router(_deps: dict | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["v1-operations"])
 
+    @router.get("/operations/build")
+    async def get_build_metadata(request: Request):
+        """Which build is running.
+
+        The metadata itself needs no database, so it stays accurate when the
+        schema state cannot be read. Authentication is a separate matter: with
+        device security enforced, reaching this route still requires a session.
+        """
+
+        authorize_admin_request(request, "operations.read")
+        return {"status": "success", "build": operations.build_metadata()}
+
     @router.delete("/operations/session-stats")
     async def clear_session_stats(request: Request):
         authorize_admin_request(request, "operations.write")

@@ -1280,6 +1280,12 @@
       "request_schema": "",
       "response_schema": ""
     },
+    "GET /api/v1/operations/build": {
+      "operation_id": "get_build_metadata_api_v1_operations_build_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
     "GET /api/v1/operations/logs": {
       "operation_id": "get_logs_api_v1_operations_logs_get",
       "parameters": [],

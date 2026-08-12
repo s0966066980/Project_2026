@@ -13,6 +13,10 @@ FROM python:3.10-slim-bookworm AS base
 # for a digest-pinned artifact the revision is a property of the image anyway.
 ARG APP_GIT_REVISION=unknown
 ENV APP_GIT_REVISION=${APP_GIT_REVISION}
+# Stamped at build time so a deployed container can say when it was produced
+# without reaching a registry or a git checkout.
+ARG APP_BUILD_TIME=unknown
+ENV APP_BUILD_TIME=${APP_BUILD_TIME}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
