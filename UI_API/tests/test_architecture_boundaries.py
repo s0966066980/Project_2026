@@ -55,7 +55,6 @@ def _module_parts(imported: str) -> list[str]:
 # This list may only shrink: a converged capability is deleted from it, and a
 # new one may never be added.
 CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
-    "backend/capabilities/knowledge_rag/interface.py",
     "backend/capabilities/member/interface.py",
     "backend/capabilities/operations_configuration/interface.py",
     "backend/capabilities/ordering/interface.py",

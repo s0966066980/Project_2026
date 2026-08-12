@@ -15,7 +15,7 @@ from .sqlite_store import SQLiteRetrievalCheckStore
 
 class ProductionRetrievalEngine:
     async def retrieve(self, *, scope, query, method, top_k, relevance_policy):
-        from services import rag_knowledge_service
+        from modules.knowledge_publication import _knowledge_service as rag_knowledge_service
 
         return await rag_knowledge_service.test_retrieval(
             scope=scope,
@@ -30,8 +30,8 @@ class ProductionRetrievalEngine:
 
 class ProductionRetrievalIdentityProvider:
     def current(self, *, scope) -> RetrievalIdentity:
+        from modules.knowledge_publication import _knowledge_service as rag_knowledge_service
         from modules.knowledge_publication import runtime as publication_runtime
-        from services import rag_knowledge_service
 
         attempts = sorted(publication_runtime.default_module().published_attempt_ids(scope=scope))
         index_identity = hashlib.sha256(

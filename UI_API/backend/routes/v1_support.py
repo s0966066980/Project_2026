@@ -199,10 +199,10 @@ def _admin_actor(request: Request) -> str:
 class CapabilityError(Protocol):
     """The shape every capability error carries into an HTTP response.
 
-    `services.rag_knowledge_service` imports the Knowledge/RAG capability, so
-    the capability cannot re-export its error classes without a cycle — and a
-    production route may not import a legacy service to borrow the name. The
-    contract these handlers actually rely on is the two attributes below.
+    The knowledge rules moved into their capability's module, so the cycle that
+    first blocked re-exporting these error classes is gone — but a production
+    route may not import a module directly either. The contract these handlers
+    actually rely on is the two attributes below.
     """
 
     code: str

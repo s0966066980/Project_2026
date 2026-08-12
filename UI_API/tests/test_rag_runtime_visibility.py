@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 
 from models.commercial_scope import CommercialScope
-from services import rag_knowledge_service
+from modules.knowledge_publication import _knowledge_service as rag_knowledge_service
 from services.rag_provider import RAGProvider
 
 pytestmark = [pytest.mark.unit]

@@ -14,11 +14,16 @@ from threading import Lock
 from typing import Any
 
 import config
-from capabilities.knowledge_rag import knowledge_publication_runtime
-from capabilities.knowledge_rag.contracts import (
+from models.commercial_scope import CommercialScope
+
+# Reaching the capability from inside it was a cycle: the published surface
+# proxied into this file, and this file imported the surface back. The modules
+# these names come from are imported directly instead.
+from modules.knowledge_publication import runtime as knowledge_publication_runtime
+from modules.retrieval_configuration import (
     INDEX_VERSION as _INDEX_VERSION,
 )
-from capabilities.knowledge_rag.contracts import (
+from modules.retrieval_configuration import (
     METHODS,
     PRESET_VERSION,
     RELEVANCE_POLICIES,
@@ -28,7 +33,6 @@ from capabilities.knowledge_rag.contracts import (
     RetrievalConfigurationModule,
     SQLiteRetrievalConfigurationStore,
 )
-from models.commercial_scope import CommercialScope
 from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
 from services.rag_provider import get_rag
