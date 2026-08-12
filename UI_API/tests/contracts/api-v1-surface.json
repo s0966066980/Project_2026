@@ -1,0 +1,1837 @@
+{
+  "models": {
+    "AdminPrincipalDTO": {
+      "properties": [
+        "allowed_store_ids",
+        "auth_method",
+        "permissions",
+        "roles",
+        "session_id",
+        "tenant_id",
+        "user_id"
+      ],
+      "required": [
+        "allowed_store_ids",
+        "auth_method",
+        "permissions",
+        "roles",
+        "tenant_id",
+        "user_id"
+      ]
+    },
+    "AnalyzeRequest": {
+      "properties": [
+        "profile"
+      ],
+      "required": [
+        "profile"
+      ]
+    },
+    "ApiMeta": {
+      "properties": [
+        "request_id",
+        "timestamp"
+      ],
+      "required": [
+        "request_id",
+        "timestamp"
+      ]
+    },
+    "ApiResponse_AdminPrincipalDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_AvailabilityDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CampaignPreviewDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CampaignSnapshotDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CartQuoteDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CatalogAvailabilityDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CatalogItemDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CatalogItemListDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CommercialContextDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_CommercialTouchReceiptDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_FleetCommandDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_OrderSummaryDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_PromotionSummaryDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_RecommendationEffectivenessDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_SettingsDTO_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_dict_": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_list_CampaignSnapshotDTO__": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "ApiResponse_list_MenuPriceProjectionDTO__": {
+      "properties": [
+        "data",
+        "meta"
+      ],
+      "required": [
+        "data",
+        "meta"
+      ]
+    },
+    "AuditRecordDTO": {
+      "properties": [
+        "action",
+        "actor",
+        "audit_id",
+        "created_at",
+        "target_id",
+        "target_type"
+      ],
+      "required": [
+        "action",
+        "actor",
+        "audit_id",
+        "target_id",
+        "target_type"
+      ]
+    },
+    "AvailabilityDTO": {
+      "properties": [
+        "available",
+        "item_id",
+        "reason"
+      ],
+      "required": [
+        "available",
+        "item_id"
+      ]
+    },
+    "AvailabilityPutRequest": {
+      "properties": [
+        "available",
+        "idempotency_key",
+        "reason"
+      ],
+      "required": [
+        "available"
+      ]
+    },
+    "CampaignCreativeRequest": {
+      "properties": [
+        "badge",
+        "cta",
+        "description",
+        "theme",
+        "title"
+      ],
+      "required": []
+    },
+    "CampaignDraftRequest": {
+      "properties": [
+        "audience",
+        "creatives",
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ],
+      "required": [
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ]
+    },
+    "CampaignDraftUpdateRequest": {
+      "properties": [
+        "audience",
+        "creatives",
+        "expected_version",
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ],
+      "required": [
+        "expected_version",
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ]
+    },
+    "CampaignPreviewDTO": {
+      "properties": [
+        "conflicts",
+        "field_errors",
+        "impact_count",
+        "price_previews",
+        "summary",
+        "valid"
+      ],
+      "required": [
+        "conflicts",
+        "field_errors",
+        "impact_count",
+        "price_previews",
+        "summary",
+        "valid"
+      ]
+    },
+    "CampaignPreviewRequest": {
+      "properties": [
+        "audience",
+        "campaign_id",
+        "creatives",
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ],
+      "required": [
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ]
+    },
+    "CampaignPromotionRuleRequest": {
+      "properties": [
+        "item_ids",
+        "promotion_price",
+        "required_cart_item_ids",
+        "type"
+      ],
+      "required": [
+        "item_ids",
+        "promotion_price",
+        "type"
+      ]
+    },
+    "CampaignPublishRequest": {
+      "properties": [
+        "audience",
+        "campaign_id",
+        "creatives",
+        "expected_version",
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ],
+      "required": [
+        "name",
+        "objective",
+        "placements",
+        "promotion_rules",
+        "schedule"
+      ]
+    },
+    "CampaignScheduleRequest": {
+      "properties": [
+        "ends_at",
+        "starts_at"
+      ],
+      "required": []
+    },
+    "CampaignSnapshotDTO": {
+      "properties": [
+        "campaign_id",
+        "payload",
+        "status",
+        "version"
+      ],
+      "required": [
+        "campaign_id",
+        "payload",
+        "status",
+        "version"
+      ]
+    },
+    "CampaignTransitionRequest": {
+      "properties": [
+        "expected_version",
+        "target_status"
+      ],
+      "required": [
+        "expected_version",
+        "target_status"
+      ]
+    },
+    "CartQuoteDTO": {
+      "properties": [
+        "currency",
+        "discount_total",
+        "items",
+        "option_total",
+        "quote_version",
+        "subtotal",
+        "tax_total",
+        "total"
+      ],
+      "required": [
+        "currency",
+        "discount_total",
+        "items",
+        "option_total",
+        "quote_version",
+        "subtotal",
+        "tax_total",
+        "total"
+      ]
+    },
+    "CartQuoteItemRequest": {
+      "properties": [
+        "applied_offer_id",
+        "id",
+        "options",
+        "price",
+        "quantity",
+        "total"
+      ],
+      "required": [
+        "id"
+      ]
+    },
+    "CartQuoteLineDTO": {
+      "properties": [
+        "activity_id",
+        "activity_name",
+        "base_unit_price",
+        "category",
+        "discount_unit_total",
+        "effective_unit_price",
+        "item_id",
+        "name",
+        "option_unit_total",
+        "quantity"
+      ],
+      "required": [
+        "base_unit_price",
+        "category",
+        "discount_unit_total",
+        "effective_unit_price",
+        "item_id",
+        "name",
+        "option_unit_total",
+        "quantity"
+      ]
+    },
+    "CartQuoteRequest": {
+      "properties": [
+        "cart_items",
+        "session_id"
+      ],
+      "required": [
+        "cart_items"
+      ]
+    },
+    "CatalogAvailabilityCommandDTO": {
+      "properties": [
+        "disabled_item_ids",
+        "low_stock_item_ids",
+        "service_period",
+        "service_periods",
+        "sold_out_item_ids"
+      ],
+      "required": []
+    },
+    "CatalogAvailabilityDTO": {
+      "properties": [
+        "configured_service_period",
+        "items",
+        "service_period",
+        "service_periods"
+      ],
+      "required": [
+        "items"
+      ]
+    },
+    "CatalogAvailabilityRowDTO": {
+      "properties": [
+        "category",
+        "id",
+        "name",
+        "status",
+        "time_unavailable"
+      ],
+      "required": [
+        "id"
+      ]
+    },
+    "CatalogItemDTO": {
+      "properties": [
+        "aliases",
+        "availability_note",
+        "category",
+        "description",
+        "id",
+        "image",
+        "name",
+        "nutrition",
+        "prep_time_minutes",
+        "price",
+        "price_note",
+        "retired"
+      ],
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "CatalogItemListDTO": {
+      "properties": [
+        "categories",
+        "items"
+      ],
+      "required": [
+        "categories",
+        "items"
+      ]
+    },
+    "CatalogItemWriteDTO": {
+      "properties": [
+        "aliases",
+        "availability_note",
+        "category",
+        "description",
+        "image",
+        "name",
+        "nutrition",
+        "prep_time_minutes",
+        "price",
+        "price_note"
+      ],
+      "required": []
+    },
+    "CommercialContextDTO": {
+      "properties": [
+        "device_id",
+        "principal_type",
+        "store_id",
+        "tenant_id"
+      ],
+      "required": [
+        "principal_type",
+        "store_id",
+        "tenant_id"
+      ]
+    },
+    "CommercialTouchReceiptDTO": {
+      "properties": [
+        "accepted",
+        "data_quality",
+        "duplicate",
+        "event_id"
+      ],
+      "required": [
+        "accepted",
+        "data_quality",
+        "duplicate",
+        "event_id"
+      ]
+    },
+    "CommercialTouchRequest": {
+      "properties": [
+        "audience",
+        "campaign_id",
+        "campaign_version",
+        "decision_id",
+        "event_id",
+        "event_type",
+        "experiment_id",
+        "fallback_status",
+        "impression_id",
+        "item_id",
+        "metadata",
+        "occurred_at",
+        "placement",
+        "session_id",
+        "strategy",
+        "strategy_version",
+        "variant_id"
+      ],
+      "required": [
+        "event_id",
+        "event_type"
+      ]
+    },
+    "DeviceSessionRequest": {
+      "properties": [
+        "credential",
+        "key_id"
+      ],
+      "required": [
+        "credential",
+        "key_id"
+      ]
+    },
+    "EffectivenessBreakdownDTO": {
+      "properties": [
+        "add_to_carts",
+        "clicks",
+        "impressions",
+        "variant_id"
+      ],
+      "required": [
+        "add_to_carts",
+        "clicks",
+        "impressions",
+        "variant_id"
+      ]
+    },
+    "EvidenceFixture": {
+      "properties": [
+        "assistant_text",
+        "failure_type",
+        "observed_at",
+        "rag_hit",
+        "retry_outcome",
+        "synthetic",
+        "transcript",
+        "voice_outcome"
+      ],
+      "required": []
+    },
+    "FleetCommandDTO": {
+      "properties": [
+        "command",
+        "command_id",
+        "device_id",
+        "status"
+      ],
+      "required": [
+        "command",
+        "command_id",
+        "device_id",
+        "status"
+      ]
+    },
+    "FleetCommandRequest": {
+      "properties": [
+        "command",
+        "expires_at",
+        "idempotency_key"
+      ],
+      "required": [
+        "command",
+        "expires_at"
+      ]
+    },
+    "JsonValue": {
+      "properties": [],
+      "required": []
+    },
+    "MenuPriceProjectionDTO": {
+      "properties": [
+        "activity_id",
+        "activity_name",
+        "base_price",
+        "conditional",
+        "conditional_price",
+        "discount",
+        "effective_price",
+        "item_id",
+        "required_cart_item_ids"
+      ],
+      "required": [
+        "base_price",
+        "discount",
+        "effective_price",
+        "item_id"
+      ]
+    },
+    "MenuPriceProjectionRequest": {
+      "properties": [
+        "cart_item_ids",
+        "session_id"
+      ],
+      "required": []
+    },
+    "OrderSummaryDTO": {
+      "properties": [
+        "created_at",
+        "currency",
+        "member_id",
+        "order_id",
+        "status",
+        "total"
+      ],
+      "required": [
+        "created_at",
+        "currency",
+        "order_id",
+        "status",
+        "total"
+      ]
+    },
+    "OrderTransitionRequest": {
+      "properties": [
+        "idempotency_key",
+        "target_status"
+      ],
+      "required": [
+        "target_status"
+      ]
+    },
+    "PaginatedResponse_AuditRecordDTO_": {
+      "properties": [
+        "data",
+        "meta",
+        "pagination"
+      ],
+      "required": [
+        "data",
+        "meta",
+        "pagination"
+      ]
+    },
+    "PaginatedResponse_OrderSummaryDTO_": {
+      "properties": [
+        "data",
+        "meta",
+        "pagination"
+      ],
+      "required": [
+        "data",
+        "meta",
+        "pagination"
+      ]
+    },
+    "PaginatedResponse_PromotionSummaryDTO_": {
+      "properties": [
+        "data",
+        "meta",
+        "pagination"
+      ],
+      "required": [
+        "data",
+        "meta",
+        "pagination"
+      ]
+    },
+    "PaginatedResponse_RecommendationEventDTO_": {
+      "properties": [
+        "data",
+        "meta",
+        "pagination"
+      ],
+      "required": [
+        "data",
+        "meta",
+        "pagination"
+      ]
+    },
+    "PaginationMeta": {
+      "properties": [
+        "page",
+        "page_size",
+        "total",
+        "total_pages"
+      ],
+      "required": [
+        "page",
+        "page_size",
+        "total",
+        "total_pages"
+      ]
+    },
+    "PosPromotionBannerItem": {
+      "properties": [
+        "badge",
+        "categories",
+        "cta_text",
+        "description",
+        "end_at",
+        "id",
+        "item_ids",
+        "legal_text",
+        "member_only",
+        "original_price",
+        "promo_price",
+        "required_cart_item_ids",
+        "rotation_seconds",
+        "save_text",
+        "start_at",
+        "subtitle",
+        "target_type",
+        "target_value",
+        "theme",
+        "title"
+      ],
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "PosPromotionBannerResponse": {
+      "properties": [
+        "items"
+      ],
+      "required": []
+    },
+    "PromotionCreateRequest": {
+      "properties": [
+        "enabled",
+        "idempotency_key",
+        "metadata",
+        "offer_id",
+        "title"
+      ],
+      "required": [
+        "offer_id",
+        "title"
+      ]
+    },
+    "PromotionSummaryDTO": {
+      "properties": [
+        "enabled",
+        "offer_id",
+        "status",
+        "title"
+      ],
+      "required": [
+        "enabled",
+        "offer_id",
+        "status",
+        "title"
+      ]
+    },
+    "RagKnowledgeActionRequest": {
+      "properties": [
+        "expected_row_revision"
+      ],
+      "required": [
+        "expected_row_revision"
+      ]
+    },
+    "RagKnowledgePublishRequest": {
+      "properties": [
+        "item_ids",
+        "retry_failures_only"
+      ],
+      "required": [
+        "item_ids"
+      ]
+    },
+    "RagKnowledgeTestRequest": {
+      "properties": [
+        "method",
+        "query",
+        "relevance_policy",
+        "top_k"
+      ],
+      "required": [
+        "query"
+      ]
+    },
+    "RagKnowledgeUpsertRequest": {
+      "properties": [
+        "category",
+        "content",
+        "content_type",
+        "expected_row_revision",
+        "override_near_duplicate",
+        "title"
+      ],
+      "required": [
+        "category",
+        "content",
+        "content_type"
+      ]
+    },
+    "RagRetrievalConfigurationRequest": {
+      "properties": [
+        "method",
+        "relevance_policy",
+        "source_version",
+        "top_k"
+      ],
+      "required": []
+    },
+    "RecommendationEffectivenessDTO": {
+      "properties": [
+        "add_to_cart_rate",
+        "add_to_carts",
+        "attributed_discount",
+        "attributed_revenue",
+        "breakdowns",
+        "click_through_rate",
+        "clicks",
+        "comparisons",
+        "filters",
+        "ignore_rate",
+        "ignored",
+        "impressions",
+        "incomplete_events",
+        "provisional_attributions",
+        "purchase_rate",
+        "purchases",
+        "sample_warning"
+      ],
+      "required": [
+        "add_to_cart_rate",
+        "add_to_carts",
+        "attributed_discount",
+        "attributed_revenue",
+        "breakdowns",
+        "click_through_rate",
+        "clicks",
+        "comparisons",
+        "filters",
+        "ignore_rate",
+        "ignored",
+        "impressions",
+        "incomplete_events",
+        "provisional_attributions",
+        "purchase_rate",
+        "purchases",
+        "sample_warning"
+      ]
+    },
+    "RecommendationEventDTO": {
+      "properties": [
+        "audience",
+        "event_id",
+        "event_type",
+        "experiment_id",
+        "item_id",
+        "item_name",
+        "offer_ids",
+        "reasons",
+        "session_id",
+        "source",
+        "strategy",
+        "surface",
+        "timestamp",
+        "variant_id"
+      ],
+      "required": [
+        "event_id",
+        "event_type",
+        "item_id",
+        "session_id"
+      ]
+    },
+    "ServicePeriodWindowDTO": {
+      "properties": [
+        "end",
+        "start"
+      ],
+      "required": []
+    },
+    "SettingsDTO": {
+      "properties": [
+        "values"
+      ],
+      "required": [
+        "values"
+      ]
+    },
+    "SettingsPatchRequest": {
+      "properties": [
+        "expected_version",
+        "idempotency_key",
+        "values"
+      ],
+      "required": [
+        "values"
+      ]
+    },
+    "SimulationRequest": {
+      "properties": [
+        "data_scope",
+        "effort",
+        "model",
+        "profile",
+        "store_date",
+        "timezone"
+      ],
+      "required": [
+        "effort",
+        "model",
+        "profile",
+        "store_date",
+        "timezone"
+      ]
+    }
+  },
+  "operations": {
+    "DELETE /api/v1/admin/device-credentials/{credential_id}": {
+      "operation_id": "revoke_credential_api_v1_admin_device_credentials__credential_id__delete",
+      "parameters": [
+        "path:credential_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/catalog/items/{item_id}/retirement": {
+      "operation_id": "v1_restore_catalog_item",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "DELETE /api/v1/emotion/records": {
+      "operation_id": "clear_records_api_v1_emotion_records_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/interaction_events": {
+      "operation_id": "clear_interaction_events_api_v1_interaction_events_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/intervention_logs": {
+      "operation_id": "clear_intervention_logs_api_v1_intervention_logs_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/members/{member_ref}": {
+      "operation_id": "member_delete_api_v1_members__member_ref__delete",
+      "parameters": [
+        "path:member_ref!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/members/{member_ref}/records": {
+      "operation_id": "member_clear_records_api_v1_members__member_ref__records_delete",
+      "parameters": [
+        "path:member_ref!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/operations/logs": {
+      "operation_id": "clear_logs_api_v1_operations_logs_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/operations/logs/{log_index}": {
+      "operation_id": "delete_log_api_v1_operations_logs__log_index__delete",
+      "parameters": [
+        "path:log_index!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/operations/session-stats": {
+      "operation_id": "clear_session_stats_api_v1_operations_session_stats_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/rag/knowledge/{item_id}": {
+      "operation_id": "v1_delete_rag_knowledge",
+      "parameters": [
+        "path:item_id!",
+        "query:expected_row_revision!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "DELETE /api/v1/rag/retrieval/configurations/{version}": {
+      "operation_id": "v1_delete_rag_configuration",
+      "parameters": [
+        "path:version!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "DELETE /api/v1/recommendation_events": {
+      "operation_id": "clear_recommendation_events_api_v1_recommendation_events_delete",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/admin/audit_logs": {
+      "operation_id": "list_admin_audits_api_v1_admin_audit_logs_get",
+      "parameters": [
+        "query:limit"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/admin/health": {
+      "operation_id": "get_admin_health_api_v1_admin_health_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/ask/stream/{voice_turn_id}": {
+      "operation_id": "replay_voice_stream_api_v1_ask_stream__voice_turn_id__get",
+      "parameters": [
+        "path:voice_turn_id!",
+        "query:after_sequence"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/assist_recommend": {
+      "operation_id": "handle_assist_recommend_api_v1_assist_recommend_get",
+      "parameters": [
+        "query:cart_ids",
+        "query:session_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/audits": {
+      "operation_id": "v1_list_audits",
+      "parameters": [
+        "query:page",
+        "query:page_size"
+      ],
+      "request_schema": "",
+      "response_schema": "PaginatedResponse_AuditRecordDTO_"
+    },
+    "GET /api/v1/auth/me": {
+      "operation_id": "v1_get_current_admin",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_AdminPrincipalDTO_"
+    },
+    "GET /api/v1/campaigns": {
+      "operation_id": "v1_list_campaigns",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_list_CampaignSnapshotDTO__"
+    },
+    "GET /api/v1/campaigns/{campaign_id}": {
+      "operation_id": "v1_get_campaign",
+      "parameters": [
+        "path:campaign_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CampaignSnapshotDTO_"
+    },
+    "GET /api/v1/cart/{session_id}": {
+      "operation_id": "get_cart_api_v1_cart__session_id__get",
+      "parameters": [
+        "path:session_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/catalog/availability": {
+      "operation_id": "v1_get_catalog_availability",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogAvailabilityDTO_"
+    },
+    "GET /api/v1/catalog/items": {
+      "operation_id": "v1_list_catalog_items",
+      "parameters": [
+        "query:include_retired"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogItemListDTO_"
+    },
+    "GET /api/v1/catalog/items/{item_id}": {
+      "operation_id": "v1_get_catalog_item",
+      "parameters": [
+        "path:item_id!",
+        "query:include_retired"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "GET /api/v1/catalog/items/{item_id}/image": {
+      "operation_id": "v1_get_catalog_item_image",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/checkout/outcome/{quote_id}": {
+      "operation_id": "outcome_api_v1_checkout_outcome__quote_id__get",
+      "parameters": [
+        "path:quote_id!",
+        "query:idempotency_key!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/commercial-context": {
+      "operation_id": "v1_get_commercial_context",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CommercialContextDTO_"
+    },
+    "GET /api/v1/device/auth/session": {
+      "operation_id": "get_session_api_v1_device_auth_session_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/emotion/profiles": {
+      "operation_id": "profiles_api_v1_emotion_profiles_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/emotion/readiness": {
+      "operation_id": "readiness_api_v1_emotion_readiness_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/emotion/records": {
+      "operation_id": "records_api_v1_emotion_records_get",
+      "parameters": [
+        "query:limit"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/entry-flow/{entry_flow_id}": {
+      "operation_id": "get_api_v1_entry_flow__entry_flow_id__get",
+      "parameters": [
+        "path:entry_flow_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/interaction_events/{session_id}": {
+      "operation_id": "get_interaction_events_api_v1_interaction_events__session_id__get",
+      "parameters": [
+        "path:session_id!",
+        "query:limit"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/intervention_stats": {
+      "operation_id": "get_intervention_stats_api_v1_intervention_stats_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/members": {
+      "operation_id": "list_members_api_v1_members_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/members/export": {
+      "operation_id": "export_members_api_v1_members_export_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/members/{member_ref}": {
+      "operation_id": "member_detail_api_v1_members__member_ref__get",
+      "parameters": [
+        "path:member_ref!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/operations/logs": {
+      "operation_id": "get_logs_api_v1_operations_logs_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/operations/overview": {
+      "operation_id": "v1_get_operations_overview",
+      "parameters": [
+        "query:days"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "GET /api/v1/operations/service-health": {
+      "operation_id": "v1_get_service_health",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "GET /api/v1/operations/session-stats": {
+      "operation_id": "get_session_stats_api_v1_operations_session_stats_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/optimization/profiles": {
+      "operation_id": "profiles_api_v1_optimization_profiles_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/optimization/reports/{report_id}": {
+      "operation_id": "report_api_v1_optimization_reports__report_id__get",
+      "parameters": [
+        "path:report_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/optimization/reports/{report_id}/evidence/{evidence_id}": {
+      "operation_id": "expand_evidence_api_v1_optimization_reports__report_id__evidence__evidence_id__get",
+      "parameters": [
+        "path:evidence_id!",
+        "path:report_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/orders": {
+      "operation_id": "v1_list_orders",
+      "parameters": [
+        "query:page",
+        "query:page_size",
+        "query:sort_order",
+        "query:status"
+      ],
+      "request_schema": "",
+      "response_schema": "PaginatedResponse_OrderSummaryDTO_"
+    },
+    "GET /api/v1/project-brain/status": {
+      "operation_id": "status_api_v1_project_brain_status_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/promotions": {
+      "operation_id": "v1_list_promotions",
+      "parameters": [
+        "query:page",
+        "query:page_size"
+      ],
+      "request_schema": "",
+      "response_schema": "PaginatedResponse_PromotionSummaryDTO_"
+    },
+    "GET /api/v1/promotions/pos-banner": {
+      "operation_id": "get_pos_promotion_banner_api_v1_promotions_pos_banner_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "PosPromotionBannerResponse"
+    },
+    "GET /api/v1/public-settings": {
+      "operation_id": "v1_get_public_settings",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "GET /api/v1/push-copy": {
+      "operation_id": "list_push_copy_api_v1_push_copy_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/push-copy/batch": {
+      "operation_id": "get_batch_progress_api_v1_push_copy_batch_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/rag/knowledge": {
+      "operation_id": "v1_list_rag_knowledge",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "GET /api/v1/rag/retrieval/configurations": {
+      "operation_id": "v1_list_rag_configurations",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "GET /api/v1/recommendation-effectiveness": {
+      "operation_id": "v1_get_recommendation_effectiveness",
+      "parameters": [
+        "query:audience",
+        "query:campaign_id",
+        "query:placement",
+        "query:since",
+        "query:strategy_version",
+        "query:until",
+        "query:variant_id"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_RecommendationEffectivenessDTO_"
+    },
+    "GET /api/v1/recommendation_events": {
+      "operation_id": "get_recommendation_events_api_v1_recommendation_events_get",
+      "parameters": [
+        "query:limit",
+        "query:session_id"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/recommendations": {
+      "operation_id": "v1_list_recommendations",
+      "parameters": [
+        "query:page",
+        "query:page_size"
+      ],
+      "request_schema": "",
+      "response_schema": "PaginatedResponse_RecommendationEventDTO_"
+    },
+    "GET /api/v1/settings": {
+      "operation_id": "v1_get_settings",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": "ApiResponse_SettingsDTO_"
+    },
+    "GET /api/v1/settings/llm-routing": {
+      "operation_id": "llm_routing_api_v1_settings_llm_routing_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/settings/llm-traffic": {
+      "operation_id": "llm_traffic_api_v1_settings_llm_traffic_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/settings/versions": {
+      "operation_id": "settings_versions_api_v1_settings_versions_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "PATCH /api/v1/catalog/items/{item_id}": {
+      "operation_id": "v1_update_catalog_item",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "CatalogItemWriteDTO",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "PATCH /api/v1/settings": {
+      "operation_id": "v1_patch_settings",
+      "parameters": [],
+      "request_schema": "SettingsPatchRequest",
+      "response_schema": "ApiResponse_SettingsDTO_"
+    },
+    "POST /api/v1/admin/device-credentials/{credential_id}/rotate": {
+      "operation_id": "rotate_credential_api_v1_admin_device_credentials__credential_id__rotate_post",
+      "parameters": [
+        "path:credential_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/admin/devices/{device_id}/credentials": {
+      "operation_id": "issue_credential_api_v1_admin_devices__device_id__credentials_post",
+      "parameters": [
+        "path:device_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/admin/health/incidents/{incident_id}/acknowledge": {
+      "operation_id": "acknowledge_health_incident_api_v1_admin_health_incidents__incident_id__acknowledge_post",
+      "parameters": [
+        "path:incident_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/admin/health/incidents/{incident_id}/escalate": {
+      "operation_id": "escalate_health_incident_api_v1_admin_health_incidents__incident_id__escalate_post",
+      "parameters": [
+        "path:incident_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/ai_push": {
+      "operation_id": "handle_ai_push_api_v1_ai_push_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/ask/stream": {
+      "operation_id": "process_voice_stream_api_v1_ask_stream_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/barrier_state": {
+      "operation_id": "post_barrier_state_api_v1_barrier_state_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/campaigns": {
+      "operation_id": "v1_create_campaign_draft",
+      "parameters": [],
+      "request_schema": "CampaignDraftRequest",
+      "response_schema": "ApiResponse_CampaignSnapshotDTO_"
+    },
+    "POST /api/v1/campaigns/preview": {
+      "operation_id": "v1_preview_campaign",
+      "parameters": [],
+      "request_schema": "CampaignPreviewRequest",
+      "response_schema": "ApiResponse_CampaignPreviewDTO_"
+    },
+    "POST /api/v1/campaigns/publish": {
+      "operation_id": "v1_publish_campaign",
+      "parameters": [],
+      "request_schema": "CampaignPublishRequest",
+      "response_schema": "ApiResponse_CampaignSnapshotDTO_"
+    },
+    "POST /api/v1/campaigns/{campaign_id}/transition": {
+      "operation_id": "v1_transition_campaign",
+      "parameters": [
+        "path:campaign_id!"
+      ],
+      "request_schema": "CampaignTransitionRequest",
+      "response_schema": "ApiResponse_CampaignSnapshotDTO_"
+    },
+    "POST /api/v1/cart/quote": {
+      "operation_id": "v1_quote_cart",
+      "parameters": [],
+      "request_schema": "CartQuoteRequest",
+      "response_schema": "ApiResponse_CartQuoteDTO_"
+    },
+    "POST /api/v1/catalog/items": {
+      "operation_id": "v1_create_catalog_item",
+      "parameters": [],
+      "request_schema": "CatalogItemWriteDTO",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "POST /api/v1/catalog/items/{item_id}/retirement": {
+      "operation_id": "v1_retire_catalog_item",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "POST /api/v1/checkout/confirm": {
+      "operation_id": "confirm_api_v1_checkout_confirm_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/checkout/prepare": {
+      "operation_id": "prepare_api_v1_checkout_prepare_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/commercial-touches": {
+      "operation_id": "v1_record_commercial_touch",
+      "parameters": [],
+      "request_schema": "CommercialTouchRequest",
+      "response_schema": "ApiResponse_CommercialTouchReceiptDTO_"
+    },
+    "POST /api/v1/device/auth/session": {
+      "operation_id": "create_session_api_v1_device_auth_session_post",
+      "parameters": [],
+      "request_schema": "DeviceSessionRequest",
+      "response_schema": ""
+    },
+    "POST /api/v1/emotion/analyze_event": {
+      "operation_id": "analyze_emotion_event_api_v1_emotion_analyze_event_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/emotion/analyze_media_test": {
+      "operation_id": "analyze_media_test_api_v1_emotion_analyze_media_test_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/entry-flow/start": {
+      "operation_id": "start_api_v1_entry_flow_start_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/entry-flow/{entry_flow_id}/command": {
+      "operation_id": "command_api_v1_entry_flow__entry_flow_id__command_post",
+      "parameters": [
+        "path:entry_flow_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/fleet/devices/{device_id}/commands": {
+      "operation_id": "v1_issue_fleet_command",
+      "parameters": [
+        "path:device_id!"
+      ],
+      "request_schema": "FleetCommandRequest",
+      "response_schema": "ApiResponse_FleetCommandDTO_"
+    },
+    "POST /api/v1/interaction_event": {
+      "operation_id": "post_interaction_event_api_v1_interaction_event_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/intervention_result": {
+      "operation_id": "post_intervention_result_api_v1_intervention_result_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/member/abandoned_order": {
+      "operation_id": "member_abandoned_order_api_v1_member_abandoned_order_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/member/login": {
+      "operation_id": "member_login_api_v1_member_login_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/member/register": {
+      "operation_id": "member_register_api_v1_member_register_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/menu/price-projection": {
+      "operation_id": "v1_project_menu_prices",
+      "parameters": [],
+      "request_schema": "MenuPriceProjectionRequest",
+      "response_schema": "ApiResponse_list_MenuPriceProjectionDTO__"
+    },
+    "POST /api/v1/optimization/evidence": {
+      "operation_id": "ingest_fixture_api_v1_optimization_evidence_post",
+      "parameters": [],
+      "request_schema": "EvidenceFixture",
+      "response_schema": ""
+    },
+    "POST /api/v1/optimization/simulations": {
+      "operation_id": "simulate_api_v1_optimization_simulations_post",
+      "parameters": [],
+      "request_schema": "SimulationRequest",
+      "response_schema": ""
+    },
+    "POST /api/v1/orders/{order_id}/transition": {
+      "operation_id": "v1_transition_order",
+      "parameters": [
+        "path:order_id!"
+      ],
+      "request_schema": "OrderTransitionRequest",
+      "response_schema": "ApiResponse_OrderSummaryDTO_"
+    },
+    "POST /api/v1/project-brain/analyze": {
+      "operation_id": "analyze_api_v1_project_brain_analyze_post",
+      "parameters": [],
+      "request_schema": "AnalyzeRequest",
+      "response_schema": ""
+    },
+    "POST /api/v1/project-brain/proposals": {
+      "operation_id": "proposals_api_v1_project_brain_proposals_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/promotions": {
+      "operation_id": "v1_create_promotion",
+      "parameters": [],
+      "request_schema": "PromotionCreateRequest",
+      "response_schema": "ApiResponse_PromotionSummaryDTO_"
+    },
+    "POST /api/v1/push-copy/batch": {
+      "operation_id": "start_batch_api_v1_push_copy_batch_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/push-copy/{item_id}": {
+      "operation_id": "save_push_copy_api_v1_push_copy__item_id__post",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/push-copy/{item_id}/generate": {
+      "operation_id": "generate_push_copy_api_v1_push_copy__item_id__generate_post",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/rag/knowledge": {
+      "operation_id": "v1_create_rag_knowledge",
+      "parameters": [],
+      "request_schema": "RagKnowledgeUpsertRequest",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/knowledge/publication-attempts/{attempt_id}/resume": {
+      "operation_id": "v1_resume_rag_publication_attempt",
+      "parameters": [
+        "path:attempt_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/knowledge/publish": {
+      "operation_id": "v1_publish_rag_knowledge",
+      "parameters": [],
+      "request_schema": "RagKnowledgePublishRequest",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/knowledge/{item_id}/retire": {
+      "operation_id": "v1_retire_rag_knowledge",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "RagKnowledgeActionRequest",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/retrieval/checks/{check_id}/confirm": {
+      "operation_id": "v1_confirm_rag_retrieval_check",
+      "parameters": [
+        "path:check_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/retrieval/configurations": {
+      "operation_id": "v1_publish_rag_configuration",
+      "parameters": [],
+      "request_schema": "RagRetrievalConfigurationRequest",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/rag/retrieval/test": {
+      "operation_id": "v1_test_rag_retrieval",
+      "parameters": [],
+      "request_schema": "RagKnowledgeTestRequest",
+      "response_schema": "ApiResponse_dict_"
+    },
+    "POST /api/v1/recommendation_events": {
+      "operation_id": "post_recommendation_event_api_v1_recommendation_events_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/settings/llm-connectivity-test": {
+      "operation_id": "llm_connectivity_test_api_v1_settings_llm_connectivity_test_post",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/settings/versions/{version}/rollback": {
+      "operation_id": "rollback_settings_version_api_v1_settings_versions__version__rollback_post",
+      "parameters": [
+        "path:version!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "PUT /api/v1/availability/{item_id}": {
+      "operation_id": "v1_put_availability",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "AvailabilityPutRequest",
+      "response_schema": "ApiResponse_AvailabilityDTO_"
+    },
+    "PUT /api/v1/campaigns/{campaign_id}/draft": {
+      "operation_id": "v1_revise_campaign_draft",
+      "parameters": [
+        "path:campaign_id!"
+      ],
+      "request_schema": "CampaignDraftUpdateRequest",
+      "response_schema": "ApiResponse_CampaignSnapshotDTO_"
+    },
+    "PUT /api/v1/cart/{session_id}": {
+      "operation_id": "replace_cart_api_v1_cart__session_id__put",
+      "parameters": [
+        "path:session_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "PUT /api/v1/catalog/availability": {
+      "operation_id": "v1_save_catalog_availability",
+      "parameters": [],
+      "request_schema": "CatalogAvailabilityCommandDTO",
+      "response_schema": "ApiResponse_CatalogAvailabilityDTO_"
+    },
+    "PUT /api/v1/catalog/items/{item_id}/image": {
+      "operation_id": "v1_upload_catalog_item_image",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "",
+      "response_schema": "ApiResponse_CatalogItemDTO_"
+    },
+    "PUT /api/v1/members/{member_ref}/verified-preferences": {
+      "operation_id": "update_verified_preferences_api_v1_members__member_ref__verified_preferences_put",
+      "parameters": [
+        "path:member_ref!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "PUT /api/v1/rag/knowledge/{item_id}": {
+      "operation_id": "v1_revise_rag_knowledge",
+      "parameters": [
+        "path:item_id!"
+      ],
+      "request_schema": "RagKnowledgeUpsertRequest",
+      "response_schema": "ApiResponse_dict_"
+    }
+  }
+}
