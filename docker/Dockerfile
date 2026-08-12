@@ -62,6 +62,9 @@ COPY tools/ /app/tools/
 # Without it the gate errors out inside docker/scripts/test.sh while still
 # passing in CI, where pytest runs against a checkout.
 COPY docker/ /app/docker/
+# The sidecar tests import project_analyst directly. Missing, they do not skip —
+# collection fails and takes the whole suite with it.
+COPY project_analyst/ /app/project_analyst/
 USER project2026
 
 # Keep the CPU runtime target before the optional AI stages. This also lets
