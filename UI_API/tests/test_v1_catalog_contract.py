@@ -233,4 +233,4 @@ def test_supported_catalog_flow_leaves_the_legacy_counter_at_zero():
 
 
 def test_promotion_banner_transport_survives_catalog_legacy_removal():
-    assert "/api/promotions/pos-banner" in {route.path for route in app.routes}
+    assert "/api/v1/promotions/pos-banner" in {route.path for route in app.routes}

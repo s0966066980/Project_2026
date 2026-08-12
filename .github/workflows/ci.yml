@@ -51,111 +51,16 @@ jobs:
       - name: Install CPU-only CI dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
 
+      # A hand-listed path set broke this job twice: once when three files were
+      # deleted under it, once when new route modules were never added to it.
+      # The tree scans clean, so there is nothing to buy by enumerating it.
       - name: Ruff lint
         if: matrix.python-version == '3.10'
-        run: >-
-          ruff check
-          main.py
-          backend/app_factory.py
-          backend/api
-          backend/capabilities/catalog
-          backend/core
-          backend/models
-          backend/repositories/postgres_utils.py
-          backend/repositories/admin_identity_repository.py
-          backend/repositories/device_identity_repository.py
-          backend/repositories/availability_repository.py
-          backend/repositories/commercial_settings_repository.py
-          backend/repositories/checkout_order_repository.py
-          backend/repositories/interaction_event_repository.py
-          backend/repositories/member_repository.py
-          backend/repositories/member_session_repository.py
-          backend/repositories/promotion_repository.py
-          backend/repositories/redis_shared_adapter.py
-          backend/repositories/worker_job_repository.py
-          backend/routes/admin_identity_routes.py
-          backend/routes/device_identity_routes.py
-          backend/routes/ai_push_routes.py
-          backend/routes/core_routes.py
-          backend/routes/interaction_routes.py
-          backend/routes/promotion_banner_routes.py
-          backend/routes/member_routes.py
-          backend/routes/recommendation_event_routes.py
-          backend/routes/realtime_routes.py
-          backend/routes/v1_catalog_routes.py
-          backend/routes/voice_routes.py
-          backend/scripts/manage_admin_identity.py
-          backend/scripts/manage_postgres_migrations.py
-          backend/scripts/validate_commercial_scope.py
-          backend/scripts/verify_member_identity_migration.py
-          backend/services/admin_authorization_service.py
-          backend/services/device_identity_service.py
-          backend/services/commercial_context_service.py
-          backend/services/admin_audit_service.py
-          backend/services/availability_service.py
-          backend/services/checkout_pricing_service.py
-          backend/services/intervention_pipeline_service.py
-          backend/services/health_service.py
-          backend/services/member_key_provider.py
-          backend/services/member_pii_service.py
-          backend/services/member_service.py
-          backend/services/observability_service.py
-          backend/services/promotion_banner_service.py
-          backend/services/promotion_service.py
-          backend/services/rag_offer_service.py
-          backend/services/recommendation_context_service.py
-          backend/services/recommendation_event_service.py
-          backend/services/shared_infrastructure_service.py
-          backend/services/worker_service.py
-          backend/services/recommendation_feedback_service.py
-          backend/services/ai_push_service.py
-          backend/services/voice_service.py
-          backend/utils
-          ../tools/generate_api_types.py
+        run: ruff check . ../tools/generate_api_types.py
 
       - name: Ruff format check
         if: matrix.python-version == '3.10'
-        run: >-
-          ruff format --check
-          main.py
-          backend/app_factory.py
-          backend/api
-          backend/capabilities/catalog
-          backend/core
-          backend/models
-          backend/repositories/postgres_utils.py
-          backend/repositories/admin_identity_repository.py
-          backend/repositories/device_identity_repository.py
-          backend/repositories/availability_repository.py
-          backend/repositories/commercial_settings_repository.py
-          backend/repositories/checkout_order_repository.py
-          backend/repositories/interaction_event_repository.py
-          backend/repositories/promotion_repository.py
-          backend/repositories/redis_shared_adapter.py
-          backend/repositories/worker_job_repository.py
-          backend/routes/admin_identity_routes.py
-          backend/routes/device_identity_routes.py
-          backend/routes/interaction_routes.py
-          backend/routes/member_routes.py
-          backend/routes/recommendation_event_routes.py
-          backend/routes/realtime_routes.py
-          backend/routes/promotion_banner_routes.py
-          backend/routes/v1_catalog_routes.py
-          backend/scripts/manage_admin_identity.py
-          backend/scripts/manage_postgres_migrations.py
-          backend/scripts/validate_commercial_scope.py
-          backend/scripts/verify_member_identity_migration.py
-          backend/services/admin_authorization_service.py
-          backend/services/device_identity_service.py
-          backend/services/member_key_provider.py
-          backend/services/member_pii_service.py
-          backend/services/health_service.py
-          backend/services/observability_service.py
-          backend/services/shared_infrastructure_service.py
-          backend/services/worker_service.py
-          backend/services/commercial_context_service.py
-          backend/utils
-          ../tools/generate_api_types.py
+        run: ruff format --check . ../tools/generate_api_types.py
 
       - name: Mypy gradual type check
         if: matrix.python-version == '3.10'

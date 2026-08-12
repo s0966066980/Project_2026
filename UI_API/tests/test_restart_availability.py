@@ -44,10 +44,10 @@ def test_http_service_answers_while_capability_warmup_is_still_running(monkeypat
     with TestClient(app) as client:
         # Reaching this line before warm-up finishes is the whole contract.
         assert not finished.is_set()
-        response = client.get("/api/admin/auth/me")
+        response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 200
-    assert response.json()["access"] == "device_admin"
+    assert response.json()["data"]["auth_method"] == "device_admin"
 
 
 def test_readiness_reports_optional_capabilities_without_deciding_readiness(monkeypatch):
@@ -101,13 +101,15 @@ def test_voice_refuses_a_turn_while_its_model_is_still_loading(monkeypatch):
             {"stt": "pending", "tts": "skipped", "rag": "ready", "voice_llm": "ready"},
         )
         response = client.post(
-            "/api/ask/stream",
+            "/api/v1/ask/stream",
             data={"session_id": "session-warming"},
             files={"media": ("turn.webm", b"not-audio", "audio/webm")},
         )
 
     assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "voice_capability_warming"
+    # The versioned surface publishes the v1 error envelope, so the refusal
+    # code arrives under `error`, not the unversioned `detail`.
+    assert response.json()["error"]["code"] == "voice_capability_warming"
 
 
 def test_voice_is_accepted_once_its_model_is_ready(monkeypatch):
@@ -119,7 +121,7 @@ def test_voice_is_accepted_once_its_model_is_ready(monkeypatch):
             {"stt": "ready", "tts": "skipped", "rag": "ready", "voice_llm": "ready"},
         )
         response = client.post(
-            "/api/ask/stream",
+            "/api/v1/ask/stream",
             data={"session_id": "session-ready"},
             files={"media": ("turn.webm", b"not-audio", "audio/webm")},
         )

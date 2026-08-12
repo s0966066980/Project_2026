@@ -18,20 +18,8 @@ ROUTE_ROOT = BACKEND_ROOT / "routes"
 
 _ROUTE_TO_CAPABILITY = {
     "v1_catalog_routes": "catalog",
-    "admin_identity_routes": "identity_access",
-    "device_identity_routes": "identity_access",
     "core_routes": "operations_configuration",
-    "member_routes": "member",
-    "promotion_banner_routes": "campaign_promotion",
-    "push_copy_routes": "campaign_promotion",
-    "recommendation_event_routes": "recommendation_analytics",
-    "interaction_routes": "recommendation_analytics",
-    "ai_push_routes": "recommendation_analytics",
-    "ordering_entry_routes": "ordering",
-    "checkout_confirmation_routes": "ordering",
-    "voice_routes": "voice",
     "realtime_routes": "voice",
-    "emotion_routes": "emotion",
     "v1_context_routes": "ordering",
     "v1_ordering_routes": "ordering",
     "v1_campaign_routes": "campaign_promotion",
@@ -50,6 +38,7 @@ _ROUTE_TO_CAPABILITY = {
     "v1_fleet_routes": "identity_access",
     "v1_voice_routes": "voice",
     "v1_emotion_routes": "emotion",
+    "v1_admin_health_routes": "operations_configuration",
 }
 
 
@@ -121,10 +110,18 @@ def test_identity_horizontal_service_shims_are_removed() -> None:
     assert not (services_root / "admin_identity_service.py").exists()
 
 
-def test_admin_identity_transport_uses_the_published_identity_surface() -> None:
-    imports = _imports(ROUTE_ROOT / "admin_identity_routes.py")
-    assert "utils.auth_utils" not in imports
-    assert "capabilities.identity_access" in imports
+def test_admin_identity_transport_is_versioned_and_singular() -> None:
+    """One published surface for "who is this Admin", not two.
+
+    `admin_identity_routes.py` served `/api/admin/auth/me` with its own
+    response shape while `/api/v1/auth/me` served another. Admin only ever
+    called the versioned one, so the unversioned transport was withdrawn with
+    the rest of the compatibility surface.
+    """
+
+    assert not (ROUTE_ROOT / "admin_identity_routes.py").exists()
+    imports = _imports(ROUTE_ROOT / "v1_context_routes.py")
+    assert "routes.v1_support" in imports
 
 
 def test_realtime_transport_uses_the_published_operations_surface() -> None:

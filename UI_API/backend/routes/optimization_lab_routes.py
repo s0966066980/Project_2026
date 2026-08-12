@@ -47,8 +47,8 @@ def _error(error: OptimizationLabError) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": error.code, **error.details})
 
 
-def create_router(_deps: dict[str, Any] | None = None) -> APIRouter:
-    router = APIRouter(prefix="/api/optimization", tags=["optimization-lab"])
+def create_router(_deps: dict[str, Any] | None = None, *, prefix: str = "/api/v1/optimization") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["optimization-lab"])
 
     @router.get("/profiles")
     async def profiles(request: Request):
