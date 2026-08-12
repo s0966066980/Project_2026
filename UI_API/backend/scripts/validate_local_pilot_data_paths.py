@@ -16,7 +16,7 @@ COMMERCIAL_REPO_FILES = (
     "repositories/member_repository.py",
     "repositories/checkout_order_repository.py",
     "repositories/admin_identity_repository.py",
-    "repositories/device_identity_repository.py",
+    "modules/identity/adapters/device_identity.py",
     "repositories/worker_job_repository.py",
     "modules/identity/adapters/postgres.py",
 )

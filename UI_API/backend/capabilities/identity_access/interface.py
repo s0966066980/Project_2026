@@ -1,55 +1,30 @@
 """The only published Admin identity surface for capability consumers."""
 
 from capabilities.identity_access.contracts import AccessGrant, IdentityCapabilityError
-from models.commercial_scope import CommercialScope
 from modules.identity.application import (
     AdminAuthenticationError,
     AdminAuthorizationError,
     authenticate_admin_session,
     authorize_admin_action,
+    device_identity_repository,
+    device_identity_service,
+    fleet_management_service,
     hash_admin_password,
     hash_admin_session_token,
     login_admin,
     logout_admin,
     normalize_admin_login,
     rotate_admin_session,
+    scope_from_admin_principal,
+    scope_from_device_principal,
     sync_admin_permission_catalog,
     verify_admin_password,
 )
 
-
-class _DeviceIdentityProxy:
-    """Bind device credential operations through the Identity capability surface."""
-
-    def __getattr__(self, name: str):
-        from services import device_identity_service
-
-        return getattr(device_identity_service, name)
-
-
-device_identity_service = _DeviceIdentityProxy()
-
-
-class _FleetManagementServiceProxy:
-    def __getattr__(self, name: str):
-        from services import fleet_management_service
-
-        return getattr(fleet_management_service, name)
-
-
-fleet_management_service = _FleetManagementServiceProxy()
-
-
-def scope_from_admin_principal(principal) -> CommercialScope:
-    from services.commercial_context_service import scope_from_admin_principal as resolve
-
-    return resolve(principal)
-
-
-def scope_from_device_principal(principal) -> CommercialScope:
-    from services.commercial_context_service import scope_from_device_principal as resolve
-
-    return resolve(principal)
+# Device credentials, fleet commands and scope resolution used to be reached
+# through call-time proxies into services/, which is what kept this capability
+# on the legacy horizontal layers. They now live inside modules/identity and are
+# published directly, so the surface says what it owns instead of forwarding.
 
 
 def device_admin_principal(request):
@@ -62,6 +37,7 @@ def device_admin_principal(request):
 
 __all__ = [
     "AccessGrant",
+    "device_identity_repository",
     "AdminAuthenticationError",
     "AdminAuthorizationError",
     "IdentityCapabilityError",

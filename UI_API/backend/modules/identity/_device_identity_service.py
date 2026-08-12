@@ -12,8 +12,9 @@ import config
 from models.admin_identity import AdminPrincipal
 from models.commercial_scope import CommercialScope
 from models.device_identity import DeviceCredentialIssue, DevicePrincipal, DeviceSessionResult
-from repositories import device_identity_repository, postgres_utils
-from services.admin_authorization_service import authorize_admin_action
+from modules.identity._admin_authorization_service import authorize_admin_action
+from modules.identity.adapters import device_identity as device_identity_repository
+from repositories import postgres_utils
 
 
 class DeviceAuthenticationError(ValueError):

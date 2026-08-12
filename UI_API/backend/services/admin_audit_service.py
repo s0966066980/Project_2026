@@ -4,8 +4,8 @@ from datetime import datetime
 from uuid import uuid4
 
 from models.commercial_scope import CommercialScope
+from modules.identity.application import scope_from_admin_principal
 from repositories import admin_audit_repository
-from services.commercial_context_service import scope_from_admin_principal
 
 
 def _actor_from_request(request) -> str:

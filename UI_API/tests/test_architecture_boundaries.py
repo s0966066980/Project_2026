@@ -57,7 +57,6 @@ def _module_parts(imported: str) -> list[str]:
 CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
     "backend/capabilities/campaign_promotion/interface.py",
     "backend/capabilities/emotion/interface.py",
-    "backend/capabilities/identity_access/interface.py",
     "backend/capabilities/knowledge_rag/interface.py",
     "backend/capabilities/member/interface.py",
     "backend/capabilities/operations_configuration/interface.py",

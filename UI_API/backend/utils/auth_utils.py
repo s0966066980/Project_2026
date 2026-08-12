@@ -12,8 +12,8 @@ from capabilities.identity_access import (
     device_identity_service,
 )
 from models.admin_identity import AdminPrincipal
+from modules.identity.application import scope_from_admin_principal, scope_from_device_principal
 from services import observability_service, shared_infrastructure_service
-from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.commercial_scope_config import resolve_commercial_scope
 
 _RATE_BUCKETS: dict[tuple[str, str, str], list[float]] = {}
