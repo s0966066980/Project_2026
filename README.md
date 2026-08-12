@@ -13,7 +13,7 @@ Browser
       │
       ▼
 FastAPI application
-├── Versioned HTTP API / WebSocket
+├── /api/v1 HTTP API（唯一對外契約前綴）與 WebSocket
 ├── Ordering / Member / Campaign / RAG capabilities
 ├── Identity / RBAC / Operations settings
 └── Health / diagnostics
@@ -96,6 +96,7 @@ Port 全部由根目錄 `.env` 決定，僅綁定 loopback。
 | --- | --- | --- |
 | Kiosk | `http://127.0.0.1:8000/kiosk` | `BIND_ADDRESS` / `APP_PORT`（`127.0.0.1` / `8000`） |
 | Admin | `http://127.0.0.1:8000/admin` | 同上 |
+| HTTP API | `http://127.0.0.1:8000/api/v1/...` | 同上 |
 | Liveness | `http://127.0.0.1:8000/live` | 同上 |
 | Readiness | `http://127.0.0.1:8000/ready` | 同上 |
 | Ollama | `http://127.0.0.1:${OLLAMA_PORT}` | `OLLAMA_PORT`（`11434`） |
@@ -107,6 +108,8 @@ Port 全部由根目錄 `.env` 決定，僅綁定 loopback。
 bash docker/scripts/test.sh       # 核心 Docker smoke test
 bash docker/scripts/test-ai.sh    # AI image dependency smoke test
 ```
+
+`test.sh` 會用獨立的 compose project 與 host port（預設 18000，可用 `SMOKE_APP_PORT` 覆寫），所以不需要先停掉正在跑的 stack。
 
 Frontend：
 

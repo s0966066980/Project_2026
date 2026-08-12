@@ -31,14 +31,16 @@ backend/
 │       └── adapters/
 ├── foundation/              # persistence、events、objects、observability primitives
 ├── bootstrap/               # composition root 與 process startup
-├── routes/                  # 遷移中的 legacy transports
+├── routes/                  # /api/v1 transports 與兩個瀏覽器頁面入口
 ├── services/                # 遷移中的 workflows／compatibility shims
 ├── repositories/            # 遷移中的 persistence adapters
 ├── schemas/migrations/      # PostgreSQL forward migrations source of truth
 └── scripts/                 # production-adjacent maintenance／worker CLIs
 ```
 
-目前仍處於 Transitional Modular Monolith：Identity 已有 module 雛形，versioned compatibility transports 已按 capability 拆分；`routes/services/repositories` 仍在垂直搬遷中。新增功能不得擴大這些 legacy ownership。
+目前仍處於 Transitional Modular Monolith：Identity 已有 module 雛形，transports 已按 capability 拆分；`services/repositories` 仍在垂直搬遷中。新增功能不得擴大這些 legacy ownership。
+
+HTTP 對外只有一個前綴。未版本化的 `/api/*` 相容面已於 2026-08-12 全數撤除（67 → 0），`routes/` 下不得再出現不帶 `/api/v1` 的 API 路徑；`/`、`/kiosk`、`/pos`、`/admin` 是頁面入口，`/ws/...` 是 WebSocket，兩者不帶版本。
 
 ## Admin 與 Kiosk
 
@@ -55,9 +57,9 @@ frontend/
 └── playwright.config.ts
 ```
 
-`shared/` 不得持有 product feature、auth、page、state 或全域 product CSS。FastAPI/Pydantic 產生 OpenAPI 與 TypeScript client；feature code 最終不得直接呼叫 legacy `/api/*` 或自行維護 transport DTO。
+`shared/` 不得持有 product feature、auth、page、state 或全域 product CSS。FastAPI/Pydantic 產生 OpenAPI 與 TypeScript client；feature code 不得自行組裝 URL 或維護 transport DTO，一律走 `shared/api/capabilityClients.js`。
 
-現況債務：Kiosk `app.js` 與 Admin `admin.js` 仍偏大；Kiosk 尚有 Admin runtime mode 判斷；`shared/styles.css` 混合兩端 selector；raw `fetch` 與 legacy client 仍在遷移中。
+現況債務：Kiosk `app.js` 與 Admin `admin.js` 仍偏大；Kiosk 尚有 Admin runtime mode 判斷；`shared/styles.css` 混合兩端 selector。
 
 ## 資料與執行邊界
 

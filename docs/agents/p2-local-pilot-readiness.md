@@ -49,7 +49,8 @@ A hardened Pilot candidate was built and exercised before the credentials were r
 - Every root filesystem write rejected with `EROFS(30)`: `/app/UI_API`, `/`, `/usr/local`, `/etc`, `/home/project2026`, `/var/lib`.
 - Allowlisted paths writable: `/tmp`, `/var/lib/project-2026`, `/tmp/project-2026-media`, `/home/project2026/.cache`.
 - Secrets mode `0600`, uid `10001`, readable; database password absent from the environment and from container logs.
-- `/api/ollama/models`, `/api/demo`, `/api/debug` → 404. `/ready` → 200.
+- `/api/v1/diagnostics/ollama-models`, `/api/demo`, `/api/debug` → 404. `/ready` → 200.
+  （記錄當時該診斷路徑為 `/api/ollama/models`；未版本化的相容面已於 2026-08-12 全面撤除，見 [ADR-0062](../adr/0062-serve-one-versioned-http-prefix.md)，該路徑在任何 profile 下都已是 404。）
 
 The structural half is a required check: `UI_API/tests/test_pilot_container_security.py`, 27 tests, mutation-verified.
 

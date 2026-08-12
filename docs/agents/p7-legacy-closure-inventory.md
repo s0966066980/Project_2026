@@ -1,7 +1,8 @@
 # P7 Legacy Closure Inventory — repository evidence
 
-> 2026-08-12 snapshot. This document records repository checks only; it does
-> not promote target-device, customer-evidence, provider, or Pilot gates.
+> 2026-08-12 snapshot, updated after the unversioned surface was withdrawn.
+> This document records repository checks only; it does not promote
+> target-device, customer-evidence, provider, or Pilot gates.
 
 ## Passed static boundaries
 
@@ -17,27 +18,38 @@
 | Versioned route split | Monolithic `routes/v1_routes.py` deleted; context, campaign, operations, knowledge, and fleet compatibility modules registered independently | Passed |
 | Admin/Kiosk capability clients | Campaign, Knowledge/RAG, Operations, Recommendation, Member (including export/detail/write/delete), diagnostics, push-copy, Project Analyst, and Kiosk v1 calls are owned by `frontend/shared/api/capabilityClients.js`; feature modules no longer assemble `/api/v1` URLs | Passed |
 | Identity shims | Unused `services/admin_access_service.py` and `services/admin_identity_service.py` removed | Passed |
+| Single published prefix | Unversioned `/api/*` withdrawn; `admin_identity_routes.py` deleted and `core_routes.py` reduced to page entry points ([ADR-0062](../adr/0062-serve-one-versioned-http-prefix.md)) | Passed |
+| Capability layer inventory | Eight capability interfaces still read `services`/`repositories`, frozen in `CAPABILITIES_STILL_ON_LEGACY_LAYERS` and allowed only to shrink | Open — 8 of 10 |
 | Python quality | Backend Ruff; capability/Optimization mypy (44 files) | Passed |
 
-The exact candidate static/security suite now covers these ownership checks and
-passes **53 tests**; the candidate publishes **93 `/api/v1` paths** and the
-committed catalog contract matches the generated schema. This remains
-repository evidence, not a full module gate.
+The exact candidate static/security suite covers these ownership checks; the
+running stack publishes **101 `/api/v1` paths and zero unversioned `/api/*`
+paths**, down from 93 versioned beside 67 unversioned, and the committed
+catalog contract matches the generated schema. This remains repository
+evidence, not a full module gate.
 
 The development-only `demo_routes.py`, `diagnostic_routes.py`, and
 `debug_routes.py` remain outside the production route boundary and are covered
-by their explicit route-contract tests.
+by their explicit route-contract tests. `diagnostic_routes.py` is now reached
+only through `v1_diagnostic_routes.py`; `/api/demo/*` and `/api/debug/*` stay
+unversioned on purpose, because they are flag-gated development routes that
+answer 404 in a commercial runtime, not contracts.
 
 ## Remaining P7 work
 
-1. Complete the server-side migration of the versioned compatibility modules
-   and prove their ownership/telemetry contracts; browser feature consumers
-   now go through the shared capability clients, while the compatibility
-   routes remain registered for the final zero-telemetry window.
-2. Prove runtime legacy telemetry is zero over the complete Admin/Kiosk flow,
-   then remove counters and compatibility adapters.
+1. Move the eight capability interfaces off `services`/`repositories` so each
+   owns its data, emptying `CAPABILITIES_STILL_ON_LEGACY_LAYERS`. This is the
+   substance of P7 now that the transport prefix is settled; collapsing a URL
+   says nothing about who owns the rows behind it.
+2. Remove the horizontal `services/repositories/modules` files as each
+   capability takes ownership, along with the compatibility shims that remain
+   under `services/` (for example `admin_authorization_service.py`, which
+   documents itself as removable once callers cut over).
 3. Remove legacy tables/columns/jobs/settings and generated artifacts only after
    forward migrations and rollback/repair evidence exist.
+
+The former item "prove runtime legacy telemetry is zero" is closed by removal
+rather than by measurement: the paths it would have measured no longer exist.
 4. The executable local portion of the 20-part final candidate matrix has now
    been rerun against the captured runtime/test images, including PostgreSQL
    dump/restore and a PostgreSQL-backed runtime restart; remaining matrix rows

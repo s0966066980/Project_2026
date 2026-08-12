@@ -176,6 +176,7 @@ def validate_startup_config() -> None:
     if errors:
         raise RuntimeError(f"Unsafe {label} configuration: " + "; ".join(errors))
 
+
 # prompt 預設值集中在 backend/prompts/defaults.py（確保該套件可匯入）
 _BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 if _BACKEND_DIR not in sys.path:
@@ -189,8 +190,8 @@ _RUNTIME_PATHS = configured_runtime_paths(os.environ, repository_root=Path(REPOS
 # 靜態與網路設定 (需寫在 .env)
 # ==========================================
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL",
-    OLLAMA_API_URL.split("/api/")[0] if "/api/" in OLLAMA_API_URL else "http://localhost:11434"
+OLLAMA_BASE_URL = os.getenv(
+    "OLLAMA_BASE_URL", OLLAMA_API_URL.split("/api/")[0] if "/api/" in OLLAMA_API_URL else "http://localhost:11434"
 )
 # Provider credentials live only in the environment: they must never enter the settings
 # document, which is versioned, scoped, and broadcast to connected clients.
@@ -198,11 +199,13 @@ NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
 NVIDIA_API_BASE_URL = os.getenv("NVIDIA_API_BASE_URL", "https://integrate.api.nvidia.com/v1")
 STT_API_KEY = os.getenv("STT_API_KEY", "")
 TTS_API_KEY = os.getenv("TTS_API_KEY", "")
-CREDENTIAL_SETTING_KEYS = frozenset({
-    "NVIDIA_API_KEY",
-    "STT_API_KEY",
-    "TTS_API_KEY",
-})
+CREDENTIAL_SETTING_KEYS = frozenset(
+    {
+        "NVIDIA_API_KEY",
+        "STT_API_KEY",
+        "TTS_API_KEY",
+    }
+)
 R1_OMNI_GRADIO_URL = os.getenv("R1_OMNI_GRADIO_URL", "http://127.0.0.1:7890")
 NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "")
 ENABLE_NGROK = os.getenv("ENABLE_NGROK", "true").lower() not in ("0", "false", "no", "off")
@@ -266,7 +269,7 @@ DEFAULT_SETTINGS = {
     "DEMO_PUBLIC_MODE": DEMO_PUBLIC_MODE.lower() in ("1", "true", "yes", "on"),
     "MODEL_NAME": "qwen3.5:4b",
     # 文字模型選路：策略決定本機／雲端的先後與是否允許對外，雲端提供者決定 chain 裡的雲端那一段。
-    "LLM_ROUTING_POLICY": "local_first",    # local_first | cloud_first | local_only | cloud_only
+    "LLM_ROUTING_POLICY": "local_first",  # local_first | cloud_first | local_only | cloud_only
     # NVIDIA NIM is the sole cloud text provider; its API key/base URL live only in the
     # environment (NVIDIA_API_KEY / NVIDIA_API_BASE_URL), never in this settings document.
     "NIM_MODEL_NAME": "meta/llama-3.1-8b-instruct",
@@ -286,31 +289,31 @@ DEFAULT_SETTINGS = {
     "OLLAMA_TEMPERATURE": 0.8,
     "OLLAMA_NUM_PREDICT": 2048,
     "OLLAMA_LOG_RAW": False,
-    "OLLAMA_TIMEOUT": 120,           # HTTP 請求 timeout（秒），熱改有效
-    "OLLAMA_KEEP_ALIVE": "30m",      # 模型閒置保留時間，避免首位顧客承擔冷載入
-    "OLLAMA_POOL_CONNECTIONS": 2,    # 連線池數量（需重啟生效）
-    "OLLAMA_POOL_MAXSIZE": 4,        # 連線池最大連線數（需重啟生效）
+    "OLLAMA_TIMEOUT": 120,  # HTTP 請求 timeout（秒），熱改有效
+    "OLLAMA_KEEP_ALIVE": "30m",  # 模型閒置保留時間，避免首位顧客承擔冷載入
+    "OLLAMA_POOL_CONNECTIONS": 2,  # 連線池數量（需重啟生效）
+    "OLLAMA_POOL_MAXSIZE": 4,  # 連線池最大連線數（需重啟生效）
     "PRIVACY_STORE_EVENT_VECTOR_ONLY": True,
     # ── 會員制 ─────────────────────────────────────────────────────
-    "MEMBER_ENABLED": True,            # 總開關；false 時 kiosk 跳過選擇頁、後台隱藏分頁
-    "MEMBER_USUALS_COUNT": 8,          # 「您的常點」顯示品項數
-    "MEMBER_PUSH_WEIGHT": 4,           # 會員常點品項於 ai_push 加權倍率
-    "MEMBER_ORDERS_KEEP": 20,          # 每位會員保留近期訂單筆數
-    "MEMBER_RECENT_ITEMS_KEEP": 20,     # 會員近期偏好品項保留數
-    "RECOMMENDATION_CATEGORY_WEIGHT": 3, # 會員偏好分類加權
-    "RECOMMENDATION_PAIR_WEIGHT": 5,    # 會員常見搭配加權
-    "RECOMMENDATION_RAG_OFFER_WEIGHT": 4, # RAG 活動指定品項加權
-    "RECOMMENDATION_RAG_CATEGORY_WEIGHT": 2, # RAG 活動分類加權
-    "PROMOTION_DEFAULT_TIMEZONE": "Asia/Taipei", # 結構化活動預設門市時區
-    "RECOMMENDATION_IGNORE_FEEDBACK_ENABLED": True, # 近期忽略事件回饋推薦引擎
-    "RECOMMENDATION_IGNORE_WINDOW_MINUTES": 45,     # 忽略事件短期降權時間窗
-    "RECOMMENDATION_FEEDBACK_EVENT_LIMIT": 500,     # 讀取近期推薦事件筆數
-    "RECOMMENDATION_IGNORED_ITEM_PENALTY": 2,       # 忽略品項扣分
-    "RECOMMENDATION_IGNORED_OFFER_PENALTY": 1,      # 忽略 offer 扣分
-    "RECOMMENDATION_IGNORED_ITEM_EXCLUDE_THRESHOLD": 3, # 同品項忽略達門檻時短期排除
-    "RECOMMENDATION_AVAILABILITY_ENABLED": True,    # 店鋪供應狀態影響推薦候選
-    "RECOMMENDATION_LOW_STOCK_PENALTY": 1,          # 低庫存品項推薦降權
-    "RECOMMENDATION_EXPERIMENT_ENABLED": False,     # 推薦策略 A/B testing 需由管理者明確啟用
+    "MEMBER_ENABLED": True,  # 總開關；false 時 kiosk 跳過選擇頁、後台隱藏分頁
+    "MEMBER_USUALS_COUNT": 8,  # 「您的常點」顯示品項數
+    "MEMBER_PUSH_WEIGHT": 4,  # 會員常點品項於 ai_push 加權倍率
+    "MEMBER_ORDERS_KEEP": 20,  # 每位會員保留近期訂單筆數
+    "MEMBER_RECENT_ITEMS_KEEP": 20,  # 會員近期偏好品項保留數
+    "RECOMMENDATION_CATEGORY_WEIGHT": 3,  # 會員偏好分類加權
+    "RECOMMENDATION_PAIR_WEIGHT": 5,  # 會員常見搭配加權
+    "RECOMMENDATION_RAG_OFFER_WEIGHT": 4,  # RAG 活動指定品項加權
+    "RECOMMENDATION_RAG_CATEGORY_WEIGHT": 2,  # RAG 活動分類加權
+    "PROMOTION_DEFAULT_TIMEZONE": "Asia/Taipei",  # 結構化活動預設門市時區
+    "RECOMMENDATION_IGNORE_FEEDBACK_ENABLED": True,  # 近期忽略事件回饋推薦引擎
+    "RECOMMENDATION_IGNORE_WINDOW_MINUTES": 45,  # 忽略事件短期降權時間窗
+    "RECOMMENDATION_FEEDBACK_EVENT_LIMIT": 500,  # 讀取近期推薦事件筆數
+    "RECOMMENDATION_IGNORED_ITEM_PENALTY": 2,  # 忽略品項扣分
+    "RECOMMENDATION_IGNORED_OFFER_PENALTY": 1,  # 忽略 offer 扣分
+    "RECOMMENDATION_IGNORED_ITEM_EXCLUDE_THRESHOLD": 3,  # 同品項忽略達門檻時短期排除
+    "RECOMMENDATION_AVAILABILITY_ENABLED": True,  # 店鋪供應狀態影響推薦候選
+    "RECOMMENDATION_LOW_STOCK_PENALTY": 1,  # 低庫存品項推薦降權
+    "RECOMMENDATION_EXPERIMENT_ENABLED": False,  # 推薦策略 A/B testing 需由管理者明確啟用
     "RECOMMENDATION_EXPERIMENT_CONFIGURED": False,  # 區分管理者設定與舊版本自動寫入的 enabled
     "RECOMMENDATION_EXPERIMENT_ID": "recommendation_strategy_v1",
     "RECOMMENDATION_EXPERIMENT_VARIANTS": [
@@ -328,10 +331,10 @@ DEFAULT_SETTINGS = {
     "MEMBER_PRIVACY_VERSION": os.getenv("MEMBER_PRIVACY_VERSION", "2026-07-privacy-v1"),
     "MEMBER_DATA_RETENTION_DAYS": int(os.getenv("MEMBER_DATA_RETENTION_DAYS", "730")),
     # ── RAG ───────────────────────────────────────────────────────
-    "RAG_ENABLED": True,                    # 預設開啟（無文件時自動跳過）
+    "RAG_ENABLED": True,  # 預設開啟（無文件時自動跳過）
     "RAG_EMBEDDING_MODEL": "BAAI/bge-small-zh-v1.5",  # fastembed，支援中文，約 90MB
     "RAG_COLLECTION": RAG_COLLECTION,
-    "RAG_STRATEGY": "hybrid",             # "dense" | "bm25" | "hybrid"
+    "RAG_STRATEGY": "hybrid",  # "dense" | "bm25" | "hybrid"
     "RAG_TOP_K": 3,
     "RAG_ALERT_MAX_RECORDS": int(os.getenv("RAG_ALERT_MAX_RECORDS", "1000")),
     "RAG_ALERT_WEBHOOK_ENABLED": os.getenv("RAG_ALERT_WEBHOOK_ENABLED", "false").lower() in ("1", "true", "yes", "on"),
@@ -341,48 +344,52 @@ DEFAULT_SETTINGS = {
     # ── 語音模型 ──────────────────────────────
     "VOICE_ASSIST_MODEL": "qwen3.5:4b",
     "VOICE_LLM_PREWARM_ENABLED": True,
-    "VOICE_HISTORY_MAX_TURNS": 4,           # 注入 LLM 的對話歷史輪數
+    "VOICE_HISTORY_MAX_TURNS": 4,  # 注入 LLM 的對話歷史輪數
     "VOICE_ASSIST_SYSTEM_PROMPT": _prompts.VOICE_ASSIST_SYSTEM_PROMPT,
     "AI_PUSH_SYSTEM_PROMPT": _prompts.AI_PUSH_SYSTEM_PROMPT,
     # ── AI 推播 / 前端行為 ────────────────────
-    "AI_PUSH_TEXT_MIN": 18,                 # 推薦詞最少字數（Admin 產生推薦詞時遵守）
-    "AI_PUSH_TEXT_MAX": 34,                 # 推薦詞最多字數（Admin 產生推薦詞時遵守）
-    "AI_PUSH_REFRESH_SEC": 15,              # 推播欄刷新間隔（秒）
+    "AI_PUSH_TEXT_MIN": 18,  # 推薦詞最少字數（Admin 產生推薦詞時遵守）
+    "AI_PUSH_TEXT_MAX": 34,  # 推薦詞最多字數（Admin 產生推薦詞時遵守）
+    "AI_PUSH_REFRESH_SEC": 15,  # 推播欄刷新間隔（秒）
     # 推播範圍是「哪些品項有資格被推播」的過濾器；排序仍由推薦引擎負責。
-    "AI_PUSH_SCOPE_MODE": "all",            # all | categories | new_items | popular
-    "AI_PUSH_SCOPE_CATEGORIES": [],         # AI_PUSH_SCOPE_MODE 為 categories 時生效
-    "AI_PUSH_EXCLUDE_SEEN": True,           # 「換一個」累積排除本次已看過的品項
-    "AI_PUSH_PREFETCH": True,               # 預先取回候選，讓「換一個」不必等待
-    "AI_PUSH_PRIORITY_CATS": [       # 優先推播分類，熱改有效
-        "超值全餐", "極選系列", "點心", "飲料", "麥當勞分享盒"
+    "AI_PUSH_SCOPE_MODE": "all",  # all | categories | new_items | popular
+    "AI_PUSH_SCOPE_CATEGORIES": [],  # AI_PUSH_SCOPE_MODE 為 categories 時生效
+    "AI_PUSH_EXCLUDE_SEEN": True,  # 「換一個」累積排除本次已看過的品項
+    "AI_PUSH_PREFETCH": True,  # 預先取回候選，讓「換一個」不必等待
+    "AI_PUSH_PRIORITY_CATS": [  # 優先推播分類，熱改有效
+        "超值全餐",
+        "極選系列",
+        "點心",
+        "飲料",
+        "麥當勞分享盒",
     ],
     # ── 語音菜單快取 ──────────────────────────
-    "VOICE_MENU_CACHE_TTL_SEC": 60.0,       # 菜單資料快取 TTL（秒）
+    "VOICE_MENU_CACHE_TTL_SEC": 60.0,  # 菜單資料快取 TTL（秒）
     # ── STT ───────────────────────────────────
-    "STT_PROVIDER": "faster_whisper",       # "faster_whisper" | "openai_compatible"
-    "STT_MODEL": "small",                   # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
+    "STT_PROVIDER": "faster_whisper",  # "faster_whisper" | "openai_compatible"
+    "STT_MODEL": "small",  # faster_whisper: tiny/small/medium; openai_compat: "whisper-1"
     "STT_INITIAL_PROMPT": "麥當勞點餐，繁體中文，常見品項：大麥克、薯條、麥克雞塊、可樂、套餐、咖啡、拿鐵",
     "STT_API_URL": "https://api.openai.com",
-    "STT_HTTP_TIMEOUT_SEC": 30,             # HTTP STT API 請求 timeout（秒）
+    "STT_HTTP_TIMEOUT_SEC": 30,  # HTTP STT API 請求 timeout（秒）
     # ── TTS ───────────────────────────────────
-    "TTS_PROVIDER": "edge",                 # "edge" | "melo" | "openai_compatible"
+    "TTS_PROVIDER": "edge",  # "edge" | "melo" | "openai_compatible"
     "EDGE_TTS_VOICE": "zh-TW-HsiaoChenNeural",
-    "TTS_SPEED": 1.0,                       # MeloTTS 語速
-    "TTS_MODEL": "tts-1",                   # openai_compatible 模型名稱
-    "TTS_VOICE": "alloy",                   # openai_compatible 聲音
+    "TTS_SPEED": 1.0,  # MeloTTS 語速
+    "TTS_MODEL": "tts-1",  # openai_compatible 模型名稱
+    "TTS_VOICE": "alloy",  # openai_compatible 聲音
     "TTS_API_URL": "https://api.openai.com",
-    "TTS_HTTP_TIMEOUT_SEC": 30,             # HTTP TTS API 請求 timeout（秒）
+    "TTS_HTTP_TIMEOUT_SEC": 30,  # HTTP TTS API 請求 timeout（秒）
     # ── 情緒分析 ─────────────────────────────────────────────
     "EMOTION_MODEL_PROFILE": "r1_omni",
     "EMOTION_CAPTURE_MODE": "off",  # off | periodic_ordering | voice_only
     "EMOTION_CLIP_SEC": 5.0,
-    "EMOTION_TIMEOUT_SEC": 120,       # HTTP 請求 timeout（秒）
+    "EMOTION_TIMEOUT_SEC": 120,  # HTTP 請求 timeout（秒）
     "EMOTION_PROMPT": _prompts.EMOTION_PROMPT,
     # ── 互動障礙偵測閾值 ──────────────────────
-    "BARRIER_DWELL_TIMEOUT_SEC": 40,        # 選單頁停留超過此秒數視為 menu_hesitation
-    "BARRIER_CATEGORY_SWITCH_MAX": 4,       # 分類切換次數達此值視為 menu_hesitation
-    "BARRIER_CART_REMOVE_MAX": 2,           # 購物車移除次數達此值視為 menu_hesitation
-    "BARRIER_PAYMENT_FAIL_MAX": 1,          # 付款失敗次數達此值視為 payment_confusion
+    "BARRIER_DWELL_TIMEOUT_SEC": 40,  # 選單頁停留超過此秒數視為 menu_hesitation
+    "BARRIER_CATEGORY_SWITCH_MAX": 4,  # 分類切換次數達此值視為 menu_hesitation
+    "BARRIER_CART_REMOVE_MAX": 2,  # 購物車移除次數達此值視為 menu_hesitation
+    "BARRIER_PAYMENT_FAIL_MAX": 1,  # 付款失敗次數達此值視為 payment_confusion
     # ── 機台識別 ─────────────────────────────────────────────────
     "KIOSK_NAME": "機台01",
     # ── Object storage (binary outside PostgreSQL; metadata may be durable) ──
@@ -554,6 +561,7 @@ def _apply_ai_env_overrides(settings: dict) -> None:
         elif env_value in {"0", "false", "no", "off"}:
             settings[env_key] = False
 
+
 def _finalize_settings(settings: dict) -> dict:
     """Apply env-derived overrides shared by every settings source (JSON file or Postgres)."""
 
@@ -561,8 +569,10 @@ def _finalize_settings(settings: dict) -> dict:
     legacy_emotion_mode = settings.get("EMOTION_CAPTURE_MODE")
     if legacy_emotion_mode in {"voice", "periodic"}:
         settings["EMOTION_CAPTURE_MODE"] = (
-            "voice_only" if legacy_emotion_mode == "voice" else "periodic_ordering"
-        ) if legacy_emotion_enabled is not False else "off"
+            ("voice_only" if legacy_emotion_mode == "voice" else "periodic_ordering")
+            if legacy_emotion_enabled is not False
+            else "off"
+        )
     elif legacy_emotion_enabled is False and legacy_emotion_mode is None:
         settings["EMOTION_CAPTURE_MODE"] = "off"
 
@@ -643,21 +653,13 @@ def load_settings():
         current_mtime = None
 
     # Fast path: no lock needed if cache is fresh
-    if (
-        _settings_cache is not None
-        and current_mtime == _settings_mtime
-        and now - _settings_last_check < 1.0
-    ):
+    if _settings_cache is not None and current_mtime == _settings_mtime and now - _settings_last_check < 1.0:
         return _settings_cache.copy()
 
     with _settings_lock:
         # Double-check after acquiring lock
         now = time.time()
-        if (
-            _settings_cache is not None
-            and current_mtime == _settings_mtime
-            and now - _settings_last_check < 1.0
-        ):
+        if _settings_cache is not None and current_mtime == _settings_mtime and now - _settings_last_check < 1.0:
             return _settings_cache.copy()
 
         if _settings_cache is not None and current_mtime == _settings_mtime:
@@ -673,15 +675,20 @@ def load_settings():
                     raw_settings = f.read().strip()
                     loaded_data = json.loads(raw_settings) if raw_settings else {}
                     if isinstance(loaded_data, dict):
-                        should_write = (
-                            "EMOTION_ENABLED" in loaded_data
-                            or loaded_data.get("EMOTION_CAPTURE_MODE") in {"voice", "periodic"}
-                        )
+                        should_write = "EMOTION_ENABLED" in loaded_data or loaded_data.get("EMOTION_CAPTURE_MODE") in {
+                            "voice",
+                            "periodic",
+                        }
                         settings = _deep_merge(settings, loaded_data)
-                        should_write = should_write or any(key not in loaded_data for key in DEFAULT_SETTINGS) or any(
-                            isinstance(DEFAULT_SETTINGS.get(k), dict) and
-                            any(sk not in loaded_data.get(k, {}) for sk in DEFAULT_SETTINGS[k])
-                            for k in DEFAULT_SETTINGS if isinstance(DEFAULT_SETTINGS.get(k), dict)
+                        should_write = (
+                            should_write
+                            or any(key not in loaded_data for key in DEFAULT_SETTINGS)
+                            or any(
+                                isinstance(DEFAULT_SETTINGS.get(k), dict)
+                                and any(sk not in loaded_data.get(k, {}) for sk in DEFAULT_SETTINGS[k])
+                                for k in DEFAULT_SETTINGS
+                                if isinstance(DEFAULT_SETTINGS.get(k), dict)
+                            )
                         )
             except Exception as e:
                 print(f"⚠️ Settings JSON 格式錯誤，將使用預設值覆寫: {e}")
@@ -724,6 +731,7 @@ def with_effective_emotion_prompt(settings: dict | None) -> dict:
         effective["EMOTION_PROMPT"] = DEFAULT_SETTINGS["EMOTION_PROMPT"]
     return effective
 
+
 def save_settings(new_settings):
     global _settings_cache, _settings_mtime, _settings_last_check
     with _settings_lock:
@@ -736,6 +744,7 @@ def save_settings(new_settings):
         _settings_cache = settings.copy()
         _settings_mtime = os.path.getmtime(SETTINGS_JSON_PATH)
         _settings_last_check = time.time()
+
 
 def get(key, default=None):
     """供外部服務調用，動態獲取參數，並支援預設值防呆"""
