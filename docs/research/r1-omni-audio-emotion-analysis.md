@@ -1,5 +1,12 @@
 # R1-Omni 是否能可靠做純音訊情緒分析
 
+
+> **路徑異動（2026-08-12）**：本文成文後 Emotion 收斂進 `modules/emotion`。
+> 下列連結的檔案位置已改變，行號也不再對應，內容結論不受影響：
+> `services/emotion_service.py` → `modules/emotion/_emotion_service.py`、
+> `services/multimodal_evidence_gateway.py` → `modules/emotion/adapters/r1_omni.py`、
+> `repositories/emotion_log_repository.py` → `modules/emotion/adapters/emotion_log.py`。
+
 ## 摘要
 
 結論先講：**不能根據目前一手證據，判定 R1-Omni 已被證明可「可靠」執行純音訊情緒分析**。較精確的說法是：

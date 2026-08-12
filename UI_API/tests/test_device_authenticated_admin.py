@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-from services import emotion_service
+from modules.emotion import _emotion_service as emotion_service
 from utils import auth_utils
 
 pytestmark = [pytest.mark.contract, pytest.mark.security]

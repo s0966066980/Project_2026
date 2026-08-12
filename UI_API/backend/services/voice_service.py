@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import threading
 
-from services import emotion_service
+from modules.emotion import application as emotion_service
 
 _background_emotion_tasks: set[asyncio.Task] = set()
 

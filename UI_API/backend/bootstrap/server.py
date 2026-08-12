@@ -6,7 +6,7 @@ from bootstrap.startup import ensure_ollama
 
 
 def print_runtime_banner(pos_port: int, admin_port: int, local_host: str):
-    from services.multimodal_evidence_gateway import configured_provider_status
+    from modules.emotion.adapters.r1_omni import configured_provider_status
 
     model_name = config.get("MODEL_NAME", "qwen3.5:4b")
     voice_model = config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b")

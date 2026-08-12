@@ -5,64 +5,43 @@ from __future__ import annotations
 from typing import Any
 
 from capabilities.emotion.contracts import EmotionCapabilityError, EmotionObservation
+from modules.emotion import application as _emotion
+from modules.emotion.application import (
+    MODEL_PROFILE,
+    analyze_event,
+    analyze_live_diagnostic,
+    default_prompt,
+    model_profiles,
+)
 
-
-def model_profiles() -> list[dict[str, Any]]:
-    from services import emotion_service
-
-    return emotion_service.model_profiles()
-
-
-def default_prompt() -> str:
-    from services import emotion_service
-
-    return str(emotion_service.default_prompt())
+# The implementation used to sit in services/ and be reached by a call-time
+# import inside every function here, which is what kept this capability on the
+# frozen legacy-layer list. It now lives in modules/emotion.
 
 
 def default_profile() -> str:
-    from services import emotion_service
-
-    return str(emotion_service.MODEL_PROFILE)
+    return str(MODEL_PROFILE)
 
 
 def readiness() -> dict[str, Any]:
-    from services import emotion_service
+    """Read the provider state at call time, not at import time.
 
-    profile = (emotion_service.model_profiles() or [{}])[0]
+    Binding `model_profiles` here would freeze the answer to whatever the
+    provider looked like when the process started, which is the opposite of
+    what a readiness probe is for.
+    """
+
+    profile = (_emotion.model_profiles() or [{}])[0]
     ready = bool(profile.get("ready"))
     return {"status": "ready" if ready else "unavailable", "ready": ready, "provider": profile}
 
 
-async def analyze_event(*, session_id: str, media_path: str, event_type: str) -> dict[str, Any]:
-    from services import emotion_service
-
-    return await emotion_service.analyze_event(
-        session_id=session_id,
-        media_path=media_path,
-        event_type=event_type,
-    )
-
-
-async def analyze_live_diagnostic(media_path: str, *, model_profile: str, prompt: str) -> dict[str, Any]:
-    from services import emotion_service
-
-    return await emotion_service.analyze_live_diagnostic(
-        media_path,
-        model_profile=model_profile,
-        prompt=prompt,
-    )
-
-
 def list_records(limit: int = 200) -> list[dict[str, Any]]:
-    from repositories import emotion_log_repository
-
-    return emotion_log_repository.get_records(limit)
+    return _emotion.get_records(limit)
 
 
 def clear_records() -> int:
-    from repositories import emotion_log_repository
-
-    return emotion_log_repository.clear_records()
+    return _emotion.clear_records()
 
 
 __all__ = [

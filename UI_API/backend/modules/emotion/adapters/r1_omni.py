@@ -10,20 +10,24 @@ from typing import Mapping
 import httpx
 
 import config
+
+# Observability is reached through the Operations capability rather than the
+# service behind it. Two call sites: redaction and one counter. Operations does
+# not depend on Emotion, so there is no cycle.
+from capabilities.operations_configuration import interface as operations
 from models.multimodal_evidence import (
     MultimodalEvidence,
     MultimodalEvidencePort,
     MultimodalEvidenceRequest,
 )
-from services import observability_service
 
 
 def _safe_error(text: str) -> str:
-    return observability_service.redact_sensitive_text(text)[:300]
+    return operations.observability_service.redact_sensitive_text(text)[:300]
 
 
 def _metric(provider: str, status: str) -> None:
-    observability_service.increment_metric("emotion_evidence_total", status=f"{provider}_{status}"[:80])
+    operations.observability_service.increment_metric("emotion_evidence_total", status=f"{provider}_{status}"[:80])
 
 
 def configured_provider_status(timeout_seconds: float = 1.5) -> dict:

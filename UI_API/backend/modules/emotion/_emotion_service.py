@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 
 import config
 from models.multimodal_evidence import MultimodalEvidenceRequest
-from repositories import emotion_log_repository
-from services.multimodal_evidence_gateway import collect_evidence, configured_provider_status
+from modules.emotion.adapters import emotion_log as emotion_log_repository
+from modules.emotion.adapters.r1_omni import collect_evidence, configured_provider_status
 
 logger = logging.getLogger(__name__)
 

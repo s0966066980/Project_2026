@@ -1,7 +1,7 @@
 import pytest
 
 from models.multimodal_evidence import MultimodalEvidence, MultimodalEvidenceRequest
-from services import multimodal_evidence_gateway as gateway
+from modules.emotion.adapters import r1_omni as gateway
 
 pytestmark = [pytest.mark.contract]
 

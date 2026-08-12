@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from models.multimodal_evidence import MultimodalEvidence
-from services import emotion_service
+from modules.emotion import _emotion_service as emotion_service
 
 pytestmark = [pytest.mark.unit]
 
