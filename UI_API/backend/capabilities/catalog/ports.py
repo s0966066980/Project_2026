@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Protocol
 
 from capabilities.catalog.contracts import CatalogAvailabilityState, CatalogItem
-
 from models.commercial_scope import CommercialScope
 
 

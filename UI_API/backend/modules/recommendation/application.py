@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from modules.analytics import record_touch
-
 from models.commercial_scope import CommercialScope
+from modules.analytics import record_touch
 from repositories import recommendation_event_repository
 from services import analytics_pipeline_service, recommendation_engine_service
 

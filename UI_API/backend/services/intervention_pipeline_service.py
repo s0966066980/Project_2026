@@ -1,8 +1,7 @@
 import asyncio
 
-from realtime import event_bus
-
 from models.commercial_scope import CommercialScope
+from realtime import event_bus
 from repositories import interaction_event_repository
 from services import barrier_state_service, intervention_service, scenario_service
 

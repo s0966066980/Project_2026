@@ -6,10 +6,10 @@ catalog router only because that file predated the capability boundaries.
 
 import asyncio
 
-from capabilities.campaign_promotion import promotion_banner_service
-from capabilities.identity_access import scope_from_device_principal
 from fastapi import APIRouter, Request
 
+from capabilities.campaign_promotion import promotion_banner_service
+from capabilities.identity_access import scope_from_device_principal
 from models.promotion_models import PosPromotionBannerResponse
 from utils.auth_utils import require_kiosk_token
 

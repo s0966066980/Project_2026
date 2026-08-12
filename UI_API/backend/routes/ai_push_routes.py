@@ -2,10 +2,10 @@
 
 import json
 
-from capabilities.identity_access import scope_from_device_principal
-from capabilities.recommendation_analytics import ai_push_service
 from fastapi import APIRouter, Form, Request
 
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.recommendation_analytics import ai_push_service
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
 

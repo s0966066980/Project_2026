@@ -12,9 +12,8 @@ from datetime import datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from capabilities import catalog
-
 import config
+from capabilities import catalog
 from models.commercial_scope import CommercialScope
 from repositories import promotion_repository
 

@@ -10,9 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
-
 import config
+from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
 from models.commercial_scope import CommercialScope
 from repositories import promotion_repository
 

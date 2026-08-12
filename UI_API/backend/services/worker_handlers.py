@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from capabilities.knowledge_rag import knowledge_publication_runtime
-
 from models.commercial_scope import CommercialScope
 from models.worker_jobs import BackgroundJob, JobHandlerResult
 from services import analytics_pipeline_service, observability_service
@@ -116,7 +115,6 @@ def _handle_push_copy_batch(job: BackgroundJob) -> JobHandlerResult:
     """
 
     from capabilities import catalog
-
     from repositories import push_copy_batch_repository, push_copy_repository
     from services import push_copy_authoring_service
 

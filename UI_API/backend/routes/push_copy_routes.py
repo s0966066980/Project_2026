@@ -7,6 +7,9 @@ is rejected outright when it asserts a promotion the store cannot guarantee.
 
 import asyncio
 
+from fastapi import APIRouter, Body, HTTPException, Request
+
+import config
 from capabilities import catalog
 from capabilities.campaign_promotion import (
     push_copy_authoring_service,
@@ -19,9 +22,6 @@ from capabilities.campaign_promotion import (
 from capabilities.identity_access import scope_from_admin_principal
 from capabilities.operations_configuration import interface as operations
 from capabilities.operations_configuration import worker_service
-from fastapi import APIRouter, Body, HTTPException, Request
-
-import config
 from utils.auth_utils import authorize_admin_request, check_rate_limit
 
 

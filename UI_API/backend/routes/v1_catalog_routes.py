@@ -11,10 +11,6 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from capabilities import catalog
-from capabilities.catalog import CatalogWriteError
-from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
-from capabilities.operations_configuration import interface as operations
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 
@@ -28,6 +24,10 @@ from api.v1.catalog_contracts import (
     catalog_item_dto,
 )
 from api.v1.contracts import ApiErrorResponse, ApiMeta, ApiResponse
+from capabilities import catalog
+from capabilities.catalog import CatalogWriteError
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.operations_configuration import interface as operations
 from models.commercial_scope import CommercialScope
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope

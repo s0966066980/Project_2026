@@ -4,9 +4,8 @@ import hashlib
 import json
 from threading import Lock
 
-from modules.runtime_persistence.runtime import sqlite_database_path
-
 import config
+from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
 
 from .module import RetrievalCheckModule, RetrievalIdentity
@@ -32,7 +31,6 @@ class ProductionRetrievalEngine:
 class ProductionRetrievalIdentityProvider:
     def current(self, *, scope) -> RetrievalIdentity:
         from modules.knowledge_publication import runtime as publication_runtime
-
         from services import rag_knowledge_service
 
         attempts = sorted(publication_runtime.default_module().published_attempt_ids(scope=scope))

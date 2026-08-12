@@ -7,11 +7,10 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
 
-from capabilities import catalog
-from modules.runtime_persistence.runtime import sqlite_database_path
-
 import config
+from capabilities import catalog
 from models.llm import LLMRequest
+from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils, session_repository
 from services import llm_gateway_service, llm_routing_service
 from services.recommendation_service import coerce_cart_actions

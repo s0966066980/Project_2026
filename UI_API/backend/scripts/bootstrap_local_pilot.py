@@ -213,7 +213,6 @@ def _issue_device_bundle(
     admin_user_id: UUID,
 ) -> None:
     from capabilities.identity_access import device_identity_service
-
     from models.admin_identity import AdminPrincipal
     from models.commercial_scope import CommercialScope
 
@@ -302,7 +301,6 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("DATABASE_TOPOLOGY", "single")
     from capabilities.identity_access import interface as admin_identity_service
     from modules.runtime_persistence.migrations import require_schema_head
-
     from repositories import postgres_utils
 
     if not postgres_utils.use_postgres():

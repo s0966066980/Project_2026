@@ -13,6 +13,7 @@ import time
 from threading import Lock
 from typing import Any
 
+import config
 from capabilities.knowledge_rag import knowledge_publication_runtime
 from capabilities.knowledge_rag.contracts import (
     INDEX_VERSION as _INDEX_VERSION,
@@ -27,10 +28,8 @@ from capabilities.knowledge_rag.contracts import (
     RetrievalConfigurationModule,
     SQLiteRetrievalConfigurationStore,
 )
-from modules.runtime_persistence.runtime import sqlite_database_path
-
-import config
 from models.commercial_scope import CommercialScope
+from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
 from services.rag_provider import get_rag
 

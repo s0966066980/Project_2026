@@ -7,10 +7,9 @@ the module that owns the Voice Turn contract rather than to whichever adapter
 happens to swallow the error today.
 """
 
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.voice_turn.module import VoiceTurnModule
 from modules.voice_turn.sqlite_store import SQLiteVoiceTurnStore
-
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 
 
 class _STT:

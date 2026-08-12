@@ -1,6 +1,5 @@
-from app_factory import _api_documentation_urls
-
 import config
+from app_factory import _api_documentation_urls
 from routes.diagnostic_routes import create_router
 
 

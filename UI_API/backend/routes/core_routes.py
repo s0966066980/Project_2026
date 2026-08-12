@@ -1,15 +1,15 @@
 import asyncio
 
-from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
-from capabilities.operations_configuration import interface as operations
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
-from realtime import event_bus
 
 import config
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.operations_configuration import interface as operations
 from core.constants import FRONTEND_DIR
 from models.settings_contract import SettingsUpdateRequest
+from realtime import event_bus
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 

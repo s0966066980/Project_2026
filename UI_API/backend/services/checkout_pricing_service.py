@@ -7,7 +7,6 @@ from typing import Any
 
 from capabilities import catalog
 from capabilities.campaign_promotion import PromotionContext, quote_promotion, select_promotion_quote
-
 from models.commercial_scope import CommercialScope
 from services import availability_service, commercial_shadow_service, promotion_service
 

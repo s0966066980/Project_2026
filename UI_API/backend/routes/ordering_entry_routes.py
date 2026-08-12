@@ -1,10 +1,10 @@
 import asyncio
 
+from fastapi import APIRouter, HTTPException, Request
+
 from capabilities.identity_access import scope_from_device_principal
 from capabilities.ordering import EntryFlowError
 from capabilities.ordering import ordering_entry_runtime as runtime
-from fastapi import APIRouter, HTTPException, Request
-
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
 

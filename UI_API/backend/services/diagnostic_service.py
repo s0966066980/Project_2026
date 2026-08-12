@@ -6,10 +6,10 @@ untouched, which is why the gateway adapters are called directly rather than thr
 llm_gateway_service.generate()'s policy-driven chain.
 """
 
-import database
 import requests
 
 import config
+import database
 from models.llm import LLMAdapterResult, LLMRequest
 from services import llm_gateway_service, llm_routing_service
 

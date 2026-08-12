@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from modules.analytics.contracts import EffectivenessReport, TouchReceipt
-
 from models.commercial_scope import CommercialScope
+from modules.analytics.contracts import EffectivenessReport, TouchReceipt
 from services import analytics_pipeline_service
 
 TOUCH_TYPES = {

@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import asyncio
 
-from capabilities.identity_access import scope_from_admin_principal
-from capabilities.operations_configuration import interface as operations
 from fastapi import APIRouter, HTTPException, Request
 
 import config
+from capabilities.identity_access import scope_from_admin_principal
+from capabilities.operations_configuration import interface as operations
 from utils.auth_utils import authorize_admin_request, check_rate_limit
 
 

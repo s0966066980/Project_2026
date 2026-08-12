@@ -6,10 +6,9 @@ import json
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
-from modules.runtime_persistence.evidence import inspect_persistence
-
 import config
 from bootstrap import startup
+from modules.runtime_persistence.evidence import inspect_persistence
 from repositories import postgres_utils, recommendation_event_repository
 from services import observability_service, shared_infrastructure_service
 from services.commercial_scope_readiness_service import validate_configured_commercial_scope

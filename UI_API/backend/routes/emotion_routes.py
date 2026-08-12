@@ -5,9 +5,9 @@ import os
 import tempfile
 from typing import Literal
 
-from capabilities import emotion
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
+from capabilities import emotion
 from utils.auth_utils import authorize_admin_request, check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 

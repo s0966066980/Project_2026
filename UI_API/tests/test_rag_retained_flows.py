@@ -9,12 +9,12 @@ makes it the case worth covering: the flows have to work from nothing.
 import asyncio
 
 import pytest
+
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.knowledge_publication.module import KnowledgePublicationModule, PublicationError
 from modules.knowledge_publication.sqlite_store import SQLitePublicationStore
 from modules.retrieval_check.module import RetrievalCheckError, RetrievalCheckModule, RetrievalIdentity
 from modules.retrieval_check.sqlite_store import SQLiteRetrievalCheckStore
-
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 
 SCOPE = LEGACY_DEFAULT_SCOPE
 ACTOR = "admin-1"

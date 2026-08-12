@@ -5,9 +5,8 @@
 
 import asyncio
 
-from capabilities import catalog
-
 import config
+from capabilities import catalog
 from models.commercial_scope import CommercialScope
 from services import (
     availability_service,

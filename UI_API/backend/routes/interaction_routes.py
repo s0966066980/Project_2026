@@ -1,5 +1,8 @@
 import asyncio
 
+from fastapi import APIRouter, Body, Request
+
+import config
 from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
 from capabilities.recommendation_analytics import (
     interaction_event_repository,
@@ -8,10 +11,7 @@ from capabilities.recommendation_analytics import (
     scenario_service,
     stats_service,
 )
-from fastapi import APIRouter, Body, Request
 from realtime import event_bus
-
-import config
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 

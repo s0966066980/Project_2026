@@ -1,7 +1,8 @@
 """Device-authenticated Admin identity transport."""
 
-from capabilities.identity_access import device_admin_principal
 from fastapi import APIRouter, Request
+
+from capabilities.identity_access import device_admin_principal
 
 
 def _principal_payload(principal) -> dict:

@@ -1,5 +1,4 @@
 from capabilities import catalog
-
 from repositories import log_repository
 from services import recommendation_service
 

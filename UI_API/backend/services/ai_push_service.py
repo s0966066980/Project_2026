@@ -8,10 +8,9 @@ import asyncio
 import logging
 import time
 
+import config
 from capabilities import catalog
 from capabilities.recommendation_analytics import decide
-
-import config
 from models.commercial_scope import CommercialScope
 from repositories import push_copy_repository
 from services import (

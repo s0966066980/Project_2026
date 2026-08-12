@@ -2,9 +2,8 @@
 
 from datetime import datetime, time
 
-from capabilities import catalog
-
 import config
+from capabilities import catalog
 from models.commercial_scope import CommercialScope
 from repositories import availability_repository
 

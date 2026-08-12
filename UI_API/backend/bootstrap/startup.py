@@ -2,7 +2,6 @@ import asyncio
 import threading
 
 import ai_services
-
 import config
 
 _background_init_done = False

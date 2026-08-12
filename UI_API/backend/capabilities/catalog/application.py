@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from capabilities.catalog.contracts import CatalogAvailabilityState, CatalogItem
 from capabilities.catalog.ports import CatalogAvailabilityPort, CatalogReadPort, CatalogWritePort
-
 from models.commercial_scope import CommercialScope
 
 _read_port: CatalogReadPort | None = None

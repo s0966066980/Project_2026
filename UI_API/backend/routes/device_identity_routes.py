@@ -3,11 +3,11 @@
 import asyncio
 from uuid import UUID
 
-from capabilities.identity_access import device_identity_service
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 import config
+from capabilities.identity_access import device_identity_service
 from models.commercial_scope import CommercialScope
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope

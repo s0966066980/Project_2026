@@ -21,14 +21,13 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from uuid import UUID, uuid4
 
-from modules.runtime_persistence import configured_runtime_paths
-
 import config
 from models.object_storage import (
     ENCRYPTION_LOCAL_AES_GCM,
     ENCRYPTION_NONE_TEST,
     ObjectMetadata,
 )
+from modules.runtime_persistence import configured_runtime_paths
 
 try:
     from repositories import object_storage_repository

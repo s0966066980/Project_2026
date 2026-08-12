@@ -6,10 +6,9 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
 
-from modules.runtime_persistence.runtime import sqlite_database_path
-
 import config
 from models.commercial_scope import CommercialScope
+from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
 from services import worker_service
 from services.rag_provider import get_rag

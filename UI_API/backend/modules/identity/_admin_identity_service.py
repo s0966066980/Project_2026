@@ -9,12 +9,12 @@ from uuid import UUID, uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-from modules.identity.adapters import postgres as admin_identity_repository
 
 import config
 from models.admin_identity import AdminPrincipal, AdminSessionResult
 from models.admin_permissions import ADMIN_PERMISSION_CATALOG
 from models.commercial_scope import CommercialScope
+from modules.identity.adapters import postgres as admin_identity_repository
 from repositories import admin_audit_repository, postgres_utils
 
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)

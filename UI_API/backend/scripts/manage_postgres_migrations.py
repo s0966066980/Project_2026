@@ -15,7 +15,6 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 # Compatibility CLI now crosses the Runtime Persistence Profile seam.
 from modules.runtime_persistence import migrations  # noqa: E402
-
 from repositories import postgres_utils  # noqa: E402
 
 

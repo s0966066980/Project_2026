@@ -4,11 +4,10 @@ from dataclasses import fields
 from inspect import signature
 from pathlib import Path
 
-from modules.analytics.application import build_effectiveness_report
-from modules.analytics.contracts import EffectivenessReport
-
 from api.v1.contracts import RecommendationEffectivenessDTO
 from models.settings_contract import SettingsUpdateRequest
+from modules.analytics.application import build_effectiveness_report
+from modules.analytics.contracts import EffectivenessReport
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TARGET_SETTING_KEYS = {

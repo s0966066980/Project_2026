@@ -1,7 +1,6 @@
+from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.retrieval_configuration import RetrievalConfigurationError, RetrievalConfigurationModule
 from modules.retrieval_configuration.sqlite_store import SQLiteRetrievalConfigurationStore
-
-from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 
 
 def _module(tmp_path):

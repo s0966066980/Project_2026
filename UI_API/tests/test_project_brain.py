@@ -17,8 +17,8 @@ import urllib.error
 from pathlib import Path
 
 import pytest
-from project_analysis import report_store, sidecar_client, snapshot
 
+from project_analysis import report_store, sidecar_client, snapshot
 from services import project_brain_service
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]

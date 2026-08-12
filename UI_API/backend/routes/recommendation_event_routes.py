@@ -2,10 +2,10 @@
 
 import asyncio
 
-from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
-from capabilities.recommendation_analytics import recommendation_event_repository, recommendation_event_service
 from fastapi import APIRouter, Body, Request
 
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.recommendation_analytics import recommendation_event_repository, recommendation_event_service
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 

@@ -1,9 +1,9 @@
 from uuid import uuid4
 
 import pytest
-from modules.checkout_confirmation.module import CheckoutConfirmationModule, CheckoutError
 
 from models.commercial_scope import CommercialScope
+from modules.checkout_confirmation.module import CheckoutConfirmationModule, CheckoutError
 
 
 class Cart:

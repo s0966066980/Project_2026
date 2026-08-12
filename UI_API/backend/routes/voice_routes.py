@@ -6,12 +6,12 @@ import os
 import tempfile
 from uuid import uuid4
 
-from capabilities.identity_access import scope_from_device_principal
-from capabilities.voice import VoiceTurnError, voice_turn_runtime
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from bootstrap import startup
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.voice import VoiceTurnError, voice_turn_runtime
 from utils.auth_utils import check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 

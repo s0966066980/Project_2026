@@ -2,12 +2,12 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from modules.optimization_lab import OptimizationLabError
-from modules.optimization_lab.module import AnalyzerRegistry, OptimizationLabModule
-from modules.optimization_lab.sqlite_store import SQLiteOptimizationLabStore
 
 from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from models.llm import LLMModelPolicy, LLMResponse
+from modules.optimization_lab import OptimizationLabError
+from modules.optimization_lab.module import AnalyzerRegistry, OptimizationLabModule
+from modules.optimization_lab.sqlite_store import SQLiteOptimizationLabStore
 
 
 def _clock_box():

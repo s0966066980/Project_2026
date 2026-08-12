@@ -14,10 +14,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import config
 from project_analysis import report_store, sidecar_client, snapshot
 from project_analysis.sidecar_client import SidecarUnavailable
-
-import config
 
 __all__ = [
     "SidecarUnavailable",

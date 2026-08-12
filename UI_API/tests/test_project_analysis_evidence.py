@@ -13,6 +13,7 @@ denial asserts the specific rule that stopped it.
 from pathlib import Path
 
 import pytest
+
 from project_analysis import evidence
 
 # --- Accepted evidence ------------------------------------------------------
