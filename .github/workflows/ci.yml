@@ -124,6 +124,29 @@ jobs:
       # and the workflow was never updated, so it has failed on a missing path ever
       # since. The contract suite runs here instead, against PostgreSQL rather than
       # the SQLite default, which is the only place the pilot's database is covered.
+      # Applying every migration to an empty database only proves a fresh
+      # install works. The migration that breaks a store is the one that meets a
+      # database which already has rows in it, so the previous release's schema
+      # is rehearsed first and the newest migration lands on top of it.
+      - name: Rehearse the upgrade from the previous release
+        run: |
+          set -euo pipefail
+          previous=$(ls backend/schemas/migrations/*.sql | sort | tail -2 | head -1 | xargs -n1 basename | sed 's/\.sql$//')
+          echo "previous release schema: $previous"
+          python backend/scripts/manage_postgres_migrations.py apply --through "$previous"
+          python - <<'CHECK'
+          import json, subprocess, sys
+          plan = json.loads(subprocess.run(
+              [sys.executable, "backend/scripts/manage_postgres_migrations.py", "status"],
+              capture_output=True, text=True, check=True).stdout)
+          pending = [m["version"] for m in plan["migrations"] if m["state"] != "applied"]
+          if len(pending) != 1:
+              raise SystemExit(f"expected exactly one migration to remain, found {pending}")
+          print(f"upgrade under test: {pending[0]}")
+          CHECK
+          python backend/scripts/manage_postgres_migrations.py apply
+          python backend/scripts/manage_postgres_migrations.py validate --require-clean
+
       - name: Apply migrations
         run: python backend/scripts/manage_postgres_migrations.py apply
 

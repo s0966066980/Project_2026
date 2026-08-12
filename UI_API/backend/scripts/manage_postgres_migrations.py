@@ -26,6 +26,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail when valid local migrations have not been applied.",
     )
+    parser.add_argument(
+        "--through",
+        default="",
+        help="Apply only up to and including this migration, to rehearse an upgrade from it.",
+    )
     return parser
 
 
@@ -33,7 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "apply":
-            plan = migrations.migrate_to_head()
+            plan = migrations.migrate_to_head(through=args.through)
         else:
             plan = migrations.inspect_schema()
             if args.command == "status":

@@ -282,7 +282,15 @@ def get_migration_plan() -> MigrationPlan:
     return build_migration_plan(files, applied)
 
 
-def init_schema() -> None:
+def init_schema(*, through: str = "") -> None:
+    """Apply pending migrations, optionally stopping after `through`.
+
+    Stopping early exists so the upgrade path can be exercised: applying every
+    migration to an empty database only proves a fresh install works, and the
+    migration that breaks a store is the one that meets a database which
+    already has rows in it.
+    """
+
     files = migration_files()
     _validate_migration_files(files)
     with migration_connect() as conn:
@@ -305,12 +313,19 @@ def init_schema() -> None:
                     """,
                     (record.version, record.checksum),
                 )
+                if through and record.version == through:
+                    break
             _grant_runtime_role(cur)
         conn.commit()
 
 
-def apply_migrations() -> MigrationPlan:
-    init_schema()
+def apply_migrations(*, through: str = "") -> MigrationPlan:
+    known = {path.stem for path in migration_files()}
+    if through and through not in known:
+        raise MigrationValidationError(f"unknown migration: {through}")
+    init_schema(through=through)
     plan = get_migration_plan()
-    validate_migration_plan(plan, require_clean=True)
+    # A deliberately partial application leaves later migrations pending, which
+    # is the point; only a full run may claim the schema is at head.
+    validate_migration_plan(plan, require_clean=not through)
     return plan

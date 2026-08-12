@@ -71,16 +71,25 @@ it never promotes a Pilot gate.
 | 25 Observability (logging half) | Structured request logging with correlation, tenant, store and device fields |
 | 36 Admin AI proposal workflow | Sidecar isolation, proposals never applied automatically (ADR-0034, ADR-0039, ADR-0040) |
 
-### Missing, and buildable here
+### Delivered in the first upgrade batch
+
+Evidence for each, including the mutations that prove the new rules can fail,
+is in [`gates/README.md`](gates/README.md).
+
+| Item | What changed |
+| --- | --- |
+| 01 Test infrastructure | Layer markers applied to every test file; selection verified; `tests/test_test_taxonomy.py` keeps them from rotting back into decoration |
+| 1.3 Unversioned surface rule | Three rules over the mounted routes, mutation-verified |
+| 1.3 Contract snapshot | 119 operations and 77 models captured, mutation-verified against rename, new obligation and route deletion |
+| 9.2 Build metadata endpoint | `GET /api/v1/operations/build`; `config.APP_VERSION` is the single source shared with the OpenAPI version |
+| 23 Model registry | `config/models/manifest.yaml` plus `validate_model_manifest.py`, verified against the host weights and the Ollama digest |
+| 15 Migration hardening | CI rehearses the upgrade from the previous release before applying the newest migration |
+
+### Still missing, and buildable here
 
 | Item | Gap |
 | --- | --- |
-| 01 Test infrastructure | Fourteen markers are declared and none are used: `pytest -m unit` and `-m integration` both collect nothing |
-| 1.3 Contract snapshot | Only the catalog contract is checked; nothing prevents an unversioned `/api/*` path from returning |
-| 9.2 Build metadata endpoint | Absent; `APP_GIT_REVISION` reaches only the analysis snapshot |
-| 23 Model registry | `config/models/` does not exist |
 | 26/27 Backup and restore drill | One manual dump/restore is recorded; there is no repeatable script |
-| 15 Migration hardening | CI applies migrations to an empty database but never upgrades from a previous release |
 | 37/38 Performance and concurrency | No load or concurrency tests |
 
 ### Missing, and dependent on the above

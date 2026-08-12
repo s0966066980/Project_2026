@@ -39,10 +39,14 @@ def require_schema_head() -> MigrationPlan:
     return plan
 
 
-def migrate_to_head() -> MigrationPlan:
-    """Apply forward migrations using the migration role, then verify runtime access."""
+def migrate_to_head(*, through: str = "") -> MigrationPlan:
+    """Apply forward migrations using the migration role, then verify runtime access.
 
-    return postgres_utils.apply_migrations()
+    `through` stops after the named migration so an upgrade from a previous
+    release can be rehearsed against the same code path production uses.
+    """
+
+    return postgres_utils.apply_migrations(through=through)
 
 
 __all__ = [
