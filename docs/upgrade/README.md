@@ -84,13 +84,14 @@ is in [`gates/README.md`](gates/README.md).
 | 9.2 Build metadata endpoint | `GET /api/v1/operations/build`; `config.APP_VERSION` is the single source shared with the OpenAPI version |
 | 23 Model registry | `config/models/manifest.yaml` plus `validate_model_manifest.py`, verified against the host weights and the Ollama digest |
 | 15 Migration hardening | CI rehearses the upgrade from the previous release before applying the newest migration |
+| 26/27 Backup and restore drill | Four scripts under `scripts/backup/`; drill passed and was made to fail three ways ([`recovery/`](recovery/README.md)) |
 
 ### Still missing, and buildable here
 
 | Item | Gap |
 | --- | --- |
-| 26/27 Backup and restore drill | One manual dump/restore is recorded; there is no repeatable script |
 | 37/38 Performance and concurrency | No load or concurrency tests |
+| 10.4 Backup retention and scheduling | The drill is repeatable but nothing runs it on a timer; belongs with the appliance work (30–31) |
 
 ### Missing, and dependent on the above
 

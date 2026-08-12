@@ -132,8 +132,21 @@ Project_2026/
 ├── docs/adr/               # 架構決策紀錄
 ├── CONTEXT.md              # domain glossary
 ├── Project_2026_Execution_Plan.md
+├── docs/upgrade/           # Commercial V1 路線與 gate 證據
+├── scripts/backup/         # 備份、驗證與還原演練
 └── tools/                  # 非 production 的一次性工具
 ```
+
+## 備份與還原
+
+```bash
+bash scripts/backup/backup_postgres.sh        # 權威資料庫，附 schema/checksum manifest
+bash scripts/backup/backup_objects.sh         # objects 與 RAG index
+bash scripts/backup/verify_backup.sh --latest # checksum 與可讀性
+bash scripts/backup/restore_test.sh --latest  # 還原到臨時資料庫並比對
+```
+
+備份預設寫到 `.backups/`（已 git-ignore，內含會員 PII）。`BACKUP_ROOT` 指向與主機分離的儲存才符合 Pilot Recovery Objective —— 這一步是操作者責任，repository 無法代為驗證。**有備份腳本不算完成，`restore_test.sh` 通過才算。**
 
 ## 目前限制
 

@@ -97,3 +97,8 @@ R1-Omni/models/
 
 # Generated architecture inventory (regenerate with tools/architecture_inventory.py)
 docs/architecture/
+
+# Backups hold authoritative business data, including member PII. The default
+# destination is inside the checkout so the restore drill can run unattended;
+# committing one would publish the database.
+.backups/
