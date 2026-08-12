@@ -31,14 +31,52 @@ def test_capability_manifest_is_unique_and_wave_ordered() -> None:
     )
 
 
+def _module_parts(imported: str) -> list[str]:
+    """Normalise an import to the package path the application actually writes.
+
+    `main.py` puts `backend/` on `sys.path`, so application modules import
+    `services.x`, never `backend.services.x`. Both rules below required the
+    `backend.` prefix, which no application file has ever written: they walked
+    every capability file and could not match a single import, so they asserted
+    nothing while eight real violations sat in the tree. Tests do import
+    `backend.capabilities`, so the prefix is stripped rather than rejected.
+    """
+
+    parts = imported.split(".")
+    return parts[1:] if parts[:1] == ["backend"] else parts
+
+
+# Capability interfaces that still reach into the legacy horizontal layers.
+# Each entry is a capability that has not taken ownership of its own data, so
+# the execution plan still counts it against the Module Independence Gate.
+# This list may only shrink: a converged capability is deleted from it, and a
+# new one may never be added.
+CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
+    "backend/capabilities/campaign_promotion/interface.py",
+    "backend/capabilities/emotion/interface.py",
+    "backend/capabilities/identity_access/interface.py",
+    "backend/capabilities/knowledge_rag/interface.py",
+    "backend/capabilities/member/interface.py",
+    "backend/capabilities/operations_configuration/interface.py",
+    "backend/capabilities/ordering/interface.py",
+    "backend/capabilities/recommendation_analytics/interface.py",
+}
+
+
 def test_capabilities_do_not_import_legacy_horizontal_layers() -> None:
     violations: list[str] = []
+    unused_entries = set(CAPABILITIES_STILL_ON_LEGACY_LAYERS)
     for path in CAPABILITIES_ROOT.rglob("*.py"):
+        relative = str(path.relative_to(UI_API_ROOT))
         for imported in _absolute_imports(path):
-            parts = imported.split(".")
-            if len(parts) >= 2 and parts[0] == "backend" and parts[1] in LEGACY_LAYERS:
-                violations.append(f"{path.relative_to(UI_API_ROOT)} -> {imported}")
+            parts = _module_parts(imported)
+            if not parts or parts[0] not in LEGACY_LAYERS:
+                continue
+            unused_entries.discard(relative)
+            if relative not in CAPABILITIES_STILL_ON_LEGACY_LAYERS:
+                violations.append(f"{relative} -> {imported}")
     assert violations == []
+    assert unused_entries == set(), f"no longer on legacy layers; remove from the list: {sorted(unused_entries)}"
 
 
 def test_cross_capability_imports_use_published_surfaces() -> None:
@@ -47,13 +85,13 @@ def test_cross_capability_imports_use_published_surfaces() -> None:
         relative = path.relative_to(CAPABILITIES_ROOT)
         source_capability = relative.parts[0] if len(relative.parts) > 1 else ""
         for imported in _absolute_imports(path):
-            parts = imported.split(".")
-            if len(parts) < 3 or parts[:2] != ["backend", "capabilities"]:
+            parts = _module_parts(imported)
+            if len(parts) < 2 or parts[0] != "capabilities":
                 continue
-            target_capability = parts[2]
+            target_capability = parts[1]
             if not source_capability or target_capability == source_capability:
                 continue
-            published_surface = parts[3] if len(parts) > 3 else ""
+            published_surface = parts[2] if len(parts) > 2 else ""
             if published_surface not in ALLOWED_CROSS_CAPABILITY_SURFACES:
                 violations.append(f"{relative} -> {imported}")
     assert violations == []
@@ -86,7 +124,7 @@ def test_foundation_does_not_depend_on_business_capabilities() -> None:
         f"{path.relative_to(UI_API_ROOT)} -> {imported}"
         for path in FOUNDATION_ROOT.rglob("*.py")
         for imported in _absolute_imports(path)
-        if imported.startswith("backend.capabilities")
+        if _module_parts(imported)[:1] == ["capabilities"]
     ]
     assert violations == []
 
