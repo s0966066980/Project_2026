@@ -635,7 +635,7 @@ def _load_settings_postgres():
         if _pg_settings_cache is not None and now - _pg_settings_last_check < 1.0:
             return _pg_settings_cache.copy()
 
-        from repositories import commercial_settings_repository
+        from modules.operations.adapters import settings as commercial_settings_repository
 
         settings = _deep_merge(DEFAULT_SETTINGS.copy(), commercial_settings_repository.get_settings())
         settings = _finalize_settings(settings)
