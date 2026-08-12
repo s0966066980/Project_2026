@@ -85,12 +85,14 @@ is in [`gates/README.md`](gates/README.md).
 | 23 Model registry | `config/models/manifest.yaml` plus `validate_model_manifest.py`, verified against the host weights and the Ollama digest |
 | 15 Migration hardening | CI rehearses the upgrade from the previous release before applying the newest migration |
 | 26/27 Backup and restore drill | Four scripts under `scripts/backup/`; drill passed and was made to fail three ways ([`recovery/`](recovery/README.md)) |
+| 22 AI degradation matrix | Five providers broken for real, core ordering path walked through the published API each time; mutation-verified |
 
 ### Still missing, and buildable here
 
 | Item | Gap |
 | --- | --- |
 | 37/38 Performance and concurrency | No load or concurrency tests |
+| 17/18 Frontend decomposition | kiosk/app.js is 2649 lines, admin/admin.js 1213; the checkout section is coupled to the DOM registry and has no characterization test to extract against |
 | 10.4 Backup retention and scheduling | The drill is repeatable but nothing runs it on a timer; belongs with the appliance work (30–31) |
 
 ### Missing, and dependent on the above

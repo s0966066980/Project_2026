@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request
 
 from capabilities.identity_access import scope_from_device_principal
-from capabilities.ordering import CartError, CheckoutError
+from capabilities.ordering import CartError, CheckoutError, checkout_pricing_service
 from capabilities.ordering import checkout_runtime as runtime
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
@@ -15,6 +15,18 @@ def _scope(request):
 def _raise(exc):
     status = 409 if exc.code in {"cart_revision_conflict", "idempotency_conflict", "cart_closed"} else 422
     raise HTTPException(status_code=status, detail={"code": exc.code, **exc.details}) from exc
+
+
+def _raise_validation(exc):
+    """A cart the store cannot sell is a refusal, not an internal error.
+
+    Pricing raises `CartValidationError`, which is neither a CartError nor a
+    CheckoutError, so it escaped the handlers below and reached the customer as
+    HTTP 500 `internal_error`. Ordering an item outside its service period is
+    an ordinary thing to do; the answer has to name the reason.
+    """
+
+    raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
 
 
 def create_router(_deps=None, *, prefix: str = "/api"):
@@ -46,6 +58,8 @@ def create_router(_deps=None, *, prefix: str = "/api"):
         check_rate_limit(request, "checkout_prepare", limit=120, key=session_id)
         try:
             return await asyncio.to_thread(runtime.default_module().prepare, scope=scope, session_id=session_id)
+        except checkout_pricing_service.CartValidationError as exc:
+            _raise_validation(exc)
         except (CheckoutError, CartError) as exc:
             _raise(exc)
 
