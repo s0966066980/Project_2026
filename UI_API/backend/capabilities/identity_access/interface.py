@@ -1,6 +1,7 @@
 """The only published Admin identity surface for capability consumers."""
 
 from capabilities.identity_access.contracts import AccessGrant, IdentityCapabilityError
+from models.commercial_scope import CommercialScope
 from modules.identity.application import (
     AdminAuthenticationError,
     AdminAuthorizationError,
@@ -10,6 +11,7 @@ from modules.identity.application import (
     hash_admin_session_token,
     login_admin,
     logout_admin,
+    normalize_admin_login,
     rotate_admin_session,
     sync_admin_permission_catalog,
     verify_admin_password,
@@ -38,13 +40,13 @@ class _FleetManagementServiceProxy:
 fleet_management_service = _FleetManagementServiceProxy()
 
 
-def scope_from_admin_principal(principal):
+def scope_from_admin_principal(principal) -> CommercialScope:
     from services.commercial_context_service import scope_from_admin_principal as resolve
 
     return resolve(principal)
 
 
-def scope_from_device_principal(principal):
+def scope_from_device_principal(principal) -> CommercialScope:
     from services.commercial_context_service import scope_from_device_principal as resolve
 
     return resolve(principal)
@@ -74,6 +76,7 @@ __all__ = [
     "hash_admin_session_token",
     "login_admin",
     "logout_admin",
+    "normalize_admin_login",
     "rotate_admin_session",
     "sync_admin_permission_catalog",
     "verify_admin_password",

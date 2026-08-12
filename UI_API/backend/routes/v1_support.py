@@ -9,50 +9,11 @@ from __future__ import annotations
 import asyncio
 import math
 from datetime import datetime, timezone
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Literal, Protocol, TypeVar
 from uuid import UUID, uuid5
 
-from capabilities import catalog
-from capabilities.campaign_promotion import (
-    CampaignConflictError,
-    CampaignStateError,
-    PromotionContext,
-    create_campaign_draft,
-    get_campaign,
-    list_campaigns,
-    preview_campaign,
-    project_item_price,
-    promotion_service,
-    publish_campaign,
-    revise_campaign_draft,
-    transition_campaign,
-)
-from capabilities.identity_access import (
-    fleet_management_service,
-    scope_from_admin_principal,
-    scope_from_device_principal,
-)
-from capabilities.knowledge_rag import (
-    PublicationError,
-    RetrievalCheckError,
-    knowledge_publication_runtime,
-    rag_knowledge_service,
-    retrieval_check_runtime,
-)
-from capabilities.member import member_service
-from capabilities.operations_configuration import interface as operations
-from capabilities.operations_configuration import operations_overview_runtime, service_health_runtime
-from capabilities.ordering import checkout_order_repository, checkout_pricing_service
-from capabilities.recommendation_analytics import (
-    TouchValidationError,
-    analytics_pipeline_service,
-    build_effectiveness_report,
-    record_touch,
-)
-from capabilities.recommendation_analytics import list_events as list_recommendation_events
 from fastapi import APIRouter, HTTPException, Query, Request, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
-from realtime import event_bus
 
 from api.v1.contracts import (
     AdminPrincipalDTO,
@@ -96,8 +57,47 @@ from api.v1.contracts import (
     SettingsDTO,
     SettingsPatchRequest,
 )
+from capabilities import catalog
+from capabilities.campaign_promotion import (
+    CampaignConflictError,
+    CampaignStateError,
+    PromotionContext,
+    create_campaign_draft,
+    get_campaign,
+    list_campaigns,
+    preview_campaign,
+    project_item_price,
+    promotion_service,
+    publish_campaign,
+    revise_campaign_draft,
+    transition_campaign,
+)
+from capabilities.identity_access import (
+    fleet_management_service,
+    scope_from_admin_principal,
+    scope_from_device_principal,
+)
+from capabilities.knowledge_rag import (
+    PublicationError,
+    RetrievalCheckError,
+    knowledge_publication_runtime,
+    rag_knowledge_service,
+    retrieval_check_runtime,
+)
+from capabilities.member import member_service
+from capabilities.operations_configuration import interface as operations
+from capabilities.operations_configuration import operations_overview_runtime, service_health_runtime
+from capabilities.ordering import checkout_order_repository, checkout_pricing_service
+from capabilities.recommendation_analytics import (
+    TouchValidationError,
+    analytics_pipeline_service,
+    build_effectiveness_report,
+    record_touch,
+)
+from capabilities.recommendation_analytics import list_events as list_recommendation_events
 from models.commercial_scope import CommercialScope
 from models.order import OrderStatus
+from realtime import event_bus
 from utils.auth_utils import authorize_admin_request, require_kiosk_token
 
 _admin_cookie = APIKeyCookie(name="admin_session", scheme_name="AdminSessionCookie", auto_error=False)
@@ -196,7 +196,20 @@ def _admin_actor(request: Request) -> str:
     return str(getattr(getattr(request.state, "admin_principal", None), "user_id", "admin"))
 
 
-def _rag_http_error(exc: rag_knowledge_service.RagKnowledgeError) -> HTTPException:
+class CapabilityError(Protocol):
+    """The shape every capability error carries into an HTTP response.
+
+    `services.rag_knowledge_service` imports the Knowledge/RAG capability, so
+    the capability cannot re-export its error classes without a cycle — and a
+    production route may not import a legacy service to borrow the name. The
+    contract these handlers actually rely on is the two attributes below.
+    """
+
+    code: str
+    details: dict
+
+
+def _rag_http_error(exc: CapabilityError) -> HTTPException:
     status = (
         409
         if isinstance(exc, rag_knowledge_service.RagKnowledgeConflictError)
@@ -249,4 +262,123 @@ async def _publish_campaign_change(snapshot) -> None:
     )
 
 
-__all__ = [name for name in globals() if not name.startswith("__")]
+# Explicit re-export list. This was a `globals()` comprehension, which Python
+# evaluates fine but mypy cannot, so every `import *` consumer below reported
+# each name as undefined. Keep this list in step with the imports above.
+__all__ = [
+    "annotations",
+    "asyncio",
+    "math",
+    "datetime",
+    "timezone",
+    "Annotated",
+    "Literal",
+    "TypeVar",
+    "UUID",
+    "uuid5",
+    "catalog",
+    "CapabilityError",
+    "CampaignConflictError",
+    "CampaignStateError",
+    "PromotionContext",
+    "create_campaign_draft",
+    "get_campaign",
+    "list_campaigns",
+    "preview_campaign",
+    "project_item_price",
+    "promotion_service",
+    "publish_campaign",
+    "revise_campaign_draft",
+    "transition_campaign",
+    "fleet_management_service",
+    "scope_from_admin_principal",
+    "scope_from_device_principal",
+    "PublicationError",
+    "RetrievalCheckError",
+    "knowledge_publication_runtime",
+    "rag_knowledge_service",
+    "retrieval_check_runtime",
+    "member_service",
+    "operations",
+    "operations_overview_runtime",
+    "service_health_runtime",
+    "checkout_order_repository",
+    "checkout_pricing_service",
+    "TouchValidationError",
+    "analytics_pipeline_service",
+    "build_effectiveness_report",
+    "record_touch",
+    "list_recommendation_events",
+    "APIRouter",
+    "HTTPException",
+    "Query",
+    "Request",
+    "Security",
+    "APIKeyCookie",
+    "HTTPAuthorizationCredentials",
+    "HTTPBearer",
+    "event_bus",
+    "AdminPrincipalDTO",
+    "ApiErrorResponse",
+    "ApiMeta",
+    "ApiResponse",
+    "AuditRecordDTO",
+    "AvailabilityDTO",
+    "AvailabilityPutRequest",
+    "CampaignDraftRequest",
+    "CampaignDraftUpdateRequest",
+    "CampaignPreviewDTO",
+    "CampaignPreviewRequest",
+    "CampaignPublishRequest",
+    "CampaignSnapshotDTO",
+    "CampaignTransitionRequest",
+    "CartQuoteDTO",
+    "CartQuoteLineDTO",
+    "CartQuoteRequest",
+    "CommercialContextDTO",
+    "CommercialTouchReceiptDTO",
+    "CommercialTouchRequest",
+    "FleetCommandDTO",
+    "FleetCommandRequest",
+    "MemberSummaryDTO",
+    "MenuPriceProjectionDTO",
+    "MenuPriceProjectionRequest",
+    "OrderSummaryDTO",
+    "OrderTransitionRequest",
+    "PaginatedResponse",
+    "PaginationMeta",
+    "PromotionCreateRequest",
+    "PromotionSummaryDTO",
+    "RagKnowledgeActionRequest",
+    "RagKnowledgePublishRequest",
+    "RagKnowledgeTestRequest",
+    "RagKnowledgeUpsertRequest",
+    "RagRetrievalConfigurationRequest",
+    "RecommendationEffectivenessDTO",
+    "RecommendationEventDTO",
+    "SettingsDTO",
+    "SettingsPatchRequest",
+    "CommercialScope",
+    "OrderStatus",
+    "authorize_admin_request",
+    "require_kiosk_token",
+    "_admin_cookie",
+    "_admin_bearer",
+    "Page",
+    "PageSize",
+    "SortOrder",
+    "T",
+    "_document_admin_security",
+    "_meta",
+    "_scope",
+    "_autopublish",
+    "_page",
+    "_member_uuid",
+    "_optional_datetime",
+    "_campaign_dto",
+    "_admin_actor",
+    "_rag_http_error",
+    "_retrieval_check_http_error",
+    "_publication_http_error",
+    "_publish_campaign_change",
+]

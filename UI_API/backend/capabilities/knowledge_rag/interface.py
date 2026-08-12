@@ -8,6 +8,13 @@ from modules.retrieval_configuration import RetrievalConfigurationError, Retriev
 
 
 class _RagKnowledgeServiceProxy:
+    """Resolve the service at call time.
+
+    `services.rag_knowledge_service` imports this capability, so importing it
+    back here at module scope is a circular import. Consumers that need to name
+    its error classes in an annotation import them under `TYPE_CHECKING`.
+    """
+
     def __getattr__(self, name: str):
         from services import rag_knowledge_service
 
