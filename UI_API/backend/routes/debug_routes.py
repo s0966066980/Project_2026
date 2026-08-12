@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Request
 
-from repositories import interaction_event_repository
+from capabilities.recommendation_analytics import interaction_event_repository
 from utils.auth_utils import authorize_admin_request
 
 

@@ -1,9 +1,11 @@
 import asyncio
 
 from models.commercial_scope import CommercialScope
+from modules.recommendation import _barrier_state as barrier_state_service
+from modules.recommendation import _intervention as intervention_service
+from modules.recommendation import _scenario as scenario_service
+from modules.recommendation.adapters import interactions as interaction_event_repository
 from realtime import event_bus
-from repositories import interaction_event_repository
-from services import barrier_state_service, intervention_service, scenario_service
 
 
 async def run_intervention_pipeline(

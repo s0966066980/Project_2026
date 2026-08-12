@@ -2,8 +2,12 @@ import asyncio
 
 from fastapi import APIRouter, Body
 
-from repositories import interaction_event_repository
-from services import interaction_event_service, intervention_pipeline_service, scenario_service
+from capabilities.recommendation_analytics import (
+    interaction_event_repository,
+    interaction_event_service,
+    intervention_pipeline_service,
+    scenario_service,
+)
 
 SCENARIOS = {
     "operation_difficulty": {

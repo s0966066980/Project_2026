@@ -12,14 +12,14 @@ import config
 from capabilities import catalog
 from capabilities.recommendation_analytics import decide
 from models.commercial_scope import CommercialScope
+from modules.recommendation import _context_service as recommendation_context_service
+from modules.recommendation import _engine_service as recommendation_engine_service
+from modules.recommendation import _experiment_service as recommendation_experiment_service
+from modules.recommendation._popular_service import get_top_items
 from repositories import push_copy_repository
-from services import (
-    push_copy_service,
-    recommendation_context_service,
-    recommendation_engine_service,
-    recommendation_experiment_service,
-)
-from services.popular_service import get_top_items
+
+# Push copy is authored under Campaign/Promotion; recommendation only reads it.
+from services import push_copy_service
 
 logger = logging.getLogger(__name__)
 

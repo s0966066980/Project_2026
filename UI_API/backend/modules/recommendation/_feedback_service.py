@@ -8,7 +8,7 @@ from datetime import datetime
 
 import config
 from models.commercial_scope import CommercialScope
-from repositories import recommendation_event_repository
+from modules.recommendation.adapters import events as recommendation_event_repository
 
 NEGATIVE_EVENTS = {"recommendation_ignored"}
 POSITIVE_EVENTS = {

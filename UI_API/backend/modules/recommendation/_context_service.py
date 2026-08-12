@@ -9,13 +9,14 @@ import config
 from capabilities import catalog
 from capabilities.member import member_service
 from models.commercial_scope import CommercialScope
-from services import (
-    availability_service,
-    member_preference_service,
-    rag_offer_service,
-    recommendation_feedback_service,
-)
-from services.popular_service import get_top_items
+from modules.recommendation import _feedback_service as recommendation_feedback_service
+from modules.recommendation import _member_preference_service as member_preference_service
+from modules.recommendation._popular_service import get_top_items
+
+# availability_service and rag_offer_service are shared with other capabilities,
+# so they stay in services/ and are read from here as cross-capability
+# dependencies rather than moved inside recommendation.
+from services import availability_service, rag_offer_service
 
 
 def _normalize_ids(values: list[str] | None) -> list[str]:

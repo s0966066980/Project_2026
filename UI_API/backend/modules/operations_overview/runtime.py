@@ -10,10 +10,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from models.commercial_scope import CommercialScope
+from modules.analytics import _pipeline as analytics_pipeline_service
 from modules.checkout_confirmation.adapters import orders as checkout_order_repository
+from modules.recommendation.adapters import events as recommendation_event_repository
 from modules.voice_turn import runtime as voice_turn_runtime
-from repositories import recommendation_event_repository
-from services import analytics_pipeline_service
 
 from .module import OperationsOverviewModule
 

@@ -6,8 +6,8 @@ import json
 from typing import Any
 
 from models.commercial_scope import CommercialScope
+from modules.analytics import _pipeline as analytics_pipeline_service
 from modules.analytics.contracts import EffectivenessReport, TouchReceipt
-from services import analytics_pipeline_service
 
 TOUCH_TYPES = {
     "decision",

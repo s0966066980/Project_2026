@@ -8,8 +8,9 @@ from hashlib import sha256
 
 import config
 from bootstrap import startup
+from modules.recommendation.adapters import events as recommendation_event_repository
 from modules.runtime_persistence.evidence import inspect_persistence
-from repositories import postgres_utils, recommendation_event_repository
+from repositories import postgres_utils
 from services import observability_service, shared_infrastructure_service
 from services.commercial_scope_readiness_service import validate_configured_commercial_scope
 

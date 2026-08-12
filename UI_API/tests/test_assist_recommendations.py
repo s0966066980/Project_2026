@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from services import ai_push_service
+from modules.recommendation import _ai_push_service as ai_push_service
 
 pytestmark = [pytest.mark.unit]
 

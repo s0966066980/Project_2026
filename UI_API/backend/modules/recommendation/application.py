@@ -5,9 +5,10 @@ from __future__ import annotations
 from uuid import uuid4
 
 from models.commercial_scope import CommercialScope
+from modules.analytics import _pipeline as analytics_pipeline_service
 from modules.analytics import record_touch
-from repositories import recommendation_event_repository
-from services import analytics_pipeline_service, recommendation_engine_service
+from modules.recommendation import _engine_service as recommendation_engine_service
+from modules.recommendation.adapters import events as recommendation_event_repository
 
 STRATEGY_VERSION = "recommendation-v1"
 

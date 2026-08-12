@@ -9,7 +9,7 @@ from datetime import datetime
 
 from capabilities.member import member_service
 from models.commercial_scope import CommercialScope
-from repositories import recommendation_event_repository
+from modules.recommendation.adapters import events as recommendation_event_repository
 
 EVENT_TYPES = {
     "recommendation_generated",

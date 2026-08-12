@@ -6,7 +6,7 @@
 
 from collections import Counter
 
-from services import scenario_service
+from modules.recommendation import _scenario as scenario_service
 
 
 # ── session 統計（AI 推播成效） ──────────────────────────────────────────

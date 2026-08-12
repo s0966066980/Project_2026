@@ -63,7 +63,6 @@ def _module_parts(imported: str) -> list[str]:
 # import a third capability's internals.
 CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
     "backend/capabilities/operations_configuration/interface.py",
-    "backend/capabilities/recommendation_analytics/interface.py",
 }
 
 
