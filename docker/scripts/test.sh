@@ -9,6 +9,15 @@ COMPOSE_ENV="--env-file .env"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-project-2026-smoke}"
 export COMPOSE_PROJECT_NAME
 
+# A separate project name isolates containers and volumes but not host ports,
+# so this script used to die with "port is already allocated" whenever a stack
+# was running — which is most of the time on a development host. Every check
+# below runs inside the app container against 127.0.0.1:8000, so the published
+# port is only there for a human; give the smoke run its own and stop the
+# collision.
+APP_PORT="${SMOKE_APP_PORT:-18000}"
+export APP_PORT
+
 cleanup() {
     docker compose $COMPOSE_ENV $COMPOSE_FILES down --volumes --remove-orphans >/dev/null 2>&1 || true
 }
