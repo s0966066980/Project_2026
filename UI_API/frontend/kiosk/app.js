@@ -1047,11 +1047,15 @@ function handleCartChange(items, reason = 'cart_change') {
       const quote = await api.quoteCart(items, sessionId);
       if (sequence !== cartQuoteSequence) return;
       cartManager.applyServerQuote(quote);
-      await kioskMenuController.refreshPriceProjections(cartManager.getCartIds());
     } catch {
       if (sequence !== cartQuoteSequence) return;
       cartManager.markQuoteFailed();
+      return;
     }
+    // The menu's projected prices are a display concern. Folding them into the
+    // quote's try meant one failing projection marked a good quote as failed
+    // and left the customer unable to pay for a correctly priced cart.
+    kioskMenuController.refreshPriceProjections(cartManager.getCartIds()).catch(() => {});
   }, 120);
 }
 

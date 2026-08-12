@@ -22,6 +22,7 @@ from capabilities.campaign_promotion import (
     list_campaigns,
     preview_campaign,
     project_item_price,
+    promotion_service,
     publish_campaign,
     revise_campaign_draft,
     transition_campaign,
