@@ -11,6 +11,18 @@
 **/.venv
 R1-Omni/models
 R1-Omni/**/__pycache__
+# The emotion service only ever reaches `humanomni.model_init` / `mm_infer`
+# through r1_omni_server.py. The upstream training and evaluation trees are
+# kept in the repository so this fork can still be rebased, but shipping them
+# inside the image adds surface that nothing in the Pilot runtime imports.
+R1-Omni/src
+R1-Omni/scripts
+R1-Omni/yamls
+R1-Omni/tests
+R1-Omni/humanomni/eval
+R1-Omni/humanomni/humanomni_trainer.py
+R1-Omni/humanomni/train_flash_attn.py
+R1-Omni/humanomni/train_humanomni.py
 UI_API/frontend/node_modules
 UI_API/learning_data
 UI_API/runtime_data
