@@ -1,8 +1,8 @@
 # Project_2026 — Smart Ordering Kiosk
 
-Project_2026 是以 Docker Compose 執行的單店智慧自助點餐系統。核心應用採模組化單體：同一個 FastAPI 版本提供 Kiosk、Admin 與 API，可靠背景工作由獨立 worker 執行；PostgreSQL、Ollama 與 R1-Omni 則是獨立容器。
+Project_2026 是以 Docker Compose 執行的單店智慧自助點餐系統。Kiosk、Admin、API 與 worker 使用同一個 FastAPI 應用邊界；PostgreSQL、local Ollama 與 R1-Omni 以獨立容器執行。
 
-目前定位是本機／LAN 開發與單店封閉式 Pilot 的產品基礎，尚未取得 production certification。第一個 Pilot 的交易邊界是可靠建立待付款訂單，再由現場櫃台人工收款；AI、語音與情緒服務故障不得阻止基本點餐。
+目前支援本機／LAN 開發與單店封閉式 Pilot 基礎驗證，尚未宣告 production certification。AI、語音與情緒服務故障時，基本菜單、購物車與訂單確認仍必須可用。
 
 ## 系統架構
 
@@ -13,202 +13,139 @@ Browser
       │
       ▼
 FastAPI application
-├── HTTP / WebSocket API
-├── Ordering / Member / Campaign / RAG modules
-├── Identity / RBAC / Settings
-└── Health / Diagnostics
+├── Versioned HTTP API / WebSocket
+├── Ordering / Member / Campaign / RAG capabilities
+├── Identity / RBAC / Operations settings
+└── Health / diagnostics
       │
       ├── PostgreSQL
-      ├── Reliable worker / transactional outbox
-      ├── Ollama
+      ├── Durable worker / transactional outbox
+      ├── Local Ollama
       └── R1-Omni
 ```
 
-Docker Compose 啟動六個服務：
+Docker 是唯一支援的 application runtime；不使用 Conda 或 host-native Python 作為驗證環境。
 
-| Service | 功能 |
-| --- | --- |
-| `app` | FastAPI、Kiosk、Admin 與 API |
-| `worker` | Durable jobs、RAG publication 與 order outbox |
-| `postgres` | PostgreSQL 18 runtime data |
-| `migrate` | 啟動時執行 forward migrations，成功後退出 |
-| `ollama` | 本機文字模型服務 |
-| `r1-omni` | 多模態情緒模型服務 |
+## 快速開始
 
-Conda 不再是支援的 Project runtime。開發、驗證與部署證據都以 Docker image 和 Compose stack 為準。
-
-## 一鍵安裝與啟動
-
-### 主路徑：NVIDIA GPU
-
-支援 Debian／Ubuntu。主機必須先有可用的 NVIDIA driver，安裝腳本會處理 Docker Engine、Compose plugin 與 NVIDIA Container Toolkit。
+第一次使用讓 setup script 完成全部工作：建立 `.env`、安裝並檢查 Docker、驗證本機模型、建置 image、拉取 Ollama 模型，最後啟動 stack 並等待健康檢查。以下指令都從 repository root 執行。
 
 ```bash
-git clone https://github.com/s0966066980/Project_2026.git
-cd Project_2026
-bash docker/scripts/setup.sh
+bash docker/scripts/setup.sh              # NVIDIA GPU（預設）
+bash docker/scripts/setup.sh --cpu        # 無 GPU
 ```
 
-腳本會自動：
+已安裝 Docker 而不想讓 script 動主機套件時加上 `--no-install`。完成後 Kiosk 位於 <http://127.0.0.1:8000/kiosk>，Admin 位於 <http://127.0.0.1:8000/admin>。
 
-1. 安裝並啟用 Docker 與必要主機工具。
-2. 設定 NVIDIA Container Toolkit。
-3. 建立專案根目錄 `.env` 並產生隨機 PostgreSQL／Admin 密碼。
-4. 驗證 R1-Omni 本機權重。
-5. 建置 app、worker 與 R1-Omni images。
-6. 啟動 Ollama 並拉取 `.env` 的 `OLLAMA_MODEL`。
-7. 執行 migrations，啟動完整 stack 並等待 health checks 通過。
-8. 顯示 Admin 登入資訊與服務網址。
-
-### CPU 模式
-
-沒有 NVIDIA GPU 時使用：
-
-```bash
-bash docker/scripts/setup.sh --cpu
-```
-
-CPU 模式可用於功能驗證，但 R1-Omni 與大型語言模型可能非常慢。
-
-若 Docker 與 NVIDIA Container Toolkit 已安裝，可加上 `--no-install` 略過主機套件安裝：
-
-```bash
-bash docker/scripts/setup.sh --no-install
-```
-
-## R1-Omni 權重
-
-R1-Omni 權重不會被提交到 Git、打包進 image 或由 setup 自動下載。預設必須放在：
-
-```text
-R1-Omni/models/
-├── R1-Omni-0.5B/
-│   ├── config.json
-│   └── model.safetensors
-├── bert-base-uncased/
-│   └── vocab.txt
-├── siglip-base-patch16-224/
-│   ├── config.json
-│   └── model.safetensors
-└── whisper-large-v3/
-    ├── config.json
-    └── model.safetensors
-```
-
-如果權重位於其他主機目錄，修改根目錄 `.env`：
-
-```dotenv
-R1_MODELS_PATH=/absolute/path/to/R1-Omni/models
-```
-
-容器會將該目錄唯讀掛載到 `/models`。setup 在 build 前檢查必要檔案，缺少時會列出精確路徑並停止。
-
-## 服務網址
-
-預設只綁定本機 loopback：
-
-```text
-Kiosk:   http://127.0.0.1:8000/kiosk
-Admin:   http://127.0.0.1:8000/admin
-Live:    http://127.0.0.1:8000/live
-Ready:   http://127.0.0.1:8000/ready
-R1-Omni: http://127.0.0.1:7890
-Ollama:  http://127.0.0.1:11434
-```
-
-若連接埠已被占用，setup 可能更新 `.env`，完成畫面會顯示實際網址。只有在可信任 LAN 中需要其他裝置存取時，才將 `BIND_ADDRESS` 改成 `0.0.0.0`。
+R1-Omni 權重不會提交到 Git 或打包進 image，setup 也不會下載。預設路徑是 `R1-Omni/models/`；其他位置請在根目錄 `.env` 設定 `R1_MODELS_PATH`。權重目錄結構見 [docker/README.md](docker/README.md)。
 
 ## 日常操作
 
-GPU stack：
+Compose stack 分成三層，所有指令都需要同一組 `-f` 參數：
+
+| 檔案 | 內容 |
+| --- | --- |
+| `docker/compose.yaml` | PostgreSQL、migration、app、worker |
+| `docker/compose.ai.yaml` | Ollama 與 CPU R1-Omni |
+| `docker/compose.ai-gpu.yaml` | 可選的 NVIDIA GPU 覆蓋 |
+
+把這組參數定義一次再重複使用。**啟動與關閉必須用完全相同的 overlay 組合**，用變數可以直接避免這個常見錯誤：
 
 ```bash
-docker compose --env-file .env \
-  -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  up -d --wait
+export COMPOSE="docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml"
+export COMPOSE="$COMPOSE -f docker/compose.ai-gpu.yaml"   # 僅在使用 GPU 時追加
 ```
 
-查看狀態與 log：
+之後：
 
 ```bash
-docker compose --env-file .env \
-  -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  ps
-
-docker compose --env-file .env \
-  -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  logs -f app worker
+$COMPOSE build                 # 建置 image
+$COMPOSE build --no-cache      # 強制重新下載依賴並重建 layer
+$COMPOSE up -d --wait          # 啟動；先跑完 migration 再起 app / worker / ollama / r1-omni
+$COMPOSE ps                    # 容器狀態
+$COMPOSE logs -f app worker ollama
+$COMPOSE down                  # 停止容器，保留 named volumes
 ```
 
-修改程式或 Dockerfile 後重新建置：
+健康檢查：
 
 ```bash
-docker compose --env-file .env \
-  -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  up --build -d --wait
+curl -fsS http://127.0.0.1:8000/live
+curl -fsS http://127.0.0.1:8000/ready
 ```
 
-停止服務但保留 PostgreSQL、模型與 cache：
+只有確定要一併刪除資料庫、模型與 cache 時才使用：
 
 ```bash
-docker compose --env-file .env \
-  -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  down
+$COMPOSE down --volumes --remove-orphans
 ```
 
-不要使用 `down --volumes`，除非確定要刪除資料庫、Ollama 模型與 AI cache。
+### 直接使用 Docker CLI
+
+`docker/Dockerfile` 的 build context 必須是 repository root，否則 `COPY docs/` 與其他 root-level source 會找不到。不要使用 `docker build -f docker/Dockerfile docker`：
+
+```bash
+docker build -f docker/Dockerfile --target runtime -t project-2026:local .
+```
+
+## 服務網址
+
+Port 全部由根目錄 `.env` 決定，僅綁定 loopback。
+
+| 服務 | 網址 | `.env` 變數（compose 預設） |
+| --- | --- | --- |
+| Kiosk | `http://127.0.0.1:8000/kiosk` | `BIND_ADDRESS` / `APP_PORT`（`127.0.0.1` / `8000`） |
+| Admin | `http://127.0.0.1:8000/admin` | 同上 |
+| Liveness | `http://127.0.0.1:8000/live` | 同上 |
+| Readiness | `http://127.0.0.1:8000/ready` | 同上 |
+| Ollama | `http://127.0.0.1:${OLLAMA_PORT}` | `OLLAMA_PORT`（`11434`） |
+| R1-Omni | `http://127.0.0.1:${R1_OMNI_PORT}` | `R1_OMNI_PORT`（`7890`） |
 
 ## 驗證
 
-核心 Docker smoke test：
-
 ```bash
-docker/scripts/test.sh
+bash docker/scripts/test.sh       # 核心 Docker smoke test
+bash docker/scripts/test-ai.sh    # AI image dependency smoke test
 ```
 
-AI image dependency smoke test：
+Frontend：
 
 ```bash
-docker/scripts/test-ai.sh
-```
-
-快速確認正在運行的服務：
-
-```bash
-curl -fsS http://127.0.0.1:8000/ready
-curl -fsS http://127.0.0.1:7890/health
+cd UI_API/frontend
+npm run syntax
+npm run typecheck
+npm test
+npm run build
 ```
 
 ## 專案結構
 
 ```text
 Project_2026/
-├── docker/                 # Dockerfiles、Compose 與一鍵 setup
-├── UI_API/                 # 能力後端、獨立 Admin/Kiosk、worker 與 tests
-├── R1-Omni/                # 情緒模型服務；權重位於 models/ 且不入 Git
-├── config/profiles/        # 待由 Docker Pilot external config 取代的過渡設定
+├── docker/                 # Dockerfiles、Compose 與 setup/test scripts
+├── UI_API/                 # capability backend、Admin/Kiosk、worker 與 tests
+├── R1-Omni/                # 情緒模型服務；權重不入 Git
+├── config/                 # 過渡設定與 local profile 範例
 ├── docs/adr/               # 架構決策紀錄
-├── CONTEXT.md              # 專案 domain glossary
+├── CONTEXT.md              # domain glossary
 ├── Project_2026_Execution_Plan.md
 └── tools/                  # 非 production 的一次性工具
 ```
 
-更完整的 Docker 操作說明見 [docker/README.md](docker/README.md)，核心應用邊界見 [UI_API/README.md](UI_API/README.md)，完成狀態、能力遷移與清理流程見 [執行計畫](Project_2026_Execution_Plan.md)，R1 權重與服務合約見 [R1-Omni/README.md](R1-Omni/README.md)。
-
 ## 目前限制
 
-- Compose 目前仍是 development/local profile，不等於安全的 Pilot deployment。
-- Redis 尚未加入主要 Compose stack。
-- Payment/POS 目前只有 manual adapter。
-- CI、不可變 image 發布、備份還原、監控與回滾仍是後續 Pilot readiness gates。
-- AI、RAG、STT、TTS 或 R1-Omni 無法使用時，核心菜單、購物車與訂單確認必須維持可用。
+- Compose development/local profile 不等於 secured Pilot deployment。
+- Pilot Configuration Authority、目標 Kiosk 實機與 provider/customer-evidence 授權尚未提供。
+- Codex／Claude／Grok CLI 與其憑證依 owner 決定暫不實作；文字模型維持 local Ollama `LOCAL_ONLY` 路徑。
+- Payment/POS 目前是 manual adapter。
+- CI release attestation、production backup/restore、監控與回滾仍屬後續 Pilot readiness gates。
+
+## 延伸文件
+
+| 文件 | 內容 |
+| --- | --- |
+| [docker/README.md](docker/README.md) | Compose 分層、更新與除錯、安全邊界、Local Pilot 硬化流程 |
+| [UI_API/README.md](UI_API/README.md) | 能力邊界、Admin/Kiosk 分工、maintenance CLI |
+| [Project_2026_Execution_Plan.md](Project_2026_Execution_Plan.md) | 完成度與阻塞證據 |
+| [CONTEXT.md](CONTEXT.md) | domain glossary |
+| [docs/adr/](docs/adr/) | 架構決策紀錄 |
