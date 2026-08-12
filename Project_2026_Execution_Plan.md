@@ -361,7 +361,9 @@ import zero-use、frontend shared transport、capability ownership inventory 與
 `v1_routes.py` 的 capability-owned 拆分已通過；runtime telemetry zero、完整候選成品矩陣與
 external gates 仍未完成。
 
-**零使用盤點**：Admin 與 Kiosk feature source 的 raw `fetch` 歸零（transport 實作只在共用 generated layer）；相容性 `/api/*` 的 static consumers 與 runtime telemetry 歸零；跨能力 repository import、SQL/write、global service、內部 HTTP loopback 歸零；legacy settings、tables/columns、jobs、fixtures、flags、allowlists、import exceptions 與 generated artifacts 都有替代或刪除證據；P2～P6 收斂債零阻塞項。
+**零使用盤點**：Admin 與 Kiosk feature source 的 raw `fetch` 歸零（transport 實作只在共用 generated layer）；相容性 `/api/*` 的 static consumers 歸零；跨能力 repository import、SQL/write、global service、內部 HTTP loopback 歸零；legacy settings、tables/columns、jobs、fixtures、flags、allowlists、import exceptions 與 generated artifacts 都有替代或刪除證據；P2～P6 收斂債零阻塞項。
+
+**零消費者不等於零暴露面**。上面那行講的是「沒有呼叫端」，不是「路徑已移除」。2026-08-12 從執行中的 stack 取 `/openapi.json` 實測：164 條路徑 = 93 條 `/api/v1` + **67 條仍在服務的相容性 `/api/*`**。其中 `/api/admin/auth/me` 與 `/api/v1/auth/me` 是兩份各自的實作、回應形狀不同（`{"principal":…,"access":…}` vs `{"data":…}`），不是單純的 prefix adapter。runtime telemetry 歸零與相容面移除都仍屬未完成，不得以 static consumer 歸零推論已完成。
 
 **最終刪除**：巨型 `v1_routes.py` 已刪除，並拆成 `v1_context_routes.py`、
 `v1_campaign_routes.py`、`v1_operations_routes.py`、`v1_knowledge_routes.py`、
@@ -369,6 +371,13 @@ external gates 仍未完成。
 清空的 horizontal `routes/services/repositories/modules`、臨時架構 allowlists、
 相容性 adapters/counters 與只為遷移存在的 runtime code；保留 migrations、ADR、
 audit 與必要歷史。
+
+**capability 收斂清單**：`tests/test_architecture_boundaries.py` 的
+`CAPABILITIES_STILL_ON_LEGACY_LAYERS` 是這項工作的權威盤點 —— 目前八個 capability
+interface 仍向 `services`/`repositories` 取值（campaign_promotion、emotion、
+identity_access、knowledge_rag、member、operations_configuration、ordering、
+recommendation_analytics）。該清單只能縮短：capability 收斂後從清單刪除，測試會強制
+要求刪除已收斂的項目；新項目一律不得加入。清單清空即為此段「horizontal 層已清空」的證據。
 
 **全候選成品測試矩陣**（同一 commit／digests／config／migration／environment）：
 
