@@ -1,0 +1,109 @@
+# Model Registry
+#
+# What "the model" means for a given release. A model name is not an identity:
+# `qwen3.5:4b` on two machines can be two different sets of weights, and
+# `R1-Omni-0.5B` in a directory says nothing about what is in the files. This
+# file records the identity, so a rebuilt appliance can be shown to be running
+# what was tested rather than something with the same name.
+#
+# Enforcement lives where the model is actually loaded. The R1-Omni container
+# reports `model_loaded` in its healthcheck and stays unhealthy without its
+# weights; the text model is checked by the local Ollama probe. This registry
+# is what those checks are compared against, and what a release manifest pins.
+#
+# Verify with:
+#   python UI_API/backend/scripts/validate_model_manifest.py --local
+#   python UI_API/backend/scripts/validate_model_manifest.py --providers
+
+manifest_version: 1
+
+models:
+  llm:
+    provider: ollama
+    model: qwen3.5:4b
+    digest: sha256:2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd
+    parameters: 4.7B
+    quantization: Q4_K_M
+    source: ollama registry
+    license_review: pending
+    required: true
+    required_ram_gb: 6
+    required_vram_gb: 4
+    local_path: null # held in the ollama named volume, not on the host filesystem
+    health_command: curl -fsS http://127.0.0.1:11434/api/tags
+    used_by:
+      - voice assistance turn generation
+      - Admin LLM diagnostics
+
+  emotion:
+    provider: r1-omni
+    model: R1-Omni-0.5B
+    revision: unpinned # upstream release directory; no revision recorded on this host
+    source: host-provided weights, never committed and never baked into an image
+    license_review: pending
+    required: true
+    required_ram_gb: 8
+    required_vram_gb: 6
+    local_path: R1-Omni/models/R1-Omni-0.5B
+    approximate_size: 2.6G
+    # Mounted read-only into the r1-omni container. The application image never
+    # carries weights, so --local reports them missing there and means nothing.
+    checked_on: the host or the r1-omni container
+    health_command: curl -fsS http://127.0.0.1:7890/health
+    used_by:
+      - emotion diagnostics (advisory only; never blocks ordering)
+    companions:
+      # R1-Omni does not load without all three. A missing companion presents
+      # as a model failure, so they are part of the emotion model's identity.
+      - name: bert-base-uncased
+        local_path: R1-Omni/models/bert-base-uncased
+        approximate_size: 1.4G
+      - name: siglip-base-patch16-224
+        local_path: R1-Omni/models/siglip-base-patch16-224
+        approximate_size: 1.6G
+      - name: whisper-large-v3
+        local_path: R1-Omni/models/whisper-large-v3
+        approximate_size: 8.7G
+
+  rag_embedding:
+    provider: fastembed
+    model: BAAI/bge-small-zh-v1.5
+    revision: unpinned
+    source: downloaded into the ai_cache volume on first use
+    license_review: pending
+    required: false # RAG is Optional; ordering continues without it
+    required_ram_gb: 1
+    local_path: null
+    health_command: null
+    used_by:
+      - knowledge retrieval
+
+  stt:
+    provider: faster_whisper
+    model: small
+    revision: unpinned
+    source: downloaded into the ai_cache volume on first use
+    license_review: pending
+    required: false # voice degrades; touch ordering continues
+    required_ram_gb: 2
+    local_path: null
+    health_command: null
+    used_by:
+      - voice turn transcription
+
+  tts:
+    provider: edge
+    model: zh-TW-HsiaoChenNeural
+    revision: n/a
+    source: network service, no local weights
+    license_review: pending
+    required: false
+    local_path: null
+    health_command: null
+    used_by:
+      - voice turn playback
+    notes: >-
+      A network dependency in a Local-First product. Offline it degrades, and a
+      voice turn without synthesised speech is not a successful turn
+      (ADR-0025), so an offline appliance loses voice output rather than
+      degrading quietly.

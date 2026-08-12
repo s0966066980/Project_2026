@@ -128,7 +128,7 @@ Project_2026/
 ├── docker/                 # Dockerfiles、Compose 與 setup/test scripts
 ├── UI_API/                 # capability backend、Admin/Kiosk、worker 與 tests
 ├── R1-Omni/                # 情緒模型服務；權重不入 Git
-├── config/                 # 過渡設定與 local profile 範例
+├── config/                 # 過渡設定、local profile 範例與 model registry
 ├── docs/adr/               # 架構決策紀錄
 ├── CONTEXT.md              # domain glossary
 ├── Project_2026_Execution_Plan.md

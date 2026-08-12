@@ -111,6 +111,7 @@ docker compose --env-file .env \
 | `validate_local_environment.py` | environment profile checks |
 | `validate_local_pilot_data_paths.py` | 防止 Pilot 商業資料落回 JSON |
 | `validate_voice_turn_performance.py` | Voice Turn performance evidence |
+| `validate_model_manifest.py` | 比對 `config/models/manifest.yaml` 與實際安裝的模型。`--providers` 向 Ollama 核對 digest；`--local` 必須在權重所在處執行（主機或 r1-omni 容器），app image 不帶權重 |
 
 透過 app image 查看命令，不需要 host Python/Conda：
 

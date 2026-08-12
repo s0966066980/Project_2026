@@ -42,6 +42,9 @@ COPY --from=frontend-runtime-deps /frontend/node_modules /app/UI_API/frontend/no
 # the repository, credentials, or the separate Project Analyst service.
 COPY docs/ /app/docs/
 COPY AGENTS.md CONTEXT.md README.md Project_2026_Execution_Plan.md /app/
+# The model registry records what "the model" means for this release, so it
+# travels with the image rather than with the checkout that built it.
+COPY config/models/ /app/config/models/
 
 RUN mkdir -p /var/lib/project-2026 \
     && chown -R project2026:project2026 /app/UI_API /var/lib/project-2026
@@ -103,6 +106,7 @@ COPY UI_API/ /app/UI_API/
 COPY --from=frontend-runtime-deps /frontend/node_modules /app/UI_API/frontend/node_modules
 COPY docs/ /app/docs/
 COPY AGENTS.md CONTEXT.md README.md Project_2026_Execution_Plan.md /app/
+COPY config/models/ /app/config/models/
 
 RUN mkdir -p /home/project2026/.cache /tmp/project-2026-media \
     /var/lib/project-2026 \
