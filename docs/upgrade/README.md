@@ -106,11 +106,38 @@ Pilot Configuration Authority, both already tracked as `ready-for-human` in the
 execution plan. Item 18.1 of the roadmap forbids using a development machine as
 evidence, so the workstation this was measured on cannot stand in.
 
-### Partially delivered
+### Capability convergence — delivered 2026-08-12/13
 
-The eight capability interfaces still reading `services`/`repositories`
-(items 03, 05–11), frontend decomposition (17, 18), E2E breadth (20), AI
-provider ports and the degradation matrix (21, 22), Payment/POS ports beyond
-the manual adapter (34, 35), and failure injection breadth (39). Their exact
-gaps are not re-catalogued here; the capability half is precisely described by
-`CAPABILITIES_STILL_ON_LEGACY_LAYERS` in the architecture boundary test.
+Items 03 and 05–13. All ten capability interfaces now own the code behind
+their published surface; `CAPABILITIES_STILL_ON_LEGACY_LAYERS` is empty and the
+architecture rule is a plain assertion with no allowlist.
+
+| Capability | What moved into its module |
+| --- | --- |
+| Identity | device identity, fleet, commercial context, device credential store |
+| Emotion | emotion rules, the R1-Omni provider adapter, the record store |
+| Campaign/Promotion | promotion rules and the promotion store |
+| Knowledge/RAG | knowledge rules; a real import cycle removed with them |
+| Ordering | checkout pricing, the pricing shadow, the order store |
+| Member | member rules, PII handling, member and session stores |
+| Recommendation/Analytics | fourteen files: recommendation, interaction, intervention, analytics pipeline and their stores |
+| Operations | observability, health, worker, LLM routing, stats, audit, settings and log stores |
+
+Catalog was already converged; it is the one capability past the Module
+Independence Gate.
+
+`services/` went from about sixty files to twenty-six, `repositories/` from
+twenty-four to thirteen. What remains is shared across capabilities —
+rag_provider, availability_service, postgres_utils, the LLM gateway, STT/TTS,
+the object store — so a module reaching them is a cross-capability dependency
+rather than a capability failing to own its implementation.
+
+**This is code ownership, not Module Independence.** The Gate also requires
+data authority, PostgreSQL, restart and consumer evidence per capability. The
+execution plan's count stays at 1/10.
+
+### Still partially delivered
+
+Frontend decomposition (17, 18), E2E breadth (20), AI provider ports and the
+degradation matrix (21, 22), Payment/POS ports beyond the manual adapter
+(34, 35), and failure injection breadth (39).
