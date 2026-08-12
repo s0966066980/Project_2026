@@ -35,12 +35,17 @@ def failure_message(safe_error: str) -> str:
 
 
 def build_prompt(item: dict, *, slot: str, offer: dict | None, text_min: int, text_max: int) -> str:
-    detail = "、".join(filter(None, [
-        f"名稱：{_text(item.get('name'))}",
-        f"分類：{_text(item.get('category'))}",
-        f"介紹：{_text(item.get('description'))}",
-        f"營養：{_text(item.get('nutrition'))}",
-    ]))
+    detail = "、".join(
+        filter(
+            None,
+            [
+                f"名稱：{_text(item.get('name'))}",
+                f"分類：{_text(item.get('category'))}",
+                f"介紹：{_text(item.get('description'))}",
+                f"營養：{_text(item.get('nutrition'))}",
+            ],
+        )
+    )
     if slot == "campaign" and offer:
         rule = (
             f"此餐點適用的活動：{_text(offer.get('title'))}。"

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from capabilities import catalog
-from modules.promotion import PromotionContext, quote_promotion, select_promotion_quote
+from capabilities.campaign_promotion import PromotionContext, quote_promotion, select_promotion_quote
 
 from models.commercial_scope import CommercialScope
 from services import availability_service, commercial_shadow_service, promotion_service
@@ -99,19 +99,13 @@ def price_checkout_cart(
         scope=scope,
     )
     exclude_ids = {
-        str(item_id).strip()
-        for item_id in (availability.get("exclude_item_ids") or [])
-        if str(item_id).strip()
+        str(item_id).strip() for item_id in (availability.get("exclude_item_ids") or []) if str(item_id).strip()
     }
     sold_out_ids = {
-        str(item_id).strip()
-        for item_id in (availability.get("sold_out_item_ids") or [])
-        if str(item_id).strip()
+        str(item_id).strip() for item_id in (availability.get("sold_out_item_ids") or []) if str(item_id).strip()
     }
     disabled_ids = {
-        str(item_id).strip()
-        for item_id in (availability.get("store_disabled_item_ids") or [])
-        if str(item_id).strip()
+        str(item_id).strip() for item_id in (availability.get("store_disabled_item_ids") or []) if str(item_id).strip()
     }
     time_unavailable_ids = {
         str(item_id).strip()
@@ -180,9 +174,7 @@ def price_checkout_cart(
         legacy_effective_price = base_price
         if offer_id:
             requested = (
-                promotion_service.get_promotion(offer_id, scope)
-                if scope
-                else promotion_service.get_promotion(offer_id)
+                promotion_service.get_promotion(offer_id, scope) if scope else promotion_service.get_promotion(offer_id)
             )
             requested_quote = quote_promotion(requested or {}, promotion_context, base_price=base_price)
             if not requested or not requested_quote.eligible:
@@ -239,17 +231,19 @@ def price_checkout_cart(
             "options": option_snapshots,
         }
         if applied_offer_id:
-            row.update({
-                "original_price": base_price,
-                "applied_offer_id": applied_offer_id,
-                "offer_ids": [applied_offer_id],
-                "promotion_title": promotion_title,
-                "promotion_snapshot": {
-                    "promotion_ref": applied_offer_id,
-                    "title": promotion_title,
-                    "discount_unit_total": discount_unit_total,
-                },
-            })
+            row.update(
+                {
+                    "original_price": base_price,
+                    "applied_offer_id": applied_offer_id,
+                    "offer_ids": [applied_offer_id],
+                    "promotion_title": promotion_title,
+                    "promotion_snapshot": {
+                        "promotion_ref": applied_offer_id,
+                        "title": promotion_title,
+                        "discount_unit_total": discount_unit_total,
+                    },
+                }
+            )
         normalized_by_id[variant_key] = row
 
     normalized = [normalized_by_id[variant_key] for variant_key in order]

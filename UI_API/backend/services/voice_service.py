@@ -3,6 +3,7 @@
 The customer-facing voice pipeline lives in `modules.voice_turn`; this module only
 schedules the optional emotion observation derived from a finished Voice Turn.
 """
+
 import asyncio
 import os
 import shutil
@@ -12,6 +13,7 @@ import threading
 from services import emotion_service
 
 _background_emotion_tasks: set[asyncio.Task] = set()
+
 
 async def _analyze_current_voice_emotion_pair(
     *,
@@ -90,6 +92,7 @@ def _schedule_voice_emotion_observation(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+
         def _thread_runner() -> None:
             asyncio.run(_run())
 

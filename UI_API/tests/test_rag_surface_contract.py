@@ -11,7 +11,7 @@ and anything added back shows up as an unexpected path.
 
 from pathlib import Path
 
-from routes.v1_routes import create_router
+from routes.v1_knowledge_routes import create_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

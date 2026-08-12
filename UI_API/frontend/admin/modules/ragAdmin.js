@@ -2,6 +2,8 @@
 
 // @ts-check
 
+import { createKnowledgeClient } from '../../shared/api/capabilityClients.js';
+
 /** @typedef {{id: string, label: string, icon?: string, description?: string, template?: string, use_case?: string, limitation?: string}} RagOption */
 /** @typedef {{item_id: string, title: string, content: string, category: string, content_type: string, status: string, version: number, published_version?: number, updated_at: string, index_error?: string, row_revision?: number}} RagItem */
 /** @typedef {{id: string, label: string, icon: string, published_count?: number}} RagPopularCategory */
@@ -117,6 +119,8 @@ export function createRagAdmin({
   confirmAction = message => window.confirm(message),
   fetchImpl = fetch,
 }) {
+  const knowledgeClient = createKnowledgeClient({ baseUrl: apiBaseUrl, headers: adminHeaders, fetchImpl });
+
   /** @type {RagState} */
   const state = {
     tab: 'knowledge',
@@ -142,28 +146,6 @@ export function createRagAdmin({
     boundRoot: null,
     drawerReturnTarget: null,
   };
-
-  /** @template T @param {string} path @param {RequestInit} [options] @returns {Promise<T>} */
-  async function request(path, options = {}) {
-    const response = await fetchImpl(`${apiBaseUrl}${path}`, {
-      ...options,
-      headers: {
-        ...adminHeaders(),
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(options.headers || {}),
-      },
-    });
-    const payload = /** @type {{data?: T, detail?: {message?: string, code?: string, details?: {title?: string, item_id?: string}}}} */ (await response.json().catch(() => ({})));
-    if (!response.ok) {
-      const detail = payload.detail || {};
-      const error = /** @type {RagApiError} */ (new Error(detail.message || detail.code || `系統回應 ${response.status}`));
-      error.code = detail.code || '';
-      error.details = detail.details || {};
-      error.status = response.status;
-      throw error;
-    }
-    return /** @type {T} */ (payload.data ?? payload);
-  }
 
   /** @returns {RagMetadata} */
   function meta() {
@@ -487,8 +469,8 @@ export function createRagAdmin({
     if (root && !quiet) root.innerHTML = '<div class="rag-studio-loading"><span class="rag-spinner"></span>正在同步門市 RAG 狀態…</div>';
     try {
       const [knowledge, configurations] = /** @type {[RagKnowledge, RagConfigurations]} */ (await Promise.all([
-        request('/api/v1/rag/knowledge'),
-        request('/api/v1/rag/retrieval/configurations'),
+        knowledgeClient.list(),
+        knowledgeClient.configurations(),
       ]));
       state.loaded = true;
       state.knowledge = knowledge;
@@ -550,16 +532,16 @@ export function createRagAdmin({
       override_near_duplicate: override,
     };
     try {
-      await request(item ? `/api/v1/rag/knowledge/${encodeURIComponent(item.item_id)}` : '/api/v1/rag/knowledge', {
-        method: item ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-      });
+      await (item
+        ? knowledgeClient.revise(item.item_id, payload)
+        : knowledgeClient.create(payload));
       closeDrawer({ force: true });
       notice(item ? '新版本草稿已建立；正式版本仍持續服務。' : '知識草稿已建立。');
       await refresh({ quiet: true });
     } catch (error) {
       const apiError = /** @type {RagApiError} */ (error);
-      if (apiError.code === 'near_duplicate' && confirmAction(`找到相近知識「${apiError.details?.title || apiError.details?.item_id}」。仍要建立嗎？`)) {
+      const errorDetails = apiError.details?.[0] || {};
+      if (apiError.code === 'near_duplicate' && confirmAction(`找到相近知識「${errorDetails.title || errorDetails.item_id}」。仍要建立嗎？`)) {
         return saveItem(true);
       }
       if (apiError.code === 'stale_knowledge_item') {
@@ -581,10 +563,7 @@ export function createRagAdmin({
   async function retryItem(itemId) {
     if (!itemId) return;
     try {
-      await request('/api/v1/rag/knowledge/publish', {
-        method: 'POST',
-        body: JSON.stringify({ item_ids: [itemId], retry_failures_only: false }),
-      });
+      await knowledgeClient.publish({ item_ids: [itemId], retry_failures_only: false });
       notice('已重新排入索引。');
       await refresh({ quiet: true });
     } catch (error) {
@@ -596,9 +575,7 @@ export function createRagAdmin({
   async function resumePublication(attemptId) {
     if (!attemptId || !hasPermission('rag.publish')) return;
     try {
-      await request(`/api/v1/rag/knowledge/publication-attempts/${encodeURIComponent(attemptId)}/resume`, {
-        method: 'POST',
-      });
+      await knowledgeClient.resumePublication(attemptId);
       notice('發布嘗試已重新排入可靠工作佇列；頁面會持續更新進度。');
       await refresh({ quiet: true });
     } catch (error) {
@@ -614,11 +591,7 @@ export function createRagAdmin({
     if (!confirmAction('刪除後會從正式檢索下架並徹底移除這筆知識，無法復原。確定要刪除嗎？')) return;
 
     try {
-      await request(
-        `/api/v1/rag/knowledge/${encodeURIComponent(item.item_id)}`
-        + `?expected_row_revision=${encodeURIComponent(String(item.row_revision))}`,
-        { method: 'DELETE' },
-      );
+      await knowledgeClient.remove(item.item_id, item.row_revision);
       closeDrawer({ force: true });
       notice('知識已刪除。');
       await refresh({ quiet: true });
@@ -631,14 +604,11 @@ export function createRagAdmin({
   async function publishConfig(sourceVersion = null) {
     const method = sourceVersion ? 'hybrid_rrf' : (state.selectedMethod || state.configurations.published?.method || 'hybrid_rrf');
     try {
-      await request('/api/v1/rag/retrieval/configurations', {
-        method: 'POST',
-        body: JSON.stringify({
-          method,
-          top_k: Number(getElement('rag-config-top-k')?.value || 5),
-          relevance_policy: getElement('rag-config-policy')?.value || 'balanced',
-          source_version: sourceVersion,
-        }),
+      await knowledgeClient.publishConfiguration({
+        method,
+        top_k: Number(getElement('rag-config-top-k')?.value || 5),
+        relevance_policy: getElement('rag-config-policy')?.value || 'balanced',
+        source_version: sourceVersion,
       });
       state.selectedMethod = '';
       notice(sourceVersion ? `已將設定 v${sourceVersion} 重新發布為新版本。` : '檢索設定已發布。');
@@ -656,9 +626,7 @@ export function createRagAdmin({
       : `確定要永久刪除檢索設定 v${version}？此操作無法復原。`;
     if (!confirmAction(warning)) return;
     try {
-      await request(`/api/v1/rag/retrieval/configurations/${encodeURIComponent(version)}`, {
-        method: 'DELETE',
-      });
+      await knowledgeClient.removeConfiguration(version);
       notice(published
         ? `檢索設定 v${version} 已清除；請發布新設定以恢復 RAG 檢索。`
         : `檢索設定 v${version} 已清除。`);
@@ -687,10 +655,7 @@ export function createRagAdmin({
     render();
     try {
       /** @type {RagRetrievalResult} */
-      const result = await request('/api/v1/rag/retrieval/test', {
-        method: 'POST',
-        body: JSON.stringify(snapshot),
-      });
+      const result = await knowledgeClient.retrievalTest(snapshot);
       workspace.result = { ...result, snapshot };
       workspace.inFlight = false;
       render();
@@ -706,9 +671,7 @@ export function createRagAdmin({
     if (!result?.check_id || !result.confirmation_eligible || !hasPermission('rag.publish')) return;
     try {
       /** @type {RagRetrievalResult} */
-      const confirmation = await request(`/api/v1/rag/retrieval/checks/${encodeURIComponent(result.check_id)}/confirm`, {
-        method: 'POST',
-      });
+      const confirmation = await knowledgeClient.confirmRetrieval(result.check_id);
       state.retrievalCheck.result = { ...result, ...confirmation };
       notice('已確認畫面上的結果快照；RAG 就緒狀態已更新。');
       await refresh({ quiet: true });

@@ -31,4 +31,3 @@ def port_is_in_use(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)
         return sock.connect_ex((check_host, port)) == 0
-

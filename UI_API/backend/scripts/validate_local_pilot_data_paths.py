@@ -23,13 +23,10 @@ COMMERCIAL_REPO_FILES = (
 
 
 def _is_local_pilot() -> bool:
-    return (
-        os.getenv("APP_PROFILE", "").strip().lower() == "local-pilot"
-        or (
-            os.getenv("APP_ENV", "").strip().lower() == "pilot"
-            and os.getenv("DATABASE_BACKEND", "").strip().lower() == "postgresql"
-            and os.getenv("SECURITY_ENFORCED", "").strip().lower() in {"1", "true", "yes", "on"}
-        )
+    return os.getenv("APP_PROFILE", "").strip().lower() == "local-pilot" or (
+        os.getenv("APP_ENV", "").strip().lower() == "pilot"
+        and os.getenv("DATABASE_BACKEND", "").strip().lower() == "postgresql"
+        and os.getenv("SECURITY_ENFORCED", "").strip().lower() in {"1", "true", "yes", "on"}
     )
 
 

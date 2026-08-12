@@ -50,7 +50,13 @@ class CampaignRepository:
                     (scope.tenant_id, scope.store_id, campaign_id),
                 )
                 row = cur.fetchone()
-            return CampaignSnapshot(str(row["campaign_id"]), int(row["current_version"]), str(row["status"]), dict(row["payload"])) if row else None
+            return (
+                CampaignSnapshot(
+                    str(row["campaign_id"]), int(row["current_version"]), str(row["status"]), dict(row["payload"])
+                )
+                if row
+                else None
+            )
         if not is_legacy_store_scope(scope):
             return None
         matches = [row for row in _read_rows() if row.get("campaign_id") == campaign_id]
@@ -70,7 +76,12 @@ class CampaignRepository:
                        ORDER BY d.updated_at DESC""",
                     (scope.tenant_id, scope.store_id),
                 )
-                return [CampaignSnapshot(str(row["campaign_id"]), int(row["current_version"]), str(row["status"]), dict(row["payload"])) for row in cur.fetchall()]
+                return [
+                    CampaignSnapshot(
+                        str(row["campaign_id"]), int(row["current_version"]), str(row["status"]), dict(row["payload"])
+                    )
+                    for row in cur.fetchall()
+                ]
         if not is_legacy_store_scope(scope):
             return []
         latest: dict[str, dict] = {}
@@ -78,7 +89,10 @@ class CampaignRepository:
             key = str(row.get("campaign_id") or "")
             if key and int(row.get("version") or 0) > int(latest.get(key, {}).get("version") or 0):
                 latest[key] = row
-        return [CampaignSnapshot(key, int(row["version"]), str(row["status"]), dict(row.get("payload") or {})) for key, row in latest.items()]
+        return [
+            CampaignSnapshot(key, int(row["version"]), str(row["status"]), dict(row.get("payload") or {}))
+            for key, row in latest.items()
+        ]
 
     def append_version(
         self,
@@ -131,11 +145,22 @@ class CampaignRepository:
             raise ValueError("JSON campaign storage only supports the legacy Default Scope")
         with _lock:
             rows = _read_rows()
-            current = max((int(row.get("version") or 0) for row in rows if row.get("campaign_id") == campaign_id), default=0)
+            current = max(
+                (int(row.get("version") or 0) for row in rows if row.get("campaign_id") == campaign_id), default=0
+            )
             if current != expected_version:
                 raise CampaignConflictError("campaign_version_conflict")
             next_version = current + 1
-            rows.append({"campaign_id": campaign_id, "version": next_version, "status": status, "payload": payload, "actor_id": actor_id, "created_at": datetime.now(timezone.utc).isoformat()})
+            rows.append(
+                {
+                    "campaign_id": campaign_id,
+                    "version": next_version,
+                    "status": status,
+                    "payload": payload,
+                    "actor_id": actor_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             _write_rows(rows)
         return CampaignSnapshot(campaign_id, next_version, status, dict(payload))
 
@@ -169,15 +194,18 @@ class CampaignRepository:
         promotion_repository.save_promotion_scoped(snapshot.campaign_id, record, scope)
 
     def audit(self, scope: CommercialScope, *, actor_id: str, action: str, snapshot: CampaignSnapshot) -> None:
-        admin_audit_repository.append_admin_audit_scoped({
-            "audit_id": f"aud_{uuid4().hex}",
-            "actor": actor_id,
-            "action": action,
-            "target_type": "campaign",
-            "target_id": snapshot.campaign_id,
-            "metadata": {"version": snapshot.version, "status": snapshot.status},
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }, scope)
+        admin_audit_repository.append_admin_audit_scoped(
+            {
+                "audit_id": f"aud_{uuid4().hex}",
+                "actor": actor_id,
+                "action": action,
+                "target_type": "campaign",
+                "target_id": snapshot.campaign_id,
+                "metadata": {"version": snapshot.version, "status": snapshot.status},
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+            scope,
+        )
 
 
 default_campaign_repository = CampaignRepository()

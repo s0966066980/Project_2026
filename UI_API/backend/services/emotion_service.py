@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -10,6 +11,8 @@ import config
 from models.multimodal_evidence import MultimodalEvidenceRequest
 from repositories import emotion_log_repository
 from services.multimodal_evidence_gateway import collect_evidence, configured_provider_status
+
+logger = logging.getLogger(__name__)
 
 MODEL_PROFILE = "r1_omni"
 CAPTURE_MODES = {"off", "periodic_ordering", "voice_only"}
@@ -33,15 +36,17 @@ def default_prompt() -> str:
 
 def model_profiles() -> list[dict]:
     status = configured_provider_status()
-    return [{
-        "id": MODEL_PROFILE,
-        "label": "R1-Omni",
-        "ready": status.get("status") == "ready",
-        "status": status.get("status", "unavailable"),
-        "capabilities": status.get("capabilities", []),
-        "device": status.get("device", ""),
-        "message": status.get("message", ""),
-    }]
+    return [
+        {
+            "id": MODEL_PROFILE,
+            "label": "R1-Omni",
+            "ready": status.get("status") == "ready",
+            "status": status.get("status", "unavailable"),
+            "capabilities": status.get("capabilities", []),
+            "device": status.get("device", ""),
+            "message": status.get("message", ""),
+        }
+    ]
 
 
 def _event_allowed(event_type: str) -> bool:
@@ -67,7 +72,8 @@ def _record(event_type: str, model: str, signals: dict, *, failed: bool = False)
         "voice": "not_observed" if failed else str(signals.get("vocal") or "not_observed")[:120],
         "description": (
             "模型未能完成本次分析；未保存媒體、提示詞或逐字稿。"
-            if failed else str(signals.get("description") or "未提供整體描述")[:600]
+            if failed
+            else str(signals.get("description") or "未提供整體描述")[:600]
         ),
     }
     return emotion_log_repository.append_record(row)
@@ -110,13 +116,31 @@ async def analyze_event(
     try:
         evidence = await asyncio.to_thread(collect_evidence, request, enabled=True)
     except Exception:
+        # An unreported failure here is indistinguishable from a model that
+        # simply saw nothing, which leaves the Admin diagnostic with no way to
+        # tell an operator what to fix.
+        logger.exception("emotion_analysis_failed event_type=%s profile=%s", event_type, model_profile)
         row = await asyncio.to_thread(_record, event_type, model_profile, {}, failed=True)
         return {"status": "error", "reason": "analysis_failed", "emotion": "undetermined", "record": row}
     if evidence.status == "skipped" or evidence.quality == "skipped":
         return {"status": "skipped", "reason": "incomplete_capture"}
     if not evidence.has_evidence:
+        detail = str(evidence.safe_error or evidence.quality or "")[:200]
+        logger.warning(
+            "emotion_analysis_no_evidence event_type=%s profile=%s provider=%s detail=%s",
+            event_type,
+            model_profile,
+            evidence.provider,
+            detail or "unknown",
+        )
         row = await asyncio.to_thread(_record, event_type, model_profile, {}, failed=True)
-        return {"status": "error", "reason": "analysis_failed", "emotion": "undetermined", "record": row}
+        return {
+            "status": "error",
+            "reason": "analysis_failed",
+            "detail": detail,
+            "emotion": "undetermined",
+            "record": row,
+        }
     row = await asyncio.to_thread(_record, event_type, model_profile, dict(evidence.signals or {}))
     return {
         "status": "ok",

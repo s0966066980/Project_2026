@@ -3,10 +3,11 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from modules.identity._admin_authorization_service import authorize_admin_action
+from modules.identity.adapters import postgres as admin_identity_repository
+
 from models.admin_identity import AdminPrincipal
 from models.commercial_scope import CommercialScope
-from modules.identity.adapters import postgres as admin_identity_repository
-from modules.identity._admin_authorization_service import authorize_admin_action
 from repositories import admin_audit_repository
 
 

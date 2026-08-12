@@ -1,5 +1,7 @@
 /** @typedef {Record<string, any>} AnyRecord */
 
+import { createMemberClient } from '../../shared/api/capabilityClients.js';
+
 function money(value) {
   return `$${Number(value || 0).toLocaleString('zh-TW')}`;
 }
@@ -37,6 +39,7 @@ export function createMemberServiceDeskAdmin({
   escapeHtml,
   hasPermission,
 }) {
+  const memberClient = createMemberClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
   let page = 1;
   let pageSize = 25;
   let total = 0;
@@ -85,9 +88,7 @@ export function createMemberServiceDeskAdmin({
       sort_by: 'created_at',
       sort_order: 'desc',
     });
-    const response = await fetch(`${apiBaseUrl}/api/v1/members?${params.toString()}`, { headers: adminHeaders() });
-    if (!response.ok) throw new Error(`會員清單載入失敗：HTTP ${response.status}`);
-    const payload = await response.json();
+    const payload = await memberClient.list(Object.fromEntries(params.entries()));
     const rows = Array.isArray(payload?.data) ? payload.data : [];
     total = Number(payload?.pagination?.total || 0);
     renderList(rows);
@@ -144,25 +145,18 @@ export function createMemberServiceDeskAdmin({
 
   async function openMember(memberRef) {
     selectedMemberRef = memberRef;
-    const response = await fetch(`${apiBaseUrl}/api/members/${encodeURIComponent(memberRef)}`, { headers: adminHeaders() });
-    if (!response.ok) throw new Error(`會員資料載入失敗：HTTP ${response.status}`);
-    renderDetail(await response.json());
+    renderDetail(await memberClient.detail(memberRef));
   }
 
   async function saveVerifiedPreferences() {
     if (!selectedMemberRef) return;
     const value = id => String(/** @type {HTMLInputElement | HTMLTextAreaElement | null} */ (getElement(id))?.value || '');
-    const response = await fetch(`${apiBaseUrl}/api/members/${encodeURIComponent(selectedMemberRef)}/verified-preferences`, {
-      method: 'PUT',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        allergies: parseTags(value('memberVerifiedAllergies')),
-        dietary_preferences: parseTags(value('memberVerifiedDietary')),
-        favorite_item_ids: parseTags(value('memberVerifiedFavorites')),
-        service_notes: value('memberVerifiedNotes'),
-      }),
+    await memberClient.saveVerifiedPreferences(selectedMemberRef, {
+      allergies: parseTags(value('memberVerifiedAllergies')),
+      dietary_preferences: parseTags(value('memberVerifiedDietary')),
+      favorite_item_ids: parseTags(value('memberVerifiedFavorites')),
+      service_notes: value('memberVerifiedNotes'),
     });
-    if (!response.ok) throw new Error(`確認資訊儲存失敗：HTTP ${response.status}`);
     await openMember(selectedMemberRef);
   }
 
@@ -170,12 +164,8 @@ export function createMemberServiceDeskAdmin({
   async function requestSensitiveAction(kind, detail) {
     const target = detail.nickname || detail.phone_masked || selectedMemberRef;
     if (!window.confirm(`再次確認：要${kind === 'records' ? '刪除點餐紀錄' : '刪除會員帳戶'}「${target}」嗎？此操作會留下稽核紀錄。`)) return;
-    const suffix = kind === 'records' ? '/records' : '';
-    const response = await fetch(`${apiBaseUrl}/api/members/${encodeURIComponent(selectedMemberRef)}${suffix}`, {
-      method: 'DELETE',
-      headers: adminHeaders(),
-    });
-    if (!response.ok) throw new Error(`敏感操作失敗：HTTP ${response.status}`);
+    if (kind === 'records') await memberClient.clearRecords(selectedMemberRef);
+    else await memberClient.remove(selectedMemberRef);
     if (kind === 'account') {
       selectedMemberRef = '';
       const panel = getElement('memberDetailPanel');
@@ -187,9 +177,7 @@ export function createMemberServiceDeskAdmin({
   }
 
   async function exportMaskedCsv() {
-    const response = await fetch(`${apiBaseUrl}/api/members/export`, { headers: adminHeaders() });
-    if (!response.ok) throw new Error(`匯出失敗：HTTP ${response.status}`);
-    const url = URL.createObjectURL(await response.blob());
+    const url = URL.createObjectURL(await memberClient.exportCsv());
     const link = document.createElement('a');
     link.href = url;
     link.download = 'members_export.csv';

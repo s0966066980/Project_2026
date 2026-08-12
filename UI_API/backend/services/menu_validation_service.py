@@ -7,7 +7,6 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-
 MENU_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
 UNSAFE_ATTRIBUTE_CHARS = re.compile(r"[\x00-\x1f\x7f\"'<>`]")
 

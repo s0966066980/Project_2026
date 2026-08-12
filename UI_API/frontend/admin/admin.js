@@ -10,17 +10,26 @@ import { createOperationsOverviewAdmin } from './modules/operationsOverviewAdmin
 import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { bindLayoutPreference, initZoom } from './modules/layoutPreference.js';
 import { createCatalogClient } from '../shared/api/catalogClient.js';
+import {
+  createDiagnosticClient,
+  createEmotionClient,
+  createOperationsClient,
+  createProjectBrainClient,
+} from '../shared/api/capabilityClients.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 import { llmTestErrorMessage } from './features/apiErrors.js';
 import {
   classifyEmotionMediaError,
   createEmotionSectionLoader,
   describeEmotionApiError,
-  parseEmotionResponse,
 } from './modules/emotionConsoleAdmin.js';
 
 const API = window.location.origin;
 const adminCatalogClient = createCatalogClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminOperationsClient = createOperationsClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminEmotionClient = createEmotionClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminDiagnosticClient = createDiagnosticClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminProjectBrainClient = createProjectBrainClient({ baseUrl: API, headers: () => adminHeaders() });
 
 // 在任何畫面繪製前先套用個人的介面縮放偏好，避免先閃一下預設大小再跳動。
 initZoom();
@@ -97,7 +106,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
       iconEl.textContent = '';
       iconEl.appendChild(ico);
     }
-    if (page === 'stats') loadOperationsOverview();
+    if (page === 'stats') loadStatsPage();
     if (page === 'settings') loadSettings();
     if (page === 'recommendations') loadRecommendationEvents();
     if (page === 'promotions') loadCampaigns();
@@ -147,8 +156,7 @@ async function loadStats() {
   if (statsLoadPromise) return statsLoadPromise;
   statsLoadPromise = (async () => {
   try {
-    const res = await fetch(`${API}/api/session_stats`, { headers: adminHeaders() });
-    const data = await res.json();
+    const data = await adminOperationsClient.sessionStats();
     if (data.status !== 'success') throw new Error('api error');
 
     const total   = data.total_sessions ?? 0;
@@ -378,8 +386,7 @@ async function clearStats() {
   if (!confirm('確定清除所有點餐統計紀錄？此操作無法還原。')) return;
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch(`${API}/api/session_stats`, { method: 'DELETE', headers: adminHeaders() });
-    const data = await res.json();
+    const data = await adminOperationsClient.clearSessionStats();
     if (data.status === 'success') await loadStats();
   } catch {
     alert('清除失敗，請重試。');
@@ -399,16 +406,20 @@ function fmtDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-TW');
 }
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // ── Admin feature modules ──
 const operationsOverviewAdmin = createOperationsOverviewAdmin({
   getElement: g,
   hasPermission: hasAdminPermission,
-  loadOverview: async () => {
-    const res = await fetch(`${API}/api/v1/operations/overview`, { headers: adminHeaders() });
-    if (!res.ok) throw new Error(`營運總覽讀取失敗（${res.status}）`);
-    return (await res.json()).data;
-  },
+  loadOverview: () => adminOperationsClient.overview(),
 });
 
 const recommendationEventsAdmin = createRecommendationEventsAdmin({
@@ -476,6 +487,19 @@ const ragAdmin = createRagAdmin({
 
 function loadRecommendationEvents() { return recommendationEventsAdmin.loadRecommendationEvents(); }
 function loadOperationsOverview() { return operationsOverviewAdmin.refresh(); }
+
+/**
+ * The stats page carries three independently permissioned sections, so opening
+ * it must fill every section the principal is allowed to see — not just the
+ * overview.
+ */
+function loadStatsPage() {
+  const tasks = [loadOperationsOverview()];
+  if (hasAdminPermission('operations.read')) tasks.push(loadStats());
+  if (hasAdminPermission('recommendations.effectiveness.read')) tasks.push(loadRecommendationEvents());
+  return Promise.allSettled(tasks);
+}
+
 function loadCampaigns() { return campaignAdmin.loadCampaigns(); }
 function renderRecommendationDashboard() { return recommendationEventsAdmin.renderRecommendationDashboard(); }
 function loadAvailability() { return availabilityAdmin.loadAvailability(); }
@@ -508,9 +532,7 @@ async function loadVoicePromptDefault() {
   const ta = g('test-inp-system-prompt');
   if (!ta || ta.value.trim()) return;   // 使用者已手動填寫則不覆蓋
   try {
-    const res = await fetch(`${API}/api/diagnostics/voice_prompt`, { headers: adminHeaders() });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await adminDiagnosticClient.voicePrompt();
     if (data.prompt) ta.value = data.prompt;
   } catch { /* 靜默失敗 */ }
 }
@@ -523,13 +545,7 @@ async function loadOllamaModels() {
   const status = g('test-model-status');
   if (status) status.textContent = '正在讀取 Ollama 模型清單…';
   try {
-    const res = await fetch(`${API}/api/ollama/models`, { headers: adminHeaders() });
-    if (!res.ok) {
-      _ollamaModels = [];
-      if (status) status.textContent = llmTestErrorMessage(res.status);
-      return;
-    }
-    const data = await res.json();
+    const data = await adminDiagnosticClient.models();
     _ollamaModels = Array.isArray(data.models) ? data.models : [];
     if (status) {
       status.textContent = _ollamaModels.length
@@ -694,30 +710,8 @@ async function sendTestMsg() {
   const systemPrompt = val('test-inp-system-prompt') || '';
 
   try {
-    const res = await fetch(`${API}/api/diagnostics/ask`, {
-      method: 'POST',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, model, system_prompt: systemPrompt, messages: [..._testMessages] }),
-    });
+    const data = await adminDiagnosticClient.ask({ provider, model, system_prompt: systemPrompt, messages: [..._testMessages] });
     loadingBubble?.remove();
-    if (!res.ok) {
-      // 400 is the diagnostic rejecting the request parameters; its detail names which one,
-      // and the fixed copy ("請稍後再試") would be actively wrong advice for it.
-      let detail = '';
-      if (res.status === 400) {
-        detail = String((await res.json().catch(() => ({})))?.detail || '');
-      }
-      _appendBubble('ai', `❌ ${detail || llmTestErrorMessage(res.status)}`);
-      return;
-    }
-
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      _appendBubble('ai', '❌ API 回傳了無法解析的內容，請重新啟動後端後再試。');
-      return;
-    }
 
     if (data.error && !data.ai_response) {
       _appendBubble('ai', `❌ 模型執行失敗：${data.error}`);
@@ -835,7 +829,7 @@ function renderEmotionConsoleRecords(data) {
   if (!body) return;
   const rows = data.records || [];
   body.innerHTML = rows.length ? rows.map(row => `<tr style="border-top:1px solid var(--border)">
-    <td>${escHtml(formatDate(row.timestamp))}</td><td>${escHtml(row.event)}</td><td>${escHtml(row.model)}</td>
+    <td>${escHtml(fmtDate(row.timestamp))}</td><td>${escHtml(row.event)}</td><td>${escHtml(row.model)}</td>
     <td>${escHtml(zhEmotion(row.emotion))}</td><td>${escHtml(zhIntensity(row.intensity))}</td>
     <td>${escHtml(row.expression)}</td><td>${escHtml(row.voice)}</td><td>${escHtml(row.description)}</td></tr>`).join('')
     : '<tr><td colspan="8">尚無紀錄</td></tr>';
@@ -859,16 +853,11 @@ function updateEmotionSection(section, state) {
   if (section === 'records') renderEmotionConsoleRecords(state.data);
 }
 
-async function requestEmotionJson(path) {
-  const response = await fetch(`${API}${path}`, { headers: adminHeaders(), credentials: 'same-origin' });
-  return parseEmotionResponse(response);
-}
-
 const emotionSectionLoader = createEmotionSectionLoader({
   requests: {
-    settings: () => requestEmotionJson('/api/settings'),
-    model: () => requestEmotionJson('/api/emotion/profiles'),
-    records: () => requestEmotionJson('/api/emotion/records?limit=200'),
+    settings: () => adminOperationsClient.settings().then(data => data.values || data),
+    model: () => adminEmotionClient.profiles(),
+    records: () => adminEmotionClient.records(200),
   },
   onState: updateEmotionSection,
 });
@@ -881,17 +870,11 @@ async function saveEmotionConsoleSettings() {
   const mode = val('emotion2-mode') || 'off';
   setText('emotion2-settings-status', '儲存中…');
   try {
-    const response = await fetch(`${API}/api/settings`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        EMOTION_CAPTURE_MODE: mode,
-        EMOTION_MODEL_PROFILE: val('emotion2-model') || 'r1_omni',
-        EMOTION_CLIP_SEC: emotionDuration('emotion2-clip'),
-      }),
+    await adminOperationsClient.patchSettings({
+      EMOTION_CAPTURE_MODE: mode,
+      EMOTION_MODEL_PROFILE: val('emotion2-model') || 'r1_omni',
+      EMOTION_CLIP_SEC: emotionDuration('emotion2-clip'),
     });
-    await parseEmotionResponse(response);
     setText('emotion2-settings-status', '設定已儲存；模型未就緒時顧客擷取會自動暫停。');
   } catch (error) {
     setText('emotion2-settings-status', `儲存失敗：${describeEmotionApiError(error)}`);
@@ -916,10 +899,16 @@ async function submitEmotionConsoleClip(blob) {
   form.append('media', blob, 'admin_emotion_test.webm');
   form.append('model_profile', val('emotion2-model') || 'r1_omni');
   form.append('prompt', val('emotion2-prompt'));
-  const response = await fetch(`${API}/api/emotion/analyze_media_test`, { method: 'POST', credentials: 'same-origin', headers: adminHeaders(), body: form });
-  const data = await parseEmotionResponse(response);
+  const data = await adminEmotionClient.analyzeMediaTest(form);
   renderEmotionConsoleResult(data);
-  setText('emotion2-test-status', data.status === 'ok' ? '分析完成。原始影音已刪除。' : `分析未完成：${data.reason || response.status}`);
+  setText(
+    'emotion2-test-status',
+    data.status === 'ok'
+      ? '分析完成。原始影音已刪除。'
+      // The reason alone ("analysis_failed") tells an operator nothing; the
+      // detail names which part of the provider path actually broke.
+      : `分析未完成：${data.reason || '服務拒絕'}${data.detail ? `（${data.detail}）` : ''}`,
+  );
   await emotionSectionLoader.refresh('records');
 }
 
@@ -1015,8 +1004,7 @@ async function loadEmotionConsoleRecords() {
 async function clearEmotionConsoleRecords() {
   if (!confirm('確定清除目前的情緒分析紀錄？')) return;
   try {
-    const response = await fetch(`${API}/api/emotion/records`, { method: 'DELETE', credentials: 'same-origin', headers: adminHeaders() });
-    await parseEmotionResponse(response);
+    await adminEmotionClient.clearRecords();
     await loadEmotionConsoleRecords();
   } catch (error) {
     updateEmotionSection('records', { status: 'error', message: describeEmotionApiError(error) });
@@ -1042,7 +1030,7 @@ function renderProjectBrainReport(report) {
 
   const result = report.result || {};
   const stale = report.status === 'stale'
-    ? `⚠ 這份報告已過期（${formatDate(report.stale_since)}）：${report.stale_reason || '重新分析失敗'}\n\n`
+    ? `⚠ 這份報告已過期（${fmtDate(report.stale_since)}）：${report.stale_reason || '重新分析失敗'}\n\n`
     : '';
   const findings = (result.findings || []).length
     ? (result.findings || []).map(finding => {
@@ -1052,13 +1040,13 @@ function renderProjectBrainReport(report) {
     : '—';
 
   target.textContent =
-    `${stale}時間：${formatDate(report.recorded_at)}\n分析設定檔：${result.profile || '—'}\n版本：${result.git_revision || '—'}\n\n${findings}`;
+    `${stale}時間：${fmtDate(report.recorded_at)}\n分析設定檔：${result.profile || '—'}\n版本：${result.git_revision || '—'}\n\n${findings}`;
 }
 
 async function loadProjectBrain() {
-  const response = await fetch(`${API}/api/project-brain/status`, { headers: adminHeaders() });
-  const data = await response.json();
-  if (!response.ok) { setText('projectBrainModelStatus', `讀取失敗（${response.status}）`); return; }
+  let data;
+  try { data = await adminProjectBrainClient.status(); }
+  catch (error) { setText('projectBrainModelStatus', `讀取失敗（${error.status || 0}）`); return; }
   const select = g('projectBrainModel');
   const profiles = data.models || [];
   if (select) {
@@ -1094,12 +1082,7 @@ async function analyzeProjectBrain() {
   if (button) button.disabled = true;
   setText('projectBrainReport', '正在建立唯讀快照並分析…');
   try {
-    const response = await fetch(`${API}/api/project-brain/analyze`, {
-      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile: val('projectBrainModel') }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    const data = await adminProjectBrainClient.analyze(val('projectBrainModel'));
     renderProjectBrainReport(data);
   } catch (error) {
     setText('projectBrainReport', `分析失敗：${error.message}`);
@@ -1195,8 +1178,8 @@ createAdminAuthController({
   },
   onAuthenticated: async () => {
     await loadMenu();
-    await loadOperationsOverview();
-    if (hasAdminPermission('system.debug')) await loadEmotionConsoleProfiles();
+    await loadStatsPage();
+    if (hasAdminPermission('system.debug')) await emotionSectionLoader.refresh('model');
   },
 }).bind();
 // 只在統計頁可見時才自動重整

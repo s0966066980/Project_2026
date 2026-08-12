@@ -3,6 +3,12 @@ const DEFAULT_PUSH_PROMPT =
   '只能從菜單白名單選 1 個餐點，不能發明不存在的餐點。' +
   '輸出純 JSON：{"recommendation_id":"MCDxxx","push_text":"繁體中文促購短句"}。';
 
+import {
+  createDiagnosticClient,
+  createOperationsClient,
+  createPushCopyClient,
+} from '../../shared/api/capabilityClients.js';
+
 /**
  * Each tab owns a disjoint set of settings keys, so saving one never rewrites another.
  * @type {Record<string, string[]>}
@@ -38,13 +44,16 @@ function text(value) { return String(value ?? '').trim(); }
  * }} options
  */
 export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, loadOllamaModels, confirmAction = message => window.confirm(message) }) {
+  const operationsClient = createOperationsClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
+  const diagnosticClient = createDiagnosticClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
+  const pushCopyClient = createPushCopyClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
   /** @type {any} */
   let loaded = {};
   let activeTab = 'ai';
   /** @type {Record<string, boolean>} */
   const dirty = {};
   let busy = false;
-  // NIM Model Catalog fetched from /api/settings/llm-routing; Custom NIM Model Entries the
+  // NIM Model Catalog fetched through the versioned Operations client; Custom NIM Model Entries the
   // operator has added on top of it (persisted alongside NIM_MODEL_NAME / NIM_VOICE_MODEL).
   /** @type {string[]} */ let nimTextCatalog = [];
   /** @type {string[]} */ let nimVoiceCatalog = [];
@@ -61,23 +70,6 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
   function value(id) { return text(getElement(id)?.value); }
   /** @param {string} id @param {unknown} next */
   function setValue(id, next) { if (getElement(id)) getElement(id).value = next ?? ''; }
-
-  /** @param {string} path @param {RequestInit} [options] @returns {Promise<any>} */
-  async function request(path, options = {}) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...options,
-      headers: { ...adminHeaders(), ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) },
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = /** @type {Error & {code?: string, fieldErrors?: any[]}} */ (
-        new Error(body?.detail?.message || body?.error?.message || `系統回應 ${response.status}`));
-      error.code = body?.detail?.code || body?.error?.code || 'request_failed';
-      error.fieldErrors = body?.detail?.field_errors || body?.error?.details || [];
-      throw error;
-    }
-    return body;
-  }
 
   // ── 分頁 ────────────────────────────────────────────────
   /** @param {string} tab */
@@ -219,7 +211,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   async function refreshRuntimeState() {
     try {
-      const readiness = await request('/api/settings/llm-routing');
+      const readiness = await operationsClient.llmRouting();
       renderReady('llmLocalReady', readiness.local.ready
         ? [pill('ok', 'Ollama 服務在線'), `模型 ${text(readiness.local.model)}`]
         : [pill(readiness.local.used ? 'err' : 'warn', 'Ollama 無法連線'), text(readiness.local.detail)]);
@@ -246,7 +238,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     if (!stats) return;
     let traffic;
     try {
-      traffic = await request('/api/settings/llm-traffic');
+      traffic = await operationsClient.llmTraffic();
     } catch {
       stats.textContent = '無法取得實際請求統計。';
       if (note) note.hidden = true;
@@ -344,7 +336,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     const body = getElement('copy-tbody');
     if (body) body.textContent = '';
     try {
-      const data = await request('/api/push-copy');
+      const data = await pushCopyClient.list();
       copyState = {
         items: Array.isArray(data.items) ? data.items : [],
         categories: Array.isArray(data.categories) ? data.categories : [],
@@ -503,7 +495,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     window.clearTimeout(batchPollTimer);
     let batch = null;
     try {
-      batch = (await request('/api/push-copy/batch')).batch;
+      batch = (await pushCopyClient.batch()).batch;
     } catch {
       return;   // 輪詢失敗不打擾操作者，下次進分頁再試
     }
@@ -527,7 +519,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       body.item_ids = rows.map(row => row.item_id);
     }
     try {
-      const result = await request('/api/push-copy/batch', { method: 'POST', body: JSON.stringify(body) });
+      const result = await pushCopyClient.startBatch(body);
       renderBatchProgress(result.batch);
       void pollBatch();
     } catch (error) {
@@ -635,10 +627,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       const original = button.textContent;
       button.textContent = '產生中…';
       try {
-        const result = await request(`/api/push-copy/${encodeURIComponent(row.item_id)}/generate`, {
-          method: 'POST',
-          body: JSON.stringify({ slot, campaign_offer_id: offerSelect.value }),
-        });
+        const result = await pushCopyClient.generate(row.item_id, { slot, campaign_offer_id: offerSelect.value });
         if (slot === 'base') { baseText.value = result.push_text; updateCount(); }
         else campaignText.value = result.push_text;
         if (Array.isArray(result.unverified_terms) && result.unverified_terms.length) {
@@ -659,15 +648,12 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
       message.textContent = '';
       save.disabled = true;
       try {
-        await request(`/api/push-copy/${encodeURIComponent(row.item_id)}`, {
-          method: 'POST',
-          body: JSON.stringify({
-            base_copy: text(baseText.value),
-            campaign_copy: text(campaignText.value),
-            campaign_offer_id: text(offerSelect.value),
-            is_new_item: newCheck.checked,
-            new_until: text(newUntil.value),
-          }),
+        await pushCopyClient.save(row.item_id, {
+          base_copy: text(baseText.value),
+          campaign_copy: text(campaignText.value),
+          campaign_offer_id: text(offerSelect.value),
+          is_new_item: newCheck.checked,
+          new_until: text(newUntil.value),
         });
         editingItemId = '';
         await loadCopy(true);
@@ -783,7 +769,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     clearErrors(tab);
     setSaveMessage(tab, '儲存中…');
     try {
-      await request('/api/settings', { method: 'POST', body: JSON.stringify(payloadFor(tab)) });
+      await operationsClient.patchSettings(payloadFor(tab));
       loaded = { ...loaded, ...payloadFor(tab) };
       markDirty(tab, false);
       setSaveMessage(tab, `「${TAB_LABELS[tab]}」已儲存`, 'ok');
@@ -807,7 +793,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     output.hidden = false;
     output.textContent = '測試中…';
     try {
-      const result = await request('/api/settings/llm-connectivity-test', { method: 'POST', body: '{}' });
+      const result = await operationsClient.llmConnectivityTest();
       output.textContent = '';
       /** @type {Record<string, string>} */
       const labels = { ollama: '本機 Ollama', nvidia_nim: '雲端 NVIDIA NIM' };
@@ -844,7 +830,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     box.textContent = '載入中…';
     let rows = [];
     try {
-      rows = (await request('/api/settings/versions')).versions || [];
+      rows = (await operationsClient.settingsVersions()).versions || [];
     } catch (error) {
       box.textContent = `變更歷史載入失敗：${/** @type {any} */ (error).message}`;
       return;
@@ -904,7 +890,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
   async function rollbackTo(version) {
     if (!confirmAction(`確定將設定回滾至版本 ${version}？系統會建立一個新版本，不會刪除既有版本。`)) return;
     try {
-      await request(`/api/settings/versions/${version}/rollback`, { method: 'POST', body: '{}' });
+      await operationsClient.rollbackSettingsVersion(version);
       await load();
       await loadHistory();
     } catch (error) {
@@ -928,7 +914,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   async function load() {
     try {
-      loaded = await request('/api/settings');
+      loaded = await operationsClient.settings();
     } catch (error) {
       setSaveMessage('ai', `設定載入失敗：${/** @type {any} */ (error).message}`, 'error');
       return;

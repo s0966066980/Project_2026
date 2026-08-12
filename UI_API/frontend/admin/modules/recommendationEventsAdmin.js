@@ -5,6 +5,7 @@ import {
   zhLabel,
 } from './zhTWLabels.js';
 import { strategyComparisonView } from './recommendationStrategyComparison.js';
+import { createRecommendationClient } from '../../shared/api/capabilityClients.js';
 
 function recommendationLabel(map, key) {
   return zhLabel(map, key, '其他／未分類');
@@ -85,6 +86,7 @@ export function createRecommendationEventsAdmin({
   menuName,
   onSummary = () => {},
 }) {
+  const recommendationClient = createRecommendationClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
   let recommendationEventsLoadPromise = null;
   let recommendationDashboardEvents = [];
   let effectivenessReport = null;
@@ -111,12 +113,7 @@ export function createRecommendationEventsAdmin({
     if (audience) params.set('audience', audience);
     if (since) params.set('since', `${since}T00:00:00+08:00`);
     if (until) params.set('until', `${until}T23:59:59+08:00`);
-    const res = await fetch(`${apiBaseUrl}/api/v1/recommendation-effectiveness?${params.toString()}`, {
-      headers: adminHeaders(),
-    });
-    if (!res.ok) throw new Error(`成效服務回應 ${res.status}`);
-    const payload = await res.json();
-    effectivenessReport = payload?.data || null;
+    effectivenessReport = await recommendationClient.effectiveness(Object.fromEntries(params.entries()));
     const warnings = [];
     if (effectivenessReport?.sample_warning) warnings.push(effectivenessReport.sample_warning);
     if (effectivenessReport?.incomplete_events) {
@@ -140,12 +137,7 @@ export function createRecommendationEventsAdmin({
       since: start.toISOString(),
       until: now.toISOString(),
     });
-    const res = await fetch(`${apiBaseUrl}/api/v1/recommendation-effectiveness?${params.toString()}`, {
-      headers: adminHeaders(),
-    });
-    if (!res.ok) throw new Error(`成效服務回應 ${res.status}`);
-    const payload = await res.json();
-    const report = payload?.data || {};
+    const report = await recommendationClient.effectiveness(Object.fromEntries(params.entries())) || {};
     const summary = {
       impressions: Number(report.impressions || 0),
       purchases: Number(report.purchases || 0),
@@ -326,13 +318,11 @@ export function createRecommendationEventsAdmin({
         const params = new URLSearchParams({ limit });
         const sessionId = getValue('recommendationSessionFilter');
         if (sessionId) params.set('session_id', sessionId);
-        const [res, effectivenessResult] = await Promise.all([
-          fetch(`${apiBaseUrl}/api/v1/recommendations?page=1&page_size=${Math.min(Number(limit) || 100, 100)}`, { headers: adminHeaders() }),
+        const [payload, effectivenessResult] = await Promise.all([
+          recommendationClient.list({ page: '1', page_size: String(Math.min(Number(limit) || 100, 100)) }),
           loadEffectiveness().then(() => null).catch(error => error),
         ]);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        recommendationDashboardEvents = Array.isArray(data.data) ? data.data : [];
+        recommendationDashboardEvents = Array.isArray(payload) ? payload : [];
         if (effectivenessResult instanceof Error) {
           effectivenessReport = null;
           renderEffectivenessNotice(`精準成效暫時無法載入：${effectivenessResult.message}。下方改顯示舊事件趨勢。`, true);

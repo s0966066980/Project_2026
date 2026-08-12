@@ -1,10 +1,11 @@
 """POS/Kiosk promotion banner selection and response shaping."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.promotion import PromotionContext, evaluate_promotion
+from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
 
 from models.commercial_scope import CommercialScope
 from repositories import campaign_repository, promotion_repository
@@ -96,7 +97,9 @@ def _banner_item(row: dict) -> dict | None:
         "subtitle": _text(row.get("subtitle") or ad.get("copy"), 160),
         "description": _text(row.get("description") or row.get("content"), 240),
         "original_price": _as_optional_int(row.get("original_price"), pricing.get("original_price")),
-        "promo_price": _as_optional_int(row.get("promo_price"), row.get("promotion_price"), pricing.get("promotion_price")),
+        "promo_price": _as_optional_int(
+            row.get("promo_price"), row.get("promotion_price"), pricing.get("promotion_price")
+        ),
         "save_text": _text(row.get("save_text"), 40),
         "start_at": _text(row.get("start_at") or row.get("starts_at") or row.get("valid_from"), 40),
         "end_at": _text(row.get("end_at") or row.get("ends_at") or row.get("valid_until"), 40),
@@ -134,9 +137,7 @@ def get_active_pos_banners(
         if str(snapshot.status) in {"active", "scheduled"}
     }
     promotion_rows = (
-        promotion_repository.list_promotions_scoped(scope)
-        if scope
-        else promotion_repository.list_promotions()
+        promotion_repository.list_promotions_scoped(scope) if scope else promotion_repository.list_promotions()
     )
     for row in promotion_rows:
         promotion_id = _text(row.get("id") or row.get("offer_id") or row.get("source_id"), 90)

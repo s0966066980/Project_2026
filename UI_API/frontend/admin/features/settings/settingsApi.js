@@ -2,7 +2,7 @@
  * Admin settings write path via typed API v1 client.
  * Does not call legacy fetch('/api/...') for new work.
  */
-import { createApiV1Client } from '../../../shared/api/v1Client';
+import { createApiV1Client } from '../../../shared/api/v1Client.js';
 
 /**
  * @param {{ getBearerToken?: () => string }} [options]

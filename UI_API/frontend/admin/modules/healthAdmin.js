@@ -1,5 +1,7 @@
 // @ts-check
 
+import { createOperationsClient } from '../../shared/api/capabilityClients.js';
+
 /**
  * Maintenance health: can a customer order right now, and if not, which service.
  *
@@ -91,6 +93,7 @@ export function serviceHealthSummary(services = []) {
  *   escapeHtml: (value: any) => string,
  *   hasPermission?: (permission: string) => boolean,
  *   fetchImpl?: typeof fetch,
+ *   retryCount?: number,
  *   timers?: { setTimeout: typeof setTimeout, clearTimeout: typeof clearTimeout },
  * }} options
  */
@@ -102,8 +105,18 @@ export function createHealthAdmin({
   escapeHtml,
   hasPermission = () => false,
   fetchImpl = fetch,
-  timers = { setTimeout, clearTimeout },
+  // `globalThis`, not an object literal: the shared client invokes these as
+  // methods, and browser timers reject any receiver that is not the global.
+  timers = globalThis,
 }) {
+  const operationsClient = createOperationsClient({
+    baseUrl: apiBaseUrl,
+    headers: adminHeaders,
+    fetchImpl,
+    timeoutMs: HEALTH_REQUEST_TIMEOUT_MS,
+    timers,
+    retryCount: 0,
+  });
   /** @param {string} status */
   function pill(status) {
     return `<span class="health-status-pill ${escapeHtml(status || 'unknown')}">${escapeHtml(healthLabel(status))}</span>`;
@@ -131,46 +144,16 @@ export function createHealthAdmin({
     `).join('');
   }
 
-  /**
-   * Resolve or reject within HEALTH_REQUEST_TIMEOUT_MS whatever the transport
-   * does. The abort signal is the polite path; the deadline is the guarantee.
-   *
-   * @param {string} url
-   * @param {RequestInit} [options]
-   */
-  async function fetchBounded(url, options = {}) {
-    const controller = new AbortController();
-    /** @type {any} */
-    let deadline = null;
-    try {
-      return await Promise.race([
-        fetchImpl(url, { ...options, signal: controller.signal }),
-        new Promise((_resolve, reject) => {
-          deadline = timers.setTimeout(() => {
-            controller.abort();
-            reject(new Error('維運健康讀取逾時'));
-          }, HEALTH_REQUEST_TIMEOUT_MS);
-        }),
-      ]);
-    } finally {
-      if (deadline !== null) timers.clearTimeout(deadline);
-    }
-  }
-
   async function loadAdminHealth() {
     if (!hasPermission('operations.read')) {
       setText('healthGeneratedAt', '沒有維運健康查看權限');
       return;
     }
     try {
-      // A maintenance-health panel that can hang is worse than one that is
-      // missing: it reports nothing while looking like it is still working.
-      const res = await fetchBounded(`${apiBaseUrl}/api/v1/operations/service-health`, {
-        headers: adminHeaders(),
-      });
-      if (!res.ok) throw new Error(`維運健康讀取失敗（${res.status}）`);
-      const body = await res.json();
-      const services = /** @type {ServiceStatus[]} */ (body?.data?.services || []);
+      // The capability client owns the versioned endpoint and its bounded
+      // transport; this feature only consumes the service-health data.
+      const body = await operationsClient.serviceHealth();
+      const services = /** @type {ServiceStatus[]} */ (body?.services || []);
       render(services);
       setText('healthGeneratedAt', `更新於 ${new Date().toLocaleTimeString('zh-TW')}`);
     } catch (error) {

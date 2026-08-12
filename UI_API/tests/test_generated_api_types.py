@@ -20,13 +20,15 @@ def test_generated_catalog_types_match_the_published_schema():
         raise AssertionError(f"generator missing at {GENERATOR}")
 
     generator_env = os.environ.copy()
-    generator_env.update({
-        "APP_ENV": "test",
-        "DATABASE_BACKEND": "sqlite",
-        "DATABASE_URL": "",
-        "DATABASE_URL_FILE": "",
-        "MIGRATION_DATABASE_URL_FILE": "",
-    })
+    generator_env.update(
+        {
+            "APP_ENV": "test",
+            "DATABASE_BACKEND": "sqlite",
+            "DATABASE_URL": "",
+            "DATABASE_URL_FILE": "",
+            "MIGRATION_DATABASE_URL_FILE": "",
+        }
+    )
     result = subprocess.run(
         [sys.executable, str(GENERATOR), "--stdout"],
         capture_output=True,
@@ -38,8 +40,7 @@ def test_generated_catalog_types_match_the_published_schema():
 
     committed = GENERATED.read_text(encoding="utf-8")
     assert committed == result.stdout, (
-        "UI_API/frontend/shared/contracts/api-v1-catalog.ts is stale; "
-        "run `python tools/generate_api_types.py`"
+        "UI_API/frontend/shared/contracts/api-v1-catalog.ts is stale; run `python tools/generate_api_types.py`"
     )
 
 

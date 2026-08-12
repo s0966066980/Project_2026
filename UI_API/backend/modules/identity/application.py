@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+# Temporary re-export of internal implementation for tests mid-cutover.
+from modules.identity import _admin_identity_service as admin_identity_service
 from modules.identity._admin_authorization_service import (
     AdminAuthorizationError,
     authorize_admin_action,
 )
 from modules.identity._admin_identity_service import (
     AdminAuthenticationError,
+    admin_password_needs_rehash,
     authenticate_admin_session,
     hash_admin_password,
     hash_admin_session_token,
@@ -17,11 +20,7 @@ from modules.identity._admin_identity_service import (
     rotate_admin_session,
     sync_admin_permission_catalog,
     verify_admin_password,
-    admin_password_needs_rehash,
 )
-
-# Temporary re-export of internal implementation for tests mid-cutover.
-from modules.identity import _admin_identity_service as admin_identity_service
 from modules.identity.adapters import postgres as admin_identity_repository
 
 __all__ = [

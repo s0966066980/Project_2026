@@ -5,10 +5,9 @@ import os
 import tempfile
 from typing import Literal
 
+from capabilities import emotion
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
-from repositories import emotion_log_repository
-from services import emotion_service
 from utils.auth_utils import authorize_admin_request, check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
@@ -22,17 +21,17 @@ async def _save_upload_temp(media: UploadFile) -> str:
     return temp_path
 
 
-def create_router(deps: dict) -> APIRouter:
-    router = APIRouter(prefix="/api/emotion", tags=["emotion"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api/emotion") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["emotion"])
 
     @router.get("/profiles")
     async def profiles(request: Request):
         authorize_admin_request(request, "system.debug")
         return {
             "status": "success",
-            "profiles": emotion_service.model_profiles(),
-            "default_profile": emotion_service.MODEL_PROFILE,
-            "default_prompt": emotion_service.default_prompt(),
+            "profiles": emotion.model_profiles(),
+            "default_profile": emotion.default_profile(),
+            "default_prompt": emotion.default_prompt(),
             "duration": {"min": 2, "max": 30, "default": 5},
         }
 
@@ -40,12 +39,7 @@ def create_router(deps: dict) -> APIRouter:
     async def readiness(request: Request):
         """Lightweight Kiosk gate; no media should be captured while false."""
         require_kiosk_token(request)
-        profile = emotion_service.model_profiles()[0]
-        return {
-            "status": "ready" if profile.get("ready") else "unavailable",
-            "ready": bool(profile.get("ready")),
-            "provider": profile,
-        }
+        return emotion.readiness()
 
     @router.post("/analyze_event")
     async def analyze_emotion_event(
@@ -58,7 +52,7 @@ def create_router(deps: dict) -> APIRouter:
         check_rate_limit(request, "emotion_analyze", limit=30, key=session_id)
         temp_path = await _save_upload_temp(media)
         try:
-            return await emotion_service.analyze_event(
+            return await emotion.analyze_event(
                 session_id=session_id,
                 media_path=temp_path,
                 event_type=event_type,
@@ -78,7 +72,7 @@ def create_router(deps: dict) -> APIRouter:
         check_rate_limit(request, "emotion_media_test", limit=60)
         temp_path = await _save_upload_temp(media)
         try:
-            return await emotion_service.analyze_live_diagnostic(
+            return await emotion.analyze_live_diagnostic(
                 temp_path,
                 model_profile=model_profile,
                 prompt=prompt[:20_000],
@@ -90,13 +84,13 @@ def create_router(deps: dict) -> APIRouter:
     @router.get("/records")
     async def records(request: Request, limit: int = 200):
         authorize_admin_request(request, "operations.read")
-        rows = await asyncio.to_thread(emotion_log_repository.get_records, limit)
+        rows = await asyncio.to_thread(emotion.list_records, limit)
         return {"status": "success", "records": rows, "total": len(rows), "retention_days": 30}
 
     @router.delete("/records")
     async def clear_records(request: Request):
         authorize_admin_request(request, "operations.write")
-        count = await asyncio.to_thread(emotion_log_repository.clear_records)
+        count = await asyncio.to_thread(emotion.clear_records)
         return {"status": "success", "cleared": count}
 
     return router

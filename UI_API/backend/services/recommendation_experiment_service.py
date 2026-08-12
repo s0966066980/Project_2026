@@ -1,8 +1,8 @@
 """Deterministic recommendation experiment assignment."""
+
 import hashlib
 
 import config
-
 
 DEFAULT_EXPERIMENT_ID = "recommendation_strategy_v1"
 DEFAULT_VARIANTS = [
@@ -35,11 +35,13 @@ def _normalized_variants() -> list[dict]:
         traffic = _safe_int(row.get("traffic"), 0)
         if not variant_id or not strategy or traffic <= 0:
             continue
-        rows.append({
-            "variant_id": variant_id,
-            "strategy": strategy,
-            "traffic": traffic,
-        })
+        rows.append(
+            {
+                "variant_id": variant_id,
+                "strategy": strategy,
+                "traffic": traffic,
+            }
+        )
     return rows or list(DEFAULT_VARIANTS)
 
 

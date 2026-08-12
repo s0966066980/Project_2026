@@ -1,10 +1,11 @@
 """AI 推播路由 — POST /api/ai_push"""
+
 import json
 
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.recommendation_analytics import ai_push_service
 from fastapi import APIRouter, Form, Request
 
-from services import ai_push_service
-from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
 
@@ -18,8 +19,8 @@ def _parse_ids(raw: str) -> list[str]:
     return [s.strip() for s in str(raw or "").split(",") if s.strip()]
 
 
-def create_router(deps: dict) -> APIRouter:
-    router = APIRouter(prefix="/api", tags=["ai_push"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["ai_push"])
 
     @router.post("/ai_push")
     async def handle_ai_push(

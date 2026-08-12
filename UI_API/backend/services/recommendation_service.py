@@ -3,11 +3,19 @@ from datetime import datetime
 
 from utils.text_utils import to_traditional_lite
 
-
-
 ZH_NUMBERS = {
-    "一": 1, "二": 2, "兩": 2, "俩": 2, "三": 3, "四": 4, "五": 5,
-    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+    "一": 1,
+    "二": 2,
+    "兩": 2,
+    "俩": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
 }
 
 ORDER_TEXT_REPLACEMENTS = {
@@ -106,9 +114,32 @@ def extract_quantity_for_alias(text: str, alias: str) -> int:
 def looks_like_order_request(text: str) -> bool:
     lowered = normalize_order_text(text)
     keywords = [
-        "我要", "我想", "想吃", "想喝", "幫我加", "加一", "加兩", "加2", "點一",
-        "點兩", "點", "來一", "來兩", "來", "一份", "兩份", "2份", "全部",
-        "都點", "全點", "每個", "每樣", "order", "add", "iwant", "all",
+        "我要",
+        "我想",
+        "想吃",
+        "想喝",
+        "幫我加",
+        "加一",
+        "加兩",
+        "加2",
+        "點一",
+        "點兩",
+        "點",
+        "來一",
+        "來兩",
+        "來",
+        "一份",
+        "兩份",
+        "2份",
+        "全部",
+        "都點",
+        "全點",
+        "每個",
+        "每樣",
+        "order",
+        "add",
+        "iwant",
+        "all",
     ]
     qty_unit = r"(\d+|一|二|兩|俩|三|四|五|六|七|八|九|十)(份|個|杯|碗|道|組)"
     return any(key in lowered for key in keywords) or bool(re.search(qty_unit, lowered))
@@ -125,20 +156,18 @@ def fallback_cart_actions_from_text(user_text: str, menu_items: list[dict]) -> l
     if not looks_like_order_request(text):
         return []
     if looks_like_all_order_request(text):
-        return [
-            {"action": "add", "id": item.get("id"), "quantity": 1}
-            for item in menu_items
-            if item.get("id")
-        ]
+        return [{"action": "add", "id": item.get("id"), "quantity": 1} for item in menu_items if item.get("id")]
     actions = []
     for item in menu_items:
         for alias in menu_aliases(item):
             if alias and alias in text:
-                actions.append({
-                    "action": "add",
-                    "id": item.get("id"),
-                    "quantity": extract_quantity_for_alias(text, alias),
-                })
+                actions.append(
+                    {
+                        "action": "add",
+                        "id": item.get("id"),
+                        "quantity": extract_quantity_for_alias(text, alias),
+                    }
+                )
                 break
     return actions
 
@@ -148,17 +177,39 @@ def _is_recommendation_query(text: str) -> bool:
     但若同時含加購意圖（「把推薦的加入購物車」「幫我加你推薦的」），則不視為推薦問句。
     """
     _add_intent = [
-        "加入購物車", "幫我加", "我要那個", "加進去", "加購", "來一份",
-        "點那個", "幫我點", "幫我來", "add to cart", "add it", "add the",
+        "加入購物車",
+        "幫我加",
+        "我要那個",
+        "加進去",
+        "加購",
+        "來一份",
+        "點那個",
+        "幫我點",
+        "幫我來",
+        "add to cart",
+        "add it",
+        "add the",
     ]
     lowered = text.lower()
     # 有明確加購意圖 → 優先視為加購請求，不攔截
     if any(k in lowered for k in _add_intent):
         return False
     keywords = [
-        "推薦", "建議", "有什麼好", "什麼好吃", "什麼推薦", "你們有什麼",
-        "有沒有推薦", "幫我推薦", "介紹", "有什麼特別", "什麼比較好",
-        "recommend", "suggest", "what's good", "what do you recommend",
+        "推薦",
+        "建議",
+        "有什麼好",
+        "什麼好吃",
+        "什麼推薦",
+        "你們有什麼",
+        "有沒有推薦",
+        "幫我推薦",
+        "介紹",
+        "有什麼特別",
+        "什麼比較好",
+        "recommend",
+        "suggest",
+        "what's good",
+        "what do you recommend",
     ]
     return any(k in lowered for k in keywords)
 
@@ -194,7 +245,6 @@ def coerce_cart_actions(raw_actions, user_text: str, menu_items: list[dict]) -> 
     if _is_recommendation_query(user_text):
         return []
     return fallback_cart_actions_from_text(user_text, menu_items)
-
 
 
 def build_checkout_log_entry(

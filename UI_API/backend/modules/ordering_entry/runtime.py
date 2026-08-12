@@ -1,9 +1,9 @@
 from threading import Lock
 
+from capabilities import catalog
 from modules.checkout_confirmation import runtime as checkout_runtime
 from modules.runtime_persistence.runtime import sqlite_database_path
 
-from capabilities import catalog
 from repositories import postgres_utils
 
 from .module import OrderingEntryFlowModule

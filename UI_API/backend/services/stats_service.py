@@ -3,6 +3,7 @@
 純函式：輸入 log / event 清單，輸出後台統計所需的彙總結構。
 資料讀取由 route 透過 repository 取得後傳入，本層不做 I/O。
 """
+
 from collections import Counter
 
 from services import scenario_service
@@ -153,8 +154,7 @@ def build_intervention_stats(logs: list, events: list | None = None) -> dict:
         "scenario_success_counts": dict(scenario_success_counts),
         "scenario_success_rate": scenario_success_rate,
         "scenario_recent_logs": {
-            scenario_id: list(reversed(rows[-10:]))
-            for scenario_id, rows in scenario_recent_logs.items()
+            scenario_id: list(reversed(rows[-10:])) for scenario_id, rows in scenario_recent_logs.items()
         },
         "recent_logs": list(reversed(logs[-20:])),
         "recent_events": list(reversed(event_rows[-20:])),

@@ -44,12 +44,12 @@ describe('kiosk open-speech voice surface', () => {
 
   it('checks emotion readiness before requesting a periodic-analysis camera', () => {
     const app = read('kiosk/app.js');
-    const api = read('shared/apiClient.js');
+    const api = read('shared/api/capabilityClients.js');
     const periodicStart = app.indexOf('function startPeriodicEmotionAnalysis');
     const readinessCheck = app.indexOf('await api.getEmotionReadiness()', periodicStart);
     const cameraRequest = app.indexOf('await ensureMediaTracks({ video: true })', periodicStart);
 
-    expect(api).toContain('/api/emotion/readiness');
+    expect(api).toContain("'/emotion/readiness'");
     expect(readinessCheck).toBeGreaterThan(periodicStart);
     expect(cameraRequest).toBeGreaterThan(readinessCheck);
     expect(app).toContain('ensureMediaTracks({ video: false, audio: needAudio })');

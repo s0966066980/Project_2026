@@ -117,9 +117,7 @@ def _write_pilot_environment(
         "DATABASE_URL_FILE": database_url_file,
         "MIGRATION_DATABASE_URL_FILE": migration_url_file,
         "DATABASE_RUNTIME_ROLE": str(os.getenv("DATABASE_RUNTIME_ROLE", "project_runtime") or "project_runtime"),
-        "RUNTIME_DATA_ROOT": str(
-            os.getenv("RUNTIME_DATA_ROOT", Path.home() / ".local/share/project-2026")
-        ),
+        "RUNTIME_DATA_ROOT": str(os.getenv("RUNTIME_DATA_ROOT", Path.home() / ".local/share/project-2026")),
         "SECURITY_ENFORCED": "true",
         "ENABLE_LEGACY_KIOSK_TOKEN": "false",
         "ENABLE_DEMO_ROUTES": "false",
@@ -214,9 +212,10 @@ def _issue_device_bundle(
     device_id: UUID,
     admin_user_id: UUID,
 ) -> None:
+    from capabilities.identity_access import device_identity_service
+
     from models.admin_identity import AdminPrincipal
     from models.commercial_scope import CommercialScope
-    from services import device_identity_service
 
     destination = _external_secret_path(output_path)
     if destination.exists():
@@ -301,10 +300,10 @@ def main(argv: list[str] | None = None) -> int:
     load_environment_files(REPOSITORY_ROOT)
     os.environ.setdefault("DATABASE_BACKEND", "postgresql")
     os.environ.setdefault("DATABASE_TOPOLOGY", "single")
+    from capabilities.identity_access import interface as admin_identity_service
     from modules.runtime_persistence.migrations import require_schema_head
 
     from repositories import postgres_utils
-    from services import admin_identity_service
 
     if not postgres_utils.use_postgres():
         print("FAIL: DATABASE_BACKEND must be postgresql")

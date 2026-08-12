@@ -7,19 +7,21 @@ is rejected outright when it asserts a promotion the store cannot guarantee.
 
 import asyncio
 
-from fastapi import APIRouter, Body, HTTPException, Request
-
-import config
 from capabilities import catalog
-from repositories import push_copy_batch_repository, push_copy_repository
-from services import (
-    admin_audit_service,
+from capabilities.campaign_promotion import (
     push_copy_authoring_service,
+    push_copy_batch_repository,
+    push_copy_repository,
     push_copy_service,
     rag_guard_service,
     rag_offer_service,
 )
-from services.commercial_context_service import scope_from_admin_principal
+from capabilities.identity_access import scope_from_admin_principal
+from capabilities.operations_configuration import interface as operations
+from capabilities.operations_configuration import worker_service
+from fastapi import APIRouter, Body, HTTPException, Request
+
+import config
 from utils.auth_utils import authorize_admin_request, check_rate_limit
 
 
@@ -27,8 +29,8 @@ def _text(value) -> str:
     return str(value or "").strip()
 
 
-def create_router(deps: dict | None = None) -> APIRouter:
-    router = APIRouter(prefix="/api/push-copy", tags=["push_copy"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api/push-copy") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["push_copy"])
 
     def _offers_for(scope, menu_items: list[dict]) -> list[dict]:
         try:
@@ -54,19 +56,20 @@ def create_router(deps: dict | None = None) -> APIRouter:
                 continue
             entry = rows.get(item_id, {})
             push_text, status = push_copy_service.resolve_copy(item, entry, live_offer_ids=live_ids)
-            items.append({
-                "item_id": item_id,
-                "name": _text(item.get("name")),
-                "category": _text(item.get("category")),
-                "description": _text(item.get("description")),
-                **push_copy_repository.normalize_entry(entry),
-                "effective_text": push_text,
-                "effective_status": status,
-                "campaign_live": bool(
-                    _text(entry.get("campaign_offer_id"))
-                    and _text(entry.get("campaign_offer_id")) in live_ids
-                ),
-            })
+            items.append(
+                {
+                    "item_id": item_id,
+                    "name": _text(item.get("name")),
+                    "category": _text(item.get("category")),
+                    "description": _text(item.get("description")),
+                    **push_copy_repository.normalize_entry(entry),
+                    "effective_text": push_text,
+                    "effective_status": status,
+                    "campaign_live": bool(
+                        _text(entry.get("campaign_offer_id")) and _text(entry.get("campaign_offer_id")) in live_ids
+                    ),
+                }
+            )
         return {
             "status": "success",
             "items": items,
@@ -109,7 +112,8 @@ def create_router(deps: dict | None = None) -> APIRouter:
         rows = await asyncio.to_thread(push_copy_repository.list_copy_scoped, scope)
         if mode == "fill_missing":
             candidates = [
-                _text(row.get("id")) for row in menu_items
+                _text(row.get("id"))
+                for row in menu_items
                 if _text(row.get("id")) and not _text(rows.get(_text(row.get("id")), {}).get("base_copy"))
             ]
         else:
@@ -128,10 +132,11 @@ def create_router(deps: dict | None = None) -> APIRouter:
 
         batch = await asyncio.to_thread(
             push_copy_batch_repository.create_batch,
-            scope, mode=mode, item_ids=candidates, actor_id=str(principal.user_id or ""),
+            scope,
+            mode=mode,
+            item_ids=candidates,
+            actor_id=str(principal.user_id or ""),
         )
-        from services import worker_service
-
         await asyncio.to_thread(
             worker_service.enqueue_job,
             tenant_id=scope.tenant_id,
@@ -142,7 +147,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
             max_attempts=1,
         )
         await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "push_copy.batch_start",
             target_type="push_copy_batch",
             target_id=batch["batch_id"],
@@ -196,7 +201,7 @@ def create_router(deps: dict | None = None) -> APIRouter:
             actor_id=str(principal.user_id or ""),
         )
         await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "push_copy.update",
             target_type="menu_item",
             target_id=_text(item_id),

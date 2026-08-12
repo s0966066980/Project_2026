@@ -22,7 +22,6 @@ for import_root in (UI_API_DIR, BACKEND_DIR):
 
 from services.tts_service import get_tts  # noqa: E402
 
-
 UTTERANCES = {
     "conversation": "請問今天有什麼會員優惠？",
     "ordering": "我要一份薯條和一杯可樂。",
@@ -37,10 +36,7 @@ def _percentile(values: list[float], percentile: float) -> float:
 
 async def _sample_audio() -> dict[str, bytes]:
     provider = get_tts()
-    return {
-        category: await provider.synthesize(text)
-        for category, text in UTTERANCES.items()
-    }
+    return {category: await provider.synthesize(text) for category, text in UTTERANCES.items()}
 
 
 async def _run(args: argparse.Namespace) -> dict:
@@ -124,10 +120,7 @@ async def _run(args: argparse.Namespace) -> dict:
     return {
         "status": "passed" if p95 <= args.max_p95_ms and event_protocol_valid else "failed",
         "sample_count": len(samples),
-        "categories": {
-            category: sum(sample["category"] == category for sample in samples)
-            for category in UTTERANCES
-        },
+        "categories": {category: sum(sample["category"] == category for sample in samples) for category in UTTERANCES},
         "response_wait_ms": {
             "minimum": round(min(waits), 2),
             "median": _percentile(waits, 0.50),

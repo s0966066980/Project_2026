@@ -5,9 +5,7 @@ from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 
 
 def _module(tmp_path):
-    return RetrievalConfigurationModule(
-        store=SQLiteRetrievalConfigurationStore(tmp_path / "retrieval.sqlite3")
-    )
+    return RetrievalConfigurationModule(store=SQLiteRetrievalConfigurationStore(tmp_path / "retrieval.sqlite3"))
 
 
 def test_only_the_active_configuration_is_stored(tmp_path):

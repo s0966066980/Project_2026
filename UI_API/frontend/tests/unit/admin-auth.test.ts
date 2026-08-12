@@ -108,7 +108,7 @@ describe('device-authenticated Admin access', () => {
     const firstCall = fetchImpl.mock.calls[0];
     expect(firstCall).toBeDefined();
     if (!firstCall) throw new Error('missing Admin bootstrap request');
-    expect(String(firstCall[0])).toBe('http://api/api/admin/auth/me');
+    expect(String(firstCall[0])).toBe('http://api/api/v1/auth/me');
     expect(firstCall[1]).toMatchObject({ credentials: 'same-origin' });
     expect(onPrincipal).toHaveBeenCalledWith(expect.objectContaining({ permissions: ['*'] }));
     expect(onAuthenticated).toHaveBeenCalledTimes(1);
@@ -145,6 +145,30 @@ describe('device-authenticated Admin access', () => {
     expect(element('adminAuthRetry').disabled).toBe(false);
     expect(timers.scheduled).toBeGreaterThan(0);
     expect(onPrincipal).toHaveBeenCalledWith(null);
+  });
+
+  it('does not wait forever when the auth response body never completes', async () => {
+    vi.useFakeTimers();
+    try {
+      const onPrincipal = vi.fn();
+      const fetchImpl = vi.fn(async (url: string) => {
+        if (url.endsWith('/ready')) {
+          return { ok: true, status: 200, json: async () => ({ ready: false }) };
+        }
+        return { ok: true, status: 200, json: () => new Promise<never>(() => {}) };
+      });
+      const controller = controllerWith(fetchImpl, { onPrincipal });
+      let completed = false;
+      controller.bootstrap().then(() => { completed = true; });
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(completed).toBe(true);
+      expect(element('adminAccessStatus').textContent).toBe('服務啟動中');
+      expect(element('adminAuthRetry').disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never reports a starting service as an unauthorised device', async () => {

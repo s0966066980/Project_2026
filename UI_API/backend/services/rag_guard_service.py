@@ -1,19 +1,52 @@
 """Guardrails for RAG-backed promotion and policy answers."""
 
-
 PROMOTION_KEYWORDS = {
-    "優惠", "活動", "折扣", "特價", "促銷", "買一送一", "加購", "會員優惠",
-    "coupon", "discount", "promotion", "deal", "offer",
+    "優惠",
+    "活動",
+    "折扣",
+    "特價",
+    "促銷",
+    "買一送一",
+    "加購",
+    "會員優惠",
+    "coupon",
+    "discount",
+    "promotion",
+    "deal",
+    "offer",
 }
 
 POLICY_KEYWORDS = {
-    "退款", "退費", "付款", "發票", "營業", "供應時間", "過敏", "營養", "成分",
-    "refund", "payment", "invoice", "allergen", "nutrition", "opening",
+    "退款",
+    "退費",
+    "付款",
+    "發票",
+    "營業",
+    "供應時間",
+    "過敏",
+    "營養",
+    "成分",
+    "refund",
+    "payment",
+    "invoice",
+    "allergen",
+    "nutrition",
+    "opening",
 }
 
 UNVERIFIED_PROMOTION_TERMS = {
-    "優惠", "折扣", "特價", "促銷", "買一送一", "限時優惠", "加購價", "半價",
-    "discount", "deal", "coupon", "promotion",
+    "優惠",
+    "折扣",
+    "特價",
+    "促銷",
+    "買一送一",
+    "限時優惠",
+    "加購價",
+    "半價",
+    "discount",
+    "deal",
+    "coupon",
+    "promotion",
 }
 
 
@@ -72,7 +105,9 @@ def build_voice_guard_section(
         if rag_context:
             lines.append("顧客詢問政策、營養、過敏原、付款或營業資訊時，只能依據 RAG 補充資訊與菜單白名單回答。")
         else:
-            lines.append("顧客詢問政策、營養、過敏原、付款或營業資訊，但目前沒有 RAG 補充資訊；請保守回答並請顧客以現場公告為準。")
+            lines.append(
+                "顧客詢問政策、營養、過敏原、付款或營業資訊，但目前沒有 RAG 補充資訊；請保守回答並請顧客以現場公告為準。"
+            )
     return "\n".join(lines)
 
 
@@ -85,11 +120,7 @@ def offers_targeting_item(
 ) -> list[dict]:
     """Offers visible to this audience that actually apply to this item."""
 
-    return [
-        offer
-        for offer in _visible_offers(offers or [], audience)
-        if _offer_targets_item(offer, item_id, category)
-    ]
+    return [offer for offer in _visible_offers(offers or [], audience) if _offer_targets_item(offer, item_id, category)]
 
 
 def unverified_promotion_terms(text: str) -> list[str]:

@@ -6,10 +6,10 @@ untouched, which is why the gateway adapters are called directly rather than thr
 llm_gateway_service.generate()'s policy-driven chain.
 """
 
+import database
 import requests
 
 import config
-import database
 from models.llm import LLMAdapterResult, LLMRequest
 from services import llm_gateway_service, llm_routing_service
 
@@ -99,17 +99,19 @@ def ask_voice_style(
         }
 
     resolved_model = _override_model(provider, model)
-    result = adapter.generate(LLMRequest(
-        task="voice_assist",
-        system_prompt=system_prompt or _get_default_voice_prompt(),
-        user_prompt=_build_voice_user_prompt(user_text, history),
-        model_name=resolved_model,
-        expect_json=True,
-        response_tag="ADMIN_LLM_DIAGNOSTIC",
-        prompt_version="admin-diagnostic-v1",
-        timeout_seconds=60.0,
-        # A diagnostic reports the first attempt verbatim; a silent retry would hide the
-        # intermittent failure the operator is here to see.
-        max_retries=0,
-    ))
+    result = adapter.generate(
+        LLMRequest(
+            task="voice_assist",
+            system_prompt=system_prompt or _get_default_voice_prompt(),
+            user_prompt=_build_voice_user_prompt(user_text, history),
+            model_name=resolved_model,
+            expect_json=True,
+            response_tag="ADMIN_LLM_DIAGNOSTIC",
+            prompt_version="admin-diagnostic-v1",
+            timeout_seconds=60.0,
+            # A diagnostic reports the first attempt verbatim; a silent retry would hide the
+            # intermittent failure the operator is here to see.
+            max_retries=0,
+        )
+    )
     return _flatten(result)

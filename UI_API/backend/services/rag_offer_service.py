@@ -4,12 +4,13 @@ Vector search remains useful for voice answers, but recommendation scoring needs
 deterministic, validated promotion data. This service reads validated promotion
 records and returns menu-safe offer signals.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.promotion import PromotionContext, evaluate_promotion
+from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
 
 import config
 from models.commercial_scope import CommercialScope
@@ -69,15 +70,9 @@ def _default_timezone_name() -> str:
 
 
 def _menu_lookup(menu_items: list[dict]) -> tuple[set[str], set[str]]:
-    item_ids = {
-        str(item.get("id") or "").strip()
-        for item in menu_items or []
-        if str(item.get("id") or "").strip()
-    }
+    item_ids = {str(item.get("id") or "").strip() for item in menu_items or [] if str(item.get("id") or "").strip()}
     categories = {
-        str(item.get("category") or "").strip()
-        for item in menu_items or []
-        if str(item.get("category") or "").strip()
+        str(item.get("category") or "").strip() for item in menu_items or [] if str(item.get("category") or "").strip()
     }
     return item_ids, categories
 
@@ -106,9 +101,7 @@ def _normalize_offer(
     valid_item_ids, valid_categories = _menu_lookup(menu_items)
     item_ids = [item_id for item_id in _as_list(row.get("item_ids") or row.get("items")) if item_id in valid_item_ids]
     categories = [
-        category
-        for category in _as_list(row.get("categories") or row.get("category"))
-        if category in valid_categories
+        category for category in _as_list(row.get("categories") or row.get("category")) if category in valid_categories
     ]
     required_cart_item_ids = [
         item_id
@@ -186,9 +179,7 @@ def load_active_offers(
     current_time = now or datetime.now(timezone.utc)
     offers = []
     promotion_rows = (
-        promotion_repository.list_promotions_scoped(scope)
-        if scope
-        else promotion_repository.list_promotions()
+        promotion_repository.list_promotions_scoped(scope) if scope else promotion_repository.list_promotions()
     )
     for index, row in enumerate(promotion_rows):
         offer = _normalize_offer(

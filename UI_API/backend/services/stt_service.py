@@ -4,6 +4,7 @@
   "faster_whisper"    — 本地函式庫（預設）
   "openai_compatible" — HTTP API（OpenAI 或本地相容服務）
 """
+
 import asyncio
 import threading
 from abc import ABC, abstractmethod
@@ -19,6 +20,7 @@ class STTProvider(ABC):
 
 # ── FasterWhisper 本地實作 ────────────────────────────────────────
 
+
 def _faster_whisper_runtime() -> tuple[str, str]:
     """Select the CTranslate2 runtime without requiring the unrelated torch package."""
     try:
@@ -30,6 +32,7 @@ def _faster_whisper_runtime() -> tuple[str, str]:
         pass
     return "cpu", "int8"
 
+
 class FasterWhisperSTT(STTProvider):
     _model = None
     _lock = threading.Lock()
@@ -37,6 +40,7 @@ class FasterWhisperSTT(STTProvider):
     def _init(self):
         if FasterWhisperSTT._model is None:
             from faster_whisper import WhisperModel
+
             model_size = config.get("STT_MODEL", "small")
             device, compute_type = _faster_whisper_runtime()
             print(f"載入 faster-whisper ({model_size}, {compute_type}, {device})...")
@@ -78,6 +82,7 @@ class FasterWhisperSTT(STTProvider):
 
 # ── OpenAI 相容 HTTP API 實作 ─────────────────────────────────────
 
+
 class OpenAICompatibleSTT(STTProvider):
     """相容 OpenAI /v1/audio/transcriptions 的任意 HTTP 服務。
 
@@ -108,6 +113,7 @@ class OpenAICompatibleSTT(STTProvider):
 
 
 # ── Factory ───────────────────────────────────────────────────────
+
 
 def get_stt() -> STTProvider:
     """Config STT_PROVIDER 決定使用哪個實作。"""

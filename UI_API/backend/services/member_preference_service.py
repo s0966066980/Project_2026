@@ -3,9 +3,11 @@
 此層只把會員紀錄整理成推薦/語音可用的精簡上下文，不負責推薦排序、
 LLM 呼叫或 HTTP request 處理。
 """
+
 from collections import Counter
 
 from capabilities import catalog
+
 from services import member_service
 
 
@@ -50,11 +52,7 @@ def _order_completed(order: dict) -> bool:
 
 
 def _recent_item_ids(member: dict, limit: int = 5) -> list[str]:
-    saved_recent_ids = [
-        str(item_id)
-        for item_id in (member.get("recent_item_ids") or [])
-        if item_id
-    ]
+    saved_recent_ids = [str(item_id) for item_id in (member.get("recent_item_ids") or []) if item_id]
     if saved_recent_ids:
         return _unique_ordered(saved_recent_ids, limit)
 
@@ -85,11 +83,13 @@ def _items_from_ids(item_ids: list[str]) -> list[dict]:
         item = menu_by_id.get(item_id)
         if not item:
             continue
-        rows.append({
-            "id": item_id,
-            "name": str(item.get("name") or ""),
-            "category": str(item.get("category") or ""),
-        })
+        rows.append(
+            {
+                "id": item_id,
+                "name": str(item.get("name") or ""),
+                "category": str(item.get("category") or ""),
+            }
+        )
     return rows
 
 
@@ -126,18 +126,22 @@ def _frequent_pairs(member: dict, limit: int = 3) -> list[dict]:
             menu_item = menu_by_id.get(item_id)
             if not menu_item:
                 break
-            items.append({
-                "id": item_id,
-                "name": str(menu_item.get("name") or ""),
-                "category": str(menu_item.get("category") or ""),
-            })
+            items.append(
+                {
+                    "id": item_id,
+                    "name": str(menu_item.get("name") or ""),
+                    "category": str(menu_item.get("category") or ""),
+                }
+            )
         if len(items) != 2:
             continue
-        rows.append({
-            "item_ids": item_ids,
-            "items": items,
-            "count": int(count or 0),
-        })
+        rows.append(
+            {
+                "item_ids": item_ids,
+                "items": items,
+                "count": int(count or 0),
+            }
+        )
         if len(rows) >= limit:
             break
     return rows
@@ -152,30 +156,32 @@ def build_preference_summary(member: dict | None, limit: int = 5) -> dict:
     total_spend = int(member.get("total_spend", 0) or 0)
     last_order_item_ids = _last_order_item_ids(member, limit=limit)
     summary = empty_preference_summary()
-    summary.update({
-        "has_member": True,
-        "phone_masked": member_service.mask_phone(member.get("phone", "")),
-        "nickname": str(member.get("nickname", "") or ""),
-        "visit_count": visit_count,
-        "total_spend": total_spend,
-        "avg_spend": total_spend // visit_count if visit_count else 0,
-        "usual_item_ids": [str(item.get("id")) for item in usual_items if item.get("id")],
-        "usual_items": [
-            {
-                "id": str(item.get("id") or ""),
-                "name": str(item.get("name") or ""),
-                "category": str(item.get("category") or ""),
-                "count": int(item.get("count") or 0),
-            }
-            for item in usual_items
-            if item.get("id")
-        ],
-        "recent_item_ids": _recent_item_ids(member, limit=limit),
-        "last_order_item_ids": last_order_item_ids,
-        "last_order_items": _items_from_ids(last_order_item_ids),
-        "preferred_categories": _preferred_categories(member, usual_items),
-        "frequent_pairs": _frequent_pairs(member),
-    })
+    summary.update(
+        {
+            "has_member": True,
+            "phone_masked": member_service.mask_phone(member.get("phone", "")),
+            "nickname": str(member.get("nickname", "") or ""),
+            "visit_count": visit_count,
+            "total_spend": total_spend,
+            "avg_spend": total_spend // visit_count if visit_count else 0,
+            "usual_item_ids": [str(item.get("id")) for item in usual_items if item.get("id")],
+            "usual_items": [
+                {
+                    "id": str(item.get("id") or ""),
+                    "name": str(item.get("name") or ""),
+                    "category": str(item.get("category") or ""),
+                    "count": int(item.get("count") or 0),
+                }
+                for item in usual_items
+                if item.get("id")
+            ],
+            "recent_item_ids": _recent_item_ids(member, limit=limit),
+            "last_order_item_ids": last_order_item_ids,
+            "last_order_items": _items_from_ids(last_order_item_ids),
+            "preferred_categories": _preferred_categories(member, usual_items),
+            "frequent_pairs": _frequent_pairs(member),
+        }
+    )
     return summary
 
 
@@ -188,43 +194,24 @@ def format_member_prompt_section(summary: dict | None) -> str:
     nickname = summary.get("nickname")
     if nickname:
         lines.append(f"會員暱稱：{nickname}")
-    usual_names = [
-        item.get("name", "")
-        for item in summary.get("usual_items", [])
-        if item.get("name")
-    ][:3]
+    usual_names = [item.get("name", "") for item in summary.get("usual_items", []) if item.get("name")][:3]
     if usual_names:
         lines.append(f"常點：{'、'.join(usual_names)}")
-    usual_items = [
-        item
-        for item in summary.get("usual_items", [])
-        if item.get("id") and item.get("name")
-    ][:5]
+    usual_items = [item for item in summary.get("usual_items", []) if item.get("id") and item.get("name")][:5]
     if usual_items:
         lines.append("【會員常點 ID】")
         lines.extend(
             f"{item['id']}｜{item['name']}｜{item.get('category') or '未分類'}｜常點 {int(item.get('count') or 0)} 次"
             for item in usual_items
         )
-    last_order_items = [
-        item
-        for item in summary.get("last_order_items", [])
-        if item.get("id") and item.get("name")
-    ][:5]
+    last_order_items = [item for item in summary.get("last_order_items", []) if item.get("id") and item.get("name")][:5]
     if last_order_items:
         lines.append("【最近完成訂單 ID】")
-        lines.extend(
-            f"{item['id']}｜{item['name']}｜{item.get('category') or '未分類'}"
-            for item in last_order_items
-        )
+        lines.extend(f"{item['id']}｜{item['name']}｜{item.get('category') or '未分類'}" for item in last_order_items)
     categories = [c for c in summary.get("preferred_categories", []) if c]
     if categories:
         lines.append(f"偏好分類：{'、'.join(categories)}")
-    frequent_pairs = [
-        pair
-        for pair in summary.get("frequent_pairs", [])
-        if len(pair.get("items") or []) == 2
-    ][:3]
+    frequent_pairs = [pair for pair in summary.get("frequent_pairs", []) if len(pair.get("items") or []) == 2][:3]
     if frequent_pairs:
         pair_names = [
             " + ".join(item.get("name", "") for item in pair.get("items", []) if item.get("name"))

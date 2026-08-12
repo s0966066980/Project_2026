@@ -7,14 +7,13 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
 
+from capabilities import catalog
 from modules.runtime_persistence.runtime import sqlite_database_path
 
 import config
 from models.llm import LLMRequest
-from services import llm_routing_service
-from capabilities import catalog
 from repositories import postgres_utils, session_repository
-from services import llm_gateway_service
+from services import llm_gateway_service, llm_routing_service
 from services.recommendation_service import coerce_cart_actions
 from services.stt_service import get_stt
 from services.tts_service import get_tts
@@ -47,9 +46,7 @@ class ProductionMenu:
 
 
 class ProductionAssistant:
-    def assist(
-        self, *, transcript: str, candidates: list[dict[str, Any]], operation_key: str
-    ) -> dict[str, Any]:
+    def assist(self, *, transcript: str, candidates: list[dict[str, Any]], operation_key: str) -> dict[str, Any]:
         compact = [
             {
                 "id": row["item_id"],
@@ -96,9 +93,7 @@ class ProductionAssistant:
         ]
         text = str(parsed.get("ai_response") or "").strip()
         if lines:
-            text = (
-                "已整理您提到的餐點，請在畫面上確認。"
-            )
+            text = "已整理您提到的餐點，請在畫面上確認。"
         if not text:
             text = "我可以協助您了解菜單。"
         candidate_by_id = {str(row["item_id"]): row for row in candidates}

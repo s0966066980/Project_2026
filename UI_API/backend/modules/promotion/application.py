@@ -171,13 +171,15 @@ def select_promotion_quote(
             priority = int(promotion.get("priority") or 0)
         except (TypeError, ValueError):
             priority = 0
-        candidates.append((
-            quote.effective_price,
-            -priority,
-            0 if preferred_ref and quote.promotion_ref == preferred_ref else 1,
-            quote.promotion_ref,
-            quote,
-        ))
+        candidates.append(
+            (
+                quote.effective_price,
+                -priority,
+                0 if preferred_ref and quote.promotion_ref == preferred_ref else 1,
+                quote.promotion_ref,
+                quote,
+            )
+        )
     if not candidates:
         return PromotionQuote(False, "no_applicable_promotion", base_price, base_price, 0)
     return min(candidates, key=lambda candidate: candidate[:4])[4]
@@ -202,9 +204,7 @@ def project_item_price(
     without_cart = replace(context, cart_item_ids=None)
     conditional_candidates: list[tuple[int, str, PromotionQuote, tuple[str, ...]]] = []
     for promotion in promotions:
-        required = tuple(sorted(_as_values(
-            promotion.get("required_cart_item_ids") or promotion.get("required_items")
-        )))
+        required = tuple(sorted(_as_values(promotion.get("required_cart_item_ids") or promotion.get("required_items"))))
         if not required:
             continue
         quote = quote_promotion(promotion, without_cart, base_price=base_price)
@@ -281,7 +281,9 @@ def preview_campaign(
         errors.append({"path": "schedule.starts_at", "code": "required", "message": "請輸入活動開始時間。"})
     if starts_at and ends_at and starts_at > ends_at:
         errors.append({"path": "schedule.ends_at", "code": "before_start", "message": "結束時間必須晚於開始時間。"})
-    placements = tuple(dict.fromkeys(str(value or "").strip() for value in raw.get("placements") or [] if str(value or "").strip()))
+    placements = tuple(
+        dict.fromkeys(str(value or "").strip() for value in raw.get("placements") or [] if str(value or "").strip())
+    )
     unknown = [value for value in placements if value not in ALLOWED_PLACEMENTS]
     if unknown:
         errors.append({"path": "placements", "code": "unsupported", "message": "包含目前不支援的顯示位置。"})
@@ -289,28 +291,56 @@ def preview_campaign(
         errors.append({"path": "placements", "code": "required", "message": "請至少選擇一個顯示位置。"})
     rules = raw.get("promotion_rules") or []
     if not isinstance(rules, list) or len(rules) != 1:
-        errors.append({"path": "promotion_rules", "code": "single_rule_required", "message": "第一階段每個活動請設定一種優惠。"})
+        errors.append(
+            {"path": "promotion_rules", "code": "single_rule_required", "message": "第一階段每個活動請設定一種優惠。"}
+        )
         rules = []
     catalog = {str(item.get("id") or ""): item for item in (catalog_items or [])}
     price_previews = []
     for index, rule in enumerate(rules):
         rule = dict(rule or {})
         if rule.get("type") not in {"fixed_item_price", "add_on_fixed_price"}:
-            errors.append({"path": f"promotion_rules.{index}.type", "code": "unsupported", "message": "請選擇指定餐點特價或搭配加購價。"})
+            errors.append(
+                {
+                    "path": f"promotion_rules.{index}.type",
+                    "code": "unsupported",
+                    "message": "請選擇指定餐點特價或搭配加購價。",
+                }
+            )
         if not rule.get("item_ids"):
-            errors.append({"path": f"promotion_rules.{index}.item_ids", "code": "required", "message": "請選擇優惠餐點。"})
+            errors.append(
+                {"path": f"promotion_rules.{index}.item_ids", "code": "required", "message": "請選擇優惠餐點。"}
+            )
         try:
             price = int(rule.get("promotion_price"))
         except (TypeError, ValueError):
             price = 0
         if price <= 0:
-            errors.append({"path": f"promotion_rules.{index}.promotion_price", "code": "invalid_price", "message": "優惠價必須大於 0 元。"})
+            errors.append(
+                {
+                    "path": f"promotion_rules.{index}.promotion_price",
+                    "code": "invalid_price",
+                    "message": "優惠價必須大於 0 元。",
+                }
+            )
         if rule.get("type") == "add_on_fixed_price" and not rule.get("required_cart_item_ids"):
-            errors.append({"path": f"promotion_rules.{index}.required_cart_item_ids", "code": "required", "message": "請選擇顧客需要先購買的餐點。"})
+            errors.append(
+                {
+                    "path": f"promotion_rules.{index}.required_cart_item_ids",
+                    "code": "required",
+                    "message": "請選擇顧客需要先購買的餐點。",
+                }
+            )
         for item_id in rule.get("item_ids") or []:
             item = catalog.get(str(item_id))
             if catalog_items is not None and item is None:
-                errors.append({"path": f"promotion_rules.{index}.item_ids", "code": "item_not_found", "message": "選取的優惠餐點已不存在，請重新選擇。"})
+                errors.append(
+                    {
+                        "path": f"promotion_rules.{index}.item_ids",
+                        "code": "item_not_found",
+                        "message": "選取的優惠餐點已不存在，請重新選擇。",
+                    }
+                )
                 continue
             if item is None:
                 continue
@@ -319,15 +349,23 @@ def preview_campaign(
             except (TypeError, ValueError):
                 base_price = 0
             if price > base_price > 0:
-                errors.append({"path": f"promotion_rules.{index}.promotion_price", "code": "price_above_base", "message": "優惠價不可高於餐點原價。"})
-            price_previews.append({
-                "item_id": str(item_id),
-                "item_name": str(item.get("name") or item_id),
-                "base_price": base_price,
-                "effective_price": price,
-                "savings": max(0, base_price - price),
-                "conditional": rule.get("type") == "add_on_fixed_price",
-            })
+                errors.append(
+                    {
+                        "path": f"promotion_rules.{index}.promotion_price",
+                        "code": "price_above_base",
+                        "message": "優惠價不可高於餐點原價。",
+                    }
+                )
+            price_previews.append(
+                {
+                    "item_id": str(item_id),
+                    "item_name": str(item.get("name") or item_id),
+                    "base_price": base_price,
+                    "effective_price": price,
+                    "savings": max(0, base_price - price),
+                    "conditional": rule.get("type") == "add_on_fixed_price",
+                }
+            )
 
     conflicts = []
     repo = _campaign_repository(repository)
@@ -347,16 +385,20 @@ def preview_campaign(
             for value in (rule.get("item_ids") or [])
         }
         if overlaps_time and item_ids & existing_items:
-            conflicts.append({
-                "campaign_id": existing.campaign_id,
-                "code": "overlapping_item_price",
-                "message": f"與「{existing.payload.get('name') or '另一個活動'}」的餐點與期間重疊，發布時會由系統選擇顧客最優惠價格。",
-            })
+            conflicts.append(
+                {
+                    "campaign_id": existing.campaign_id,
+                    "code": "overlapping_item_price",
+                    "message": f"與「{existing.payload.get('name') or '另一個活動'}」的餐點與期間重疊，發布時會由系統選擇顧客最優惠價格。",
+                }
+            )
     summary = f"適用於{'會員' if audience == 'member' else '所有顧客'}，會影響 {len(placements)} 個顧客畫面。"
     return CampaignPreview(not errors, tuple(errors), tuple(conflicts), len(placements), summary, tuple(price_previews))
 
 
-def create_campaign_draft(payload: dict, scope, *, actor_id: str, repository=None, catalog_items: list[dict] | None = None) -> CampaignSnapshot:
+def create_campaign_draft(
+    payload: dict, scope, *, actor_id: str, repository=None, catalog_items: list[dict] | None = None
+) -> CampaignSnapshot:
     repo = _campaign_repository(repository)
     campaign_id = f"cmp_{uuid4().hex}"
     preview = preview_campaign(payload, scope, repository=repo, catalog_items=catalog_items)
@@ -395,14 +437,20 @@ def revise_campaign_draft(
         raise CampaignStateError("archived_campaign_is_immutable")
     if current.status not in CAMPAIGN_EDITABLE_STATUSES:
         raise CampaignStateError("campaign_must_be_paused_or_ended_before_edit")
-    preview = preview_campaign(payload, scope, repository=repo, exclude_campaign_id=campaign_id, catalog_items=catalog_items)
+    preview = preview_campaign(
+        payload, scope, repository=repo, exclude_campaign_id=campaign_id, catalog_items=catalog_items
+    )
     if not preview.valid:
         raise ValueError(preview.field_errors)
     # Revising content never moves the campaign through its lifecycle; a paused campaign stays
     # paused so that saving edits can never take a campaign off air or put one on air.
     canonical = dict(payload)
-    canonical.update({"campaign_id": campaign_id, "status": current.status, "version": expected_version + 1, "updated_by": actor_id})
-    snapshot = repo.append_version(scope, campaign_id, canonical, current.status, expected_version=expected_version, actor_id=actor_id)
+    canonical.update(
+        {"campaign_id": campaign_id, "status": current.status, "version": expected_version + 1, "updated_by": actor_id}
+    )
+    snapshot = repo.append_version(
+        scope, campaign_id, canonical, current.status, expected_version=expected_version, actor_id=actor_id
+    )
     repo.audit(scope, actor_id=actor_id, action="campaign_draft_revised", snapshot=snapshot)
     return snapshot
 
@@ -445,12 +493,14 @@ def publish_campaign(
         raise ValueError(preview.field_errors)
 
     canonical = dict(payload)
-    canonical.update({
-        "campaign_id": campaign_id,
-        "status": content_status,
-        "version": expected_version + 1,
-        "updated_by": actor_id,
-    })
+    canonical.update(
+        {
+            "campaign_id": campaign_id,
+            "status": content_status,
+            "version": expected_version + 1,
+            "updated_by": actor_id,
+        }
+    )
     snapshot = repo.append_version(
         scope, campaign_id, canonical, content_status, expected_version=expected_version, actor_id=actor_id
     )
@@ -494,7 +544,9 @@ def transition_campaign(
         raise CampaignStateError(f"campaign_transition_not_allowed:{current.status}:{target}")
     payload = dict(current.payload)
     payload.update({"status": target, "version": expected_version + 1, "updated_by": actor_id})
-    snapshot = repo.append_version(scope, campaign_id, payload, target, expected_version=expected_version, actor_id=actor_id)
+    snapshot = repo.append_version(
+        scope, campaign_id, payload, target, expected_version=expected_version, actor_id=actor_id
+    )
     if target in {"scheduled", "active", "paused", "ended", "archived"}:
         repo.project_legacy(scope, snapshot)
     repo.audit(scope, actor_id=actor_id, action=f"campaign_{target}", snapshot=snapshot)

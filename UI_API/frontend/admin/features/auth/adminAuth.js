@@ -7,6 +7,7 @@ export function adminHeaders(extra = {}) {
 
 /** One verification attempt may never outlive this bound. */
 const VERIFY_TIMEOUT_MS = 5000;
+const DEVICE_VERIFICATION_TIMEOUT = 'device verification timed out';
 /** First auto-retry delay while the service is still starting. */
 const RETRY_BASE_MS = 1000;
 /** Auto-retry never backs off further than this, so recovery stays visible. */
@@ -51,6 +52,15 @@ export function createAdminAuthController({
   /** @type {any} */
   let scheduledRetry = null;
 
+  // Browser timer functions are receiver-sensitive Web APIs. Keeping them in
+  // the injectable `timers` object and invoking them as methods changes `this`
+  // to that object, which Chromium rejects with "Illegal invocation" before a
+  // valid device session can dismiss the verification boundary.
+  /** @param {TimerHandler} run @param {number} delay */
+  const schedule = (run, delay) => Reflect.apply(timers.setTimeout, globalThis, [run, delay]);
+  /** @param {any} handle */
+  const cancel = (handle) => Reflect.apply(timers.clearTimeout, globalThis, [handle]);
+
   /** @param {string} id */
   const byId = id => document.getElementById(id);
 
@@ -80,7 +90,7 @@ export function createAdminAuthController({
 
   function cancelScheduledRetry() {
     if (scheduledRetry === null) return;
-    timers.clearTimeout(scheduledRetry);
+    cancel(scheduledRetry);
     scheduledRetry = null;
   }
 
@@ -99,14 +109,33 @@ export function createAdminAuthController({
       return await Promise.race([
         fetchImpl(url, { ...options, signal: controller.signal }),
         new Promise((_resolve, reject) => {
-          deadline = timers.setTimeout(() => {
+          deadline = schedule(() => {
             controller.abort();
-            reject(new Error('device verification timed out'));
+            reject(new Error(DEVICE_VERIFICATION_TIMEOUT));
           }, VERIFY_TIMEOUT_MS);
         }),
       ]);
     } finally {
-      if (deadline !== null) timers.clearTimeout(deadline);
+      if (deadline !== null) cancel(deadline);
+    }
+  }
+
+  /**
+   * The response headers may arrive while its body remains stalled.
+   * @param {Response} response
+   */
+  async function readJsonBounded(response) {
+    /** @type {any} */
+    let deadline = null;
+    try {
+      return await Promise.race([
+        response.json(),
+        new Promise((_resolve, reject) => {
+          deadline = schedule(() => reject(new Error(DEVICE_VERIFICATION_TIMEOUT)), VERIFY_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (deadline !== null) cancel(deadline);
     }
   }
 
@@ -120,7 +149,7 @@ export function createAdminAuthController({
   async function readinessReason() {
     try {
       const response = await fetchBounded(`${apiBaseUrl}/ready`, { credentials: 'same-origin' });
-      const body = await (/** @type {any} */ (response)).json();
+      const body = await readJsonBounded(response);
       if (body?.ready === true) return '';
       const checks = body?.required_checks || {};
       const pending = Object.keys(checks)
@@ -136,7 +165,7 @@ export function createAdminAuthController({
     cancelScheduledRetry();
     const delay = retryDelayMs;
     retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS);
-    scheduledRetry = timers.setTimeout(() => {
+    scheduledRetry = schedule(() => {
       scheduledRetry = null;
       void bootstrap();
     }, delay);
@@ -181,7 +210,7 @@ export function createAdminAuthController({
     /** @type {any} */
     let response;
     try {
-      response = await fetchBounded(`${apiBaseUrl}/api/admin/auth/me`, {
+      response = await fetchBounded(`${apiBaseUrl}/api/v1/auth/me`, {
         headers: adminHeaders(),
         credentials: 'same-origin',
       });
@@ -206,9 +235,13 @@ export function createAdminAuthController({
     /** @type {any} */
     let principal = null;
     try {
-      const body = await response.json();
-      principal = body?.principal || null;
-    } catch {
+      const body = await readJsonBounded(response);
+      principal = body?.data || body?.principal || null;
+    } catch (error) {
+      if (error instanceof Error && error.message === DEVICE_VERIFICATION_TIMEOUT) {
+        await showServiceStarting();
+        return;
+      }
       principal = null;
     }
     if (superseded()) return;

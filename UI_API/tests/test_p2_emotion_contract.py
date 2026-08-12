@@ -32,10 +32,12 @@ def test_emotion_enabled_is_not_a_second_mode_authority():
     [(True, "voice", "voice_only"), (True, "periodic", "periodic_ordering"), (False, "voice", "off")],
 )
 def test_legacy_settings_are_forward_migrated_once(legacy_enabled, legacy_mode, expected):
-    settings = config._finalize_settings({
-        **config.DEFAULT_SETTINGS,
-        "EMOTION_ENABLED": legacy_enabled,
-        "EMOTION_CAPTURE_MODE": legacy_mode,
-    })
+    settings = config._finalize_settings(
+        {
+            **config.DEFAULT_SETTINGS,
+            "EMOTION_ENABLED": legacy_enabled,
+            "EMOTION_CAPTURE_MODE": legacy_mode,
+        }
+    )
     assert settings["EMOTION_CAPTURE_MODE"] == expected
     assert "EMOTION_ENABLED" not in settings

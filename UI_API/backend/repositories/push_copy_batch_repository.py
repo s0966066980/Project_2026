@@ -95,9 +95,17 @@ def create_batch(
         raise ValueError("JSON batch storage only supports the legacy Default Scope")
     rows = _json_all()
     record = {
-        "batch_id": batch_id, "mode": normalized_mode, "item_ids": ids,
-        "total": len(ids), "succeeded": 0, "failed": 0, "status": "pending",
-        "last_error": "", "actor_id": _text(actor_id), "created_at": "", "updated_at": "",
+        "batch_id": batch_id,
+        "mode": normalized_mode,
+        "item_ids": ids,
+        "total": len(ids),
+        "succeeded": 0,
+        "failed": 0,
+        "status": "pending",
+        "last_error": "",
+        "actor_id": _text(actor_id),
+        "created_at": "",
+        "updated_at": "",
     }
     rows.append(record)
     _json_save(rows)
@@ -154,10 +162,12 @@ def record_item_result(scope: CommercialScope, batch_id: str, *, ok: bool, error
         _update(scope, batch_id, "succeeded = succeeded + 1, updated_at = NOW()", (), json_inc="succeeded")
     else:
         _update(
-            scope, batch_id,
+            scope,
+            batch_id,
             "failed = failed + 1, last_error = %s, updated_at = NOW()",
             (_text(error)[:500],),
-            json_inc="failed", json_patch={"last_error": _text(error)[:500]},
+            json_inc="failed",
+            json_patch={"last_error": _text(error)[:500]},
         )
 
 

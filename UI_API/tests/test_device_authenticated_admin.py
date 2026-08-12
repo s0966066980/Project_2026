@@ -26,7 +26,10 @@ def test_password_authentication_surface_is_removed():
         ("post", "/api/admin/auth/rotate", None),
     )
     with TestClient(app) as client:
-        responses = [getattr(client, method)(path, json=payload) if payload is not None else getattr(client, method)(path) for method, path, payload in requests]
+        responses = [
+            getattr(client, method)(path, json=payload) if payload is not None else getattr(client, method)(path)
+            for method, path, payload in requests
+        ]
 
     assert [response.status_code for response in responses] == [404, 404, 404, 404]
 

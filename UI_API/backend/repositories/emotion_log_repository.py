@@ -55,7 +55,7 @@ def get_records(limit: int = 200) -> list[dict]:
     with _lock:
         rows = _pruned(_load_unlocked())
         _write_unlocked(rows)
-    return list(reversed(rows[-max(1, min(int(limit), 1000)):]))
+    return list(reversed(rows[-max(1, min(int(limit), 1000)) :]))
 
 
 def clear_records() -> int:

@@ -10,6 +10,7 @@
   MeloTTS             → WAV bytes  (audio_format = "wav")
   OpenAI compatible   → MP3 bytes  (audio_format = "mp3")
 """
+
 import asyncio
 import base64
 import os
@@ -36,10 +37,12 @@ class TTSProvider(ABC):
 
 # ── Edge TTS 雲端實作 ─────────────────────────────────────────────
 
+
 class EdgeTTSProvider(TTSProvider):
     """Microsoft Edge TTS — 需網路，zh-TW 品質最佳。
     pip install edge-tts
     """
+
     audio_format = "mp3"
 
     async def synthesize(self, text: str) -> bytes:
@@ -60,6 +63,7 @@ class EdgeTTSProvider(TTSProvider):
 
 # ── MeloTTS 本地實作 ──────────────────────────────────────────────
 
+
 class MeloTTSProvider(TTSProvider):
     audio_format = "wav"
     _model = None
@@ -67,6 +71,7 @@ class MeloTTSProvider(TTSProvider):
     def _init(self):
         if MeloTTSProvider._model is None:
             from melo.api import TTS
+
             print("載入 MeloTTS (ZH, CPU)...")
             MeloTTSProvider._model = TTS(language="ZH", device="cpu")
 
@@ -91,12 +96,14 @@ class MeloTTSProvider(TTSProvider):
 
 # ── OpenAI 相容 HTTP API 實作 ─────────────────────────────────────
 
+
 class OpenAICompatibleTTS(TTSProvider):
     """相容 OpenAI /v1/audio/speech 的任意 HTTP 服務。
 
     本地相容服務範例：openedai-speech（TTS_API_KEY 可填 "none"）
     雲端：OpenAI API（TTS_API_KEY 填 sk-xxx）
     """
+
     audio_format = "mp3"
 
     async def synthesize(self, text: str) -> bytes:
@@ -123,6 +130,7 @@ class OpenAICompatibleTTS(TTSProvider):
 
 
 # ── Factory ───────────────────────────────────────────────────────
+
 
 def get_tts() -> TTSProvider:
     """Config TTS_PROVIDER 決定使用哪個實作。"""

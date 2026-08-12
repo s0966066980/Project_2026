@@ -32,6 +32,7 @@ def capability_registry() -> tuple[CapabilityRegistration, ...]:
         CapabilityRegistration("checkout_confirmation_and_cart", "0022", both),
         CapabilityRegistration("ordering_entry", "0020", both),
         CapabilityRegistration("retrieval_check", "0021", both),
+        CapabilityRegistration("optimization_lab", "0028", both),
         CapabilityRegistration("admin_audit", "0007", postgresql),
     )
 

@@ -14,7 +14,7 @@ async function enterMenuAsGuest(page: import('@playwright/test').Page) {
 }
 
 test('the recommendation surface stays populated and retryable when the API fails', async ({ page }) => {
-  await page.route('**/api/ai_push', (route) => route.fulfill({
+  await page.route('**/api/v1/ai_push', (route) => route.fulfill({
     status: 500,
     contentType: 'application/json',
     body: JSON.stringify({ error: 'recommendation_unavailable' }),
@@ -41,7 +41,7 @@ test('a placeholder recommendation never becomes commercial evidence', async ({ 
       commercialTouches.push(String(request.postData() || ''));
     }
   });
-  await page.route('**/api/ai_push', (route) => route.fulfill({
+  await page.route('**/api/v1/ai_push', (route) => route.fulfill({
     status: 500,
     contentType: 'application/json',
     body: JSON.stringify({ error: 'recommendation_unavailable' }),
@@ -64,11 +64,11 @@ test('a placeholder recommendation never becomes commercial evidence', async ({ 
 test('placeholder recommendation events are labelled as locally chosen', async ({ page }) => {
   const sources: string[] = [];
   page.on('request', (request) => {
-    if (!request.url().includes('/api/recommendation_events')) return;
+    if (!request.url().includes('/api/v1/recommendation_events')) return;
     const body = String(request.postData() || '');
     sources.push(String(JSON.parse(body || '{}').source || ''));
   });
-  await page.route('**/api/ai_push', (route) => route.fulfill({
+  await page.route('**/api/v1/ai_push', (route) => route.fulfill({
     status: 500,
     contentType: 'application/json',
     body: JSON.stringify({ error: 'recommendation_unavailable' }),

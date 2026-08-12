@@ -355,7 +355,7 @@ describe('device provisioning', () => {
     await element('kioskDeviceAuthForm').dispatch('submit', submitEvent());
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'http://api/api/device/auth/session',
+      'http://api/api/v1/device/auth/session',
       expect.objectContaining({ method: 'POST' }),
     );
   });

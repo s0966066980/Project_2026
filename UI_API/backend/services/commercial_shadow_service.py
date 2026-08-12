@@ -48,11 +48,12 @@ def measurement_shadow_report(new_report, legacy_events: list[dict]) -> dict:
         "new_unique_counts": new_counts,
         "legacy_raw_counts": legacy_counts,
         "differences": {key: new_counts[key] - legacy_counts[key] for key in legacy_counts},
-        "unexpected_price_mismatches": observability_service.metrics_snapshot().get(
-            "promotion_shadow_unexpected_mismatches_total", {}
-        ).get("total", 0),
+        "unexpected_price_mismatches": observability_service.metrics_snapshot()
+        .get("promotion_shadow_unexpected_mismatches_total", {})
+        .get("total", 0),
         "event_data_ready": new_report.impressions >= 100 and new_report.incomplete_events == 0,
-        "pricing_ready": observability_service.metrics_snapshot().get(
-            "promotion_shadow_unexpected_mismatches_total", {}
-        ).get("total", 0) == 0,
+        "pricing_ready": observability_service.metrics_snapshot()
+        .get("promotion_shadow_unexpected_mismatches_total", {})
+        .get("total", 0)
+        == 0,
     }

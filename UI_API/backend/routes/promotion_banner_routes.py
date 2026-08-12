@@ -6,16 +6,16 @@ catalog router only because that file predated the capability boundaries.
 
 import asyncio
 
+from capabilities.campaign_promotion import promotion_banner_service
+from capabilities.identity_access import scope_from_device_principal
 from fastapi import APIRouter, Request
 
 from models.promotion_models import PosPromotionBannerResponse
-from services import promotion_banner_service
-from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import require_kiosk_token
 
 
-def create_router(_deps: dict | None = None) -> APIRouter:
-    router = APIRouter(prefix="/api", tags=["promotions"])
+def create_router(_deps: dict | None = None, *, prefix: str = "/api") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["promotions"])
 
     @router.get("/promotions/pos-banner", response_model=PosPromotionBannerResponse)
     async def get_pos_promotion_banner(request: Request):

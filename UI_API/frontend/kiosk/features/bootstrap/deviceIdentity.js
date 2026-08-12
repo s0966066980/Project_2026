@@ -129,7 +129,7 @@ export function createDeviceIdentityController({
     /** @type {any} */
     let response;
     try {
-      response = await fetchBounded(`${apiBaseUrl}/api/device/auth/session`, {
+      response = await fetchBounded(`${apiBaseUrl}/api/v1/device/auth/session`, {
         credentials: 'same-origin',
       });
     } catch {
@@ -184,7 +184,7 @@ export function createDeviceIdentityController({
     /** @type {any} */
     let response = null;
     try {
-      response = await fetchBounded(`${apiBaseUrl}/api/device/auth/session`, {
+      response = await fetchBounded(`${apiBaseUrl}/api/v1/device/auth/session`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },

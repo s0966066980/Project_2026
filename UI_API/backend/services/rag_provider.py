@@ -11,6 +11,7 @@ Strategies:
 
 fastembed 優點：不依賴 transformers/PyTorch，安裝乾淨，用 ONNX 執行。
 """
+
 import asyncio
 import logging
 import os
@@ -44,8 +45,8 @@ def normalize_rag_strategy(value: object) -> str:
 
 
 class RAGProvider:
-    _model = None       # SentenceTransformer
-    _client = None      # ChromaDB PersistentClient
+    _model = None  # SentenceTransformer
+    _client = None  # ChromaDB PersistentClient
     _collection = None  # ChromaDB Collection
     _source_reconciled = False
     _source_selection_state: tuple[bool, tuple[str, ...]] | None = None
@@ -70,6 +71,7 @@ class RAGProvider:
     def _init_locked(self):
         if RAGProvider._model is None:
             from fastembed import TextEmbedding
+
             model_name = config.get("RAG_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
             print(f"載入 RAG Embedding 模型 ({model_name}, ONNX/CPU)...")
             RAGProvider._model = TextEmbedding(model_name=model_name)
@@ -77,6 +79,7 @@ class RAGProvider:
 
         if RAGProvider._collection is None:
             import chromadb
+
             db_path = config.RAG_CHROMA_DIR
             os.makedirs(db_path, exist_ok=True)
             RAGProvider._client = chromadb.PersistentClient(path=db_path)
@@ -144,6 +147,7 @@ class RAGProvider:
         """jieba 斷詞，讓 BM25 正確處理中文。"""
         try:
             import jieba
+
             return list(jieba.cut(text))
         except ImportError:
             # jieba 未安裝時退化為字元分割
@@ -215,15 +219,14 @@ class RAGProvider:
         all_ids = list(all_rows.get("ids", []))
         doc_map = dict(zip(all_ids, all_rows.get("documents", [])))
         metadata_map = {
-            doc_id: dict(metadata or {})
-            for doc_id, metadata in zip(all_ids, all_rows.get("metadatas", []))
+            doc_id: dict(metadata or {}) for doc_id, metadata in zip(all_ids, all_rows.get("metadatas", []))
         }
         published_attempts: set[str] = set()
         if scoped:
             try:
-                from modules.knowledge_publication.runtime import published_attempt_ids
+                from capabilities.knowledge_rag import knowledge_publication_runtime
 
-                published_attempts = published_attempt_ids(
+                published_attempts = knowledge_publication_runtime.published_attempt_ids(
                     tenant_id=tenant_id,
                     store_id=store_id,
                 )
@@ -265,7 +268,11 @@ class RAGProvider:
 
         bm25_ids: list[str] = []
         bm25_scores: dict[str, float] = {}
-        if strategy in {"bm25", "hybrid_rrf", "hybrid_reranker"} and RAGProvider._bm25 is not None and RAGProvider._bm25_ids:
+        if (
+            strategy in {"bm25", "hybrid_rrf", "hybrid_reranker"}
+            and RAGProvider._bm25 is not None
+            and RAGProvider._bm25_ids
+        ):
             scores = RAGProvider._bm25.get_scores(self._tokenize(text))
             ranked = sorted(
                 range(len(RAGProvider._bm25_ids)),
@@ -293,9 +300,7 @@ class RAGProvider:
 
                 def rerank_score(doc_id: str) -> tuple[float, float]:
                     document_tokens = set(self._tokenize(str(doc_map.get(doc_id) or "").casefold()))
-                    lexical_overlap = (
-                        len(query_tokens & document_tokens) / max(1, len(query_tokens))
-                    )
+                    lexical_overlap = len(query_tokens & document_tokens) / max(1, len(query_tokens))
                     semantic = dense_scores.get(doc_id, 0.0)
                     keyword = bm25_scores.get(doc_id, 0.0)
                     normalized_keyword = keyword / (1.0 + keyword)
@@ -322,30 +327,24 @@ class RAGProvider:
             elif strategy == "bm25":
                 score = bm25_scores.get(doc_id)
             elif strategy == "hybrid_rrf":
-                score = sum(
-                    1.0 / (60 + ids.index(doc_id) + 1)
-                    for ids in (dense_ids, bm25_ids)
-                    if doc_id in ids
-                )
+                score = sum(1.0 / (60 + ids.index(doc_id) + 1) for ids in (dense_ids, bm25_ids) if doc_id in ids)
             else:
                 query_tokens = set(self._tokenize(text.casefold()))
                 document_tokens = set(self._tokenize(str(doc_map.get(doc_id) or "").casefold()))
                 overlap = len(query_tokens & document_tokens) / max(1, len(query_tokens))
                 keyword = bm25_scores.get(doc_id, 0.0)
-                score = (
-                    0.45 * dense_scores.get(doc_id, 0.0)
-                    + 0.35 * overlap
-                    + 0.20 * (keyword / (1.0 + keyword))
-                )
-            results.append({
-                "rank": rank,
-                "id": doc_id,
-                "content": str(doc_map[doc_id] or ""),
-                "source_type": str(metadata.get("source_type") or ""),
-                "metadata": metadata,
-                "match_types": match_types,
-                "score": round(float(score), 6) if score is not None else None,
-            })
+                score = 0.45 * dense_scores.get(doc_id, 0.0) + 0.35 * overlap + 0.20 * (keyword / (1.0 + keyword))
+            results.append(
+                {
+                    "rank": rank,
+                    "id": doc_id,
+                    "content": str(doc_map[doc_id] or ""),
+                    "source_type": str(metadata.get("source_type") or ""),
+                    "metadata": metadata,
+                    "match_types": match_types,
+                    "score": round(float(score), 6) if score is not None else None,
+                }
+            )
         return results
 
     async def search(

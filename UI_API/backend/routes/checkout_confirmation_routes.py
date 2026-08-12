@@ -1,10 +1,10 @@
 import asyncio
 
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.ordering import CartError, CheckoutError
+from capabilities.ordering import checkout_runtime as runtime
 from fastapi import APIRouter, HTTPException, Request
-from modules.cart import CartError
-from modules.checkout_confirmation import CheckoutError, runtime
 
-from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
 
@@ -17,8 +17,8 @@ def _raise(exc):
     raise HTTPException(status_code=status, detail={"code": exc.code, **exc.details}) from exc
 
 
-def create_router(_deps=None):
-    router = APIRouter(prefix="/api", tags=["checkout-confirmation"])
+def create_router(_deps=None, *, prefix: str = "/api"):
+    router = APIRouter(prefix=prefix, tags=["checkout-confirmation"])
 
     @router.put("/cart/{session_id}")
     async def replace_cart(request: Request, session_id: str, body: dict):

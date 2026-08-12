@@ -16,7 +16,9 @@ def _evidence(*, status="ok", quality="ok", has_evidence=True):
             "facial": "smiling",
             "vocal": "bright tone",
             "description": "顧客整體表現開心。",
-        } if has_evidence else {},
+        }
+        if has_evidence
+        else {},
         quality=quality,
         latency_ms=1,
         status=status,
@@ -45,7 +47,14 @@ def test_success_persists_only_the_eight_record_columns(monkeypatch):
     assert result["status"] == "ok"
     assert result["emotion"] == "happy"
     assert set(records[0]) == {
-        "timestamp", "event", "model", "emotion", "intensity", "expression", "voice", "description"
+        "timestamp",
+        "event",
+        "model",
+        "emotion",
+        "intensity",
+        "expression",
+        "voice",
+        "description",
     }
     assert records[0]["emotion"] == "happy"
 
@@ -69,7 +78,9 @@ def test_unready_model_is_skipped_before_submission_without_a_record(monkeypatch
 def test_failure_after_inference_submission_creates_safe_media_free_record(monkeypatch):
     records = _capture_records(monkeypatch)
     monkeypatch.setattr(emotion_service, "model_profiles", lambda: [{"ready": True}])
-    monkeypatch.setattr(emotion_service, "collect_evidence", lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError()))
+    monkeypatch.setattr(
+        emotion_service, "collect_evidence", lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError())
+    )
 
     result = asyncio.run(emotion_service.analyze_live_diagnostic("/tmp/test.webm"))
 

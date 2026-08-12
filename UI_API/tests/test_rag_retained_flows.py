@@ -168,9 +168,7 @@ class TestKnowledgeItemCrud:
 class TestPublishedRetrievalMethod:
     def test_publishing_a_draft_enqueues_exactly_one_attempt(self, tmp_path):
         jobs = _Jobs()
-        module = KnowledgePublicationModule(
-            store=SQLitePublicationStore(tmp_path / "knowledge.sqlite3"), jobs=jobs
-        )
+        module = KnowledgePublicationModule(store=SQLitePublicationStore(tmp_path / "knowledge.sqlite3"), jobs=jobs)
         created = _draft(module)
 
         batch = module.request_publication(scope=SCOPE, item_ids=[created["item_id"]], actor=ACTOR)
@@ -181,14 +179,10 @@ class TestPublishedRetrievalMethod:
 
     def test_a_repeated_item_id_does_not_publish_twice(self, tmp_path):
         jobs = _Jobs()
-        module = KnowledgePublicationModule(
-            store=SQLitePublicationStore(tmp_path / "knowledge.sqlite3"), jobs=jobs
-        )
+        module = KnowledgePublicationModule(store=SQLitePublicationStore(tmp_path / "knowledge.sqlite3"), jobs=jobs)
         created = _draft(module)
 
-        batch = module.request_publication(
-            scope=SCOPE, item_ids=[created["item_id"], created["item_id"]], actor=ACTOR
-        )
+        batch = module.request_publication(scope=SCOPE, item_ids=[created["item_id"], created["item_id"]], actor=ACTOR)
 
         assert len(batch["results"]) == 1
         assert len(jobs.enqueued) == 1

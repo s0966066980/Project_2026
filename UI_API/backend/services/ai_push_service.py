@@ -3,12 +3,13 @@
 執行時不呼叫 LLM：文案在 Admin 端撰寫並存於 menu_item_push_copy，此處只負責查表，
 因此推播不會慢、不會失敗，也不可能編造促銷。詳見 docs/adr/0016。
 """
+
 import asyncio
 import logging
 import time
 
 from capabilities import catalog
-from modules.recommendation import decide
+from capabilities.recommendation_analytics import decide
 
 import config
 from models.commercial_scope import CommercialScope
@@ -66,9 +67,7 @@ def _weighted_pick(
         },
         "menu_items": items,
     }
-    return recommendation_engine_service.weighted_pick(
-        recommendation_engine_service.build_candidates(context)
-    )
+    return recommendation_engine_service.weighted_pick(recommendation_engine_service.build_candidates(context))
 
 
 def _fallback_item(items: list[dict], exclude: set) -> dict:
@@ -178,21 +177,23 @@ async def generate(
 
     回傳 {"recommendation_id": "MCDxxx", "push_text": "...", "status": "authored_base|..."}
     """
-    items   = await _get_menu_cached()
-    by_id   = {i["id"]: i for i in items if i.get("id")}
-    ids     = list(by_id)
+    items = await _get_menu_cached()
+    by_id = {i["id"]: i for i in items if i.get("id")}
+    ids = list(by_id)
     exclude = set(exclude_ids or [])
 
     if not ids:
         return {"status": "error", "message": "menu is empty"}
 
-    copy_rows = await asyncio.to_thread(
-        push_copy_repository.list_copy_scoped, scope
-    ) if scope else await asyncio.to_thread(push_copy_repository.list_copy)
+    copy_rows = (
+        await asyncio.to_thread(push_copy_repository.list_copy_scoped, scope)
+        if scope
+        else await asyncio.to_thread(push_copy_repository.list_copy)
+    )
 
     scoped_exclusions = await _scope_controls(items, copy_rows, exclude)
     fallback = _fallback_item(items, set(scoped_exclusions))
-    fb_id    = fallback.get("id") or (ids[0] if ids else "")
+    fb_id = fallback.get("id") or (ids[0] if ids else "")
 
     context = await recommendation_context_service.build_context(
         session_id,
@@ -221,7 +222,7 @@ async def generate(
     picked = (recommendation.get("items") or [None])[0]
     if not picked:
         picked = fallback
-    sel_id   = picked.get("id") or fb_id
+    sel_id = picked.get("id") or fb_id
 
     push_text, status = _push_text_for(by_id.get(sel_id, picked), copy_rows, _live_offer_ids(context))
 
@@ -255,9 +256,11 @@ async def generate_three(
     """由統一推薦引擎一次選出三個不重複品項，文案同樣取自預寫推薦詞（不呼叫 LLM）。"""
     items = await _get_menu_cached()
     items_map = {i["id"]: i for i in items if i.get("id")}
-    copy_rows = await asyncio.to_thread(
-        push_copy_repository.list_copy_scoped, scope
-    ) if scope else await asyncio.to_thread(push_copy_repository.list_copy)
+    copy_rows = (
+        await asyncio.to_thread(push_copy_repository.list_copy_scoped, scope)
+        if scope
+        else await asyncio.to_thread(push_copy_repository.list_copy)
+    )
     context = await recommendation_context_service.build_context(
         session_id,
         cart_ids=cart_ids,
@@ -289,37 +292,39 @@ async def generate_three(
         menu_item = items_map.get(rec_id, {})
         item_name = menu_item.get("name", "") or item.get("name", "") or "推薦餐點"
         push_text, push_status = _push_text_for(menu_item or item, copy_rows, live_offer_ids)
-        results.append({
-            "model_status": push_status,
-            "id": rec_id,
-            "name": item_name,
-            "price": menu_item.get("price", 0),
-            "image": menu_item.get("official_image_url") or menu_item.get("image", ""),
-            "push_text": push_text,
-            "category": menu_item.get("category", ""),
-            "rank": index,
-            "score": item.get("score", 0),
-            "reasons": item.get("reasons", []),
-            "offer_ids": item.get("offer_ids", []),
-            "strategy": recommendation.get("strategy", experiment.get("strategy", "")),
-            "experiment_id": experiment.get("experiment_id", ""),
-            "variant_id": experiment.get("variant_id", ""),
-            "decision_id": recommendation.get("decision_id", ""),
-            "strategy_version": recommendation.get("strategy_version", ""),
-            "fallback_status": recommendation.get("fallback_status", ""),
-            "offers": [
-                {
-                    "offer_id": offer.get("offer_id", ""),
-                    "title": offer.get("title", ""),
-                    "member_only": bool(offer.get("member_only", False)),
-                    "item_ids": offer.get("item_ids") if isinstance(offer.get("item_ids"), list) else [],
-                    "categories": offer.get("categories") if isinstance(offer.get("categories"), list) else [],
-                    "pricing": offer.get("pricing") if isinstance(offer.get("pricing"), dict) else {},
-                    "ad": offer.get("ad") if isinstance(offer.get("ad"), dict) else {},
-                }
-                for offer in item.get("offers", [])
-                if isinstance(offer, dict)
-            ],
-            "source": item.get("source", "recommendation_engine"),
-        })
+        results.append(
+            {
+                "model_status": push_status,
+                "id": rec_id,
+                "name": item_name,
+                "price": menu_item.get("price", 0),
+                "image": menu_item.get("official_image_url") or menu_item.get("image", ""),
+                "push_text": push_text,
+                "category": menu_item.get("category", ""),
+                "rank": index,
+                "score": item.get("score", 0),
+                "reasons": item.get("reasons", []),
+                "offer_ids": item.get("offer_ids", []),
+                "strategy": recommendation.get("strategy", experiment.get("strategy", "")),
+                "experiment_id": experiment.get("experiment_id", ""),
+                "variant_id": experiment.get("variant_id", ""),
+                "decision_id": recommendation.get("decision_id", ""),
+                "strategy_version": recommendation.get("strategy_version", ""),
+                "fallback_status": recommendation.get("fallback_status", ""),
+                "offers": [
+                    {
+                        "offer_id": offer.get("offer_id", ""),
+                        "title": offer.get("title", ""),
+                        "member_only": bool(offer.get("member_only", False)),
+                        "item_ids": offer.get("item_ids") if isinstance(offer.get("item_ids"), list) else [],
+                        "categories": offer.get("categories") if isinstance(offer.get("categories"), list) else [],
+                        "pricing": offer.get("pricing") if isinstance(offer.get("pricing"), dict) else {},
+                        "ad": offer.get("ad") if isinstance(offer.get("ad"), dict) else {},
+                    }
+                    for offer in item.get("offers", [])
+                    if isinstance(offer, dict)
+                ],
+                "source": item.get("source", "recommendation_engine"),
+            }
+        )
     return results

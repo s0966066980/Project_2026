@@ -23,7 +23,9 @@ def test_p1_migration_does_not_drop_retained_rag_state():
 
 def test_pre_pilot_worker_names_are_gone_from_runtime_contracts():
     worker_jobs = (Path(__file__).resolve().parents[1] / "backend/models/worker_jobs.py").read_text(encoding="utf-8")
-    worker_handlers = (Path(__file__).resolve().parents[1] / "backend/services/worker_handlers.py").read_text(encoding="utf-8")
+    worker_handlers = (Path(__file__).resolve().parents[1] / "backend/services/worker_handlers.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "rag.studio.evaluate" not in worker_jobs
     assert "rag.studio.evaluate" not in worker_handlers

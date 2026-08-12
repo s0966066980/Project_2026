@@ -44,17 +44,16 @@ def test_disabled_runtime_degrades_to_explicit_null_evidence():
 
 
 def test_r1_evidence_is_returned_without_blocking_core_flow():
-    result = gateway.collect_evidence(
-        request(), adapters={"r1_omni": EvidenceAdapter(evidence())}, enabled=True
-    )
+    result = gateway.collect_evidence(request(), adapters={"r1_omni": EvidenceAdapter(evidence())}, enabled=True)
     assert result.provider == "r1_omni"
     assert result.signals["emotion"] == "happy"
 
 
 def test_unavailable_r1_runtime_returns_degraded_evidence():
     result = gateway.collect_evidence(
-        request(), adapters={"r1_omni": EvidenceAdapter(evidence(status="error", has_evidence=False, quality="error"))}, enabled=True
+        request(),
+        adapters={"r1_omni": EvidenceAdapter(evidence(status="error", has_evidence=False, quality="error"))},
+        enabled=True,
     )
     assert result.has_evidence is False
     assert result.safe_metadata["degraded"] is True
-

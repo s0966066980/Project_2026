@@ -3,6 +3,7 @@
 此層只處理推薦候選、加權、去重與 prompt section 格式化。
 資料收集由 recommendation_context_service 負責，AI push / voice 只負責呈現。
 """
+
 import random
 
 import config
@@ -119,9 +120,7 @@ def _feedback_penalty(item_id: str, offers: list[dict], context: dict) -> int:
 def _availability_penalty(item_id: str, context: dict) -> int:
     availability = context.get("availability") if isinstance(context.get("availability"), dict) else {}
     low_stock_ids = {
-        str(value or "").strip()
-        for value in availability.get("low_stock_item_ids") or []
-        if str(value or "").strip()
+        str(value or "").strip() for value in availability.get("low_stock_item_ids") or [] if str(value or "").strip()
     }
     if item_id not in low_stock_ids:
         return 0
@@ -218,20 +217,22 @@ def build_candidates(context: dict) -> list[dict]:
         offers = _matching_offers(item, context)
         feedback_penalty = _feedback_penalty(item_id, offers, context)
         availability_penalty = _availability_penalty(item_id, context)
-        candidates.append({
-            "id": item_id,
-            "name": str(item.get("name") or ""),
-            "category": str(item.get("category") or ""),
-            "price": _price(item),
-            "image": item.get("official_image_url") or item.get("image", ""),
-            "score": score,
-            "reasons": _candidate_reason(item_id, context),
-            "offer_ids": _offer_ids(offers),
-            "offers": offers,
-            "feedback_penalty": feedback_penalty,
-            "availability_penalty": availability_penalty,
-            "source": "recommendation_engine",
-        })
+        candidates.append(
+            {
+                "id": item_id,
+                "name": str(item.get("name") or ""),
+                "category": str(item.get("category") or ""),
+                "price": _price(item),
+                "image": item.get("official_image_url") or item.get("image", ""),
+                "score": score,
+                "reasons": _candidate_reason(item_id, context),
+                "offer_ids": _offer_ids(offers),
+                "offers": offers,
+                "feedback_penalty": feedback_penalty,
+                "availability_penalty": availability_penalty,
+                "source": "recommendation_engine",
+            }
+        )
     return candidates
 
 

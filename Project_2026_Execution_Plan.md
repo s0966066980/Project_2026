@@ -30,7 +30,7 @@ Local Pilot Readiness:            BLOCKED — NOT DECLARED
 Business Capability Modules:      1 / 10 passed
 Independent Product Frontends:    2 / 2 passed
 Project Core Brain (P3):          REPOSITORY SCOPE PASSED；provider 執行 ready-for-human
-Current active stage:             P4 Optimization Lab（尚未開始）
+Current active stage:             P4→P7 repository convergence（local Ollama；外部/hardware evidence blocked）
 Legacy compatibility usage:       未清零（P7 範圍）
 Project Completion:               NOT ACHIEVED
 ```
@@ -43,13 +43,13 @@ Project Completion:               NOT ACHIEVED
 | Catalog & Availability Module Independence | PASSED（1/10） | — |
 | P2 Kiosk Voice＋Emotion Diagnostics | Repository 實作已合併；實機證據未取得 | 目標 Kiosk |
 | **Local Pilot Admission** | **BLOCKED — NOT DECLARED** | Pilot Configuration Authority＋目標實機（兩者皆缺） |
-| P3 Project Core Brain | Repository scope PASSED | provider CLI 與自動化憑證 |
-| P4 Optimization Lab | NOT STARTED | — |
-| P5.1 Identity／Operations | NOT STARTED | P4 |
-| P5.2 Member／Campaign／Recommendation | NOT STARTED | P5.1 |
-| P5.3 Ordering & Checkout | NOT STARTED | P5.2 |
-| P6 Knowledge/RAG → Voice → Emotion | NOT STARTED | P5.3 |
-| P7 Legacy Closure | NOT STARTED | P6（10/10 候選） |
+| P3 Project Core Brain | Repository scope PASSED；外部 CLI deferred by owner | Codex／Claude／Grok CLI 與自動化憑證（不實作） |
+| P4 Optimization Lab | REPOSITORY PATH PASSED（local Ollama）；customer-evidence path deferred | customer-evidence authorization／encrypted-at-rest deployment evidence |
+| P5.1 Identity／Operations | REPOSITORY CONVERGENCE EVIDENCED；external gate open | Pilot authority／PostgreSQL production／auth evidence仍待外部 |
+| P5.2 Member／Campaign／Recommendation | REPOSITORY CONVERGENCE EVIDENCED；external gate open | runtime legacy zero-use／consumer evidence仍待逐項收斂 |
+| P5.3 Ordering & Checkout | REPOSITORY CONVERGENCE EVIDENCED；external gate open | 完整觸控語音 E2E、transactional/outbox 與 Pilot evidence仍待逐項收斂 |
+| P6 Knowledge/RAG → Voice → Emotion | REPOSITORY CONVERGENCE EVIDENCED；external gate open | provider／hardware／retention evidence仍待逐項收斂 |
+| P7 Legacy Closure | STATIC/LOCAL CANDIDATE EVIDENCED；closure gate open | legacy telemetry zero、compatibility removal與外部成品矩陣仍未通過 |
 
 ### 2.1 已記錄的順序例外
 
@@ -166,7 +166,7 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 | 隔離 sidecar | #52 | `66a8232` | 35 |
 | 接線並刪除 in-process 路徑 | #53 | `8c86b47` | 26 |
 | 提案工作流 | #54 | `74a509f` | 36，零跳過 |
-| Gate 收尾 | #55 | `80347a8` | 全套 325 passed |
+| Gate 收尾（歷史基線） | #55 | `80347a8` | 全套 325 passed |
 
 **證據 allowlist**（[ADR-0034](docs/adr/0034-bound-the-project-core-brain-to-read-only-evidence.md)）：`UI_API/backend/project_analysis/evidence.py` 是所有專案分析讀取的唯一入口。採 allowlist 而非 denylist——denylist 回答的是「這是不是我想到的壞路徑」，一旦有人新增目錄就不再成立。拒絕理由只給規則名稱，不給解析後的主機路徑，所以拒絕本身不能用來探測檔案系統。18 個突變（每個 `raise _reject(...)` 改成 `pass`、每個憑證字串片段停用、把 runtime 目錄加進 allowlist）全部被測試擋下。
 
@@ -190,7 +190,35 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 
 1. **執行期 shell 拿 git 版本永遠回 `unknown`**——runtime image 沒有 git 也沒有 repository。改為 `APP_GIT_REVISION` build argument（對 digest-pinned 成品而言版本本來就是 image 的性質），實測烘入 `8c86b47` 且 snapshot 正確讀到。
 2. **`git clone --shared=false` 不是合法參數**（`--shared` 不吃值），而 refusal code 把 git 的錯誤吞掉，導致它一路靜默失敗。
-3. **13 個測試在 image 沒有 git 時會 skip**——而會 skip 的正是證明隔離的那些。測試 image 現在裝 git，skip guard 已刪除。另外 symlink 測試原本會在原始碼樹裡種 symlink，已改為在暫存目錄建假的 repository root；整套測試現在能在**唯讀掛載**上跑完 325 passed，這才真的證明沒有測試會寫入原始碼樹。
+3. **13 個測試在 image 沒有 git 時會 skip**——而會 skip 的正是證明隔離的那些。測試 image 現在裝 git，skip guard 已刪除。另外 symlink 測試原本會在原始碼樹裡種 symlink，已改為在暫存目錄建假的 repository root；整套既有測試在**唯讀掛載**上跑完 356 passed（Python 3.10；Python 3.12 baseline 355 passed），新增的 Dockerfile context regression 亦通過，這才真的證明沒有測試會寫入原始碼樹。
+
+### 3.7 P4 Optimization Lab — repository foundation
+
+**Issue #30** 已完成不依賴外部憑證的 repository foundation，但不宣告完整 P4 Gate。`UI_API/backend/modules/optimization_lab/` 現在提供：
+
+- 明確的 synthetic-only 與 local Ollama analyzer profile；Codex／Claude／Grok profile 在 owner deferred 狀態顯示 not-ready，不能 fallback。
+- store-scoped de-identified Voice Interaction Evidence；輸入拒絕 raw media、identity、session、order、payment 與 individual emotion 欄位，已知 email／phone／長數字先遮罩。
+- 以門市 timezone 凍結單店單日 snapshot；當日標 `partial`，snapshot evidence IDs 不會被後續事件改寫。
+- 固定六段 Daily Optimization Reference Report；報告只保存 opaque evidence IDs、分類、計數與離線驗收狀態，不複製 STT／LLM 內容。
+- Observation Signal／Reference Guidance／Insufficient Evidence 門檻、固定五類 finding classification、provider model／effort validation、customer-evidence authorization fail-closed、step-up evidence expansion audit 與 30 天清除。
+- SQLite test adapter 與 PostgreSQL migration `0028_optimization_lab.sql`（並已登記至 capability registry）；Admin summary／synthetic fixture／simulation／report routes 已接入既有 device-auth Admin boundary；local Ollama 只使用 `LOCAL_ONLY` gateway policy。
+
+Repository evidence：`UI_API/tests/test_optimization_lab.py`、`UI_API/tests/test_optimization_migration.py`、`UI_API/tests/test_dockerfile_layering.py`、capability independence tests；本次 P4/Docker/capability focused tests **18 passed**，完整 backend suite **356 passed**（285 app + 71 isolated sidecar/proposal），Python 3.12 baseline suite **355 passed**，candidate Ruff check／format 亦通過，capability／optimization module mypy **44 files** passed。Current candidate image 在 temporary PostgreSQL fresh/reapply 均為 **28 applied / 0 pending**、無 checksum mismatch，PostgreSQL adapter/schema/status **8 passed**，live Redis shared integration **9 passed**；最終 static/security focused suite **54 passed**（含 Dockerfile-specific ignore/docs-copy regression），exact-candidate Playwright **5 passed**；PostgreSQL-backed exact runtime 在重啟前後 `/live`／`/ready` 均為 200，20/20 adapters covered，migration head `0028`；暫存資料庫、Redis、runtime container 均已清除。Ollama `qwen3.5:4b` 的 host-local probe 實際回傳四個允許 metric objects，`LLMModelPolicy.LOCAL_ONLY` 成功；echo／unknown top-level schema 則被拒絕且不 fallback。Candidate image digests 已記於 [`docs/agents/p4-p7-final-verification-matrix.md`](docs/agents/p4-p7-final-verification-matrix.md)。
+
+**仍未完成，且不能由 repository 偽造**：customer-evidence provider authorization／retention review、加密 at rest 與 provider egress deployment evidence，以及同候選成品的 P4 network/mount proof。Codex／Claude／Grok CLI 依 owner 決定暫不實作；local Ollama failure 會 fail closed 且不 fallback。P4 local repository path 完成前，後續 P5→P7 只推進不依賴上述輸入的 repository work。
+
+### 3.8 獨立 repository fixes
+
+- **Issue #47 `/docs`**：採較小暴露面的 Option 1；`APP_ENV` 為 staging／pilot／production 時關閉 `/docs`、`/redoc`、`/openapi.json`，development／test 保留。`docker/scripts/verify-pilot-security.sh` 已將三者納入 404 probe，並有正向／負向測試。
+- **Issue #48 Dockerfile layer**：`base`／`application`／`runtime` 與 source-free `ai-base` 分離；AI dependency install 發生在 `COPY UI_API/` 前，runtime target 置於 AI stage 前以避免 legacy builder 為 CPU runtime 安裝 AI stack。source-only layering 結構測試與 CPU `runtime` target build 已通過；完整 AI candidate 的兩次 cache evidence 仍需在可承受完整 AI build 的環境取得。
+
+### 3.9 P4→P7 repository convergence — local-only path
+
+依專案擁有者決定，Codex／Claude／Grok CLI、其自動化憑證與 customer-evidence 授權暫不實作；P4 analyzer 現以既有 Ollama gateway 的 `LOCAL_ONLY` policy 為唯一非合成路徑。Ollama timeout、schema failure 或 unavailable model 會回傳明確錯誤，不會 fallback 到 synthetic 或 cloud provider。
+
+目前已建立十個 manifest capability 的 published `contracts.py`／`interface.py` package，另有獨立的 P4 Optimization Lab surface；並將 Ordering、Campaign／Promotion、Recommendation／Analytics、Knowledge／RAG、Voice、Emotion、Member、Identity、Operations 的既有 route/application 入口改由 capability surface 進入。Admin／Kiosk feature code 的瀏覽器 transport 已集中到 `frontend/shared/api/capabilityClients.js` 與 shared transport，feature files 不再直接組裝 `/api/v1` URL 或呼叫 `fetch`。
+
+Repository evidence：capability boundary tests、P4 local analyzer tests、backend suite **356 passed**（唯讀 source mount、`-p no:cacheprovider` 亦通過）、Python 3.12 baseline suite **355 passed**、temporary PostgreSQL adapter/schema/status run **8 passed**、candidate Redis shared integration **9 passed**、frontend syntax/typecheck/build 及 **127 frontend tests passed**（93.18% statements／80.57% branches／94.91% functions／93.30% lines）。Identity、Operations、Recommendation route adapters now resolve through published capability interfaces；production routes have an explicit legacy-import allowlist limited to development routes and the deferred Project Analyst sidecar；所有 route module 已通過 `modules.*`／`repositories.*` horizontal import zero-use gate；Admin/Kiosk feature transport 已通過 shared capability client 與 raw `fetch` 邊界檢查，診斷、session/log、push-copy、Project Analyst 與 Kiosk facade 亦已切換到 versioned client seam；Member Admin detail／verified preferences／delete／CSV export 已切換到 canonical `/api/v1/members` surface；巨型 `v1_routes.py` 已拆除為 capability-owned compatibility modules；candidate OpenAPI publishes 93 `/api/v1` paths and the generated catalog contract matches；Ollama schema gate 以 fail-closed 測試固定；PostgreSQL-backed exact runtime 在重啟前後均回報 `/live`、`/ready`，20/20 adapters covered，migration head `0028`；exact-candidate Playwright **5 passed**。這是收斂進度證據，不等同十個 Module Independence Gate 已通過；runtime telemetry zero、server-side compatibility route removal 與 external/hardware evidence 仍需逐項完成。
 
 ---
 
@@ -264,9 +292,13 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 - Synthetic-only 為預設；缺客戶授權時阻擋 egress。
 - Settings／RAG／Campaign／Recommendation／filesystem／DB mutation API 不存在的負向測試。
 
-**已知風險**：第 5、10 項同樣需要 provider 憑證與 customer-evidence 授權，屆時很可能成為第二個 `ready-for-human` 缺口。
+**已知風險**：第 10 項需要 customer-evidence 授權與部署證據，依 owner 決定暫不實作；local Ollama 僅能執行 synthetic/de-identified repository path，不能把 deferred customer path 標成已通過。
 
 ### 4.4 P5.1 Identity 與 Operations & Configuration（Issues #25、#31、#27）
+
+**目前狀態：IN PROGRESS（repository boundary convergence）**。Identity 與 Operations
+published interfaces、route ownership、least-privilege URL preparation 與 boundary tests
+已落地；外部 Pilot authority、PostgreSQL runtime/restart/auth evidence 仍未宣告通過。
 
 **Identity & Device Access（#25）** — 收斂 `admin_*`／`device_*`／`devices`／`fleet_*` 的 writers 與 readers 為唯一 Identity Capability Interface 與 versioned HTTP API；device／admin principals、sessions、RBAC、credentials、fleet access、audit 全部歸位；legacy principal／scope 相容性 telemetry 歸零後刪除。
 
@@ -276,9 +308,16 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 
 測試：settings version/concurrency/validation/rollback projection、外部設定必填／缺漏／secret 洩漏、fresh 與 upgrade 的 PostgreSQL role/init/WAL/backup、Core readiness 對 Optional warm-up、Redis 與 shared-infrastructure degradation、health timeout／operator retry／audit、Admin raw fetch 與 static route literal 在此 scope 歸零、舊 deploy/profile/settings 路徑的負向測試。
 
-**已知收斂債（現在就記著）**：application 目前仍以 owning database role 連線；`project_runtime` 已建立並授權但無人使用。把 runtime 連線移到最小權限 role 屬於本階段。
+**已完成的收斂項**：`prepare_local_persistence.py` 產生的 `database_url` 使用
+`project_runtime`、`migration_database_url` 使用 `project_migrator`；Pilot application
+不再需要 owning database role。`provision-pilot-database-role.sh` 與 migration
+共同完成角色建立與授權；仍需在真正的 Pilot Configuration Authority 上重跑對帳證據。
 
 ### 4.5 P5.2 Member、Campaign、Recommendation Analytics（Issues #39、#36、#34、#28）
+
+**目前狀態：IN PROGRESS（repository boundary convergence）**。三組 capability
+contracts/interfaces 與 route/service consumers 已改走 published surface；各自的
+PostgreSQL migration/backfill、consumer telemetry zero 與 Admin/Kiosk E2E ledger 尚未完成。
 
 依序完成三個 capability，各自通過 Module Independence Gate。
 
@@ -290,11 +329,20 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 
 ### 4.6 P5.3 Ordering & Checkout（Issue #29）
 
+**目前狀態：IN PROGRESS（repository boundary convergence）**。Ordering／Checkout
+route 與 pricing/order adapters 已由 capability surface 進入；PostgreSQL-backed
+candidate restart/readiness 已完成，transactional/outbox/dead-letter 與觸控／語音
+E2E 證據尚未完成。
+
 把 Entry、Session、Cart、Quote、Confirmation、Order、Payment Pending 收斂成一個 Ordering transaction deep module：伺服器端唯一的定價與可售性重驗、quote 與 order 權威、跨能力只用 published contracts、保留 idempotency、Confirmation Outcome Unknown、transactional outbox 與人工付款邊界，最後刪除 legacy route/service/repository。
 
 測試涵蓋 Entry Flow 轉換／續行／逾時／改版、Guest 與 Member 選擇與 policy 載入逾時後備、Cart 增修刪與可售性／數量／scope、伺服器定價與促銷／費用／幣別與瀏覽器竄改拒絕、Quote snapshot/version/expiry/stale、Confirmation idempotency 與重複送出、commit 後逾時可查回同一 order、售罄／改價／依賴降級、交易 rollback 與 outbox 原子性／重試／dead letter、Order identity／history／Payment Pending 交接、confirmation 與 recovery 期間重啟、完整觸控與語音 E2E、AI/瀏覽器/跨能力 SQL 無交易寫入權、legacy cart/checkout/order API/consumer/telemetry 歸零。
 
 ### 4.7 P6 智慧能力（Issues #37、#38、#35、#33）
+
+**目前狀態：IN PROGRESS（repository boundary convergence）**。Knowledge/RAG、Voice
+與 Emotion 的 published surface、consumer boundary 與 P2 frozen contract 測試已存在；
+provider degradation、index durability、target hardware 與 retention ledger 尚未完成。
 
 順序固定為 **Knowledge/RAG → Voice Assistance → Emotion Diagnostics**。**P2 的顧客行為與紀錄是 frozen contract，不得被架構重構暗中改寫。**
 
@@ -308,9 +356,19 @@ Catalog & Availability 是目前唯一通過 Module Independence Gate 的 Busine
 
 ### 4.8 P7 Legacy Closure 與 Project Completion（Issue #32）
 
+**目前狀態：IN PROGRESS（static repository gates）**。production route horizontal
+import zero-use、frontend shared transport、capability ownership inventory 與巨型
+`v1_routes.py` 的 capability-owned 拆分已通過；runtime telemetry zero、完整候選成品矩陣與
+external gates 仍未完成。
+
 **零使用盤點**：Admin 與 Kiosk feature source 的 raw `fetch` 歸零（transport 實作只在共用 generated layer）；相容性 `/api/*` 的 static consumers 與 runtime telemetry 歸零；跨能力 repository import、SQL/write、global service、內部 HTTP loopback 歸零；legacy settings、tables/columns、jobs、fixtures、flags、allowlists、import exceptions 與 generated artifacts 都有替代或刪除證據；P2～P6 收斂債零阻塞項。
 
-**最終刪除**：刪除巨型 `v1_routes.py`（不得原封搬成另一個巨檔）；刪除已清空的 horizontal `routes/services/repositories/modules`；刪除臨時架構 allowlists、相容性 adapters/counters 與只為遷移存在的 runtime code；保留 migrations、ADR、audit 與必要歷史。
+**最終刪除**：巨型 `v1_routes.py` 已刪除，並拆成 `v1_context_routes.py`、
+`v1_campaign_routes.py`、`v1_operations_routes.py`、`v1_knowledge_routes.py`、
+`v1_fleet_routes.py` 及其他 capability-owned versioned modules 與共用支援模組；不得再原封搬回單一巨檔。後續仍須刪除已
+清空的 horizontal `routes/services/repositories/modules`、臨時架構 allowlists、
+相容性 adapters/counters 與只為遷移存在的 runtime code；保留 migrations、ADR、
+audit 與必要歷史。
 
 **全候選成品測試矩陣**（同一 commit／digests／config／migration／environment）：
 
@@ -343,15 +401,15 @@ Business Capability Modules passed: 10 / 10
 Independent Product Frontends passed: 2 / 2
 Legacy compatibility usage: ZERO
 P2–P7 convergence debt: ZERO blocking items
-P7 full-candidate verification: PASSED
+P7 full-candidate verification: PARTIAL — local candidate executable rows passed; external rows blocked
 ```
 
 ### 4.9 獨立觀察項
 
 | Issue | 內容 | 標籤 |
 | --- | --- | --- |
-| #47 | Pilot profile 下 `/docs` 互動式 OpenAPI explorer 回 200。`docs_url`／`redoc_url`／`openapi_url` 從未設定，FastAPI 預設保留。目前僅綁 loopback，但它未經驗證地列舉所有 operation。需要**決定**（關閉或明確接受），不是預設。 | `needs-triage` |
-| #48 | `docker/Dockerfile` 在 `base` 就 `COPY UI_API/`，而 `ai-base` 繼承 `base` 後才裝 `requirements-ai.txt`。任何原始碼變動都觸發完整 AI 依賴重裝。實測一次候選重建超過一小時。Gate 要求每個 commit 都有 digest-pinned candidate，這會讓每次重建都付出這個代價，並形成「重用過期證據」的壓力。 | `ready-for-agent` |
+| #47 | Pilot profile 下 `/docs`、`/redoc`、`/openapi.json` 已在 commercial runtime 關閉；development/test 保留，security probe 已納入三個 404。 | `ready-for-human`；待 owner 回填決策並關閉 |
+| #48 | `base`／`application`／`runtime` 與 source-free `ai-base` 已分離；目前 worktree CPU runtime candidate 已重建並取得 digest `sha256:c171c8d12a75b49d780fc5735e193cdd61507d1636b2b105020f2e366143f4f4`，test candidate digest `sha256:207fa27df9d5f13761297cb5c7cd31b9729ade2ab278afc0f5bf03785fd81345`，source-only layering 與 Dockerfile-specific ignore/docs-copy 回歸測試通過。完整 AI candidate 的兩次 cache evidence 尚未取得。 | `ready-for-agent`；AI cache evidence pending |
 
 ---
 
@@ -363,6 +421,7 @@ P7 full-candidate verification: PASSED
 | #20、#23 | 目標 Kiosk 實機、麥克風、攝影機 | Local Pilot Admission、P2 Functional Acceptance |
 | #19 | 上列兩者 | P2 parent 關閉 |
 | #26 | Codex／Claude／Grok CLI 與自動化憑證 | P3 provider 執行 |
+| #30 | provider-native analyzer 憑證、customer-evidence authorization／retention review、加密 at rest 與 egress deployment evidence | P4 完整 Gate |
 | #47 | 一個決定：關閉或明確接受 `/docs` 暴露 | Pilot 安全結論 |
 
 **規則**：遇到這類阻塞時完成所有不依賴它的工作，記錄精確 Gate、已完成證據、缺少輸入與不可替代的原因，標 `ready-for-human`，不偽造、不 fallback、不把 blocked 改成 passed。若它阻擋固定順序，停止並詢問使用者。
@@ -535,15 +594,15 @@ docker run --rm --user 10001:10001 -v $PWD:/repo:ro -w /repo/UI_API \
 | #23 | Silero target-device acceptance | Open `ready-for-human` |
 | #24 | Emotion 契約與 purge | Closed（PR #40／#42） |
 | #26 | P3 Project Core Brain | Open `ready-for-human`；repository scope 已通過 |
-| #30 | P4 Optimization Lab | Open；下一階段 |
+| #30 | P4 Optimization Lab | Open；repository foundation 已通過，完整 Gate blocked by external provider／customer-evidence inputs |
 | #25／#31／#27 | P5.1 Identity／Operations | Open |
 | #39／#36／#34／#28 | P5.2 三個 commercial capability | Open |
 | #29 | P5.3 Ordering | Open |
 | #37／#38／#35／#33 | P6 三個智慧能力 | Open |
 | #32 | P7 Legacy closure 與 Project Completion | Open |
 | #44 | Pilot 容器安全 | Closed（PR #46） |
-| #47 | `/docs` 暴露 | Open `needs-triage` |
-| #48 | Dockerfile 層次順序 | Open `ready-for-agent` |
+| #47 | `/docs` 暴露 | Open `ready-for-human`；Option 1 已實作，待 owner 回填決策 |
+| #48 | Dockerfile 層次順序 | Open `ready-for-agent`；source-free AI stage 已實作，cache evidence pending |
 
 Issue 只能在驗收證據回填後關閉。若一個 Issue 同時含 repository 與目標設備 scope，應拆分或明確保留未完成 child，不能以 PR merged 直接關閉全部 scope。
 
@@ -558,6 +617,8 @@ Issue 只能在驗收證據回填後關閉。若一個 Issue 同時含 repositor
 | [`AGENTS.md`](AGENTS.md) | Agent skills、issue tracker 與 triage labels |
 | [`docs/agents/p2-local-pilot-readiness.md`](docs/agents/p2-local-pilot-readiness.md) | Local Pilot 證據帳本與未可允收清單 |
 | [`docs/agents/p2-emotion-legacy-purge-manifest.md`](docs/agents/p2-emotion-legacy-purge-manifest.md) | ADR-0057 精確 purge 清單 |
+| [`docs/agents/p7-legacy-closure-inventory.md`](docs/agents/p7-legacy-closure-inventory.md) | P7 repository static boundary、legacy inventory 與不可替代輸入 |
+| [`docs/agents/p4-p7-final-verification-matrix.md`](docs/agents/p4-p7-final-verification-matrix.md) | 20 項最終驗證矩陣、目前證據與阻塞分類 |
 | [`docker/README.md`](docker/README.md) | Docker runtime、Pilot 硬化 profile、sidecar overlay 操作 |
 | [`README.md`](README.md) | 專案入口 |
 | [`UI_API/README.md`](UI_API/README.md) | 應用邊界 |

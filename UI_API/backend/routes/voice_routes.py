@@ -6,13 +6,12 @@ import os
 import tempfile
 from uuid import uuid4
 
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.voice import VoiceTurnError, voice_turn_runtime
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from modules.voice_turn import VoiceTurnError
-from modules.voice_turn import runtime as voice_turn_runtime
 
 from bootstrap import startup
-from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, read_limited_upload, require_kiosk_token
 from utils.file_utils import write_binary_file
 
@@ -69,8 +68,8 @@ async def _stream_durable_turn_events(
         await asyncio.sleep(poll_interval)
 
 
-def create_router(deps: dict) -> APIRouter:
-    router = APIRouter(prefix="/api", tags=["voice"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["voice"])
     running_turns: dict[tuple[str, str, str], asyncio.Task] = {}
 
     @router.post("/ask/stream")

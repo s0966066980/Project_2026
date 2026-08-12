@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from models.commercial_scope import CommercialScope
 from modules.analytics import record_touch
+
+from models.commercial_scope import CommercialScope
 from repositories import recommendation_event_repository
 from services import analytics_pipeline_service, recommendation_engine_service
 
@@ -15,9 +16,7 @@ STRATEGY_VERSION = "recommendation-v1"
 def list_events(scope: CommercialScope, *, limit: int = 5000) -> list[dict]:
     """Compatibility read behind the Recommendation Application seam."""
 
-    return recommendation_event_repository.get_recommendation_events_scoped(
-        scope, "", max(1, min(int(limit), 5000))
-    )
+    return recommendation_event_repository.get_recommendation_events_scoped(scope, "", max(1, min(int(limit), 5000)))
 
 
 def _fallback_items(context: dict, limit: int) -> list[dict]:
@@ -68,19 +67,21 @@ def decide(
     ranked_items = []
     for rank, item in enumerate(items[: max(1, int(limit))], start=1):
         offers = item.get("offers") if isinstance(item.get("offers"), list) else []
-        ranked_items.append({
-            **item,
-            "rank": rank,
-            "decision_id": resolved_decision_id,
-            "offer_versions": [
-                {
-                    "offer_id": str(offer.get("offer_id") or ""),
-                    "version": int(offer.get("version") or offer.get("campaign_version") or 0),
-                }
-                for offer in offers
-                if isinstance(offer, dict) and str(offer.get("offer_id") or "")
-            ],
-        })
+        ranked_items.append(
+            {
+                **item,
+                "rank": rank,
+                "decision_id": resolved_decision_id,
+                "offer_versions": [
+                    {
+                        "offer_id": str(offer.get("offer_id") or ""),
+                        "version": int(offer.get("version") or offer.get("campaign_version") or 0),
+                    }
+                    for offer in offers
+                    if isinstance(offer, dict) and str(offer.get("offer_id") or "")
+                ],
+            }
+        )
     decision = {
         "decision_id": resolved_decision_id,
         "strategy": resolved_strategy,
@@ -91,22 +92,25 @@ def decide(
         "items": ranked_items,
     }
     if scope is not None:
-        record_touch({
-            "event_id": f"evt_{resolved_decision_id}",
-            "event_type": "decision",
-            "decision_id": resolved_decision_id,
-            "session_id": session_id,
-            "placement": str(context.get("controls", {}).get("surface") or "recommendation"),
-            "strategy": resolved_strategy,
-            "strategy_version": STRATEGY_VERSION,
-            "experiment_id": decision["experiment_id"],
-            "variant_id": decision["variant_id"],
-            "fallback_status": fallback_status,
-            "metadata": {
-                "candidates": [
-                    {"item_id": str(item.get("id") or ""), "rank": item.get("rank", 0)}
-                    for item in ranked_items
-                ],
+        record_touch(
+            {
+                "event_id": f"evt_{resolved_decision_id}",
+                "event_type": "decision",
+                "decision_id": resolved_decision_id,
+                "session_id": session_id,
+                "placement": str(context.get("controls", {}).get("surface") or "recommendation"),
+                "strategy": resolved_strategy,
+                "strategy_version": STRATEGY_VERSION,
+                "experiment_id": decision["experiment_id"],
+                "variant_id": decision["variant_id"],
+                "fallback_status": fallback_status,
+                "metadata": {
+                    "candidates": [
+                        {"item_id": str(item.get("id") or ""), "rank": item.get("rank", 0)} for item in ranked_items
+                    ],
+                },
             },
-        }, scope, sink=sink)
+            scope,
+            sink=sink,
+        )
     return decision

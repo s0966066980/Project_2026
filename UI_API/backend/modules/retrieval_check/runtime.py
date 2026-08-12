@@ -35,9 +35,7 @@ class ProductionRetrievalIdentityProvider:
 
         from services import rag_knowledge_service
 
-        attempts = sorted(
-            publication_runtime.default_module().published_attempt_ids(scope=scope)
-        )
+        attempts = sorted(publication_runtime.default_module().published_attempt_ids(scope=scope))
         index_identity = hashlib.sha256(
             json.dumps(
                 {
@@ -51,9 +49,7 @@ class ProductionRetrievalIdentityProvider:
         configuration = rag_knowledge_service.list_configurations(scope).get("published")
         return RetrievalIdentity(
             index_identity=index_identity,
-            configuration_version=(
-                int(configuration["version"]) if configuration is not None else None
-            ),
+            configuration_version=(int(configuration["version"]) if configuration is not None else None),
             configuration=configuration,
         )
 
@@ -70,18 +66,12 @@ def default_module() -> RetrievalCheckModule:
     key = (use_postgres, path)
     with _LOCK:
         if _DEFAULT is None or _KEY != key:
-            store = (
-                PostgresRetrievalCheckStore()
-                if use_postgres
-                else SQLiteRetrievalCheckStore(path)
-            )
+            store = PostgresRetrievalCheckStore() if use_postgres else SQLiteRetrievalCheckStore(path)
             _DEFAULT = RetrievalCheckModule(
                 store=store,
                 engine=ProductionRetrievalEngine(),
                 identities=ProductionRetrievalIdentityProvider(),
-                pending_ttl_seconds=int(
-                    config.get("RAG_RETRIEVAL_CHECK_TTL_SECONDS", 900)
-                ),
+                pending_ttl_seconds=int(config.get("RAG_RETRIEVAL_CHECK_TTL_SECONDS", 900)),
             )
             _KEY = key
         return _DEFAULT

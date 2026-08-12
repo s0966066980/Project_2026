@@ -106,9 +106,7 @@ class RuntimePaths:
                 if not path.exists():
                     continue
                 if not path.is_dir() or path.is_symlink():
-                    raise PersistenceConfigurationError(
-                        f"Database-owned runtime path must be a real directory: {path}"
-                    )
+                    raise PersistenceConfigurationError(f"Database-owned runtime path must be a real directory: {path}")
                 if path.stat().st_mode & 0o077:
                     raise PersistenceConfigurationError(
                         f"Database-owned runtime path must not be group/world accessible: {path}"

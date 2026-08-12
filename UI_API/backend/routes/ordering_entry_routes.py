@@ -1,9 +1,10 @@
 import asyncio
 
+from capabilities.identity_access import scope_from_device_principal
+from capabilities.ordering import EntryFlowError
+from capabilities.ordering import ordering_entry_runtime as runtime
 from fastapi import APIRouter, HTTPException, Request
-from modules.ordering_entry import EntryFlowError, runtime
 
-from services.commercial_context_service import scope_from_device_principal
 from utils.auth_utils import check_rate_limit, require_kiosk_token
 
 
@@ -15,8 +16,8 @@ def _error(e):
     raise HTTPException(status_code=409 if "conflict" in e.code else 422, detail={"code": e.code, **e.details}) from e
 
 
-def create_router(_deps=None):
-    router = APIRouter(prefix="/api/entry-flow", tags=["ordering-entry"])
+def create_router(_deps=None, *, prefix: str = "/api/entry-flow"):
+    router = APIRouter(prefix=prefix, tags=["ordering-entry"])
 
     @router.post("/start")
     async def start(request: Request, body: dict):

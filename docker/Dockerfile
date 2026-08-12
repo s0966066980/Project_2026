@@ -29,13 +29,20 @@ COPY UI_API/requirements-docker.txt /tmp/requirements-docker.txt
 RUN python -m pip install --upgrade pip \
     && python -m pip install --requirement /tmp/requirements-docker.txt
 
+FROM base AS application
+
 COPY UI_API/ /app/UI_API/
 COPY --from=frontend-runtime-deps /frontend/node_modules /app/UI_API/frontend/node_modules
+# Project Analysis reads a small, explicit allowlist of repository docs at
+# runtime. Keep those docs in the immutable application image without copying
+# the repository, credentials, or the separate Project Analyst service.
+COPY docs/ /app/docs/
+COPY AGENTS.md CONTEXT.md README.md Project_2026_Execution_Plan.md /app/
 
 RUN mkdir -p /var/lib/project-2026 \
     && chown -R project2026:project2026 /app/UI_API /var/lib/project-2026
 
-FROM base AS test
+FROM application AS test
 
 USER root
 RUN python -m pip install --requirement requirements-ci.txt
@@ -57,6 +64,20 @@ COPY tools/ /app/tools/
 COPY docker/ /app/docker/
 USER project2026
 
+# Keep the CPU runtime target before the optional AI stages. This also lets
+# legacy Docker builders stop at `runtime` without installing the large AI
+# dependency set, while the AI dependency layer remains independent of source.
+FROM application AS runtime
+
+USER project2026
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=12 \
+    CMD python -c "import json, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4); payload = json.load(response); raise SystemExit(0 if response.status == 200 and payload.get('ready') else 1)"
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+
 FROM base AS ai-base
 
 RUN apt-get update \
@@ -66,27 +87,25 @@ RUN apt-get update \
 COPY UI_API/requirements-ai.txt /tmp/requirements-ai.txt
 RUN python -m pip install --requirement /tmp/requirements-ai.txt
 
-RUN mkdir -p /home/project2026/.cache /tmp/project-2026-media \
-    && chown -R project2026:project2026 /home/project2026/.cache /tmp/project-2026-media
+FROM ai-base AS ai-application
 
-FROM ai-base AS ai-runtime
+COPY UI_API/ /app/UI_API/
+COPY --from=frontend-runtime-deps /frontend/node_modules /app/UI_API/frontend/node_modules
+COPY docs/ /app/docs/
+COPY AGENTS.md CONTEXT.md README.md Project_2026_Execution_Plan.md /app/
+
+RUN mkdir -p /home/project2026/.cache /tmp/project-2026-media \
+    /var/lib/project-2026 \
+    && chown -R project2026:project2026 /app/UI_API /var/lib/project-2026 \
+        /home/project2026/.cache /tmp/project-2026-media
+
+FROM ai-application AS ai-runtime
 
 USER project2026
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=5m --retries=20 \
-    CMD python -c "import json, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4); payload = json.load(response); raise SystemExit(0 if response.status == 200 and payload.get('ready') else 1)"
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
-
-FROM base AS runtime
-
-USER project2026
-
-EXPOSE 8000
-
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=12 \
     CMD python -c "import json, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4); payload = json.load(response); raise SystemExit(0 if response.status == 200 and payload.get('ready') else 1)"
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from modules.knowledge_publication import runtime as knowledge_publication_runtime
+from capabilities.knowledge_rag import knowledge_publication_runtime
 
 from models.commercial_scope import CommercialScope
 from models.worker_jobs import BackgroundJob, JobHandlerResult

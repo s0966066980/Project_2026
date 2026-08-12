@@ -152,14 +152,24 @@ class PostgresAnalyticsSink:
                     ) ON CONFLICT (event_id) DO NOTHING
                     """,
                     (
-                        event_id, UUID(str(scope.get("tenant_id"))), UUID(str(scope["store_id"])),
-                        str(payload.get("device_id") or ""), decision_id,
-                        str(payload.get("impression_id") or ""), event_type,
-                        str(payload.get("placement") or ""), str(payload.get("campaign_id") or ""),
-                        int(payload["campaign_version"]) if str(payload.get("campaign_version") or "").isdigit() else None,
-                        str(payload.get("item_id") or ""), str(envelope.get("session_ref") or ""),
-                        str(payload.get("data_quality") or "complete"), Jsonb(payload),
-                        envelope.get("occurred_at") or _now(), envelope.get("received_at") or _now(),
+                        event_id,
+                        UUID(str(scope.get("tenant_id"))),
+                        UUID(str(scope["store_id"])),
+                        str(payload.get("device_id") or ""),
+                        decision_id,
+                        str(payload.get("impression_id") or ""),
+                        event_type,
+                        str(payload.get("placement") or ""),
+                        str(payload.get("campaign_id") or ""),
+                        int(payload["campaign_version"])
+                        if str(payload.get("campaign_version") or "").isdigit()
+                        else None,
+                        str(payload.get("item_id") or ""),
+                        str(envelope.get("session_ref") or ""),
+                        str(payload.get("data_quality") or "complete"),
+                        Jsonb(payload),
+                        envelope.get("occurred_at") or _now(),
+                        envelope.get("received_at") or _now(),
                     ),
                 )
             conn.commit()
@@ -283,7 +293,8 @@ def list_events(*, tenant_id: UUID, store_id: UUID, since: str = "", until: str 
 
     rows = _load_source_rows()
     return [
-        row for row in rows
+        row
+        for row in rows
         if (row.get("scope") or {}).get("tenant_id") == str(tenant_id)
         and (row.get("scope") or {}).get("store_id") == str(store_id)
         and (not since or str(row.get("occurred_at") or "") >= since)

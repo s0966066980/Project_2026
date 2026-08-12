@@ -13,8 +13,8 @@ class AnalyzeRequest(BaseModel):
     profile: str = Field(min_length=1, max_length=32)
 
 
-def create_router(deps: dict) -> APIRouter:
-    router = APIRouter(prefix="/api/project-brain", tags=["project-brain"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api/project-brain") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["project-brain"])
 
     @router.get("/status")
     async def status(request: Request):

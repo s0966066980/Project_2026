@@ -6,20 +6,22 @@ from services import diagnostic_service
 from utils.auth_utils import require_permission
 
 
-def create_router(deps: dict) -> APIRouter:
+def create_router(deps: dict | None = None, *, prefix: str = "") -> APIRouter:
     router = APIRouter(tags=["diagnostics"])
 
-    @router.get("/api/ollama/models")
+    root = prefix.rstrip("/")
+
+    @router.get(f"{root}/ollama-models" if root else "/api/ollama/models")
     async def get_ollama_models(_=Depends(require_permission("system.debug"))):
         models = await asyncio.to_thread(diagnostic_service.list_ollama_models)
         return {"models": models}
 
-    @router.get("/api/diagnostics/voice_prompt")
+    @router.get(f"{root}/voice-prompt" if root else "/api/diagnostics/voice_prompt")
     async def get_voice_prompt(_=Depends(require_permission("system.debug"))):
         """回傳目前設定的語音 system prompt，供測試頁預填。"""
         return {"prompt": diagnostic_service._get_default_voice_prompt()}
 
-    @router.post("/api/diagnostics/ask")
+    @router.post(f"{root}/ask" if root else "/api/diagnostics/ask")
     async def diagnostic_ask(body: dict = Body(...), _=Depends(require_permission("system.debug"))):
         # A diagnostic has no sensible default provider — naming the half of the chain to
         # exercise is the entire point of the request, so an absent or unknown provider is a

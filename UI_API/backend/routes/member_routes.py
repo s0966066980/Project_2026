@@ -1,28 +1,30 @@
 import asyncio
 
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.member import member_service
+from capabilities.operations_configuration import interface as operations
 from fastapi import APIRouter, Body, Form, HTTPException, Query, Request, Response
 
-from services import admin_audit_service, member_service
-from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
-def create_router(deps: dict) -> APIRouter:
+def create_router(deps: dict | None = None, *, prefix: str = "") -> APIRouter:
     router = APIRouter()
+    root = prefix.rstrip("/")
 
     # 已知安全性限制（原型階段刻意接受，後續改善集中記錄於 docs/FUTURE_MODULES.md）：
     # 會員登入僅以手機號碼識別，無第二因子。任何人在 kiosk 輸入他人號碼即可被綁定為該
     # 會員、讀取其「您的常點」與點餐紀錄（帳號列舉 + 冒用）。資料屬低敏感（暱稱 + 點餐
     # 紀錄，無付款/個資）。正式上線前必須補強：簡訊 OTP 或註冊時設定 PIN（手機 + PIN
     # 登入），並對本端點做 per-IP / per-phone rate limit 與失敗稽核。
-    @router.post("/api/member/login")
+    @router.post(f"{root}/api/member/login" if not root else f"{root}/member/login")
     async def member_login(request: Request, session_id: str = Form(...), phone: str = Form(...)):
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
         check_rate_limit(request, "member_login", limit=10, key=phone)
         result = await asyncio.to_thread(member_service.login, session_id, phone, scope)
         await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_login",
             target_type="member",
             target_id=member_service.mask_phone(member_service.normalize_phone(phone) or phone),
@@ -32,7 +34,7 @@ def create_router(deps: dict) -> APIRouter:
         )
         return result
 
-    @router.post("/api/member/register")
+    @router.post(f"{root}/api/member/register" if not root else f"{root}/member/register")
     async def member_register(
         request: Request,
         session_id: str = Form(...),
@@ -57,7 +59,7 @@ def create_router(deps: dict) -> APIRouter:
             necessary_terms_accepted,
         )
         await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_register",
             target_type="member",
             target_id=member_service.mask_phone(member_service.normalize_phone(phone) or phone),
@@ -73,7 +75,7 @@ def create_router(deps: dict) -> APIRouter:
         )
         return result
 
-    @router.post("/api/member/abandoned_order")
+    @router.post(f"{root}/api/member/abandoned_order" if not root else f"{root}/member/abandoned_order")
     async def member_abandoned_order(
         request: Request,
         session_id: str = Form(...),
@@ -94,21 +96,21 @@ def create_router(deps: dict) -> APIRouter:
             reason,
             scope,
         )
-        return {"ok": bool(member), "member": member_service._public_member(member) if member else None}
+        return {"ok": bool(member), "member": member_service.public_member(member) if member else None}
 
-    @router.get("/api/members")
+    @router.get(f"{root}/api/members" if not root else f"{root}/members")
     async def list_members(request: Request):
         principal = authorize_admin_request(request, "members.read")
         scope = scope_from_admin_principal(principal)
         return await asyncio.to_thread(member_service.admin_list, scope)
 
-    @router.get("/api/members/export")
+    @router.get(f"{root}/api/members/export" if not root else f"{root}/members/export")
     async def export_members(request: Request):
         principal = authorize_admin_request(request, "members.export")
         scope = scope_from_admin_principal(principal)
         content = await asyncio.to_thread(member_service.export_members_csv, scope)
         audit = await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_export",
             target_type="member",
             target_id="members",
@@ -124,13 +126,13 @@ def create_router(deps: dict) -> APIRouter:
             },
         )
 
-    @router.get("/api/admin/audit_logs")
+    @router.get(f"{root}/api/admin/audit_logs" if not root else f"{root}/admin/audit_logs")
     async def list_admin_audits(request: Request, limit: int = Query(default=200, ge=1, le=5000)):
         principal = authorize_admin_request(request, "audit.read")
         scope = scope_from_admin_principal(principal)
-        return await asyncio.to_thread(admin_audit_service.list_admin_audits, limit, scope)
+        return await asyncio.to_thread(operations.list_admin_audits, limit, scope)
 
-    @router.get("/api/members/{member_ref}")
+    @router.get(f"{root}/api/members/{{member_ref}}" if not root else f"{root}/members/{{member_ref}}")
     async def member_detail(request: Request, member_ref: str):
         principal = authorize_admin_request(request, "members.read")
         scope = scope_from_admin_principal(principal)
@@ -139,7 +141,11 @@ def create_router(deps: dict) -> APIRouter:
             raise HTTPException(status_code=404, detail="member not found")
         return detail
 
-    @router.put("/api/members/{member_ref}/verified-preferences")
+    @router.put(
+        f"{root}/api/members/{{member_ref}}/verified-preferences"
+        if not root
+        else f"{root}/members/{{member_ref}}/verified-preferences"
+    )
     async def update_verified_preferences(request: Request, member_ref: str, body: dict = Body(...)):
         principal = authorize_admin_request(request, "members.write")
         scope = scope_from_admin_principal(principal)
@@ -156,7 +162,7 @@ def create_router(deps: dict) -> APIRouter:
         if verified is None:
             raise HTTPException(status_code=404, detail="member not found")
         audit = await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_verified_preferences.update",
             target_type="member",
             target_id=member_ref,
@@ -172,7 +178,9 @@ def create_router(deps: dict) -> APIRouter:
         )
         return {"ok": True, "verified_preferences": verified, "audit_id": audit.get("audit_id", "")}
 
-    @router.delete("/api/members/{member_ref}/records")
+    @router.delete(
+        f"{root}/api/members/{{member_ref}}/records" if not root else f"{root}/members/{{member_ref}}/records"
+    )
     async def member_clear_records(request: Request, member_ref: str):
         principal = authorize_admin_request(request, "members.delete")
         scope = scope_from_admin_principal(principal)
@@ -181,7 +189,7 @@ def create_router(deps: dict) -> APIRouter:
         if not ok:
             raise HTTPException(status_code=404, detail="member not found")
         audit = await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_clear_records",
             target_type="member",
             target_id=(detail or {}).get("phone_masked", member_ref),
@@ -190,7 +198,7 @@ def create_router(deps: dict) -> APIRouter:
         )
         return {"ok": True, "audit_id": audit.get("audit_id", "")}
 
-    @router.delete("/api/members/{member_ref}")
+    @router.delete(f"{root}/api/members/{{member_ref}}" if not root else f"{root}/members/{{member_ref}}")
     async def member_delete(request: Request, member_ref: str):
         principal = authorize_admin_request(request, "members.delete")
         scope = scope_from_admin_principal(principal)
@@ -199,7 +207,7 @@ def create_router(deps: dict) -> APIRouter:
         if not ok:
             raise HTTPException(status_code=404, detail="member not found")
         audit = await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             "member_delete",
             target_type="member",
             target_id=(detail or {}).get("phone_masked", member_ref),

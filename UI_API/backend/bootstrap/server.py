@@ -64,8 +64,9 @@ def maybe_start_ngrok(pos_port: int):
 
         if tunnel_url:
             public_url = tunnel_url.rstrip("/")
-            print(f"🖥️  Kiosk:  {public_url}/kiosk"
-                  + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else ""))
+            print(
+                f"🖥️  Kiosk:  {public_url}/kiosk" + (f"?token={config.POS_DEMO_TOKEN}" if config.POS_DEMO_TOKEN else "")
+            )
             print(f"🛠️  Admin:  {public_url}/admin")
     except ImportError:
         print("ℹ️ pyngrok 未安裝，略過外網 tunnel。")
@@ -75,6 +76,7 @@ def maybe_start_ngrok(pos_port: int):
 
 def run_dev_servers(app):
     import sys
+
     import uvicorn
 
     ensure_ollama(
@@ -104,10 +106,7 @@ def run_dev_servers(app):
     maybe_start_ngrok(pos_port)
     print("=" * 65 + "\n")
 
-    servers = [
-        uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info"))
-        for port in available_ports
-    ]
+    servers = [uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info")) for port in available_ports]
     threads = [
         threading.Thread(target=server.run, name=f"uvicorn-{port}", daemon=True)
         for server, port in zip(servers, available_ports)

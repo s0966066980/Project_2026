@@ -1,4 +1,5 @@
 """Short-term recommendation feedback derived from recommendation events."""
+
 from __future__ import annotations
 
 import time

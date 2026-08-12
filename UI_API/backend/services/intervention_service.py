@@ -108,9 +108,7 @@ def decide_intervention(barrier_result: dict, ui_context: dict | None = None) ->
                 action_level = preset["severity_high_level"]
             if preset.get("severity_high_notify"):
                 staff_notify = True
-        if state == "payment_confusion" and (
-            severity >= 0.75 or int(result.get("payment_fail_count") or 0) >= 2
-        ):
+        if state == "payment_confusion" and (severity >= 0.75 or int(result.get("payment_fail_count") or 0) >= 2):
             action_level = "high"
             staff_notify = True
             if int(result.get("payment_fail_count") or 0) >= 2:

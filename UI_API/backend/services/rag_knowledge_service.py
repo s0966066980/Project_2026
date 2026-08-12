@@ -13,19 +13,20 @@ import time
 from threading import Lock
 from typing import Any
 
-from modules.retrieval_configuration import (
+from capabilities.knowledge_rag import knowledge_publication_runtime
+from capabilities.knowledge_rag.contracts import (
     INDEX_VERSION as _INDEX_VERSION,
 )
-from modules.retrieval_configuration import (
+from capabilities.knowledge_rag.contracts import (
     METHODS,
     PRESET_VERSION,
     RELEVANCE_POLICIES,
     TOP_K_VALUES,
+    PostgresRetrievalConfigurationStore,
     RetrievalConfigurationError,
     RetrievalConfigurationModule,
+    SQLiteRetrievalConfigurationStore,
 )
-from modules.retrieval_configuration.postgres_store import PostgresRetrievalConfigurationStore
-from modules.retrieval_configuration.sqlite_store import SQLiteRetrievalConfigurationStore
 from modules.runtime_persistence.runtime import sqlite_database_path
 
 import config
@@ -103,9 +104,7 @@ async def ensure_published_index_visible(
     """
 
     if publication_module is None:
-        from modules.knowledge_publication.runtime import default_module
-
-        publication_module = default_module()
+        publication_module = knowledge_publication_runtime.default_module()
     active_provider = provider or get_rag()
     token = frozenset(publication_module.published_attempt_ids(scope=scope))
     scope_key = (str(scope.tenant_id), str(scope.store_id))
@@ -187,9 +186,7 @@ def _published_config(scope: CommercialScope) -> dict[str, Any] | None:
     return list_configurations(scope).get("published")
 
 
-def _filter_retrieval_rows(
-    result: dict[str, Any], *, method: str, policy: str
-) -> tuple[list[dict[str, Any]], float]:
+def _filter_retrieval_rows(result: dict[str, Any], *, method: str, policy: str) -> tuple[list[dict[str, Any]], float]:
     threshold = POLICY_THRESHOLDS[method][policy]
     rows: list[dict[str, Any]] = []
     for hit in result.get("results") or []:
@@ -270,9 +267,7 @@ async def test_retrieval(
                 tenant_id=str(scope.tenant_id),
                 store_id=str(scope.store_id),
             )
-            candidate_rows, candidate_threshold = _filter_retrieval_rows(
-                candidate, method=attempt, policy=policy
-            )
+            candidate_rows, candidate_threshold = _filter_retrieval_rows(candidate, method=attempt, policy=policy)
             result = candidate
             rows = candidate_rows
             threshold = candidate_threshold
@@ -286,11 +281,7 @@ async def test_retrieval(
     if result is None:
         raise last_error or RagKnowledgeError("retrieval_unavailable")
 
-    ranks = [
-        int(row["rank"])
-        for row in rows
-        if row.get("item_id") in set(expected_knowledge_ids or [])
-    ]
+    ranks = [int(row["rank"]) for row in rows if row.get("item_id") in set(expected_knowledge_ids or [])]
     return {
         "method": selected_method,
         "effective_method": effective_method,

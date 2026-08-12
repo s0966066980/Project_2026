@@ -1,4 +1,5 @@
 from capabilities import catalog
+
 from repositories import log_repository
 from services import recommendation_service
 
@@ -35,9 +36,9 @@ def build_compact_menu_context() -> str:
         return "【菜單白名單】目前沒有菜單資料。"
     rows = ["【菜單白名單】ID｜名稱｜分類｜價格"]
     for item in menu_items:
-        iid   = item.get("id", "")
-        name  = item.get("name", "")
-        cat   = item.get("category", "")
+        iid = item.get("id", "")
+        name = item.get("name", "")
+        cat = item.get("category", "")
         price = item.get("price", "")
         rows.append(f"{iid}｜{name}｜{cat}｜${price}")
     return "\n".join(rows)

@@ -3,16 +3,16 @@ import threading
 import time
 from uuid import UUID
 
+from capabilities.identity_access import (
+    AdminAuthorizationError,
+    authorize_admin_action,
+    device_identity_service,
+)
 from fastapi import HTTPException, Request, UploadFile
 
 import config
 from models.admin_identity import AdminPrincipal
-from services import (
-    device_identity_service,
-    observability_service,
-    shared_infrastructure_service,
-)
-from services.admin_authorization_service import AdminAuthorizationError, authorize_admin_action
+from services import observability_service, shared_infrastructure_service
 from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.commercial_scope_config import resolve_commercial_scope
 

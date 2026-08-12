@@ -69,7 +69,6 @@ def _contains_any(text: str, keywords: list[str]) -> bool:
     return any(str(keyword or "").lower() in lowered for keyword in keywords)
 
 
-
 def normalize_scenario_id(raw: str) -> str:
     scenario_id = str(raw or "").strip()
     if not scenario_id:
@@ -81,7 +80,6 @@ def normalize_scenario_id(raw: str) -> str:
 
 def infer_scenario_from_barrier_state(barrier_state: str) -> str:
     return _BARRIER_TO_SCENARIO.get(str(barrier_state or ""), "")
-
 
 
 def get_scenario_definition(scenario_id: str) -> dict:

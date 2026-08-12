@@ -1,7 +1,18 @@
 // @ts-check
 
 import { createCatalogClient } from './api/catalogClient.js';
-import { fetchJson, postFormJson, postJson } from './httpClient.js';
+import {
+  createEmotionClient,
+  createInteractionClient,
+  createKioskCapabilityClient,
+  createMemberClient,
+  createOrderingClient,
+  createOperationsClient,
+  createPromotionBannerClient,
+  createRecommendationAssistClient,
+  createRecommendationEventClient,
+  createVoiceClient,
+} from './api/capabilityClients.js';
 
 /** @typedef {import('../types.d.ts').InteractionEventPayload} InteractionEventPayload */
 /** @typedef {import('../types.d.ts').VoiceStreamAudioChunk} VoiceStreamAudioChunk */
@@ -22,39 +33,6 @@ let menuRequest = null;
 const posPromotionBannersRequests = new Map();
 
 /**
- * Default deadline for the request paths that keep their own error vocabulary
- * and so cannot route through `httpClient`. A connection that is accepted and
- * then goes quiet must still end: without this, ordering entry, cart and
- * checkout reads hang forever and their modelled recovery states — Guest
- * Ordering Start Failure, Menu Initialization Failure — never get to happen.
- */
-const KIOSK_REQUEST_TIMEOUT_MS = 15000;
-
-/**
- * @param {string} url
- * @param {RequestInit} [options]
- * @param {number} [timeoutMs]
- * @returns {Promise<Response>}
- */
-async function boundedFetch(url, options = {}, timeoutMs = KIOSK_REQUEST_TIMEOUT_MS) {
-  const controller = new AbortController();
-  /** @type {any} */
-  let deadline = null;
-  try {
-    return /** @type {Response} */ (await Promise.race([
-      fetch(url, { ...options, signal: options.signal || controller.signal }),
-      new Promise((_resolve, reject) => {
-        deadline = setTimeout(() => {
-          controller.abort();
-          reject(new Error(`request timed out after ${timeoutMs}ms: ${url}`));
-        }, timeoutMs);
-      }),
-    ]));
-  } finally {
-    if (deadline !== null) clearTimeout(deadline);
-  }
-}
-
 /** @param {URLSearchParams} params */
 function stripSensitiveTokenParams(params) {
   const sensitiveKeys = ['token', 'admin_token', 'kiosk_token', 'pos_token', 'ws_token'];
@@ -107,14 +85,6 @@ function parseVoiceStreamChunk(value) {
   return null;
 }
 
-/**
- * @param {Record<string, string>} [extra]
- * @returns {Record<string, string>}
- */
-function adminHeaders(extra = {}) {
-  return extra;
-}
-
 /** @returns {string} */
 function kioskToken() {
   const params = new URLSearchParams(window.location.search || '');
@@ -144,11 +114,37 @@ function kioskHeaders(extra = {}) {
 }
 
 const catalogClient = createCatalogClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const kioskOperationsClient = createOperationsClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const kioskCapabilityClient = createKioskCapabilityClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const orderingClient = createOrderingClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const voiceClient = createVoiceClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const emotionClient = createEmotionClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const interactionClient = createInteractionClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const recommendationEventClient = createRecommendationEventClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const recommendationAssistClient = createRecommendationAssistClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const promotionBannerClient = createPromotionBannerClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+const memberKioskClient = createMemberClient({ baseUrl: API_BASE, headers: () => kioskHeaders() });
+
+/**
+ * @param {() => Promise<any>} call
+ * @param {string} failureCode
+ * @returns {Promise<any>}
+ */
+async function versionedKioskCall(call, failureCode) {
+  try {
+    return await call();
+  } catch (error) {
+    const detail = /** @type {any} */ (error);
+    const status = Number(detail?.status || 0);
+    if (status) throw new Error(`${failureCode}:${status}`);
+    throw error;
+  }
+}
 
 /** @returns {Promise<Record<string, unknown>>} */
 export async function getPublicSettings() {
   if (!publicSettingsRequest) {
-    publicSettingsRequest = fetchJson(`${API_BASE}/api/public_settings`)
+    publicSettingsRequest = kioskOperationsClient.publicSettings()
       .catch(error => {
         publicSettingsRequest = null;
         throw error;
@@ -159,7 +155,7 @@ export async function getPublicSettings() {
 
 /** @returns {Promise<Record<string, unknown>>} */
 export async function getSettings() {
-  return fetchJson(`${API_BASE}/api/settings`, { headers: adminHeaders() });
+  return kioskOperationsClient.settings();
 }
 
 /** @returns {Promise<import('../types.d.ts').MenuItem[]>} */
@@ -185,12 +181,8 @@ export async function getMenu() {
  * @returns {Promise<import('../types.d.ts').MenuPriceProjection[]>}
  */
 export async function getMenuPriceProjections(cartItemIds = [], sessionId = '') {
-  const envelope = await postJson(
-    `${API_BASE}/api/v1/menu/price-projection`,
-    { cart_item_ids: cartItemIds, session_id: sessionId },
-    kioskHeaders(),
-  );
-  return Array.isArray(envelope?.data) ? envelope.data : [];
+  const data = await kioskCapabilityClient.priceProjection(cartItemIds, sessionId);
+  return Array.isArray(data) ? data : [];
 }
 
 /**
@@ -205,12 +197,7 @@ export async function quoteCart(cartItems, sessionId = '') {
     options: Array.isArray(item.options) ? item.options : [],
     applied_offer_id: item.applied_offer_id || '',
   }));
-  const envelope = await postJson(
-    `${API_BASE}/api/v1/cart/quote`,
-    { cart_items: requestItems, session_id: sessionId },
-    kioskHeaders(),
-  );
-  return envelope.data;
+  return kioskCapabilityClient.quoteCart({ cart_items: requestItems, session_id: sessionId });
 }
 
 /**
@@ -220,8 +207,7 @@ export async function quoteCart(cartItems, sessionId = '') {
 export async function getPosPromotionBanners(surface = 'pos_home_banner') {
   const cacheKey = String(surface || 'pos_home_banner');
   if (!posPromotionBannersRequests.has(cacheKey)) {
-    const params = new URLSearchParams({ surface });
-    posPromotionBannersRequests.set(cacheKey, fetchJson(`${API_BASE}/api/promotions/pos-banner?${params.toString()}`, { headers: kioskHeaders() })
+    posPromotionBannersRequests.set(cacheKey, promotionBannerClient.list(surface)
       .catch(error => {
         posPromotionBannersRequests.delete(cacheKey);
         throw error;
@@ -235,7 +221,7 @@ export async function getPosPromotionBanners(surface = 'pos_home_banner') {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function requestAiPushRecommendation(formData) {
-  return postFormJson(`${API_BASE}/api/ai_push`, formData, { headers: kioskHeaders() });
+  return recommendationAssistClient.push(formData);
 }
 
 /**
@@ -311,8 +297,8 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
   }
 
   try {
-    await consumeResponse(await fetch(`${API_BASE}/api/ask/stream`, {
-      method: 'POST', body: formData, headers: kioskHeaders(),
+    await consumeResponse(await fetch(voiceClient.streamUrl, {
+      method: 'POST', body: formData, headers: voiceClient.headers(),
     }));
   } catch (e) {
     if (!voiceTurnId || lastSequence === 0) {
@@ -326,8 +312,8 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
       await new Promise(resolve => setTimeout(resolve, 150 * (2 ** reconnect)));
       const params = new URLSearchParams({ after_sequence: String(lastSequence) });
       await consumeResponse(await fetch(
-        `${API_BASE}/api/ask/stream/${encodeURIComponent(voiceTurnId)}?${params}`,
-        { headers: kioskHeaders() },
+        `${voiceClient.replayUrl(voiceTurnId)}?${params}`,
+        { headers: voiceClient.headers() },
       ));
     } catch (error) {
       if (reconnect === 2) {
@@ -349,28 +335,16 @@ export async function streamVoiceAssistantResponse(formData, { onEvent, onAudio,
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function syncCart(sessionId, cartItems) {
-  const currentResponse = await boundedFetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, { headers: kioskHeaders() });
-  if (!currentResponse.ok) throw new Error(`cart_read_failed:${currentResponse.status}`);
-  const current = await currentResponse.json();
-  const response = await boundedFetch(`${API_BASE}/api/cart/${encodeURIComponent(sessionId)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
-    body: JSON.stringify({
-      expected_revision: Number(current.revision || 0),
-      lines: cartItems.map(item => ({ item_id: item.id, quantity: Number(item.quantity || 1), options: item.options || [], applied_offer_id: item.applied_offer_id || '' })),
-    }),
-  });
-  if (!response.ok) throw new Error(`cart_write_failed:${response.status}`);
-  return response.json();
+  const current = await versionedKioskCall(() => orderingClient.getCart(sessionId), 'cart_read_failed');
+  return versionedKioskCall(() => orderingClient.replaceCart(sessionId, {
+    expected_revision: Number(current.revision || 0),
+    lines: cartItems.map(item => ({ item_id: item.id, quantity: Number(item.quantity || 1), options: item.options || [], applied_offer_id: item.applied_offer_id || '' })),
+  }), 'cart_write_failed');
 }
 
 /** @param {string} sessionId @returns {Promise<Record<string, unknown>>} */
 export async function prepareCheckout(sessionId) {
-  const response = await boundedFetch(`${API_BASE}/api/checkout/prepare`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify({ session_id: sessionId }),
-  });
-  if (!response.ok) throw new Error(`checkout_prepare_failed:${response.status}`);
-  return response.json();
+  return versionedKioskCall(() => orderingClient.prepareCheckout({ session_id: sessionId }), 'checkout_prepare_failed');
 }
 
 /**
@@ -380,10 +354,8 @@ export async function prepareCheckout(sessionId) {
  * @returns {Promise<Response>}
  */
 export async function confirmCheckout(quoteId, idempotencyKey, signal) {
-  const headers = { ...kioskHeaders(), 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
-  return fetch(`${API_BASE}/api/checkout/confirm`, {
-    method: 'POST', headers, body: JSON.stringify({ quote_id: quoteId }), ...(signal ? { signal } : {}),
-  });
+  const result = await orderingClient.confirmCheckout({ quote_id: quoteId }, idempotencyKey, signal);
+  return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
 /**
@@ -392,19 +364,12 @@ export async function confirmCheckout(quoteId, idempotencyKey, signal) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function getCheckoutOutcome(quoteId, idempotencyKey) {
-  const params = new URLSearchParams({ idempotency_key: idempotencyKey });
-  const response = await boundedFetch(`${API_BASE}/api/checkout/outcome/${encodeURIComponent(quoteId)}?${params}`, { headers: kioskHeaders() });
-  if (!response.ok) throw new Error(`checkout_outcome_failed:${response.status}`);
-  return response.json();
+  return versionedKioskCall(() => orderingClient.checkoutOutcome(quoteId, idempotencyKey), 'checkout_outcome_failed');
 }
 
 /** @param {Record<string, unknown>} [payload] @returns {Promise<Record<string, unknown>>} */
 export async function startEntryFlow(payload = {}) {
-  const response = await boundedFetch(`${API_BASE}/api/entry-flow/start`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...kioskHeaders() }, body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error(`entry_flow_start_failed:${response.status}`);
-  return response.json();
+  return versionedKioskCall(() => orderingClient.startEntryFlow(payload), 'entry_flow_start_failed');
 }
 
 /**
@@ -415,13 +380,10 @@ export async function startEntryFlow(payload = {}) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function commandEntryFlow(entryFlowId, phaseRevision, command, payload = {}) {
-  const response = await boundedFetch(`${API_BASE}/api/entry-flow/${encodeURIComponent(entryFlowId)}/command`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...kioskHeaders() },
-    body: JSON.stringify({ phase_revision: phaseRevision, command, payload }),
-  });
-  if (!response.ok) throw new Error(`entry_flow_command_failed:${response.status}`);
-  return response.json();
+  return versionedKioskCall(
+    () => orderingClient.commandEntryFlow(entryFlowId, { phase_revision: phaseRevision, command, payload }),
+    'entry_flow_command_failed',
+  );
 }
 
 /**
@@ -429,7 +391,7 @@ export async function commandEntryFlow(entryFlowId, phaseRevision, command, payl
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function reportInteractionEvent(payload) {
-  return postJson(`${API_BASE}/api/interaction_event`, payload, kioskHeaders());
+  return interactionClient.report(payload);
 }
 
 /**
@@ -437,7 +399,7 @@ export async function reportInteractionEvent(payload) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function reportRecommendationEvent(payload) {
-  return postJson(`${API_BASE}/api/recommendation_events`, payload, kioskHeaders());
+  return recommendationEventClient.report(payload);
 }
 
 /**
@@ -445,7 +407,7 @@ export async function reportRecommendationEvent(payload) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function reportCommercialTouch(payload) {
-  return postJson(`${API_BASE}/api/v1/commercial-touches`, payload, kioskHeaders());
+  return kioskCapabilityClient.commercialTouch(payload);
 }
 
 /**
@@ -463,10 +425,7 @@ export async function analyzeVoiceEmotionEvent(sessionId, phase, mediaBlob) {
   // needs a budget of its own rather than the default request deadline. It is
   // still bounded: an enrichment that never returns must not hold a request
   // open for the rest of the ordering session.
-  return postFormJson(`${API_BASE}/api/emotion/analyze_event`, formData, {
-    headers: kioskHeaders(),
-    timeoutMs: 90000,
-  });
+  return emotionClient.analyzeEvent(formData);
 }
 
 /**
@@ -475,7 +434,7 @@ export async function analyzeVoiceEmotionEvent(sessionId, phase, mediaBlob) {
  * @returns {Promise<{ready: boolean, status: string, provider?: Record<string, unknown>}>}
  */
 export async function getEmotionReadiness() {
-  return fetchJson(`${API_BASE}/api/emotion/readiness`, { headers: kioskHeaders() });
+  return emotionClient.readiness();
 }
 
 /**
@@ -484,11 +443,7 @@ export async function getEmotionReadiness() {
  * @returns {Promise<import('../types.d.ts').MenuItem[]>}
  */
 export async function getAssistRecommendations(sessionId, cartIds = []) {
-  const params = new URLSearchParams({
-    session_id: sessionId,
-    cart_ids: JSON.stringify(cartIds),
-  });
-  return fetchJson(`${API_BASE}/api/assist_recommend?${params.toString()}`, { headers: kioskHeaders() });
+  return recommendationAssistClient.assist(sessionId, cartIds);
 }
 
 /**
@@ -497,10 +452,7 @@ export async function getAssistRecommendations(sessionId, cartIds = []) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function memberLogin(sessionId, phone) {
-  const formData = new FormData();
-  formData.append('session_id', sessionId);
-  formData.append('phone', phone);
-  const response = await postFormJson(`${API_BASE}/api/member/login`, formData, { headers: kioskHeaders() });
+  const response = await memberKioskClient.login(sessionId, phone);
   if (!isObjectRecord(response) || typeof response.found !== 'boolean') {
     throw new Error('member login returned an invalid response');
   }
@@ -515,14 +467,7 @@ export async function memberLogin(sessionId, phone) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function memberRegister(sessionId, phone, nickname, options = {}) {
-  const formData = new FormData();
-  formData.append('session_id', sessionId);
-  formData.append('phone', phone);
-  formData.append('nickname', nickname || '');
-  formData.append('necessary_terms_accepted', String(options.necessaryTermsAccepted === true));
-  formData.append('order_history_consent', String(options.orderHistoryConsent === true));
-  formData.append('personalization_consent', String(options.personalizationConsent === true));
-  const response = await postFormJson(`${API_BASE}/api/member/register`, formData, { headers: kioskHeaders() });
+  const response = await memberKioskClient.register(sessionId, phone, nickname, options);
   if (!isObjectRecord(response) || typeof response.ok !== 'boolean') {
     throw new Error('member registration returned an invalid response');
   }
@@ -537,10 +482,5 @@ export async function memberRegister(sessionId, phone, nickname, options = {}) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function recordAbandonedOrder(sessionId, cartIds, cartTotal, reason) {
-  const formData = new FormData();
-  formData.append('session_id', sessionId);
-  formData.append('cart_ids', JSON.stringify(Array.isArray(cartIds) ? cartIds : []));
-  formData.append('cart_total', String(Number(cartTotal || 0)));
-  formData.append('reason', reason || '');
-  return postFormJson(`${API_BASE}/api/member/abandoned_order`, formData, { headers: kioskHeaders() });
+  return memberKioskClient.abandonedOrder(sessionId, cartIds, cartTotal, reason);
 }

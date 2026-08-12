@@ -73,18 +73,26 @@ def _probe(provider: str, model: str) -> dict:
 
     adapter = llm_gateway_service.default_adapters().get(provider)
     if adapter is None:
-        return {"provider": provider, "model": model, "ok": False, "latency_ms": 0, "detail": "沒有這個提供者的連線實作。"}
-    result = adapter.generate(LLMRequest(
-        task="connectivity_probe",
-        system_prompt="Reply with the JSON object {\"ok\": true} and nothing else.",
-        user_prompt="ping",
-        timeout_seconds=15.0,
-        prompt_version="connectivity-probe-v1",
-        expect_json=False,
-        model_name=model,
-        max_tokens=16,
-        max_retries=0,
-    ))
+        return {
+            "provider": provider,
+            "model": model,
+            "ok": False,
+            "latency_ms": 0,
+            "detail": "沒有這個提供者的連線實作。",
+        }
+    result = adapter.generate(
+        LLMRequest(
+            task="connectivity_probe",
+            system_prompt='Reply with the JSON object {"ok": true} and nothing else.',
+            user_prompt="ping",
+            timeout_seconds=15.0,
+            prompt_version="connectivity-probe-v1",
+            expect_json=False,
+            model_name=model,
+            max_tokens=16,
+            max_retries=0,
+        )
+    )
     detail = llm_gateway_service.describe_safe_error(result.safe_error)
     return {
         "provider": provider,
@@ -110,8 +118,7 @@ def connectivity_test() -> dict:
         summary = "目前設定下沒有任何提供者可以服務，AI 功能會全面失效。"
     elif len(serving) < len(results):
         failed = "、".join(
-            (CLOUD_PROVIDER_LABEL if r["provider"] == CLOUD_PROVIDER else r["provider"])
-            for r in results if not r["ok"]
+            (CLOUD_PROVIDER_LABEL if r["provider"] == CLOUD_PROVIDER else r["provider"]) for r in results if not r["ok"]
         )
         summary = f"{failed} 無法服務，所有請求都會由其餘提供者承擔。"
     return {"results": results, "all_ok": len(serving) == len(results), "summary": summary}

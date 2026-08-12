@@ -92,7 +92,8 @@ def eligible_item_ids(
             rows = [item for item in rows if _text(item.get("category")) in wanted]
     elif mode == "new_items":
         rows = [
-            item for item in rows
+            item
+            for item in rows
             if push_copy_repository.is_currently_new(copy_rows.get(_text(item.get("id")), {}), today)
         ]
     elif mode == "popular":

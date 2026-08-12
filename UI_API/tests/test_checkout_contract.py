@@ -69,4 +69,3 @@ def test_prepare_rejects_empty_cart_before_pricing_or_order_mutation():
     checkout = CheckoutConfirmationModule(store=Store(), cart=EmptyCart(), pricing=Pricing(), fulfillment=Fulfillment())
     with pytest.raises(CheckoutError, match="cart_not_ready"):
         checkout.prepare(scope=CommercialScope(uuid4(), uuid4()), session_id="session-1")
-

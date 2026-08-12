@@ -2,11 +2,12 @@ import json
 import time
 from urllib.parse import urlparse
 
+from capabilities.identity_access import device_identity_service
+from capabilities.operations_configuration import observability_service
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from realtime.connection_manager import ALLOWED_CLIENT_TYPES, manager
 
 import config
-from services import device_identity_service, observability_service
 from utils.auth_utils import websocket_token_allowed
 
 

@@ -3,12 +3,12 @@
 import asyncio
 from uuid import UUID
 
+from capabilities.identity_access import device_identity_service
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 import config
 from models.commercial_scope import CommercialScope
-from services import device_identity_service
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 from utils.commercial_scope_config import resolve_commercial_scope
 
@@ -18,10 +18,11 @@ class DeviceSessionRequest(BaseModel):
     credential: str = Field(min_length=16, max_length=1024)
 
 
-def create_router(_deps: dict | None = None) -> APIRouter:
+def create_router(_deps: dict | None = None, *, prefix: str = "") -> APIRouter:
     router = APIRouter(tags=["device-auth"])
+    root = prefix.rstrip("/")
 
-    @router.get("/api/device/auth/session")
+    @router.get(f"{root}/api/device/auth/session" if not root else f"{root}/device/auth/session")
     async def get_session(request: Request):
         """Return the database-owned device scope for the active browser session."""
         principal = require_kiosk_token(request)
@@ -34,7 +35,7 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             "auth_method": principal.auth_method,
         }
 
-    @router.post("/api/device/auth/session")
+    @router.post(f"{root}/api/device/auth/session" if not root else f"{root}/device/auth/session")
     async def create_session(payload: DeviceSessionRequest, request: Request, response: Response):
         check_rate_limit(request, "device_auth", limit=10, key=payload.key_id)
         try:
@@ -64,7 +65,11 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             "expires_at": principal.expires_at.isoformat(),
         }
 
-    @router.post("/api/admin/devices/{device_id}/credentials")
+    @router.post(
+        f"{root}/api/admin/devices/{{device_id}}/credentials"
+        if not root
+        else f"{root}/admin/devices/{{device_id}}/credentials"
+    )
     async def issue_credential(device_id: UUID, request: Request):
         principal = authorize_admin_request(request, "device_identity.manage")
         configured = resolve_commercial_scope()
@@ -82,7 +87,11 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             "expires_at": issued.expires_at.isoformat(),
         }
 
-    @router.post("/api/admin/device-credentials/{credential_id}/rotate")
+    @router.post(
+        f"{root}/api/admin/device-credentials/{{credential_id}}/rotate"
+        if not root
+        else f"{root}/admin/device-credentials/{{credential_id}}/rotate"
+    )
     async def rotate_credential(credential_id: UUID, request: Request):
         principal = authorize_admin_request(request, "device_identity.manage")
         configured = resolve_commercial_scope()
@@ -100,7 +109,11 @@ def create_router(_deps: dict | None = None) -> APIRouter:
             "expires_at": issued.expires_at.isoformat(),
         }
 
-    @router.delete("/api/admin/device-credentials/{credential_id}")
+    @router.delete(
+        f"{root}/api/admin/device-credentials/{{credential_id}}"
+        if not root
+        else f"{root}/admin/device-credentials/{{credential_id}}"
+    )
     async def revoke_credential(credential_id: UUID, request: Request):
         principal = authorize_admin_request(request, "device_identity.manage")
         configured = resolve_commercial_scope()

@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-
 _BARRIER_EMOTIONS = {
     "anxious",
     "confused",
@@ -38,10 +37,13 @@ def decide(
         confidence = 0.0
     threshold = min(1.0, max(0.0, float(confidence_threshold)))
     rollout = min(100, max(0, int(rollout_percent or 0)))
-    bucket = int(
-        hashlib.sha256(str(session_id or "").encode("utf-8")).hexdigest()[:8],
-        16,
-    ) % 100
+    bucket = (
+        int(
+            hashlib.sha256(str(session_id or "").encode("utf-8")).hexdigest()[:8],
+            16,
+        )
+        % 100
+    )
     experiment_group = (
         "shadow"
         if resolved_mode == "shadow"
@@ -73,12 +75,18 @@ def decide(
         "experiment_bucket": bucket,
         "adjustments": adjustments,
         "reason": (
-            "disabled" if resolved_mode == "disabled"
-            else "emotion_repaired" if "emotion" in repaired_fields
-            else "low_confidence" if confidence < threshold
-            else "no_ordering_barrier" if emotion not in _BARRIER_EMOTIONS
-            else "shadow_observation" if resolved_mode == "shadow"
-            else "rollout_control" if experiment_group == "control"
+            "disabled"
+            if resolved_mode == "disabled"
+            else "emotion_repaired"
+            if "emotion" in repaired_fields
+            else "low_confidence"
+            if confidence < threshold
+            else "no_ordering_barrier"
+            if emotion not in _BARRIER_EMOTIONS
+            else "shadow_observation"
+            if resolved_mode == "shadow"
+            else "rollout_control"
+            if experiment_group == "control"
             else "allowed_low_risk_adjustment"
         ),
         "transaction_authority": "none",

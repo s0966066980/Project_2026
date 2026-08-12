@@ -141,8 +141,7 @@ def build_order_attributions(order: dict, touches: list[dict]) -> list[dict]:
 
     order_status = _text(order.get("status"), 40)
     attribution_status = (
-        "reversed" if order_status == "cancelled"
-        else ("confirmed" if order_status == "completed" else "provisional")
+        "reversed" if order_status == "cancelled" else ("confirmed" if order_status == "completed" else "provisional")
     )
     rows = []
     seen_items = set()
@@ -158,21 +157,26 @@ def build_order_attributions(order: dict, touches: list[dict]) -> list[dict]:
             continue
         touch = sorted(
             matching,
-            key=lambda row: (_text(row.get("timestamp") or row.get("occurred_at"), 60), _text(row.get("event_id"), 140)),
+            key=lambda row: (
+                _text(row.get("timestamp") or row.get("occurred_at"), 60),
+                _text(row.get("event_id"), 140),
+            ),
         )[-1]
         seen_items.add(order_item_id)
         quantity = max(0, int(item.get("quantity") or 0))
-        rows.append({
-            "order_id": _text(order.get("order_id"), 140),
-            "order_item_id": int(order_item_id),
-            "item_id": item_id,
-            "decision_id": _text(touch.get("decision_id") or touch.get("recommendation_id"), 140),
-            "impression_id": _text(touch.get("impression_id"), 140),
-            "attribution_type": attribution_type,
-            "attributed_revenue": max(0, int(item.get("final_unit_price") or 0)) * quantity,
-            "attributed_discount": max(0, int(item.get("discount_unit_total") or 0)) * quantity,
-            "status": attribution_status,
-        })
+        rows.append(
+            {
+                "order_id": _text(order.get("order_id"), 140),
+                "order_item_id": int(order_item_id),
+                "item_id": item_id,
+                "decision_id": _text(touch.get("decision_id") or touch.get("recommendation_id"), 140),
+                "impression_id": _text(touch.get("impression_id"), 140),
+                "attribution_type": attribution_type,
+                "attributed_revenue": max(0, int(item.get("final_unit_price") or 0)) * quantity,
+                "attributed_discount": max(0, int(item.get("discount_unit_total") or 0)) * quantity,
+                "status": attribution_status,
+            }
+        )
     return rows
 
 
@@ -209,11 +213,10 @@ def build_effectiveness_report(
     click_keys = keys("click")
     add_keys = keys("add_to_cart")
     ignored_keys = keys("ignore") & impression_keys
-    relevant_impressions = {
-        _text(row.get("impression_id"), 140) for row in touches if row.get("impression_id")
-    }
+    relevant_impressions = {_text(row.get("impression_id"), 140) for row in touches if row.get("impression_id")}
     scoped_attributions = [
-        row for row in (attributions or [])
+        row
+        for row in (attributions or [])
         if not active_filters or _text(row.get("impression_id"), 140) in relevant_impressions
     ]
     confirmed = [row for row in scoped_attributions if row.get("status") == "confirmed"]
@@ -224,7 +227,9 @@ def build_effectiveness_report(
     breakdown_map: dict[str, dict[str, Any]] = {}
     for row in touches:
         variant = _text(row.get("variant_id") or "未設定分組", 100)
-        bucket = breakdown_map.setdefault(variant, {"variant_id": variant, "impressions": set(), "clicks": set(), "add_to_carts": set()})
+        bucket = breakdown_map.setdefault(
+            variant, {"variant_id": variant, "impressions": set(), "clicks": set(), "add_to_carts": set()}
+        )
         event_type = row.get("event_type")
         if event_type in {"impression", "click", "add_to_cart"}:
             bucket[f"{event_type}s" if event_type != "add_to_cart" else "add_to_carts"].add(
@@ -262,20 +267,26 @@ def build_effectiveness_report(
             variant_purchases_count = len(variant_purchases.get(row["variant_id"], set()))
             variant_rate = variant_purchases_count / row["impressions"] if row["impressions"] else 0.0
             difference = variant_rate - control_rate
-            comparison_rows.append({
-                "control_variant": control["variant_id"],
-                "variant_id": row["variant_id"],
-                "control_sample": control_impressions,
-                "variant_sample": row["impressions"],
-                "control_purchase_rate": round(control_rate, 4),
-                "variant_purchase_rate": round(variant_rate, 4),
-                "purchase_rate_difference": round(difference, 4),
-                "relative_lift": round(difference / control_rate, 4) if control_rate else None,
-                "attributed_revenue_per_purchase": round(
-                    variant_revenue.get(row["variant_id"], 0) / variant_purchases_count, 2
-                ) if variant_purchases_count else 0,
-                "conclusion": "樣本不足，僅顯示觀察差異" if min(control_impressions, row["impressions"]) < 100 else "可持續觀察此差異",
-            })
+            comparison_rows.append(
+                {
+                    "control_variant": control["variant_id"],
+                    "variant_id": row["variant_id"],
+                    "control_sample": control_impressions,
+                    "variant_sample": row["impressions"],
+                    "control_purchase_rate": round(control_rate, 4),
+                    "variant_purchase_rate": round(variant_rate, 4),
+                    "purchase_rate_difference": round(difference, 4),
+                    "relative_lift": round(difference / control_rate, 4) if control_rate else None,
+                    "attributed_revenue_per_purchase": round(
+                        variant_revenue.get(row["variant_id"], 0) / variant_purchases_count, 2
+                    )
+                    if variant_purchases_count
+                    else 0,
+                    "conclusion": "樣本不足，僅顯示觀察差異"
+                    if min(control_impressions, row["impressions"]) < 100
+                    else "可持續觀察此差異",
+                }
+            )
     warning = "" if impressions >= 100 else "目前樣本少於 100 次有效曝光，成效趨勢僅供參考。"
     purchase_rate = round(purchases / impressions, 4) if impressions else 0.0
     ignore_rate = round(len(ignored_keys) / impressions, 4) if impressions else 0.0

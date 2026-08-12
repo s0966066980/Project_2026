@@ -2,16 +2,15 @@
 
 import asyncio
 
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.recommendation_analytics import recommendation_event_repository, recommendation_event_service
 from fastapi import APIRouter, Body, Request
 
-from repositories import recommendation_event_repository
-from services import recommendation_event_service
-from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
-def create_router(deps: dict | None = None) -> APIRouter:
-    router = APIRouter(prefix="/api", tags=["recommendation_events"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["recommendation_events"])
 
     @router.post("/recommendation_events")
     async def post_recommendation_event(request: Request, payload: dict = Body(...)):

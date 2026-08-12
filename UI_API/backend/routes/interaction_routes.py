@@ -1,17 +1,22 @@
 import asyncio
 
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.recommendation_analytics import (
+    interaction_event_repository,
+    interaction_event_service,
+    intervention_pipeline_service,
+    scenario_service,
+    stats_service,
+)
 from fastapi import APIRouter, Body, Request
 from realtime import event_bus
 
 import config
-from repositories import interaction_event_repository
-from services import interaction_event_service, intervention_pipeline_service, scenario_service, stats_service
-from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
-def create_router(deps: dict | None = None) -> APIRouter:
-    router = APIRouter(prefix="/api", tags=["interaction"])
+def create_router(deps: dict | None = None, *, prefix: str = "/api") -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=["interaction"])
 
     @router.post("/interaction_event")
     async def post_interaction_event(request: Request, payload: dict = Body(...)):

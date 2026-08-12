@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiV1Error, createApiV1Client } from '../../shared/api/v1Client';
+// Keep the contract suite pinned to the typed source; browser feature code uses
+// the sibling `.js` entrypoint because Docker serves static modules directly.
+import { ApiV1Error, createApiV1Client } from '../../shared/api/v1Client.ts';
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
@@ -22,6 +24,32 @@ describe('public API v1 client contract', () => {
     expect(url).toBe('http://api.example/api/v1/health');
     expect(headers.get('Authorization')).toBe('Bearer token-1');
     expect(headers.get('X-Request-Id')).toMatch(/^req_/);
+  });
+
+  it('merges capability headers and keeps validation details on typed errors', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: 'validation_error',
+        message: 'Invalid value',
+        request_id: 'req-details',
+        details: [{ location: ['body', 'name'], message: 'required', type: 'value_error' }],
+      },
+      meta: { request_id: 'req-details', timestamp: 't' },
+    }), { status: 422 }));
+    const client = createApiV1Client({
+      fetchImpl,
+      headers: () => ({ 'X-Kiosk-Token': 'kiosk-1', 'X-Optional': '' }),
+      retryCount: 0,
+    });
+
+    await expect(client.get('/campaigns')).rejects.toMatchObject({
+      code: 'validation_error',
+      details: [{ location: ['body', 'name'] }],
+      fieldErrors: [{ message: 'required' }],
+    });
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get('X-Kiosk-Token')).toBe('kiosk-1');
+    expect(new Headers(init.headers).get('X-Optional')).toBe('');
   });
 
   it('retries safe GET failures but surfaces the typed API error', async () => {
@@ -131,5 +159,29 @@ describe('public API v1 client contract', () => {
     const client = createApiV1Client({ fetchImpl: fetchImpl as unknown as typeof fetch, retryCount: 0, timeoutMs: 100 });
 
     await expect(client.get('/slow')).rejects.toThrow('aborted');
+  });
+
+  it('times out when the response body never completes', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => new Promise<never>(() => {}),
+      });
+      const client = createApiV1Client({ fetchImpl, retryCount: 0, timeoutMs: 100 });
+      const pending = client.get('/slow-body');
+      const settled = Promise.race([
+        pending.then(() => true, () => true),
+        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 200)),
+      ]);
+
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(await settled).toBe(true);
+      await expect(pending).rejects.toThrow('timed out after 100ms');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

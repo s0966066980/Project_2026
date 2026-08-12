@@ -3,10 +3,7 @@ import asyncio
 from fastapi import APIRouter, Body
 
 from repositories import interaction_event_repository
-from services import interaction_event_service
-from services import intervention_pipeline_service
-from services import scenario_service
-
+from services import interaction_event_service, intervention_pipeline_service, scenario_service
 
 SCENARIOS = {
     "operation_difficulty": {
@@ -89,6 +86,7 @@ SCENARIOS = {
     },
 }
 
+
 def _scenario_payload(payload: dict) -> tuple[dict, str, str, str]:
     requested = str((payload or {}).get("scenario") or "operation_difficulty")
     # 別名對照統一由 scenario_service 維護（單一來源）。
@@ -117,12 +115,15 @@ def _scenario_payload(payload: dict) -> tuple[dict, str, str, str]:
         **base,
         **overrides,
     }
-    event.setdefault("ui_context", {
-        "page_id": event.get("page_id"),
-        "cart_count": 1,
-        "promotion_paused": False,
-        "service_open": False,
-    })
+    event.setdefault(
+        "ui_context",
+        {
+            "page_id": event.get("page_id"),
+            "cart_count": 1,
+            "promotion_paused": False,
+            "service_open": False,
+        },
+    )
     return event, speech_text, scenario, requested
 
 
@@ -133,13 +134,9 @@ def create_router(deps: dict | None = None) -> APIRouter:
     async def trigger_scenario(payload: dict = Body(default={})):
         event_payload, speech_text, scenario, requested = _scenario_payload(payload)
         event = interaction_event_service.normalize_interaction_event(event_payload)
-        saved_event = await asyncio.to_thread(
-            interaction_event_repository.append_interaction_event, event
-        )
+        saved_event = await asyncio.to_thread(interaction_event_repository.append_interaction_event, event)
         session_id = str(saved_event.get("session_id") or "")
-        recent_events = await asyncio.to_thread(
-            interaction_event_repository.get_recent_session_events, session_id
-        )
+        recent_events = await asyncio.to_thread(interaction_event_repository.get_recent_session_events, session_id)
         ui_context = saved_event.get("ui_context") if isinstance(saved_event.get("ui_context"), dict) else {}
 
         pipeline_result = await intervention_pipeline_service.run_intervention_pipeline(
@@ -155,8 +152,9 @@ def create_router(deps: dict | None = None) -> APIRouter:
             "status": "success",
             "scenario": scenario,
             "scenario_id": pipeline_result.get("scenario_id", scenario),
-            "scenario_label": pipeline_result.get("scenario_label",
-                scenario_service.get_scenario_definition(scenario).get("label") or ""),
+            "scenario_label": pipeline_result.get(
+                "scenario_label", scenario_service.get_scenario_definition(scenario).get("label") or ""
+            ),
             "requested_scenario": requested,
             "event": saved_event,
             "barrier_result": pipeline_result.get("barrier_result"),

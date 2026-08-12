@@ -15,6 +15,20 @@ from core.constants import FRONTEND_DIR, STATIC_CACHE_PREFIX, TUNNEL_ORIGIN_REGE
 from services import health_service, observability_service
 
 
+def _api_documentation_urls() -> dict[str, str | None]:
+    """Keep the interactive schema out of the commercial runtime surface.
+
+    The generated Admin/Kiosk clients are built from the schema and do not need
+    FastAPI's explorer at runtime. Serving it in Pilot would enumerate every
+    operation to any browser that can reach the host, including the Kiosk.
+    Development and tests retain the explorer for local discovery.
+    """
+
+    if config.is_commercial_runtime():
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
 @asynccontextmanager
 async def lifespan(app):
     observability_service.apply_runtime_retention()
@@ -36,7 +50,12 @@ async def lifespan(app):
 def create_app() -> FastAPI:
     config.validate_startup_config()
     observability_service.configure_logging()
-    app = FastAPI(title="Smart Ordering Kiosk API", version="9.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Smart Ordering Kiosk API",
+        version="9.0",
+        lifespan=lifespan,
+        **_api_documentation_urls(),
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.CORS_ORIGINS,

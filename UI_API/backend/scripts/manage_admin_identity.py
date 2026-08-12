@@ -9,8 +9,9 @@ import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from capabilities.identity_access import interface as admin_identity_service
+
 from repositories import admin_audit_repository, admin_identity_repository
-from services import admin_identity_service
 from utils.commercial_scope_config import resolve_commercial_scope
 
 

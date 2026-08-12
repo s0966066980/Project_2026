@@ -145,7 +145,7 @@ print(",".join(hits) if hits else "NONE")
 check_disabled_routes() {
   local base="${PILOT_BASE_URL:-http://127.0.0.1:8000}"
   local path code
-  for path in /api/ollama/models /api/demo /api/debug; do
+  for path in /api/ollama/models /api/demo /api/debug /docs /redoc /openapi.json; do
     code="$(curl -s -o /dev/null -w '%{http_code}' -m 8 "${base}${path}" || echo 000)"
     [ "$code" = "404" ] && pass "route ${path} absent (${code})" ||
       fail "route ${path} answered ${code}; it must be absent in the Pilot profile"

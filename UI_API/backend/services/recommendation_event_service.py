@@ -2,6 +2,7 @@
 
 負責正規化推薦生命週期事件，並在結帳時補上成交/忽略事件。
 """
+
 import time
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -167,7 +168,9 @@ def _safe_ui_context(value) -> dict:
 
 
 def _member_snapshot(session_id: str, scope: CommercialScope | None = None) -> dict:
-    member = member_service.get_session_member(session_id, scope) if scope else member_service.get_session_member(session_id)
+    member = (
+        member_service.get_session_member(session_id, scope) if scope else member_service.get_session_member(session_id)
+    )
     if not member:
         return {
             "is_member": False,
@@ -309,25 +312,30 @@ def record_checkout_recommendation_events(
         if not base and item_id not in pushed_set and source not in RECOMMENDATION_CART_SOURCES:
             continue
         surface = _surface_from_source(source, _safe_text(base.get("surface") or "checkout", 80))
-        new_events.append(normalize_recommendation_event({
-            "session_id": session_id,
-            "event_type": "recommendation_checked_out",
-            "recommendation_id": base.get("recommendation_id", ""),
-            "surface": surface,
-            "source": source or base.get("source") or surface,
-            "item_id": item_id,
-            "item_name": base.get("item_name", ""),
-            "category": base.get("category", ""),
-            "rank": base.get("rank", 0),
-            "score": base.get("score", 0),
-            "reasons": base.get("reasons", []),
-            "quantity": quantity,
-            "metadata": {
-                "cart_source": source or base.get("source", ""),
-                **_offer_metadata(base),
-                **_experiment_metadata(base),
-            },
-        }, scope))
+        new_events.append(
+            normalize_recommendation_event(
+                {
+                    "session_id": session_id,
+                    "event_type": "recommendation_checked_out",
+                    "recommendation_id": base.get("recommendation_id", ""),
+                    "surface": surface,
+                    "source": source or base.get("source") or surface,
+                    "item_id": item_id,
+                    "item_name": base.get("item_name", ""),
+                    "category": base.get("category", ""),
+                    "rank": base.get("rank", 0),
+                    "score": base.get("score", 0),
+                    "reasons": base.get("reasons", []),
+                    "quantity": quantity,
+                    "metadata": {
+                        "cart_source": source or base.get("source", ""),
+                        **_offer_metadata(base),
+                        **_experiment_metadata(base),
+                    },
+                },
+                scope,
+            )
+        )
 
     ignored_keys = {
         (event.get("recommendation_id"), event.get("item_id"))
@@ -341,24 +349,29 @@ def record_checkout_recommendation_events(
         key = (event.get("recommendation_id"), item_id)
         if not item_id or item_id in final_ids or key in ignored_keys:
             continue
-        new_events.append(normalize_recommendation_event({
-            "session_id": session_id,
-            "event_type": "recommendation_ignored",
-            "recommendation_id": event.get("recommendation_id", ""),
-            "surface": event.get("surface", ""),
-            "source": event.get("source", ""),
-            "item_id": item_id,
-            "item_name": event.get("item_name", ""),
-            "category": event.get("category", ""),
-            "rank": event.get("rank", 0),
-            "score": event.get("score", 0),
-            "reasons": event.get("reasons", []),
-            "metadata": {
-                "reason": "checkout_without_item",
-                **_offer_metadata(event),
-                **_experiment_metadata(event),
-            },
-        }, scope))
+        new_events.append(
+            normalize_recommendation_event(
+                {
+                    "session_id": session_id,
+                    "event_type": "recommendation_ignored",
+                    "recommendation_id": event.get("recommendation_id", ""),
+                    "surface": event.get("surface", ""),
+                    "source": event.get("source", ""),
+                    "item_id": item_id,
+                    "item_name": event.get("item_name", ""),
+                    "category": event.get("category", ""),
+                    "rank": event.get("rank", 0),
+                    "score": event.get("score", 0),
+                    "reasons": event.get("reasons", []),
+                    "metadata": {
+                        "reason": "checkout_without_item",
+                        **_offer_metadata(event),
+                        **_experiment_metadata(event),
+                    },
+                },
+                scope,
+            )
+        )
 
     if scope:
         return recommendation_event_repository.append_recommendation_events_scoped(new_events, scope)

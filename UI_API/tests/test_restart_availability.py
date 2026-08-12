@@ -66,9 +66,7 @@ def test_readiness_reports_optional_capabilities_without_deciding_readiness(monk
     # Readiness is decided by the required checks alone. A warming or failed
     # optional capability may be reported, but never counted.
     assert set(body["required_checks"]).isdisjoint(body["optional_capabilities"])
-    assert body["ready"] == all(
-        check["status"] in {"ok", "skipped"} for check in body["required_checks"].values()
-    )
+    assert body["ready"] == all(check["status"] in {"ok", "skipped"} for check in body["required_checks"].values())
 
 
 def test_a_capability_that_never_started_warming_is_not_gated(monkeypatch):

@@ -111,5 +111,10 @@ def test_the_panel_shape_is_stable_for_every_service():
 
     for status in snapshot.values():
         assert set(status.as_dict()) == {
-            "key", "label", "status", "latency_ms", "observed_at", "safe_error",
+            "key",
+            "label",
+            "status",
+            "latency_ms",
+            "observed_at",
+            "safe_error",
         }

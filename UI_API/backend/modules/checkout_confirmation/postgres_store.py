@@ -14,8 +14,7 @@ def _adapt(parameters):
     dict（cannot adapt type 'dict'），因此在 adapter 這層補上轉換。
     """
     return tuple(
-        json.dumps(value, separators=(",", ":")) if isinstance(value, (dict, list)) else value
-        for value in parameters
+        json.dumps(value, separators=(",", ":")) if isinstance(value, (dict, list)) else value for value in parameters
     )
 
 

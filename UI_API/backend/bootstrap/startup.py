@@ -2,8 +2,8 @@ import asyncio
 import threading
 
 import ai_services
-import config
 
+import config
 
 _background_init_done = False
 _background_init_claim_lock = threading.Lock()
@@ -76,52 +76,64 @@ async def _background_init_once():
     async def _cleanup_voice_turns():
         try:
             from modules.voice_turn.runtime import cleanup_expired
+
             await asyncio.to_thread(cleanup_expired)
         except Exception as e:
             print(f"⚠️ Voice Turn retention cleanup 失敗（不影響服務）: {e}")
+
     tasks.append(_cleanup_voice_turns())
 
     async def _dispatch_checkout_outbox():
         try:
             from modules.checkout_confirmation.runtime import dispatch_outbox
+
             await asyncio.to_thread(dispatch_outbox)
         except Exception as e:
             print(f"⚠️ Checkout outbox dispatch 失敗（不影響已確認訂單）: {e}")
+
     tasks.append(_dispatch_checkout_outbox())
 
     if config.get("STT_PROVIDER", "faster_whisper") != "openai_compatible":
+
         async def _init_stt():
             try:
                 from services.stt_service import FasterWhisperSTT
+
                 await asyncio.to_thread(FasterWhisperSTT()._init)
                 _mark_warmup("stt", "ready")
                 print("✅ STT 模型預載完成")
             except Exception as e:
                 _mark_warmup("stt", "failed")
                 print(f"⚠️ STT 預載失敗（不影響服務）: {e}")
+
         tasks.append(_init_stt())
     else:
         # A remote provider is not this process's model to load.
         _mark_warmup("stt", "skipped")
 
     if config.get("TTS_PROVIDER", "edge") == "melo":
+
         async def _init_tts():
             try:
                 from services.tts_service import MeloTTSProvider
+
                 await asyncio.to_thread(MeloTTSProvider()._init)
                 _mark_warmup("tts", "ready")
                 print("✅ TTS 模型預載完成")
             except Exception as e:
                 _mark_warmup("tts", "failed")
                 print(f"⚠️ TTS 預載失敗（不影響服務）: {e}")
+
         tasks.append(_init_tts())
     else:
         _mark_warmup("tts", "skipped")
 
     if config.get("RAG_ENABLED", False):
+
         async def _init_rag():
             try:
                 from services.rag_provider import get_rag
+
                 await asyncio.to_thread(get_rag()._init)
                 count = await get_rag().count()
                 _mark_warmup("rag", "ready")
@@ -129,19 +141,23 @@ async def _background_init_once():
             except Exception as e:
                 _mark_warmup("rag", "failed")
                 print(f"⚠️ RAG 預載失敗（不影響服務）: {e}")
+
         tasks.append(_init_rag())
 
         async def _cleanup_knowledge_artifacts():
             try:
                 from modules.knowledge_publication.runtime import cleanup_expired_artifacts
+
                 await asyncio.to_thread(cleanup_expired_artifacts)
             except Exception as e:
                 print(f"⚠️ Knowledge artifact retention cleanup 失敗（不影響服務）: {e}")
+
         tasks.append(_cleanup_knowledge_artifacts())
     else:
         _mark_warmup("rag", "skipped")
 
     if config.get("VOICE_LLM_PREWARM_ENABLED", True):
+
         async def _init_voice_llm():
             model = str(config.get("VOICE_ASSIST_MODEL", "qwen3.5:4b") or "qwen3.5:4b")
             try:
@@ -156,6 +172,7 @@ async def _background_init_once():
             else:
                 _mark_warmup("voice_llm", "failed")
                 print(f"⚠️ 語音 LLM 預熱失敗（不影響服務）: {result.get('message') or result.get('reason')}")
+
         tasks.append(_init_voice_llm())
     else:
         # Prewarm disabled means the first request loads the model; that is a

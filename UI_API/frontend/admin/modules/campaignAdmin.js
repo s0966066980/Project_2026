@@ -1,4 +1,5 @@
 import { CAMPAIGN_PLACEMENT_LABELS, CAMPAIGN_STATUS_LABELS, zhLabel } from './zhTWLabels.js';
+import { createCampaignClient } from '../../shared/api/capabilityClients.js';
 
 const DRAFT_KEY = 'project2026_campaign_draft_v1';
 const OBJECTIVE_LABELS = {
@@ -33,6 +34,7 @@ export function campaignMatchesFilter(row, query, statusFilter) {
  * }} options
  */
 export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, loadMenu, getMenuItems, hasPermission = () => false, confirmAction = message => window.confirm(message) }) {
+  const campaignClient = createCampaignClient({ baseUrl: apiBaseUrl, headers: adminHeaders });
   /** @type {any[]} */
   let rows = [];
   /** @type {any} */
@@ -49,22 +51,6 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
   function setValue(id, next) { if (getElement(id)) getElement(id).value = next ?? ''; }
   function menuItems() { return (getMenuItems?.() || []).filter(item => item?.id); }
   function selectedMenuItem() { return menuItems().find(item => text(item.id) === value('campaignItem')); }
-
-  /** @param {string} path @param {RequestInit} [options] @returns {Promise<any>} */
-  async function request(path, options = {}) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...options,
-      headers: { ...adminHeaders(), ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) },
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = /** @type {Error & {code?: string, fieldErrors?: any[]}} */ (new Error(body?.error?.message || body?.detail?.message || `系統回應 ${response.status}`));
-      error.code = body?.error?.code || body?.detail?.code || 'request_failed';
-      error.fieldErrors = body?.error?.details || body?.detail?.field_errors || [];
-      throw error;
-    }
-    return body?.data;
-  }
 
   /** @param {unknown} status */
   function statusLabel(status) { return zhLabel(CAMPAIGN_STATUS_LABELS, status, '未知狀態'); }
@@ -144,7 +130,7 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     if (!current) return;
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payloadFromForm()));
     try {
-      const fresh = await request(`/api/v1/campaigns/${encodeURIComponent(current.campaign_id)}`);
+      const fresh = await campaignClient.get(current.campaign_id);
       current = fresh;
       restoreForm(fresh.payload || {});
       dirty = false;
@@ -281,7 +267,7 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   async function preview() {
     const body = { ...payloadFromForm(), campaign_id: current?.campaign_id || '' };
-    const result = await request('/api/v1/campaigns/preview', { method: 'POST', body: JSON.stringify(body) });
+    const result = await campaignClient.preview(body);
     renderPreview(result);
     return result;
   }
@@ -318,8 +304,8 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     try {
       const payload = payloadFromForm();
       const saved = current
-        ? await request(`/api/v1/campaigns/${encodeURIComponent(current.campaign_id)}/draft`, { method: 'PUT', body: JSON.stringify({ ...payload, expected_version: current.version }) })
-        : await request('/api/v1/campaigns', { method: 'POST', body: JSON.stringify(payload) });
+        ? await campaignClient.reviseDraft(current.campaign_id, { ...payload, expected_version: current.version })
+        : await campaignClient.createDraft(payload);
       current = saved;
       dirty = false;
       localStorage.removeItem(DRAFT_KEY);
@@ -339,8 +325,9 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
 
   /** @param {any} snapshot @param {string} targetStatus */
   async function transition(snapshot, targetStatus) {
-    return request(`/api/v1/campaigns/${encodeURIComponent(snapshot.campaign_id)}/transition`, {
-      method: 'POST', body: JSON.stringify({ target_status: targetStatus, expected_version: snapshot.version }),
+    return campaignClient.transition(snapshot.campaign_id, {
+      target_status: targetStatus,
+      expected_version: snapshot.version,
     });
   }
 
@@ -363,13 +350,10 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
       if (button) button.textContent = '發布中…';
       // One server call performs validation, the content version and the status change together,
       // so a failure here can never leave the campaign stranded between draft and on air.
-      const saved = await request('/api/v1/campaigns/publish', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...payloadFromForm(),
-          campaign_id: current?.campaign_id || '',
-          expected_version: current?.version || 0,
-        }),
+      const saved = await campaignClient.publish({
+        ...payloadFromForm(),
+        campaign_id: current?.campaign_id || '',
+        expected_version: current?.version || 0,
       });
       dirty = false;
       localStorage.removeItem(DRAFT_KEY);
@@ -478,7 +462,7 @@ export function createCampaignAdmin({ apiBaseUrl, adminHeaders, getElement, load
     if (getElement('campaignPublishBtn')) getElement('campaignPublishBtn').hidden = !hasPermission('campaigns.publish');
     await loadMenu(); fillMenuOptions();
     const list = getElement('campaignList'); if (list) list.textContent = '載入中…';
-    try { rows = await request('/api/v1/campaigns'); renderKpis(); renderList(); }
+    try { rows = await campaignClient.list(); renderKpis(); renderList(); }
     catch (error) { if (list) list.textContent = `活動載入失敗：${/** @type {any} */ (error).message}`; }
   }
 

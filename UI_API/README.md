@@ -38,7 +38,7 @@ backend/
 └── scripts/                 # production-adjacent maintenance／worker CLIs
 ```
 
-目前仍處於 Transitional Modular Monolith：Identity 已有 module 雛形，但 `routes/v1_routes.py` 仍跨多個 domain，`routes/services/repositories` 也尚未完成垂直搬遷。新增功能不得擴大這些 legacy ownership。
+目前仍處於 Transitional Modular Monolith：Identity 已有 module 雛形，versioned compatibility transports 已按 capability 拆分；`routes/services/repositories` 仍在垂直搬遷中。新增功能不得擴大這些 legacy ownership。
 
 ## Admin 與 Kiosk
 

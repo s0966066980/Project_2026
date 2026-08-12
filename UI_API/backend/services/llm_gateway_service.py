@@ -184,9 +184,9 @@ class NvidiaNimAdapter:
     name = "nvidia_nim"
 
     def generate(self, request: LLMRequest) -> LLMAdapterResult:
+        import ai_services
         import requests
 
-        import ai_services
         import config
 
         model = request.model_name or "meta/llama-3.1-8b-instruct"
@@ -319,6 +319,7 @@ def stream_tokens(
     """
 
     import ai_services
+
     from services import llm_routing_service
 
     if not llm_routing_service.allows_local(request.model_policy):

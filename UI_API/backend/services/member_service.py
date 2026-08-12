@@ -360,14 +360,16 @@ def build_usuals(member: dict, limit: int | None = None) -> list:
         item = menu_by_id.get(iid)
         if not item:
             continue
-        usuals.append({
-            "id": iid,
-            "name": item.get("name", ""),
-            "price": item.get("price", 0),
-            "image": item.get("official_image_url") or item.get("image", ""),
-            "category": item.get("category", ""),
-            "count": count,
-        })
+        usuals.append(
+            {
+                "id": iid,
+                "name": item.get("name", ""),
+                "price": item.get("price", 0),
+                "image": item.get("official_image_url") or item.get("image", ""),
+                "category": item.get("category", ""),
+                "count": count,
+            }
+        )
         if len(usuals) >= limit:
             break
     return usuals
@@ -395,16 +397,18 @@ def build_history(member: dict, limit: int | None = None) -> list:
             }
             for iid, cnt in counts.items()
         ]
-        history.append({
-            "timestamp": order.get("timestamp", ""),
-            "total": int(order.get("total", 0)),
-            "is_success": bool(order.get("recommendation_success", order.get("is_success", True))),
-            "recommendation_success": bool(order.get("recommendation_success", order.get("is_success", True))),
-            "order_status": order.get("order_status", "completed"),
-            "is_completed": bool(order.get("is_completed", True)),
-            "cancel_reason": order.get("cancel_reason", ""),
-            "items": items,
-        })
+        history.append(
+            {
+                "timestamp": order.get("timestamp", ""),
+                "total": int(order.get("total", 0)),
+                "is_success": bool(order.get("recommendation_success", order.get("is_success", True))),
+                "recommendation_success": bool(order.get("recommendation_success", order.get("is_success", True))),
+                "order_status": order.get("order_status", "completed"),
+                "is_completed": bool(order.get("is_completed", True)),
+                "cancel_reason": order.get("cancel_reason", ""),
+                "items": items,
+            }
+        )
         if len(history) >= limit:
             break
     return history
@@ -457,7 +461,9 @@ def _member_order_metrics(member: dict) -> dict:
         "incomplete_rate": round(len(incomplete_orders) / total_count, 3) if total_count else 0,
         "last_order_status": (
             "completed" if _order_is_completed(orders[-1]) else orders[-1].get("order_status", "cancelled")
-        ) if orders else "",
+        )
+        if orders
+        else "",
     }
 
 
@@ -477,10 +483,7 @@ def _member_recommendation_summary(member: dict) -> dict:
         events = recommendation_event_repository.get_recommendation_events(limit=5000)
     except Exception:
         events = []
-    matched = [
-        event for event in events
-        if str(event.get("member_phone_masked") or "") == phone_masked
-    ]
+    matched = [event for event in events if str(event.get("member_phone_masked") or "") == phone_masked]
     shown = sum(1 for event in matched if event.get("event_type") == "recommendation_shown")
     checked_out = sum(1 for event in matched if event.get("event_type") == "recommendation_checked_out")
     clicked = sum(1 for event in matched if event.get("event_type") == "recommendation_clicked")
@@ -549,12 +552,14 @@ def _cart_item_rows(final_cart_ids: list, cart_items: list | None = None, menu_b
     rows = []
     for item_id, quantity in quantities.items():
         menu_item = menu_rows.get(item_id, {})
-        rows.append({
-            "id": item_id,
-            "quantity": quantity,
-            "name": str(menu_item.get("name") or item_id),
-            "category": str(menu_item.get("category") or ""),
-        })
+        rows.append(
+            {
+                "id": item_id,
+                "quantity": quantity,
+                "name": str(menu_item.get("name") or item_id),
+                "category": str(menu_item.get("category") or ""),
+            }
+        )
     return rows
 
 
@@ -574,9 +579,7 @@ def _update_member_preference_stats(member: dict, cart_rows: list[dict], timesta
         _counter_add(category_freq, str(row.get("category") or "").strip(), quantity)
 
     quantity_by_id = {
-        str(row.get("id") or "").strip(): _as_positive_int(row.get("quantity", 1))
-        for row in cart_rows
-        if row.get("id")
+        str(row.get("id") or "").strip(): _as_positive_int(row.get("quantity", 1)) for row in cart_rows if row.get("id")
     }
     for first_item_id, second_item_id in combinations(sorted(quantity_by_id), 2):
         pair_key = _normalize_pair_key(first_item_id, second_item_id)
@@ -619,17 +622,21 @@ def finalize_checkout(
     member["total_spend"] = int(member.get("total_spend", 0)) + int(total or 0)
     member["last_visit_at"] = timestamp
     _update_member_preference_stats(member, _cart_item_rows(final_cart_ids, cart_items), timestamp)
-    _append_member_order(member, {
-        "timestamp": timestamp,
-        "cart_ids": _expanded_cart_ids(final_cart_ids, cart_items),
-        "cart_items": cart_items if isinstance(cart_items, list) else [],
-        "total": int(total or 0),
-        "order_status": "completed",
-        "is_completed": True,
-        "recommendation_success": bool(recommendation_success),
-        # Backward-compatible field for admin recommendation metrics.
-        "is_success": bool(recommendation_success),
-    }, scope)
+    _append_member_order(
+        member,
+        {
+            "timestamp": timestamp,
+            "cart_ids": _expanded_cart_ids(final_cart_ids, cart_items),
+            "cart_items": cart_items if isinstance(cart_items, list) else [],
+            "total": int(total or 0),
+            "order_status": "completed",
+            "is_completed": True,
+            "recommendation_success": bool(recommendation_success),
+            # Backward-compatible field for admin recommendation metrics.
+            "is_success": bool(recommendation_success),
+        },
+        scope,
+    )
     clear_session(session_id, scope)
     return member
 
@@ -646,16 +653,20 @@ def record_abandoned_order(
     if not member or not normalized_cart_ids:
         return None
     member["last_visit_at"] = datetime.now().isoformat()
-    _append_member_order(member, {
-        "timestamp": datetime.now().isoformat(),
-        "cart_ids": normalized_cart_ids,
-        "total": int(total or 0),
-        "order_status": "cancelled",
-        "is_completed": False,
-        "cancel_reason": str(reason or ""),
-        "recommendation_success": False,
-        "is_success": False,
-    }, scope)
+    _append_member_order(
+        member,
+        {
+            "timestamp": datetime.now().isoformat(),
+            "cart_ids": normalized_cart_ids,
+            "total": int(total or 0),
+            "order_status": "cancelled",
+            "is_completed": False,
+            "cancel_reason": str(reason or ""),
+            "recommendation_success": False,
+            "is_success": False,
+        },
+        scope,
+    )
     clear_session(session_id, scope)
     return member
 
@@ -668,23 +679,25 @@ def admin_list(scope: CommercialScope | None = None) -> list:
         _with_member_commercial_defaults(m)
         favs = [menu_by_id.get(iid, {}).get("name", iid) for iid in member_top_ids(m, 2)]
         metrics = _member_order_metrics(m)
-        rows.append({
-            **_admin_member_identity(m),
-            "nickname": m.get("nickname", ""),
-            "visit_count": int(m.get("visit_count", 0)),
-            "total_spend": int(m.get("total_spend", 0)),
-            "last_visit_at": m.get("last_visit_at", ""),
-            "last_login_at": m.get("last_login_at", ""),
-            "login_count": int(m.get("login_count", 0) or 0),
-            "consent_version": m.get("consent_version", ""),
-            "privacy_version": m.get("privacy_version", ""),
-            "consent_accepted_at": m.get("consent_accepted_at", ""),
-            "order_history_consent": bool(m.get("order_history_consent", False)),
-            "personalization_consent": bool(m.get("personalization_consent", False)),
-            "data_retention_until": m.get("data_retention_until", ""),
-            "favorites": favs,
-            **metrics,
-        })
+        rows.append(
+            {
+                **_admin_member_identity(m),
+                "nickname": m.get("nickname", ""),
+                "visit_count": int(m.get("visit_count", 0)),
+                "total_spend": int(m.get("total_spend", 0)),
+                "last_visit_at": m.get("last_visit_at", ""),
+                "last_login_at": m.get("last_login_at", ""),
+                "login_count": int(m.get("login_count", 0) or 0),
+                "consent_version": m.get("consent_version", ""),
+                "privacy_version": m.get("privacy_version", ""),
+                "consent_accepted_at": m.get("consent_accepted_at", ""),
+                "order_history_consent": bool(m.get("order_history_consent", False)),
+                "personalization_consent": bool(m.get("personalization_consent", False)),
+                "data_retention_until": m.get("data_retention_until", ""),
+                "favorites": favs,
+                **metrics,
+            }
+        )
     return rows
 
 
@@ -705,9 +718,9 @@ def admin_search(
         rows = [
             row
             for row in rows
-            if needle in " ".join(
-                str(row.get(key) or "").casefold()
-                for key in ("member_id", "member_ref", "nickname", "phone_masked")
+            if needle
+            in " ".join(
+                str(row.get(key) or "").casefold() for key in ("member_id", "member_ref", "nickname", "phone_masked")
             )
         ]
     allowed_sort = {"created_at", "nickname", "visit_count", "total_spend"}
@@ -719,7 +732,7 @@ def admin_search(
     total = len(rows)
     safe_page_size = max(1, min(int(page_size), 100))
     offset = (max(1, int(page)) - 1) * safe_page_size
-    return rows[offset:offset + safe_page_size], total
+    return rows[offset : offset + safe_page_size], total
 
 
 def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
@@ -742,28 +755,32 @@ def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
         item_ids = [part for part in str(pair_key).split("|") if part]
         if len(item_ids) != 2:
             continue
-        pairs_ranked.append({
-            "item_ids": item_ids,
-            "names": [menu_by_id.get(item_id, {}).get("name", item_id) for item_id in item_ids],
-            "count": count,
-        })
+        pairs_ranked.append(
+            {
+                "item_ids": item_ids,
+                "names": [menu_by_id.get(item_id, {}).get("name", item_id) for item_id in item_ids],
+                "count": count,
+            }
+        )
     visit = int(m.get("visit_count", 0))
     spend = int(m.get("total_spend", 0))
     metrics = _member_order_metrics(m)
     orders = []
     for order in reversed(m.get("orders") or []):
         completed = _order_is_completed(order)
-        orders.append({
-            "timestamp": order.get("timestamp", ""),
-            "cart_ids": list(order.get("cart_ids") or []),
-            "items": _order_item_rows(order, menu_by_id),
-            "total": int(order.get("total", 0) or 0),
-            "order_status": order.get("order_status", "completed" if completed else "cancelled"),
-            "is_completed": completed,
-            "cancel_reason": order.get("cancel_reason", ""),
-            "recommendation_success": _order_recommendation_success(order),
-            "is_success": _order_recommendation_success(order),
-        })
+        orders.append(
+            {
+                "timestamp": order.get("timestamp", ""),
+                "cart_ids": list(order.get("cart_ids") or []),
+                "items": _order_item_rows(order, menu_by_id),
+                "total": int(order.get("total", 0) or 0),
+                "order_status": order.get("order_status", "completed" if completed else "cancelled"),
+                "is_completed": completed,
+                "cancel_reason": order.get("cancel_reason", ""),
+                "recommendation_success": _order_recommendation_success(order),
+                "is_success": _order_recommendation_success(order),
+            }
+        )
     return {
         **_admin_member_identity(m),
         "nickname": m.get("nickname", ""),
@@ -804,24 +821,27 @@ def admin_detail(phone, scope: CommercialScope | None = None) -> dict | None:
 
 def export_members_csv(scope: CommercialScope | None = None) -> str:
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "phone_masked",
-        "nickname",
-        "consent_version",
-        "consent_accepted_at",
-        "order_history_consent",
-        "personalization_consent",
-        "data_retention_until",
-        "last_login_at",
-        "visit_count",
-        "completed_order_count",
-        "incomplete_order_count",
-        "completed_spend",
-        "avg_completed_spend",
-        "last_visit_at",
-        "favorites",
-        "preferred_categories",
-    ])
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "phone_masked",
+            "nickname",
+            "consent_version",
+            "consent_accepted_at",
+            "order_history_consent",
+            "personalization_consent",
+            "data_retention_until",
+            "last_login_at",
+            "visit_count",
+            "completed_order_count",
+            "incomplete_order_count",
+            "completed_spend",
+            "avg_completed_spend",
+            "last_visit_at",
+            "favorites",
+            "preferred_categories",
+        ],
+    )
     writer.writeheader()
     menu_by_id = _menu_by_id()
     members = member_repository.get_all_members_scoped(scope) if scope else member_repository.get_all_members()
@@ -830,7 +850,8 @@ def export_members_csv(scope: CommercialScope | None = None) -> str:
         metrics = _member_order_metrics(member)
         usuals = build_usuals(member, limit=5)
         categories = [
-            category for category, _ in sorted(
+            category
+            for category, _ in sorted(
                 (member.get("category_freq") or {}).items(),
                 key=lambda item: int(item[1] or 0),
                 reverse=True,
@@ -839,28 +860,28 @@ def export_members_csv(scope: CommercialScope | None = None) -> str:
         ][:5]
         if not categories:
             categories = [
-                str(menu_by_id.get(item.get("id"), {}).get("category") or "")
-                for item in usuals
-                if item.get("id")
+                str(menu_by_id.get(item.get("id"), {}).get("category") or "") for item in usuals if item.get("id")
             ][:5]
-        writer.writerow({
-            "phone_masked": str(member.get("phone_masked") or mask_phone(member.get("phone", ""))),
-            "nickname": member.get("nickname", ""),
-            "consent_version": member.get("consent_version", ""),
-            "consent_accepted_at": member.get("consent_accepted_at", ""),
-            "order_history_consent": bool(member.get("order_history_consent", False)),
-            "personalization_consent": bool(member.get("personalization_consent", False)),
-            "data_retention_until": member.get("data_retention_until", ""),
-            "last_login_at": member.get("last_login_at", ""),
-            "visit_count": int(member.get("visit_count", 0) or 0),
-            "completed_order_count": metrics.get("completed_order_count", 0),
-            "incomplete_order_count": metrics.get("incomplete_order_count", 0),
-            "completed_spend": metrics.get("completed_spend", 0),
-            "avg_completed_spend": metrics.get("avg_completed_spend", 0),
-            "last_visit_at": member.get("last_visit_at", ""),
-            "favorites": "、".join(item.get("name", "") for item in usuals if item.get("name")),
-            "preferred_categories": "、".join(category for category in categories if category),
-        })
+        writer.writerow(
+            {
+                "phone_masked": str(member.get("phone_masked") or mask_phone(member.get("phone", ""))),
+                "nickname": member.get("nickname", ""),
+                "consent_version": member.get("consent_version", ""),
+                "consent_accepted_at": member.get("consent_accepted_at", ""),
+                "order_history_consent": bool(member.get("order_history_consent", False)),
+                "personalization_consent": bool(member.get("personalization_consent", False)),
+                "data_retention_until": member.get("data_retention_until", ""),
+                "last_login_at": member.get("last_login_at", ""),
+                "visit_count": int(member.get("visit_count", 0) or 0),
+                "completed_order_count": metrics.get("completed_order_count", 0),
+                "incomplete_order_count": metrics.get("incomplete_order_count", 0),
+                "completed_spend": metrics.get("completed_spend", 0),
+                "avg_completed_spend": metrics.get("avg_completed_spend", 0),
+                "last_visit_at": member.get("last_visit_at", ""),
+                "favorites": "、".join(item.get("name", "") for item in usuals if item.get("name")),
+                "preferred_categories": "、".join(category for category in categories if category),
+            }
+        )
     return output.getvalue()
 
 

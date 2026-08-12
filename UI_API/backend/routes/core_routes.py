@@ -1,5 +1,7 @@
 import asyncio
 
+from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.operations_configuration import interface as operations
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
@@ -8,15 +10,6 @@ from realtime import event_bus
 import config
 from core.constants import FRONTEND_DIR
 from models.settings_contract import SettingsUpdateRequest
-from repositories import commercial_settings_repository, log_repository
-from services import (
-    admin_audit_service,
-    health_service,
-    llm_routing_service,
-    observability_service,
-    stats_service,
-)
-from services.commercial_context_service import scope_from_admin_principal, scope_from_device_principal
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
 
@@ -44,25 +37,22 @@ def create_router(deps: dict) -> APIRouter:
     @router.delete("/api/session_stats")
     async def clear_session_stats(request: Request):
         authorize_admin_request(request, "operations.write")
-        await asyncio.to_thread(log_repository.clear_session_logs)
+        await asyncio.to_thread(operations.clear_session_logs)
         return {"status": "success"}
 
     @router.get("/api/session_stats")
     async def get_session_stats(request: Request):
         authorize_admin_request(request, "operations.read")
-        logs = await asyncio.to_thread(log_repository.get_session_logs)
-        stats = stats_service.compute_session_stats(logs)
+        logs = await asyncio.to_thread(operations.get_session_logs)
+        stats = operations.compute_session_stats(logs)
         return {"status": "success", **stats}
 
     @router.get("/api/public_settings")
     async def get_public_settings(request: Request):
         principal = require_kiosk_token(request)
         scope = scope_from_device_principal(principal)
-        settings = commercial_settings_repository.get_settings_scoped(scope)
-        return {
-            key: settings.get(key, config.DEFAULT_SETTINGS.get(key))
-            for key in config.PUBLIC_SETTINGS_KEYS
-        }
+        settings = operations.get_public_settings(scope)
+        return {key: settings.get(key, config.DEFAULT_SETTINGS.get(key)) for key in config.PUBLIC_SETTINGS_KEYS}
 
     def _settings_changes(rows: list[dict], version: int) -> list[dict]:
         """Diff one version against the one before it, skipping unchanged keys."""
@@ -82,20 +72,20 @@ def create_router(deps: dict) -> APIRouter:
     async def get_settings(request: Request):
         principal = authorize_admin_request(request, "settings.read")
         scope = scope_from_admin_principal(principal)
-        settings = commercial_settings_repository.get_settings_scoped(scope)
+        settings = operations.get_public_settings(scope)
         return config.with_effective_emotion_prompt(settings)
 
     @router.get("/api/settings/llm-routing")
     async def get_llm_routing(request: Request):
         """Whether each half of the configured chain can serve, without sending a prompt."""
         authorize_admin_request(request, "settings.read")
-        return await asyncio.to_thread(llm_routing_service.readiness)
+        return await asyncio.to_thread(operations.llm_readiness)
 
     @router.get("/api/settings/llm-traffic")
     async def get_llm_traffic(request: Request):
         """Which provider actually answered recently — the check against configured intent."""
         authorize_admin_request(request, "settings.read")
-        counters = observability_service.metrics_snapshot().get("llm_provider_requests_total", {})
+        counters = operations.llm_traffic_metrics()
         providers: dict[str, float] = {}
         fallbacks = 0.0
         for label, count in counters.items():
@@ -114,63 +104,67 @@ def create_router(deps: dict) -> APIRouter:
         """Send one real probe per configured provider. Changes no settings."""
         authorize_admin_request(request, "settings.write")
         check_rate_limit(request, "admin_llm_connectivity_test", limit=10)
-        return await asyncio.to_thread(llm_routing_service.connectivity_test)
+        return await asyncio.to_thread(operations.llm_connectivity_test)
 
     @router.get("/api/settings/versions")
     async def list_settings_versions(request: Request):
         principal = authorize_admin_request(request, "settings.read")
         scope = scope_from_admin_principal(principal)
-        rows = await asyncio.to_thread(commercial_settings_repository.list_versions_scoped, scope, 25)
-        return {"versions": [
-            {
-                "version": row["version"],
-                "actor_id": row["actor_id"],
-                "created_at": row["created_at"],
-                "changes": _settings_changes(rows, row["version"]),
-            }
-            for row in rows
-        ]}
+        rows = await asyncio.to_thread(operations.list_settings_versions, scope, 25)
+        return {
+            "versions": [
+                {
+                    "version": row["version"],
+                    "actor_id": row["actor_id"],
+                    "created_at": row["created_at"],
+                    "changes": _settings_changes(rows, row["version"]),
+                }
+                for row in rows
+            ]
+        }
 
     @router.post("/api/settings/versions/{version}/rollback")
     async def rollback_settings_version(request: Request, version: int):
         principal = authorize_admin_request(request, "settings.write")
         scope = scope_from_admin_principal(principal)
         check_rate_limit(request, "admin_settings_update", limit=30)
-        target = await asyncio.to_thread(commercial_settings_repository.get_version_settings, scope, version)
+        target = await asyncio.to_thread(operations.get_settings_version, scope, version)
         if target is None:
-            raise HTTPException(status_code=404, detail={"code": "settings_version_not_found", "message": "找不到這個設定版本。"})
+            raise HTTPException(
+                status_code=404, detail={"code": "settings_version_not_found", "message": "找不到這個設定版本。"}
+            )
         # Roll forward to a copy of the old document rather than deleting versions, so the
         # rollback itself stays auditable.
-        saved_settings = commercial_settings_repository.save_settings_scoped(
-            target, scope, actor_id=principal.user_id
+        saved_settings = operations.save_settings(target, scope, actor_id=principal.user_id)
+        await event_bus.publish_event(
+            {
+                "type": "settings_changed",
+                "session_id": "",
+                "payload": {"settings": config.public_settings(saved_settings)},
+            }
         )
-        await event_bus.publish_event({
-            "type": "settings_changed",
-            "session_id": "",
-            "payload": {"settings": config.public_settings(saved_settings)},
-        })
         return {"status": "success", "restored_from": version}
 
     @router.get("/api/admin/health")
     async def get_admin_health(request: Request):
         principal = authorize_admin_request(request, "operations.read")
         scope = scope_from_admin_principal(principal)
-        actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
-        return await health_service.build_admin_health(actions)
+        actions = await asyncio.to_thread(operations.list_admin_audits, 500, scope)
+        return await operations.build_admin_health(actions)
 
     async def record_health_incident_action(request: Request, incident_id: str, action: str, body: dict) -> dict:
         principal = authorize_admin_request(request, "operations.write")
         scope = scope_from_admin_principal(principal)
         check_rate_limit(request, "admin_health_incident_action", limit=30)
-        actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
-        current = await health_service.build_admin_health(actions)
+        actions = await asyncio.to_thread(operations.list_admin_audits, 500, scope)
+        current = await operations.build_admin_health(actions)
         incidents = current.get("operational", {}).get("incidents", [])
         incident = next((row for row in incidents if row.get("incident_id") == incident_id), None)
         if incident is None:
             raise HTTPException(status_code=404, detail="health incident is no longer active")
         reason = str((body or {}).get("reason") or "").strip()[:500]
         await asyncio.to_thread(
-            admin_audit_service.record_admin_action,
+            operations.record_admin_action,
             action,
             target_type="health_incident",
             target_id=incident_id,
@@ -178,8 +172,8 @@ def create_router(deps: dict) -> APIRouter:
             metadata={"reason": reason, "check_key": incident.get("check_key", "")},
             scope=scope,
         )
-        updated_actions = await asyncio.to_thread(admin_audit_service.list_admin_audits, 500, scope)
-        return await health_service.build_admin_health(updated_actions)
+        updated_actions = await asyncio.to_thread(operations.list_admin_audits, 500, scope)
+        return await operations.build_admin_health(updated_actions)
 
     @router.post("/api/admin/health/incidents/{incident_id}/acknowledge")
     async def acknowledge_health_incident(request: Request, incident_id: str, body: dict = Body(default={})):
@@ -222,9 +216,7 @@ def create_router(deps: dict) -> APIRouter:
                     ],
                 },
             ) from exc
-        saved_settings = commercial_settings_repository.save_settings_scoped(
-            validated.changed_settings(), scope, actor_id=principal.user_id
-        )
+        saved_settings = operations.save_settings(validated.changed_settings(), scope, actor_id=principal.user_id)
         await event_bus.publish_event(
             {
                 "type": "settings_changed",
@@ -239,7 +231,7 @@ def create_router(deps: dict) -> APIRouter:
     @router.get("/api/logs")
     async def get_logs(request: Request):
         authorize_admin_request(request, "operations.read")
-        logs = await asyncio.to_thread(log_repository.get_session_logs)
+        logs = await asyncio.to_thread(operations.get_session_logs)
         indexed_logs = []
         for idx, log in enumerate(logs):
             row = dict(log)
@@ -259,13 +251,13 @@ def create_router(deps: dict) -> APIRouter:
     @router.delete("/api/logs")
     async def clear_logs(request: Request):
         authorize_admin_request(request, "operations.write")
-        await asyncio.to_thread(log_repository.clear_session_logs)
+        await asyncio.to_thread(operations.clear_session_logs)
         return {"status": "success"}
 
     @router.delete("/api/logs/{log_index}")
     async def delete_log(request: Request, log_index: int):
         authorize_admin_request(request, "operations.write")
-        deleted = await asyncio.to_thread(log_repository.delete_session_log, log_index)
+        deleted = await asyncio.to_thread(operations.delete_session_log, log_index)
         return {"status": "success" if deleted else "not_found"}
 
     return router

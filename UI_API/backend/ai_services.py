@@ -1,9 +1,10 @@
-import requests
-from requests.adapters import HTTPAdapter
-from typing import Iterator
 import json
 import re
 import time
+from typing import Iterator
+
+import requests
+from requests.adapters import HTTPAdapter
 
 import config
 
@@ -56,9 +57,10 @@ def warm_ollama_model(model_name: str) -> dict:
             "message": str(exc)[:200],
         }
 
+
 def _strip_think_blocks(content: str) -> str:
     """剝除 qwen3 / 思維模型輸出的 <think>...</think> block，避免干擾 JSON 擷取。"""
-    return re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
+    return re.sub(r"<think>[\s\S]*?</think>", "", content, flags=re.IGNORECASE).strip()
 
 
 def _repair_and_extract_json(content: str) -> dict | None:
@@ -83,14 +85,14 @@ def _repair_and_extract_json(content: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    fence = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
+    fence = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", content)
     if fence:
         try:
             return json.loads(fence.group(1).strip())
         except json.JSONDecodeError:
             pass
 
-    start = content.find('{')
+    start = content.find("{")
     if start == -1:
         print(f"⚠️ 找不到 JSON，Ollama 原始輸出:\n{content}")
         return None
@@ -104,7 +106,7 @@ def _repair_and_extract_json(content: str) -> dict | None:
         if escape_next:
             escape_next = False
             continue
-        if ch == '\\' and in_string:
+        if ch == "\\" and in_string:
             escape_next = True
             continue
         if ch == '"':
@@ -112,16 +114,16 @@ def _repair_and_extract_json(content: str) -> dict | None:
             continue
         if in_string:
             continue
-        if ch == '{':
+        if ch == "{":
             depth += 1
-        elif ch == '}':
+        elif ch == "}":
             depth -= 1
             if depth == 0:
                 end_idx = i
                 break
 
     if end_idx != -1:
-        candidate = fragment[:end_idx + 1]
+        candidate = fragment[: end_idx + 1]
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
@@ -138,9 +140,9 @@ def _repair_and_extract_json(content: str) -> dict | None:
             repaired += '"'
         # 移除尾端可能造成 parse error 的開放結構（例如 "key": 或結尾逗號）
         stripped = repaired.rstrip()
-        if stripped.endswith((',', ':')):
+        if stripped.endswith((",", ":")):
             stripped = stripped[:-1].rstrip()
-        repaired = stripped + ('}' * depth)
+        repaired = stripped + ("}" * depth)
         try:
             result = json.loads(repaired)
             if isinstance(result, dict):
@@ -170,29 +172,36 @@ def _parse_llm_json_response(content: str, response_tag: str = "") -> dict:
     return {"error": "找不到 JSON 格式的輸出", "raw_content": content}
 
 
-def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", temperature: float | None = None, num_predict: int | None = None) -> dict:
+def _ask_ollama_local(
+    system_prompt: str,
+    user_prompt: str,
+    response_tag: str = "",
+    model_name: str = "",
+    temperature: float | None = None,
+    num_predict: int | None = None,
+) -> dict:
     """呼叫本機 Ollama 並強制擷取 JSON。"""
-    enforced_system = (
-        _enforced_json_system_prompt(system_prompt)
-    )
+    enforced_system = _enforced_json_system_prompt(system_prompt)
     payload = {
         "model": model_name or config.get("MODEL_NAME", "llama3.2"),
         "prompt": f"【系統指令】\n{enforced_system}\n\n{user_prompt}",
         "stream": False,
         "format": "json",
-        "think": False,          # disable thinking mode for qwen3/thinking models (Ollama ≥0.5.1)
+        "think": False,  # disable thinking mode for qwen3/thinking models (Ollama ≥0.5.1)
         "keep_alive": str(config.get("OLLAMA_KEEP_ALIVE", "30m") or "30m"),
         "options": {
             "temperature": float(config.get("OLLAMA_TEMPERATURE", 0.8)) if temperature is None else float(temperature),
-            "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220))
-        }
+            "num_predict": num_predict if num_predict is not None else int(config.get("OLLAMA_NUM_PREDICT", 220)),
+        },
     }
     try:
-        response = _get_ollama_session().post(config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120)))
+        response = _get_ollama_session().post(
+            config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120))
+        )
         response.raise_for_status()
         content = response.json().get("response", "")
         if config.get("OLLAMA_LOG_RAW", False):
-            print(f"📝 Ollama{'['+response_tag+']' if response_tag else ''} 原始回應:\n{content[:400]}\n{'='*40}")
+            print(f"📝 Ollama{'[' + response_tag + ']' if response_tag else ''} 原始回應:\n{content[:400]}\n{'=' * 40}")
 
         return _parse_llm_json_response(content, response_tag)
 
@@ -201,9 +210,13 @@ def _ask_ollama_local(system_prompt: str, user_prompt: str, response_tag: str = 
         return {"error": str(e), "raw_content": "無法連線至 Ollama"}
 
 
-def ask_ollama(system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None) -> dict:
+def ask_ollama(
+    system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None
+) -> dict:
     """本地 Ollama 專用入口。語音、AI 推播、介入分析一律使用這條路徑。"""
-    return _ask_ollama_local(system_prompt, user_prompt, response_tag, model_name, temperature=None, num_predict=num_predict)
+    return _ask_ollama_local(
+        system_prompt, user_prompt, response_tag, model_name, temperature=None, num_predict=num_predict
+    )
 
 
 def stream_ollama_tokens(
@@ -228,7 +241,9 @@ def stream_ollama_tokens(
     }
     try:
         response = _get_ollama_session().post(
-            config.OLLAMA_API_URL, json=payload, stream=True,
+            config.OLLAMA_API_URL,
+            json=payload,
+            stream=True,
             timeout=int(config.get("OLLAMA_TIMEOUT", 120)),
         )
         response.raise_for_status()
@@ -268,9 +283,11 @@ def ask_ollama_raw_text(system_prompt: str, user_prompt: str, model_name: str = 
         )
         response.raise_for_status()
         text = _strip_think_blocks(response.json().get("response", ""))
-        return {"text": text, "latency_ms": int((time.time() - t0) * 1000),
-                "provider": "ollama", "model": payload["model"]}
+        return {
+            "text": text,
+            "latency_ms": int((time.time() - t0) * 1000),
+            "provider": "ollama",
+            "model": payload["model"],
+        }
     except Exception as e:
         return {"error": str(e), "text": "", "latency_ms": 0}
-
-

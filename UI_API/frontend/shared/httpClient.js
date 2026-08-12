@@ -3,20 +3,34 @@
 /**
  * @template ResponseBody
  * @param {Response} response
+ * @param {{ timeoutMs?: number }} [options]
  * @returns {Promise<ResponseBody>}
  */
-export async function readJson(response) {
-  return response.json();
+export async function readJson(response, options = {}) {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  /** @type {any} */
+  let deadline = null;
+  try {
+    return await Promise.race([
+      response.json(),
+      new Promise((_resolve, reject) => {
+        deadline = setTimeout(() => reject(new Error(`response body timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (deadline !== null) clearTimeout(deadline);
+  }
 }
 
 /**
  * 讀出後端錯誤回應中的可讀訊息；解析失敗時退回 HTTP 狀態碼。
  * @param {Response} response
+ * @param {number} timeoutMs
  * @returns {Promise<string>}
  */
-async function readErrorMessage(response) {
+async function readErrorMessage(response, timeoutMs) {
   try {
-    const body = await response.json();
+    const body = await readJson(response, { timeoutMs });
     const detail = body?.detail ?? body?.message ?? body?.error;
     if (typeof detail === 'string' && detail) return detail;
     if (detail && typeof detail === 'object') return JSON.stringify(detail);
@@ -36,18 +50,15 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
 /** @typedef {RequestInit & {timeoutMs?: number}} BoundedRequestInit */
 
 /**
- * 非 2xx 一律丟出例外。否則錯誤回應（例如 401 的 {"detail": ...}）會被當成
- * 正常結果傳給呼叫端，讓 AI 推播之類的功能靜默退回本地備援而看不到錯誤。
- *
  * 每個請求都有時限：abort signal 是有禮貌的路徑，deadline 才是保證——
- * 不論傳輸層是否理會 signal，這個 Promise 一定會 settle。
+ * 不論傳輸層是否理會 signal，這個 Promise 一定會 settle。所有 feature
+ * module 都透過這個 shared transport，不能自行呼叫瀏覽器 fetch。
  *
- * @template ResponseBody
  * @param {string} url
  * @param {BoundedRequestInit} [options]
- * @returns {Promise<ResponseBody>}
+ * @returns {Promise<Response>}
  */
-export async function fetchJson(url, options) {
+export async function fetchResponse(url, options) {
   const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...requestInit } = options || {};
   const controller = new AbortController();
   /** @type {any} */
@@ -67,8 +78,23 @@ export async function fetchJson(url, options) {
   } finally {
     if (deadline !== null) clearTimeout(deadline);
   }
-  if (!response.ok) throw new Error(await readErrorMessage(response));
-  return readJson(response);
+  return response;
+}
+
+/**
+ * 非 2xx 一律丟出例外。否則錯誤回應（例如 401 的 {"detail": ...}）會被當成
+ * 正常結果傳給呼叫端，讓 AI 推播之類的功能靜默退回本地備援而看不到錯誤。
+ *
+ * @template ResponseBody
+ * @param {string} url
+ * @param {BoundedRequestInit} [options]
+ * @returns {Promise<ResponseBody>}
+ */
+export async function fetchJson(url, options) {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const response = await fetchResponse(url, options);
+  if (!response.ok) throw new Error(await readErrorMessage(response, timeoutMs));
+  return readJson(response, { timeoutMs });
 }
 
 /**

@@ -19,6 +19,8 @@ ADMIN_PERMISSION_CATALOG: tuple[tuple[str, str], ...] = (
     ("campaigns.write", "Create and revise campaign drafts"),
     ("campaigns.publish", "Review, publish, pause, end, and archive campaigns"),
     ("recommendations.write", "Clear recommendation events"),
+    ("optimization.summary", "Run and read bounded Daily Optimization Reference Reports"),
+    ("optimization.evidence.read", "Expand de-identified optimization evidence after step-up"),
     ("rag.read", "Read RAG Studio knowledge, retrieval status, tests, and evaluations"),
     ("rag.write", "Create and revise RAG drafts, imports, and test cases"),
     ("rag.publish", "Publish or retire RAG knowledge and retrieval configurations"),

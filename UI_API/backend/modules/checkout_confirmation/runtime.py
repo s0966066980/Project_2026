@@ -3,12 +3,12 @@ from __future__ import annotations
 from threading import Lock
 from uuid import UUID
 
+from capabilities import catalog
 from modules.cart import CartModule, PostgresCartStore, SQLiteCartStore
 from modules.runtime_persistence.runtime import sqlite_database_path
 
 import config
 from models.commercial_scope import LEGACY_DEFAULT_DEVICE_ID, CommercialScope
-from capabilities import catalog
 from repositories import postgres_utils
 from services import checkout_pricing_service, member_service
 

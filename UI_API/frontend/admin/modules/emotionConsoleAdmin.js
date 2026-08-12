@@ -68,12 +68,18 @@ export function createEmotionSectionLoader({ requests, onState }) {
     const request = requests[section];
     if (!request) return;
     onState(section, { status: 'loading' });
+    /** @type {unknown} */
+    let data;
     try {
-      const data = await request();
-      onState(section, { status: 'ready', data });
+      data = await request();
     } catch (error) {
       onState(section, { status: 'error', message: describeEmotionApiError(error), error });
+      return;
     }
+    // Rendering stays outside the catch: a bug in the renderer is not a
+    // transport fault, and reporting it as one sends operators to check a
+    // backend that answered correctly.
+    onState(section, { status: 'ready', data });
   }
 
   async function refreshAll() {

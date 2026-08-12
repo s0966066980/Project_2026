@@ -1,9 +1,14 @@
 import config
 
 BARRIER_STATES = {
-    "normal_operation", "menu_hesitation", "operation_confusion",
-    "payment_confusion", "impatience_detected",
-    "service_needed", "potential_complaint", "low_confidence",
+    "normal_operation",
+    "menu_hesitation",
+    "operation_confusion",
+    "payment_confusion",
+    "impatience_detected",
+    "service_needed",
+    "potential_complaint",
+    "low_confidence",
 }
 
 INTERVENTION_CATEGORY_MAP = {

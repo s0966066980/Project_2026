@@ -32,6 +32,29 @@ describe('bounded JSON requests', () => {
     expect(seenSignal?.aborted).toBe(true);
   });
 
+  it('rejects when the response body never completes', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: () => new Promise<never>(() => {}),
+      })));
+      const pending = fetchJson('http://api/slow-body', { timeoutMs: 20 });
+      const settled = Promise.race([
+        pending.then(() => true, () => true),
+        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 30)),
+      ]);
+
+      await vi.advanceTimersByTimeAsync(30);
+
+      expect(await settled).toBe(true);
+      await expect(pending).rejects.toThrow(/timed out/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not send the deadline to the transport as a request field', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ ok: 1 }) }));
     vi.stubGlobal('fetch', fetchImpl);

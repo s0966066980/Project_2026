@@ -17,12 +17,8 @@ BACKEND = Path(__file__).resolve().parents[1] / "backend"
 MIGRATIONS = BACKEND / "schemas" / "migrations"
 
 _TABLE = re.compile(r"CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\((.*?)\n\)\s*;", re.S | re.I)
-_STATUS_CHECK = re.compile(
-    r"status\s+TEXT\s+NOT NULL\s+CHECK\s*\(\s*status\s+IN\s*\((.*?)\)\s*\)", re.S | re.I
-)
-_ADD_CONSTRAINT = re.compile(
-    r"ALTER TABLE\s+(\w+)\s+ADD CONSTRAINT \w+ CHECK \(status IN \((.*?)\)\)", re.S | re.I
-)
+_STATUS_CHECK = re.compile(r"status\s+TEXT\s+NOT NULL\s+CHECK\s*\(\s*status\s+IN\s*\((.*?)\)\s*\)", re.S | re.I)
+_ADD_CONSTRAINT = re.compile(r"ALTER TABLE\s+(\w+)\s+ADD CONSTRAINT \w+ CHECK \(status IN \((.*?)\)\)", re.S | re.I)
 
 
 def _values(sql: str) -> set[str]:
@@ -91,9 +87,7 @@ def test_voice_turn_statuses_match_the_kiosk_protocol():
     """The kiosk refuses unknown event types, so a new terminal status must be listed there too."""
     from modules.voice_turn.module import TERMINAL
 
-    protocol = (
-        BACKEND.parent / "frontend" / "kiosk" / "voiceTurnProtocol.js"
-    ).read_text(encoding="utf-8")
+    protocol = (BACKEND.parent / "frontend" / "kiosk" / "voiceTurnProtocol.js").read_text(encoding="utf-8")
     known = _values(protocol.split("KNOWN_EVENT_TYPES", 1)[1].split("]", 1)[0])
 
     missing = {status for status in TERMINAL if status not in known}

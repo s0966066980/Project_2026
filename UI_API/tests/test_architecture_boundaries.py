@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 from backend.capabilities import CAPABILITIES
@@ -71,6 +72,15 @@ def test_boundary_roots_exist() -> None:
     assert FOUNDATION_ROOT.is_dir()
 
 
+def test_every_manifest_capability_has_a_published_package() -> None:
+    missing = []
+    for capability in CAPABILITIES:
+        package = CAPABILITIES_ROOT / capability.key
+        if not all((package / name).is_file() for name in ("__init__.py", "contracts.py", "interface.py")):
+            missing.append(capability.key)
+    assert missing == []
+
+
 def test_foundation_does_not_depend_on_business_capabilities() -> None:
     violations = [
         f"{path.relative_to(UI_API_ROOT)} -> {imported}"
@@ -136,4 +146,32 @@ def test_catalog_has_no_legacy_transport_or_frontend_consumer() -> None:
         for literal in forbidden
         if literal in path.read_text(encoding="utf-8")
     ]
+    assert violations == []
+
+
+def test_frontend_feature_code_uses_shared_transport_only() -> None:
+    violations = []
+    for root_name in ("admin", "kiosk"):
+        root = UI_API_ROOT / "frontend" / root_name
+        for path in root.rglob("*.js"):
+            source = path.read_text(encoding="utf-8")
+            code_lines = [line for line in source.splitlines() if not line.lstrip().startswith(("//", "*"))]
+            if any("fetch(" in line for line in code_lines) and "shared/httpClient.js" not in source:
+                violations.append(str(path.relative_to(UI_API_ROOT)))
+    assert violations == []
+
+
+def test_frontend_feature_code_has_one_versioned_client_owner() -> None:
+    """Static source serving must not reintroduce feature-level v1 URLs."""
+
+    client = UI_API_ROOT / "frontend" / "shared" / "api" / "v1Client.js"
+    assert client.exists(), "the static runtime needs a directly-served JS client entrypoint"
+    violations = []
+    for root_name in ("admin", "kiosk"):
+        root = UI_API_ROOT / "frontend" / root_name
+        for path in root.rglob("*.js"):
+            source = path.read_text(encoding="utf-8")
+            code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("//", "*")))
+            if re.search(r"[\"'`]\/api\/v1(?:[/?`\"'])", code):
+                violations.append(str(path.relative_to(UI_API_ROOT)))
     assert violations == []

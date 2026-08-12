@@ -63,10 +63,7 @@ def test_cache_entries_expire(adapter, scope):
 
 def test_rate_limit_allows_up_to_the_limit_then_refuses(adapter, scope):
     tenant_id, store_id = scope
-    allowed = [
-        adapter.allow_rate_limit(tenant_id, store_id, "voice", limit=2, window_seconds=60)
-        for _ in range(3)
-    ]
+    allowed = [adapter.allow_rate_limit(tenant_id, store_id, "voice", limit=2, window_seconds=60) for _ in range(3)]
 
     assert allowed == [True, True, False]
 

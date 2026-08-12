@@ -179,9 +179,13 @@ docker/scripts/test-ai.sh
 install -d -m 0700 ~/.config/project-2026
 cp config/profiles/local-pilot.env.example ~/.config/project-2026/pilot.env
 # 填入真實值後：
-printf 'postgresql://project_2026:<password>@postgres:5432/project_2026\n' \
-  > ~/.config/project-2026/database_url
-cp ~/.config/project-2026/database_url ~/.config/project-2026/migration_database_url
+# 由隔離的 preparation script 產生 project_runtime／project_migrator URL；
+# 不要把 owning role URL 寫進 runtime secret。
+python UI_API/backend/scripts/prepare_local_persistence.py \
+  --secret-root ~/.config/project-2026/secrets \
+  --refresh-database-urls
+cp ~/.config/project-2026/secrets/database_url ~/.config/project-2026/database_url
+cp ~/.config/project-2026/secrets/migration_database_url ~/.config/project-2026/migration_database_url
 sudo chown 10001:10001 ~/.config/project-2026/{pilot.env,database_url,migration_database_url}
 sudo chmod 0600 ~/.config/project-2026/{pilot.env,database_url,migration_database_url}
 ```
@@ -190,13 +194,15 @@ sudo chmod 0600 ~/.config/project-2026/{pilot.env,database_url,migration_databas
 
 ### 2. 建立 least-privilege 資料庫角色
 
-Pilot profile 宣告 `DATABASE_RUNTIME_ROLE=project_runtime`，migration 會授權它，但不會建立它。未先建立會讓第一次 migration 直接失敗：
+Pilot profile 宣告 `DATABASE_RUNTIME_ROLE=project_runtime`。先建立這個角色，
+再由 migration 授權它：
 
 ```bash
 bash docker/scripts/provision-pilot-database-role.sh
 ```
 
-目前 application 仍以 owning role 連線；把 runtime 連線改到這個 least-privilege role 屬於 Operations & Configuration 的收斂債。
+`prepare_local_persistence.py` 產生的 `database_url` 使用 `project_runtime`，
+而 `migration_database_url` 使用 `project_migrator`；application 不使用 owning role。
 
 ### 3. 啟動 Pilot
 

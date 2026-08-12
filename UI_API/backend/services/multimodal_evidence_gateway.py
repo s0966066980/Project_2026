@@ -175,6 +175,10 @@ def _http_provider_analyze(
             status="skipped",
         )
     if text.startswith("[R1_OMNI_ERROR]"):
+        # The provider reports `[R1_OMNI_ERROR] <code>: <detail>`. The detail can
+        # carry a media path, so only the code crosses the adapter boundary —
+        # without it every provider fault reads the same to an operator.
+        code = text[len("[R1_OMNI_ERROR]") :].strip().split(":", 1)[0].strip()
         return MultimodalEvidence(
             provider=provider,
             model_version=model_version,
@@ -184,7 +188,7 @@ def _http_provider_analyze(
             quality="error",
             latency_ms=latency_ms,
             safe_metadata={"event_type": request.event_type},
-            safe_error="provider_returned_error",
+            safe_error=f"provider_returned_error:{_safe_error(code)[:60]}" if code else "provider_returned_error",
             has_evidence=False,
             status="error",
         )

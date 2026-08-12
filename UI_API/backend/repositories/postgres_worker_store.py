@@ -30,9 +30,7 @@ class PostgresJobStore:
     def list_jobs(self) -> list[BackgroundJob]:
         return worker_job_repository.list_jobs()
 
-    def claim_next(
-        self, *, worker_id: str, now: datetime, tenant_filter: UUID | None = None
-    ) -> BackgroundJob | None:
+    def claim_next(self, *, worker_id: str, now: datetime, tenant_filter: UUID | None = None) -> BackgroundJob | None:
         del now
         return worker_job_repository.claim_next_job(worker_id=worker_id, tenant_filter=tenant_filter)
 

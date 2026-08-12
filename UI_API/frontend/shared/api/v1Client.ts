@@ -6,9 +6,15 @@ export class ApiV1Error extends Error {
     readonly status: number,
     readonly code: string,
     readonly requestId: string,
+    readonly details: unknown[] = [],
   ) {
     super(message);
     this.name = 'ApiV1Error';
+  }
+
+  /** Campaign and knowledge forms use the same public validation detail shape. */
+  get fieldErrors(): unknown[] {
+    return this.details;
   }
 }
 
@@ -16,8 +22,10 @@ export interface ApiV1ClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   getBearerToken?: () => string;
+  headers?: () => Record<string, string>;
   retryCount?: number;
   timeoutMs?: number;
+  timers?: Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'>;
 }
 
 function requestId(): string {
@@ -36,6 +44,7 @@ export function createApiV1Client(options: ApiV1ClientOptions = {}) {
   const retryCount = Math.max(0, options.retryCount ?? 1);
   const timeoutMs = Math.max(100, options.timeoutMs ?? 8_000);
   const baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
+  const timers = options.timers ?? globalThis;
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
     const method = (init.method ?? 'GET').toUpperCase();
@@ -43,31 +52,59 @@ export function createApiV1Client(options: ApiV1ClientOptions = {}) {
     let lastError: unknown;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      let timeoutHandle: ReturnType<typeof timers.setTimeout> | undefined;
+      let bodyTimeoutHandle: ReturnType<typeof timers.setTimeout> | undefined;
       const headers = new Headers(init.headers);
+      for (const [name, value] of Object.entries(options.headers?.() ?? {})) {
+        if (value !== undefined && value !== null) headers.set(name, value);
+      }
       headers.set('Accept', 'application/json');
       headers.set('X-Request-Id', headers.get('X-Request-Id') ?? requestId());
       const bearer = options.getBearerToken?.().trim();
       if (bearer) headers.set('Authorization', `Bearer ${bearer}`);
       try {
-        const response = await fetchImpl(`${baseUrl}/api/v1${path}`, {
-          ...init,
-          credentials: 'same-origin',
-          headers,
-          signal: controller.signal,
+        const timeout = new Promise<never>((_resolve, reject) => {
+          timeoutHandle = timers.setTimeout(() => {
+            controller.abort();
+            reject(new Error(`request timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
         });
-        const payload: unknown = await response.json();
+        const response = await Promise.race([
+          fetchImpl(`${baseUrl}/api/v1${path}`, {
+            ...init,
+            credentials: 'same-origin',
+            headers,
+            signal: controller.signal,
+          }),
+          timeout,
+        ]);
+        const payload: unknown = await Promise.race([
+          response.json(),
+          new Promise<never>((_resolve, reject) => {
+            bodyTimeoutHandle = timers.setTimeout(() => {
+              controller.abort();
+              reject(new Error(`response body timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+          }),
+        ]);
         if (response.ok) return payload as ApiResponse<T>;
         if (response.status >= 500 && attempt + 1 < attempts) continue;
         if (isErrorEnvelope(payload)) {
-          throw new ApiV1Error(payload.error.message, response.status, payload.error.code, payload.error.request_id);
+          throw new ApiV1Error(
+            payload.error.message,
+            response.status,
+            payload.error.code,
+            payload.error.request_id,
+            payload.error.details,
+          );
         }
         throw new ApiV1Error('The request could not be completed.', response.status, 'request_failed', '');
       } catch (error) {
         lastError = error;
         if (error instanceof ApiV1Error || attempt + 1 >= attempts) throw error;
       } finally {
-        clearTimeout(timer);
+        if (timeoutHandle !== undefined) timers.clearTimeout(timeoutHandle);
+        if (bodyTimeoutHandle !== undefined) timers.clearTimeout(bodyTimeoutHandle);
       }
     }
     throw lastError;

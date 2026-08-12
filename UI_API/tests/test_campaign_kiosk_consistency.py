@@ -37,4 +37,3 @@ def test_kiosk_ignores_active_legacy_promotions_without_an_active_campaign(monke
     )
 
     assert [item["id"] for item in result] == ["cmp-live"]
-
