@@ -6,12 +6,19 @@ import argparse
 import getpass
 import json
 import os
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
-from capabilities.identity_access import interface as admin_identity_service
-from repositories import admin_audit_repository, admin_identity_repository
-from utils.commercial_scope_config import resolve_commercial_scope
+ROOT = Path(__file__).resolve().parents[2]
+BACKEND = ROOT / "backend"
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(BACKEND))
+
+from capabilities.identity_access import interface as admin_identity_service  # noqa: E402
+from repositories import admin_audit_repository, admin_identity_repository  # noqa: E402
+from utils.commercial_scope_config import resolve_commercial_scope  # noqa: E402
 
 
 def _password_from_trusted_input() -> str:
