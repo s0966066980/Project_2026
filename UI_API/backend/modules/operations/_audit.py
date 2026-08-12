@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from models.commercial_scope import CommercialScope
 from modules.identity.application import scope_from_admin_principal
-from repositories import admin_audit_repository
+from modules.operations.adapters import audit as admin_audit_repository
 
 
 def _actor_from_request(request) -> str:

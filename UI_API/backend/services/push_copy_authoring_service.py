@@ -8,7 +8,8 @@ import re
 
 import config
 from models.llm import LLMRequest
-from services import llm_gateway_service, llm_routing_service, rag_guard_service
+from modules.operations import _llm_routing as llm_routing_service
+from services import llm_gateway_service, rag_guard_service
 
 
 def _text(value) -> str:

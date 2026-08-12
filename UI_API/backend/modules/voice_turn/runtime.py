@@ -10,10 +10,11 @@ from typing import Any
 import config
 from capabilities import catalog
 from models.llm import LLMRequest
+from modules.operations import _llm_routing as llm_routing_service
 from modules.recommendation._service import coerce_cart_actions
 from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils, session_repository
-from services import llm_gateway_service, llm_routing_service
+from services import llm_gateway_service
 from services.stt_service import get_stt
 from services.tts_service import get_tts
 

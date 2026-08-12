@@ -10,12 +10,15 @@ import time
 
 import config
 from capabilities import catalog
-from capabilities.recommendation_analytics import decide
 from models.commercial_scope import CommercialScope
 from modules.recommendation import _context_service as recommendation_context_service
 from modules.recommendation import _engine_service as recommendation_engine_service
 from modules.recommendation import _experiment_service as recommendation_experiment_service
 from modules.recommendation._popular_service import get_top_items
+
+# `decide` comes from this module's own application surface. Reaching it
+# through the capability made the module import the capability that imports it.
+from modules.recommendation.application import decide
 from repositories import push_copy_repository
 
 # Push copy is authored under Campaign/Promotion; recommendation only reads it.

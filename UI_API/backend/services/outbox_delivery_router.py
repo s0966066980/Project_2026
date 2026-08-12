@@ -9,7 +9,7 @@ from uuid import UUID
 
 from models.worker_jobs import OutboxDeliveryResult
 from modules.analytics import _pipeline as analytics_pipeline_service
-from services import observability_service
+from modules.operations import _observability as observability_service
 
 OutboxSink = Callable[[dict[str, Any]], OutboxDeliveryResult]
 

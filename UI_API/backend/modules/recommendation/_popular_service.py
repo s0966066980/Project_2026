@@ -4,7 +4,7 @@ import threading
 import time
 
 from capabilities import catalog
-from repositories import log_repository
+from modules.operations.adapters import logs as log_repository
 
 _cache: dict = {"top": [], "ts": 0.0}
 _cache_lock = threading.Lock()

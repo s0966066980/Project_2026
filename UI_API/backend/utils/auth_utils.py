@@ -13,7 +13,8 @@ from capabilities.identity_access import (
 )
 from models.admin_identity import AdminPrincipal
 from modules.identity.application import scope_from_admin_principal, scope_from_device_principal
-from services import observability_service, shared_infrastructure_service
+from modules.operations import _observability as observability_service
+from services import shared_infrastructure_service
 from utils.commercial_scope_config import resolve_commercial_scope
 
 _RATE_BUCKETS: dict[tuple[str, str, str], list[float]] = {}

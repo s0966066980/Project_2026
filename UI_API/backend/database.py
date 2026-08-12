@@ -1,6 +1,6 @@
 from capabilities import catalog
+from modules.operations.adapters import logs as log_repository
 from modules.recommendation import _service as recommendation_service
-from repositories import log_repository
 
 
 def build_menu_item_text(item: dict) -> str:

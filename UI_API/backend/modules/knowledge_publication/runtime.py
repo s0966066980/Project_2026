@@ -8,9 +8,9 @@ from typing import Any
 
 import config
 from models.commercial_scope import CommercialScope
+from modules.operations import _worker as worker_service
 from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
-from services import worker_service
 from services.rag_provider import get_rag
 
 from .module import KnowledgePublicationModule, TransientPublicationError

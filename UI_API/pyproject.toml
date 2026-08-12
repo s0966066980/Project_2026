@@ -102,10 +102,10 @@ files = [
   "backend/modules/identity/_device_identity_service.py",
   "backend/services/member_key_provider.py",
   "backend/modules/member/_pii.py",
-  "backend/services/health_service.py",
-  "backend/services/observability_service.py",
+  "backend/modules/operations/_health.py",
+  "backend/modules/operations/_observability.py",
   "backend/services/shared_infrastructure_service.py",
-  "backend/services/worker_service.py",
+  "backend/modules/operations/_worker.py",
   "backend/services/llm_gateway_service.py",
   "backend/utils",
 ]

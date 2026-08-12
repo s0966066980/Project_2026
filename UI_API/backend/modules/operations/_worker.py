@@ -19,7 +19,7 @@ from models.worker_jobs import (
     validate_job_payload_ref,
     validate_job_type,
 )
-from services import observability_service
+from modules.operations import _observability as observability_service
 from services.outbox_delivery_router import OutboxDeliveryRouter, default_router
 from services.worker_handler_registry import JobHandler, JobHandlerRegistry, default_registry
 

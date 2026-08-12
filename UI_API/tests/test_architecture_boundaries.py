@@ -61,9 +61,7 @@ def _module_parts(imported: str) -> list[str]:
 # dependency, not a capability failing to own its implementation. Those move on
 # their own terms; putting them inside one capability would make the others
 # import a third capability's internals.
-CAPABILITIES_STILL_ON_LEGACY_LAYERS = {
-    "backend/capabilities/operations_configuration/interface.py",
-}
+CAPABILITIES_STILL_ON_LEGACY_LAYERS: set[str] = set()
 
 
 def test_capabilities_do_not_import_legacy_horizontal_layers() -> None:
@@ -94,8 +92,12 @@ def test_cross_capability_imports_use_published_surfaces() -> None:
             target_capability = parts[1]
             if not source_capability or target_capability == source_capability:
                 continue
-            published_surface = parts[2] if len(parts) > 2 else ""
-            if published_surface not in ALLOWED_CROSS_CAPABILITY_SURFACES:
+            if len(parts) == 2:
+                # `from capabilities.x import y` reaches the package, whose
+                # __init__ re-exports the interface's __all__ and nothing else.
+                # That is the published surface, not a way around it.
+                continue
+            if parts[2] not in ALLOWED_CROSS_CAPABILITY_SURFACES:
                 violations.append(f"{relative} -> {imported}")
     assert violations == []
 

@@ -15,7 +15,7 @@ from models.llm import (
     LLMRequest,
     LLMResponse,
 )
-from services import observability_service
+from modules.operations import _observability as observability_service
 
 _RETRYABLE_MARKERS = (
     "timeout",
@@ -67,7 +67,7 @@ TASK_REQUIRED_FIELDS: dict[str, frozenset[str]] = {
 
 
 def _provider_chain(policy: LLMModelPolicy) -> list[str]:
-    from services import llm_routing_service
+    from modules.operations import _llm_routing as llm_routing_service
 
     cloud = llm_routing_service.CLOUD_PROVIDER
     if policy is LLMModelPolicy.LOCAL_ONLY:
@@ -319,7 +319,7 @@ def stream_tokens(
     """
 
     import ai_services
-    from services import llm_routing_service
+    from modules.operations import _llm_routing as llm_routing_service
 
     if not llm_routing_service.allows_local(request.model_policy):
         response = generate(request)
@@ -389,7 +389,7 @@ def _request_for_provider(request: LLMRequest, provider_name: str) -> LLMRequest
 
     if provider_name == "ollama":
         return request
-    from services import llm_routing_service
+    from modules.operations import _llm_routing as llm_routing_service
 
     model = llm_routing_service.cloud_model(voice=str(request.task) == "voice_assist")
     return replace(request, model_name=model) if model else request

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from threading import Lock
 
+from modules.operations import _llm_routing as llm_routing_service
 from modules.runtime_persistence.runtime import sqlite_database_path
 from repositories import postgres_utils
-from services import llm_routing_service
 
 from .module import AnalyzerRegistry, OptimizationLabModule
 from .postgres_store import PostgresOptimizationLabStore

@@ -361,7 +361,7 @@ class AnalyzerRegistry:
         configured_model = str(local_model or "").strip()
         if not configured_model:
             try:
-                from services.llm_routing_service import local_model as configured_local_model
+                from modules.operations._llm_routing import local_model as configured_local_model
 
                 configured_model = str(configured_local_model() or "").strip()
             except Exception:

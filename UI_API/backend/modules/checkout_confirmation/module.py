@@ -4,7 +4,7 @@ import logging
 from typing import Any, Protocol
 
 from models.commercial_scope import CommercialScope
-from services import observability_service
+from modules.operations import _observability as observability_service
 
 _logger = logging.getLogger(observability_service.LOGGER_NAME)
 

@@ -37,8 +37,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worker-id", default="")
     args = parser.parse_args(argv)
 
+    from modules.operations import _observability as observability_service
+    from modules.operations import _worker as worker_service
     from repositories import postgres_utils
-    from services import observability_service, worker_service
 
     observability_service.configure_logging()
     worker_id = str(args.worker_id or os.environ.get("WORKER_ID") or f"worker-{uuid4().hex[:8]}")

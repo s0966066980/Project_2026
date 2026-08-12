@@ -17,7 +17,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
 from capabilities.identity_access import interface as admin_identity_service  # noqa: E402
-from repositories import admin_audit_repository, admin_identity_repository  # noqa: E402
+from modules.operations.adapters import audit as admin_audit_repository  # noqa: E402
+from repositories import admin_identity_repository  # noqa: E402
 from utils.commercial_scope_config import resolve_commercial_scope  # noqa: E402
 
 

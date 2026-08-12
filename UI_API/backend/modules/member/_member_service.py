@@ -10,10 +10,6 @@ from uuid import UUID, uuid4
 
 import config
 from capabilities import catalog
-
-# Recommendation events belong to another capability; they are read through its
-# published surface rather than by reaching for its table.
-from capabilities.recommendation_analytics import recommendation_event_repository
 from models.commercial_scope import CommercialScope
 from modules.member._pii import configured_key_provider, phone_lookup_hash, protect_phone
 from modules.member.adapters import member as member_repository
@@ -484,6 +480,12 @@ def _member_recommendation_summary(member: dict) -> dict:
             "acceptance_rate": 0,
         }
     try:
+        # Recommendation events belong to another capability and are read
+        # through its published surface. The import is deferred to the use
+        # site because Recommendation reads Member the same way: at module
+        # scope the two capabilities import each other.
+        from capabilities.recommendation_analytics import recommendation_event_repository
+
         events = recommendation_event_repository.get_recommendation_events(limit=5000)
     except Exception:
         events = []

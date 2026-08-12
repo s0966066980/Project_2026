@@ -11,7 +11,8 @@ import requests
 import config
 import database
 from models.llm import LLMAdapterResult, LLMRequest
-from services import llm_gateway_service, llm_routing_service
+from modules.operations import _llm_routing as llm_routing_service
+from services import llm_gateway_service
 
 # The provider chain has exactly two halves; a diagnostic prompt may name either one.
 SUPPORTED_DIAGNOSTIC_PROVIDERS = frozenset({"ollama", llm_routing_service.CLOUD_PROVIDER})

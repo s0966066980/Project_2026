@@ -8,8 +8,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from models.worker_jobs import BackgroundJob, JobStatus, QueueMetrics, compute_backoff_seconds, validate_job_payload_ref
+from modules.operations import _observability as observability_service
 from repositories import postgres_utils
-from services import observability_service
 
 
 def _jsonb(value: object) -> str:

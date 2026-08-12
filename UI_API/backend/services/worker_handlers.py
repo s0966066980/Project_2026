@@ -6,7 +6,7 @@ from capabilities.knowledge_rag import knowledge_publication_runtime
 from models.commercial_scope import CommercialScope
 from models.worker_jobs import BackgroundJob, JobHandlerResult
 from modules.analytics import _pipeline as analytics_pipeline_service
-from services import observability_service
+from modules.operations import _observability as observability_service
 from services.worker_handler_registry import JobHandlerRegistry, default_registry
 
 _SIDE_EFFECT_LEDGER: dict[str, str] = {}

@@ -216,7 +216,7 @@ def test_legacy_catalog_routes_are_absent_after_consumer_migration():
 
 
 def test_supported_catalog_flow_leaves_the_legacy_counter_at_zero():
-    from services import observability_service
+    from modules.operations import _observability as observability_service
 
     def counted() -> float:
         snapshot = observability_service.metrics_snapshot()

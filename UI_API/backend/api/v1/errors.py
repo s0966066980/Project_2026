@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from services import observability_service
+from modules.operations import _observability as observability_service
 
 _ERRORS = {
     400: ("bad_request", "The request is invalid."),

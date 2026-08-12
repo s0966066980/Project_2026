@@ -35,8 +35,8 @@ Independent Product Frontends:    2 / 2 passed
 Project Core Brain (P3):          REPOSITORY SCOPE PASSED；provider 執行 ready-for-human
 Current active stage:             P4→P7 repository convergence（local Ollama；外部/hardware evidence blocked）
 Legacy HTTP compatibility surface: ZERO（2026-08-12 撤除 67 條，見 ADR-0062）
-Legacy horizontal layer usage:    未清零 — 1 個 capability interface 仍讀 services／repositories
-                                  （僅剩 operations_configuration；其餘九個已收斂）
+Legacy horizontal layer usage:    capability interface 已全部不讀 services／repositories（10/10）
+                                  共用基礎設施仍在 services／repositories，屬跨能力依賴
 Project Completion:               NOT ACHIEVED
 ```
 
@@ -382,10 +382,10 @@ import zero-use、frontend shared transport、capability ownership inventory、�
 與只為遷移存在的 runtime code；保留 migrations、ADR、audit 與必要歷史。
 
 **capability 收斂清單**：`tests/test_architecture_boundaries.py` 的
-`CAPABILITIES_STILL_ON_LEGACY_LAYERS` 是這項工作的權威盤點 —— 目前只剩
-operations_configuration 仍向 `services`/`repositories` 取值。Identity、Emotion、
-Campaign/Promotion、Knowledge/RAG、Ordering、Member 與 Recommendation/Analytics
-已於 2026-08-12 收斂並從清單移除（Catalog 本來就不在清單上）。
+`CAPABILITIES_STILL_ON_LEGACY_LAYERS` **已清空**：十個 capability interface 都不再
+向 `services`/`repositories` 取值，規則現在是無 allowlist 的完全強制。這是
+**程式碼歸屬**，不是 Module Independence —— Gate 仍要求 data authority、PostgreSQL、
+重啟與 consumer 證據，計數維持 1/10。
 
 收斂一個 capability 不會清空 `services/`。剩下的一部分是多個 capability 共用的
 （`rag_provider`、`availability_service`、`postgres_utils`、observability），module
