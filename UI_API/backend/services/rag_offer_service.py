@@ -13,7 +13,7 @@ from typing import Any
 import config
 from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
 from models.commercial_scope import CommercialScope
-from repositories import promotion_repository
+from modules.promotion.adapters import promotion as promotion_repository
 
 
 def _as_list(value: Any) -> list[str]:

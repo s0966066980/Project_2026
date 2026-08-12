@@ -1,5 +1,7 @@
 """Promotion module public interface."""
 
+from modules.promotion import _promotion_service as promotion_service
+from modules.promotion.adapters import promotion as promotion_repository
 from modules.promotion.application import (
     create_campaign_draft,
     evaluate_promotion,
@@ -25,6 +27,8 @@ from modules.promotion.contracts import (
 )
 
 __all__ = [
+    "promotion_repository",
+    "promotion_service",
     "EligibilityResult",
     "PromotionContext",
     "PromotionQuote",

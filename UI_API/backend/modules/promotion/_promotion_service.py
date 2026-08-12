@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import config
 from capabilities import catalog
 from models.commercial_scope import CommercialScope
-from repositories import promotion_repository
+from modules.promotion.adapters import promotion as promotion_repository
 
 VALID_STATUSES = {"active", "draft", "inactive"}
 VALID_TYPE = "promotion"

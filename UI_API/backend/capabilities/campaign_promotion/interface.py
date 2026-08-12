@@ -11,6 +11,7 @@ from modules.promotion import (
     list_campaigns,
     preview_campaign,
     project_item_price,
+    promotion_service,
     publish_campaign,
     quote_promotion,
     revise_campaign_draft,
@@ -18,17 +19,9 @@ from modules.promotion import (
     transition_campaign,
 )
 
-
-class _PromotionServiceProxy:
-    """Compatibility adapter for the remaining versioned promotion DTO calls."""
-
-    def __getattr__(self, name: str):
-        from services import promotion_service
-
-        return getattr(promotion_service, name)
-
-
-promotion_service = _PromotionServiceProxy()
+# The promotion rules used to be reached by a call-time import into services/,
+# which is what kept this capability on the frozen legacy-layer list. They now
+# live in modules/promotion and are published directly.
 
 
 class _CampaignServiceProxy:

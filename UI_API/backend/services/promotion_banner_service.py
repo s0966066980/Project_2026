@@ -7,7 +7,8 @@ from typing import Any
 
 from capabilities.campaign_promotion import PromotionContext, evaluate_promotion
 from models.commercial_scope import CommercialScope
-from repositories import campaign_repository, promotion_repository
+from modules.promotion.adapters import promotion as promotion_repository
+from repositories import campaign_repository
 
 VALID_TARGET_TYPES = {"category", "item", "recommendation", "none"}
 VALID_THEMES = {"gold", "red", "dark", "simple"}

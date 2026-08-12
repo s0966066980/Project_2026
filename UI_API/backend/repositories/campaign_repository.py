@@ -11,8 +11,9 @@ from uuid import uuid4
 
 import config
 from models.commercial_scope import CommercialScope, is_legacy_store_scope
+from modules.promotion.adapters import promotion as promotion_repository
 from modules.promotion.contracts import CampaignConflictError, CampaignSnapshot
-from repositories import admin_audit_repository, postgres_utils, promotion_repository
+from repositories import admin_audit_repository, postgres_utils
 
 _lock = threading.Lock()
 
