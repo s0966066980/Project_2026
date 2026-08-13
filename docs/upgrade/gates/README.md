@@ -164,9 +164,9 @@ exists and is revoked.
 
 ### Still open for this capability
 
-PostgreSQL concurrency evidence, Admin and Kiosk generated-client consumer
-evidence, and the Pilot authority items remain. The unique/foreign-key
-constraint proof is recorded below; the gate is not passed.
+Admin and Kiosk generated-client consumer evidence, and the Pilot authority
+items remain. PostgreSQL uniqueness, foreign keys, and rotation concurrency
+are recorded below; the gate is not passed.
 
 ## UPGRADE-031 — Identity PostgreSQL uniqueness and foreign keys
 
@@ -183,8 +183,23 @@ full backend suite                                               468 passed, 49 
 docker/scripts/test.sh                                           passed
 ```
 
-PostgreSQL concurrency, generated-client consumer evidence, and Pilot
-authority items remain open.
+Generated-client consumer evidence and Pilot authority items remain open.
+
+## UPGRADE-038 — Identity PostgreSQL rotation concurrency
+
+The production PostgreSQL device-identity adapter now has executable evidence
+for concurrent rotation: two administrators rotating the same active
+credential produce one replacement and one controlled refusal, while the
+rotation audit remains singular. A credential already in its rotation grace
+window is no longer eligible for a second replacement.
+
+```text
+pytest tests/test_identity_postgres_concurrency.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               472 passed, 54 skipped
+docker/scripts/test.sh                                           passed
+```
+
+Generated-client consumer evidence and Pilot authority items remain open.
 
 ## UPGRADE-016 — Ordering transaction authority
 

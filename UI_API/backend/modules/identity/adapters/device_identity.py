@@ -102,12 +102,14 @@ def rotate_device_credential(**values: object) -> dict | None:
             FROM device_credentials
             WHERE id = %s AND tenant_id = %s AND store_id = %s
               AND status = 'active' AND revoked_at IS NULL AND expires_at > %s
+              AND (rotation_valid_until IS NULL OR rotation_valid_until <= %s)
             FOR UPDATE
             """,
             (
                 values["old_credential_id"],
                 values["tenant_id"],
                 values["store_id"],
+                values["issued_at"],
                 values["issued_at"],
             ),
         )
