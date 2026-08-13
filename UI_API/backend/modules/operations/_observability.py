@@ -43,6 +43,10 @@ REQUIRED_METRICS = (
     # ordering must not fail for an Operational dependency, but an operator
     # still needs to know it happened.
     "checkout_member_lookup_degraded_total",
+    # A recommendation was shown but its decision touch was never recorded.
+    # Analytics is downstream of the decision; losing the record must not lose
+    # the recommendation, and the gap has to be visible in the attribution.
+    "recommendation_touch_record_degraded_total",
     "intervention_outcomes_total",
     "order_outbox_pending",
     "queue_backlog",

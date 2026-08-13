@@ -432,3 +432,83 @@ Ingestion and duplicate-document handling at the store level, index rebuild
 and retirement cleanup, governance and the malicious-document path, and
 end-to-end retrieval against a real index on the target hardware. The gate is
 not passed.
+
+## UPGRADE-020 — Recommendation capability gate
+
+```text
+pytest tests/test_recommendation_capability_gate.py   13 passed
+```
+
+Recommendation is declared an enhancement in `CONTEXT.md`, not a transaction
+authority, so every check here asks the same question: when this capability
+has a bad day, does the customer still get a menu and a price?
+
+The engine having a bad day: a provider failure, a provider timeout and an
+empty result all fall back to a deterministic list rather than a blank
+surface, and the answer says `fallback_status: engine_fallback` so an operator
+can tell a degraded decision from a healthy one. An engine failure with an
+empty menu returns an empty list and a decision id — not an exception.
+
+What may be recommended: an excluded item is never returned (this is how
+sold-out and unavailable items are kept off the surface), an item with no id
+is dropped because nobody could order it, no more items come back than were
+asked for, and every item carries the decision id and rank that make a later
+touch attributable. An offer is recommended **by reference and version**, not
+by restating its terms — the projected `offer_versions` carry `offer_id` and
+`version` and nothing else, so a price cannot travel inside a suggestion.
+
+The prohibition is checked as an import rule, since that is the only way to
+state it once and have it hold for every future caller: `modules/cart`,
+`modules/checkout_confirmation`, `modules/ordering_entry` and
+`modules/promotion` may not reach `modules.recommendation`,
+`modules.analytics` or the capability surface at any nesting depth. A second
+rule asserts every tree it names still exists.
+
+### A defect the gate found
+
+Analytics is downstream of a decision. It was also, in practice, a
+precondition for one:
+
+```text
+decide(..., scope=...)
+  -> record_touch
+  -> analytics_pipeline_service.publish
+  -> sink.write   RuntimeError
+  -> no recommendation is shown
+```
+
+An unavailable analytics sink raised straight out of `decide`, so an Optional
+capability could blank an enhancement surface on the Kiosk. The same shape as
+the Member defect in UPGRADE-017, in a different capability.
+
+The touch is now recorded in a way that cannot stop the decision, and the loss
+is counted as `recommendation_touch_record_degraded_total` so the attribution
+gap is visible rather than silent. The metric had to be registered first —
+`increment_metric` refuses unregistered names.
+
+### Mutation
+
+```text
+let the analytics outage escape again
+  FAILED …an_analytics_outage_does_not_take_recommendations_down   (12 passed)
+degrade silently, without counting it
+  FAILED …an_analytics_outage_does_not_take_recommendations_down   (12 passed)
+do not mark an engine failure as a fallback
+  FAILED …a_provider_failure_still_returns_something_to_show
+  FAILED …an_empty_recommendation_falls_back_rather_than_showing_a_blank
+  FAILED …the_fallback_is_marked_as_a_fallback                     (10 passed)
+recommend an item the caller excluded
+  FAILED …an_item_the_caller_excluded_is_never_recommended         (12 passed)
+revert
+  13 passed
+```
+
+The first two mutations are the same test failing for the two different
+reasons it exists: the recommendation must survive, and the loss must be
+counted.
+
+### Still open for this capability
+
+Interaction and intervention pipelines, experiment assignment, the
+effectiveness report against real touch data in PostgreSQL, and the Kiosk
+consumer ledger. The gate is not passed.

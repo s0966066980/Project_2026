@@ -92,18 +92,36 @@ def decide(
         "items": ranked_items,
     }
     if scope is not None:
+        _record_decision_touch(decision, ranked_items, context, session_id, scope, sink)
+    return decision
+
+
+def _record_decision_touch(decision, ranked_items, context, session_id, scope, sink) -> None:
+    """Record that the decision happened, and never let that stop it happening.
+
+    Analytics is downstream of a recommendation: the touch is how the decision
+    is later attributed, not a condition of showing it. A sink that is
+    unavailable used to raise straight out of `decide`, so an Optional
+    capability could blank an enhancement surface on the Kiosk. The record is
+    lost instead, and counted so the gap is visible in the attribution rather
+    than silent.
+    """
+
+    from capabilities.operations_configuration import interface as operations
+
+    try:
         record_touch(
             {
-                "event_id": f"evt_{resolved_decision_id}",
+                "event_id": f"evt_{decision['decision_id']}",
                 "event_type": "decision",
-                "decision_id": resolved_decision_id,
+                "decision_id": decision["decision_id"],
                 "session_id": session_id,
                 "placement": str(context.get("controls", {}).get("surface") or "recommendation"),
-                "strategy": resolved_strategy,
+                "strategy": decision["strategy"],
                 "strategy_version": STRATEGY_VERSION,
                 "experiment_id": decision["experiment_id"],
                 "variant_id": decision["variant_id"],
-                "fallback_status": fallback_status,
+                "fallback_status": decision["fallback_status"],
                 "metadata": {
                     "candidates": [
                         {"item_id": str(item.get("id") or ""), "rank": item.get("rank", 0)} for item in ranked_items
@@ -113,4 +131,7 @@ def decide(
             scope,
             sink=sink,
         )
-    return decision
+    except Exception:  # noqa: BLE001 - an analytics outage must not blank the surface
+        operations.observability_service.increment_metric(
+            "recommendation_touch_record_degraded_total", status="unavailable"
+        )
