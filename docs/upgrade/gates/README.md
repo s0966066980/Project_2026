@@ -782,6 +782,17 @@ the order, its items, and its confirmation outbox event are all rolled back.
 pytest tests/test_ordering_postgres_transaction_atomicity.py (PostgreSQL 18.4)  1 passed
 ```
 
+## UPGRADE-042 — PostgreSQL Checkout outbox restart recovery
+
+The Checkout confirmation outbox now has PostgreSQL recovery evidence across a
+dispatcher restart: a claimed event records its attempt, a failed delivery
+clears the lease and becomes available again, and a fresh store instance can
+claim and publish it exactly once.
+
+```text
+pytest tests/test_postgres_checkout_outbox_reliability.py (PostgreSQL 18.4)  1 passed
+```
+
 ## UPGRADE-029 — Recommendation interaction and analytics contracts
 
 Recommendation now has repository-level evidence for the remaining pure
