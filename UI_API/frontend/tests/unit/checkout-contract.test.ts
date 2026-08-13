@@ -36,6 +36,15 @@ describe('kiosk checkout projection', () => {
     expect(confirmedOrderResult({}, 'browser-session').sessionId).toBe('browser-session');
   });
 
+  it('never invents a pickup number the server did not issue', () => {
+    // A made-up number sends the customer to wait for an order the kitchen
+    // never called. Absent identity has to stay absent, and the screen shows
+    // PENDING_ORDER_NUMBER_LABEL instead.
+    expect(confirmedOrderResult({}, 'browser-session').orderNumber).toBe(0);
+    expect(confirmedOrderResult({ pickup_number: null }, '').orderNumber).toBe(0);
+    expect(confirmedOrderResult({ pickup_number: 0 }, '').orderNumber).toBe(0);
+  });
+
   it('prefers final server pricing and falls back only when it is absent', () => {
     const price = (item: any) => Number(item.price || 0);
     expect(completionCartItems({ pricing: { cart_items: [{ id: 'server', name: 'Server', qty: 2, price: 35 }] } }, [{ id: 'local', price: 9 }], price))

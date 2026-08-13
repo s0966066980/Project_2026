@@ -769,10 +769,12 @@ the base copy, missing authored copy falls back to the menu description, and
 member-only offers are excluded from guest push-copy resolution.
 
 ```text
-pytest tests/test_recommendation_postgres_intervention_route.py (PostgreSQL 18.4)  1 passed
-full backend suite                                                           472 passed, 56 skipped
-docker/scripts/test.sh                                                       passed
+pytest tests/test_campaign_capability_gate.py -k push_copy   3 passed
 ```
+
+The pytest line here previously named the intervention-route test, which has
+nothing to do with push copy; the authored-copy checks live in the Campaign
+gate suite.
 
 ## UPGRADE-041 — PostgreSQL Checkout confirmation atomicity
 
@@ -935,3 +937,100 @@ that is this project's own standard — UPGRADE-002 says so in as many words.
 UPGRADE-041 has since been mutation-verified (above) and the vacuous half of
 its assertion recorded. The rest still need the same treatment before they
 count as evidence.
+
+## Mutation pass — 2026-08-13
+
+The verification pass above found that 21 of the entries in this file recorded
+only "N passed". Every one of those rules has now been broken on purpose. What
+follows is the result for each, and the four gaps the exercise exposed.
+
+Mutations were run against a live-mounted source tree (`docker run -v
+$PWD/UI_API:/app/UI_API project-2026:test`) rather than a rebuilt image, so a
+mutate/run/revert cycle costs about a second instead of a minute. The driver
+refuses to run when its anchor text is missing or ambiguous — a mutation that
+silently failed to apply would "prove" a rule that was never exercised.
+
+### Caught
+
+| Rule | Mutation | Result |
+| --- | --- | --- |
+| 001 layer markers | remove a file's `pytestmark`; add an undeclared marker | both FAILED |
+| 015 revocation | leave the credential's sessions alive; audit every repeat revoke | both FAILED |
+| 021 worker retry | retry past the attempt budget; retry with no backoff | both FAILED |
+| 022 checkout outbox | never dead-letter; keep the lease after a failed delivery | both FAILED |
+| 023 cart revision | accept a stale expected revision | FAILED |
+| 024 outbox claim | claim without counting the attempt | FAILED |
+| 027 member consent | register without the necessary terms; project history and usuals without their consents | all three FAILED |
+| 028 push copy | serve campaign wording after its offer ends; show a member-only offer to a guest | both FAILED |
+| 029 recommendation contracts | keep negative dwell/counts; enable an experiment on one switch; stop escalating repeated payment failures; intervene on a normal session | all five FAILED |
+| 030 member integrity | drop the conflict target on the member row, then on the preference row | both FAILED |
+| 032 knowledge duplicates | publish a near-duplicate without the override; accept an exact duplicate | both FAILED |
+| 033 artifacts | keep the chunks a partial build already wrote | FAILED |
+| 034 push-copy batch | fail the whole batch for one failed item | FAILED |
+| 035 interactions | store client metadata verbatim; store a replayed event twice | both FAILED |
+| 036 retirement | leave the published pointer; skip the row-revision bump | both FAILED |
+| 037/044 campaign race | accept a stale expected version; read the definition without a lock | both FAILED |
+| 038 rotation | rotate an already-rotated credential | FAILED |
+| 040 intervention route | drop the result write-back; read the outcome without its device scope | both FAILED |
+| 041 checkout atomicity | commit the order before its items | FAILED |
+| 042 outbox restart | keep the lease after failure; keep the lock after publishing | both FAILED |
+| 043 effectiveness | count a repeated impression twice; count a repeated purchase twice | both FAILED |
+| 025 admin health (frontend) | retry behind the operator's back; unbound the read; drop the failure label | all three FAILED |
+| 026 kiosk checkout seam (frontend) | prefer local cart data over the server quote; read subtotal as total | both FAILED |
+
+In every case the mutation failed the rule it broke and left the rest of the
+suite passing.
+
+### The four gaps it exposed
+
+**A cart race that never raced (UPGRADE-023).** Both writers were creating a
+cart that did not exist yet, so what serialized them was the unique index
+behind `INSERT ... ON CONFLICT DO NOTHING`. Removing `SELECT ... FOR UPDATE`
+left the test green. The case where the lock matters — two writers against a
+cart that already exists, which is where a lost update actually happens — was
+not covered. It is now, and it catches the missing lock 3/3.
+
+**A rotation race that never raced (UPGRADE-038).** `executor.map` with no
+barrier ran the two rotations back to back. Adding a barrier was not enough
+either: the two `SELECT`s still land about 5ms apart, so the loser reliably
+reads the committed grace window. Sixteen simultaneous rotators put several
+readers inside the same window — stable 6/6 with the lock, caught 6/6 without
+it. The two-caller test keeps its narrower claim and now states what it does
+not prove.
+
+**A cleanup failure nobody checked (UPGRADE-033).** `delete_document`
+returning False means the index still holds the chunk. Swallowing that marks
+an item retired while its content stays answerable, which is the one outcome
+retirement exists to prevent — and it passed. Covered now, with the
+unparseable-artifact-reference case beside it.
+
+**A dedup claim with no duplicates (UPGRADE-043).** The fixture had one of
+everything, so "deduplicated funnel" held whatever the code did. The report is
+now also asked for a replayed impression and a twice-attributed order item.
+
+**A pickup number the kitchen never issued (UPGRADE-026).** The seam's own
+comment says only the server can provide a pickup number, but inventing one
+locally passed. A made-up number sends a customer to wait for an order nobody
+called. Covered now.
+
+### Rules that cannot fail while their neighbour holds
+
+Three checks are unreachable defence rather than live rules, and are recorded
+as such instead of being counted as evidence:
+
+- the campaign compare-and-set `rowcount` check, unreachable while the
+  definition row is locked and the version compared;
+- the device clause on the intervention-outcome `UPDATE`, unreachable because
+  the scoped `SELECT ... FOR UPDATE` already returned nothing;
+- the outbox half of UPGRADE-041, guaranteed by `ON DELETE CASCADE`.
+
+Each is worth keeping — they are the second line if the first is ever changed
+— but none of them is something a test observed working.
+
+### One thing the pass broke and fixed
+
+The knowledge duplicates test recorded ids at the call site, so a draft
+created inside a `pytest.raises` that unexpectedly succeeded was left in
+PostgreSQL, and then failed the same test on its next run for a reason
+unrelated to the code. That is not hypothetical: it happened here and cost a
+diagnosis. Drafts now register themselves as they are created.

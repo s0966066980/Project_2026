@@ -73,3 +73,53 @@ def test_kiosk_intervention_routes_persist_and_update_scoped_outcome():
                 ),
             )
             conn.commit()
+
+
+def test_an_outcome_cannot_be_updated_from_another_device():
+    """The row is device-scoped, and the update has to honour that.
+
+    The route path above runs entirely on one device, so a `WHERE` clause that
+    forgot `device_id` would pass it. This asks the adapter directly: record an
+    outcome on one device, then try to write feedback for it from another.
+    """
+
+    from dataclasses import replace
+
+    from modules.recommendation.adapters.interactions import (
+        append_intervention_log_scoped,
+        update_intervention_result_scoped,
+    )
+
+    intervention_id = f"iv-scope-{uuid.uuid4().hex[:12]}"
+    session_id = f"intervention-scope-gate-{uuid.uuid4().hex[:10]}"
+    other_device = replace(LEGACY_DEFAULT_SCOPE, device_id=uuid.uuid4())
+
+    append_intervention_log_scoped(
+        {
+            "intervention_id": intervention_id,
+            "session_id": session_id,
+            "barrier_result": {"barrier_state": "menu_hesitation"},
+            "intervention": {"action": "show_recommendation"},
+        },
+        LEGACY_DEFAULT_SCOPE,
+    )
+
+    try:
+        assert update_intervention_result_scoped(intervention_id, {"outcome": "accepted"}, other_device) is None, (
+            "another device wrote feedback onto this device's intervention"
+        )
+
+        rows = get_intervention_logs_scoped(LEGACY_DEFAULT_SCOPE, session_id=session_id)
+        assert len(rows) == 1
+        assert not rows[0].get("result"), "the outcome was modified from outside its device"
+
+        updated = update_intervention_result_scoped(intervention_id, {"outcome": "accepted"}, LEGACY_DEFAULT_SCOPE)
+        assert updated is not None
+        assert updated["result"]["outcome"] == "accepted"
+    finally:
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM intervention_outcomes WHERE tenant_id = %s AND store_id = %s AND intervention_id = %s",
+                (str(LEGACY_DEFAULT_SCOPE.tenant_id), str(LEGACY_DEFAULT_SCOPE.store_id), intervention_id),
+            )
+            conn.commit()
