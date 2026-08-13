@@ -793,6 +793,17 @@ claim and publish it exactly once.
 pytest tests/test_postgres_checkout_outbox_reliability.py (PostgreSQL 18.4)  1 passed
 ```
 
+## UPGRADE-043 — Recommendation PostgreSQL effectiveness facts
+
+Recommendation effectiveness now has an executable PostgreSQL data-path gate:
+real touch events are written through the analytics sink, real order
+attribution is written through the scoped PostgreSQL adapter, and the report
+reads both durable sources to produce the deduplicated funnel and revenue.
+
+```text
+pytest tests/test_recommendation_postgres_effectiveness.py (PostgreSQL 18.4)  1 passed
+```
+
 ## UPGRADE-029 — Recommendation interaction and analytics contracts
 
 Recommendation now has repository-level evidence for the remaining pure
