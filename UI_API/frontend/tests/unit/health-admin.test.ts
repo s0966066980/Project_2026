@@ -170,6 +170,29 @@ describe('maintenance health read', () => {
     expect(elements.get('healthOverallStatus')?.className).toContain('not_ready');
   });
 
+  it('recovers when an operator retries after a timed-out read', async () => {
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(() => new Promise<never>(() => {}))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { services: [service()] } }),
+      }));
+    const { panel, text, elements } = panelWith(fetchImpl, timers);
+
+    const firstRead = panel.loadAdminHealth();
+    await timers.advance(5000);
+    await firstRead;
+    expect(text.get('healthGeneratedAt')).toBe('本次更新失敗');
+
+    await panel.loadAdminHealth();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(text.get('healthGeneratedAt')).toContain('更新於');
+    expect(elements.get('healthOverallStatus')?.className).toContain('ok');
+  });
+
   it('renders the services when the read answers', async () => {
     const timers = createTestTimers();
     const { panel, text } = panelWith(

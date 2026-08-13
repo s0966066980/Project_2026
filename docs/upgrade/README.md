@@ -91,7 +91,7 @@ is in [`gates/README.md`](gates/README.md).
 
 | Item | Gap |
 | --- | --- |
-| 37/38 Performance and concurrency | No load or concurrency tests |
+| 37/38 Performance and concurrency | Cart-revision and Checkout-outbox concurrency evidence exists; load/soak testing remains |
 | 17/18 Frontend decomposition | kiosk/app.js is 2649 lines, admin/admin.js 1213; the checkout section is coupled to the DOM registry and has no characterization test to extract against |
 | 10.4 Backup retention and scheduling | The drill is repeatable but nothing runs it on a timer; belongs with the appliance work (30–31) |
 

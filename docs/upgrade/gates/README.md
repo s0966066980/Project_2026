@@ -575,3 +575,20 @@ pytest tests/test_postgres_checkout_outbox_claim.py (PostgreSQL 18.4)  1 passed
 full backend suite                                               456 passed, 46 skipped
 docker/scripts/test.sh                                           passed
 ```
+
+## UPGRADE-025 — Operations health timeout and operator retry
+
+The Admin Operations health panel now has executable evidence for both sides
+of its bounded failure contract: a service-health request that never answers
+fails after 5 seconds, and a subsequent operator retry performs a fresh read
+and returns the panel to a healthy state when the service recovers. The panel
+continues to use the shared versioned Operations client with retries disabled,
+so the retry remains an explicit operator action.
+
+```text
+npm test -- --run tests/unit/health-admin.test.ts          14 passed
+frontend full unit suite                                  131 passed
+frontend typecheck + syntax                               passed
+full backend suite                                        456 passed, 46 skipped
+docker/scripts/test.sh                                    passed
+```

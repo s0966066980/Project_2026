@@ -77,7 +77,7 @@ Admin detail, verified-preference, delete, and CSV export now use the canonical
 `/api/v1/members` surface; the legacy `/api/members` routes remain only as a
 compatibility registration for the zero-telemetry observation window. The exact
 PostgreSQL-backed runtime returned `/live` and `/ready` before and after restart
-with 20/20 adapters covered and migration head `0028`; the live Redis
+with 20/20 adapters covered and migration head `0029`; the live Redis
 integration against the candidate passed 9/9 tests.
 
 ## Non-replaceable inputs
