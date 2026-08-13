@@ -592,3 +592,20 @@ frontend typecheck + syntax                               passed
 full backend suite                                        456 passed, 46 skipped
 docker/scripts/test.sh                                    passed
 ```
+
+## UPGRADE-026 — Kiosk checkout projection seam
+
+The first Kiosk frontend decomposition step extracts the checkout projection
+rules from `kiosk/app.js` into `kiosk/checkout.js`. Its small interface owns
+server-quote totals, server-issued order identity, and the final completion
+item projection; DOM event wiring and transport remain in the app adapter.
+The characterization tests cover server-pricing preference and the safe local
+fallback for incomplete response payloads.
+
+```text
+npm test -- --run tests/unit/checkout-contract.test.ts tests/unit/cart-contract.test.ts  5 passed
+frontend full unit suite                                                               134 passed
+frontend typecheck + syntax                                                            passed
+full backend suite                                                                      456 passed, 46 skipped
+docker/scripts/test.sh                                                                  passed
+```

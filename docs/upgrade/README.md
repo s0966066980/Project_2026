@@ -92,7 +92,7 @@ is in [`gates/README.md`](gates/README.md).
 | Item | Gap |
 | --- | --- |
 | 37/38 Performance and concurrency | Cart-revision and Checkout-outbox concurrency evidence exists; load/soak testing remains |
-| 17/18 Frontend decomposition | kiosk/app.js is 2649 lines, admin/admin.js 1213; the checkout section is coupled to the DOM registry and has no characterization test to extract against |
+| 17/18 Frontend decomposition | Kiosk checkout projection seam and characterization tests exist; broader kiosk/app.js and admin/admin.js extraction remains |
 | 10.4 Backup retention and scheduling | The drill is repeatable but nothing runs it on a timer; belongs with the appliance work (30–31) |
 
 ### Missing, and dependent on the above
@@ -148,6 +148,6 @@ out-of-period item, and Guest checkout blocked by a Member outage.
 
 ### Still partially delivered
 
-Frontend decomposition (17, 18), E2E breadth (20), AI provider ports and the
+Frontend decomposition (17, 18; Kiosk checkout projection seam now evidenced), E2E breadth (20), AI provider ports and the
 degradation matrix (21, 22), Payment/POS ports beyond the manual adapter
 (34, 35), and failure injection breadth (39).

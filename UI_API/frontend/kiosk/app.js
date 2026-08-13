@@ -30,6 +30,12 @@ import {
   pickChoiceHesitationItem, renderChoiceHesitationItem,
 } from './choiceHesitation.js';
 import { openPaymentCountdown, closePaymentCountdown, showPaymentCountdownSection } from './paymentCountdown.js';
+import {
+  PENDING_ORDER_NUMBER_LABEL,
+  checkoutQuoteSummary,
+  completionCartItems,
+  confirmedOrderResult,
+} from './checkout.js';
 import { showMemberChoice, renderMemberMenuHeader } from './member.js';
 import {
   buildKioskSessionId,
@@ -1836,10 +1842,6 @@ let selectedPayment = 'credit-card';
 let activeCheckoutQuote = null;
 let checkoutIdempotencyKey = '';
 
-// 取餐號由伺服器在訂單建立時配號（confirmed_orders.pickup_number），
-// 報價階段並不存在，因此確認頁不得自行編造號碼。
-const PENDING_ORDER_NUMBER_LABEL = '付款完成後產生';
-
 function updateChoiceGroup(selector, selectedValue) {
   document.querySelectorAll(selector).forEach(button => {
     const value = button.dataset.fulfillment || button.dataset.payment;
@@ -1851,17 +1853,11 @@ function updateChoiceGroup(selector, selectedValue) {
 }
 
 function renderOrderConfirm(quote = activeCheckoutQuote) {
-  const items = Array.isArray(quote?.pricing?.cart_items) ? quote.pricing.cart_items : [];
-  const prepMinutes = Math.max(0, ...items.map(item => Number(item.prep_time_minutes || item.prep_minutes || 0)));
-  const totals = {
-    subtotal: Number(quote?.pricing?.subtotal || 0),
-    serviceFee: Number(quote?.pricing?.fee_total || 0),
-    total: Number(quote?.pricing?.total || 0),
-  };
+  const { items, prepMinutes, subtotal, serviceFee, total } = checkoutQuoteSummary(quote);
 
-  if (ui.confirmSubtotalPrice) ui.confirmSubtotalPrice.textContent = `$${totals.subtotal}`;
-  if (ui.confirmServiceFee) ui.confirmServiceFee.textContent = `$${totals.serviceFee}`;
-  if (ui.confirmTotalPrice) ui.confirmTotalPrice.textContent = `$${totals.total}`;
+  if (ui.confirmSubtotalPrice) ui.confirmSubtotalPrice.textContent = `$${subtotal}`;
+  if (ui.confirmServiceFee) ui.confirmServiceFee.textContent = `$${serviceFee}`;
+  if (ui.confirmTotalPrice) ui.confirmTotalPrice.textContent = `$${total}`;
   if (ui.confirmOrderNumber) ui.confirmOrderNumber.textContent = PENDING_ORDER_NUMBER_LABEL;
   if (ui.confirmPrepTime) ui.confirmPrepTime.textContent = `約 ${prepMinutes || 5} 分鐘`;
   if (ui.confirmPayBtn) ui.confirmPayBtn.disabled = !items.length;
@@ -1895,15 +1891,6 @@ function renderOrderConfirm(quote = activeCheckoutQuote) {
       </div>
     `;
   }).join('');
-}
-
-// 伺服器建立的訂單才帶有權威的取餐號與定價快照；kiosk 一律沿用，不自行重算。
-function confirmedOrderResult(order) {
-  return {
-    orderNumber: order?.pickup_number || 0,
-    sessionId: order?.session_id || sessionId,
-    pricing: order?.pricing || null,
-  };
 }
 
 function showConfirmationPendingNotice() {
@@ -1951,7 +1938,7 @@ async function resolveUnknownConfirmation(quoteId, idempotencyKey) {
       const outcome = await api.getCheckoutOutcome(quoteId, idempotencyKey).catch(() => null);
       if (outcome?.order) {
         hideConfirmationPendingNotice();
-        return confirmedOrderResult(outcome.order);
+        return confirmedOrderResult(outcome.order, sessionId);
       }
       // 權威拒絕（報價過期、品項不可供應）是確定的結果，立即結束不確定狀態。
       if (outcome?.type && outcome.type !== 'confirmed' && outcome.type !== 'unknown') {
@@ -1991,7 +1978,7 @@ async function writeCheckoutLog(cartIds = []) {
     }
     const data = await res.json().catch(() => ({}));
     if (data.type !== 'confirmed') throw new Error(data.type || 'confirmation_rejected');
-    return confirmedOrderResult(data.order);
+    return confirmedOrderResult(data.order, sessionId);
   } catch (error) {
     if (quoteId && (error?.name === 'AbortError' || error instanceof TypeError)) {
       return await resolveUnknownConfirmation(quoteId, idempotencyKey);
@@ -2137,15 +2124,11 @@ async function finishOrder(cartIds, button, loadingText) {
   if (button) button.innerHTML = originalHTML;
 
   // 完成畫面優先使用伺服器訂單的定價快照；只有在快照缺漏時才退回本地購物車內容。
-  const quotedItems = Array.isArray(orderData.pricing?.cart_items) ? orderData.pricing.cart_items : [];
-  const rawItems = quotedItems.length
-    ? quotedItems
-    : (cartManager.getCartItems ? cartManager.getCartItems() : []);
-  orderData.cartItems = rawItems.map(item => ({
-    name: item.name || item.id || '',
-    quantity:  Number(item.qty || item.quantity || 1),
-    price: resolveItemPrice(item),
-  }));
+  orderData.cartItems = completionCartItems(
+    orderData,
+    cartManager.getCartItems ? cartManager.getCartItems() : [],
+    resolveItemPrice,
+  );
 
   resetVoiceEmotionRound();
   showCompletionOverlay(orderData);
