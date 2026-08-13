@@ -278,3 +278,89 @@ Pilot Admission list next to the Configuration Authority.
 Consent version and retention, history-consent behaviour, PostgreSQL
 migration/backfill/integrity/concurrency, and the Admin/Kiosk consumer ledger.
 The gate is not passed.
+
+## UPGRADE-018 — Campaign & promotion capability gate
+
+```text
+pytest tests/test_campaign_capability_gate.py   24 passed   (PostgreSQL 18.4)
+```
+
+Lifecycle: `archived` is terminal; `draft` cannot reach `active` without
+passing through review; every transition target is itself a declared state; a
+live or scheduled campaign is not editable until it is paused, so nobody edits
+the terms of an offer while customers are being sold under them.
+
+Schedule: a date-only end is inclusive to the end of that day in the
+**campaign's** timezone, not the server's — the same instant is inside an offer
+ending on the 13th in UTC and outside it in Taipei, and the tests pin both
+sides of that boundary. An unusable timezone string falls back rather than
+taking pricing down; an authoring mistake is not an outage.
+
+Pricing authority: an offer scoped to another store does not apply here; an
+inactive one does not price; an offer outside its window does not price; an
+offer may not price an item at zero or below, and may not raise the price above
+the catalog price. Two offers never stack — the cheaper one wins.
+
+### What the gate clarified about where price comes from
+
+`quote_promotion` reads `promo_price`, the promoted price itself. It never
+reads `discount_type`/`discount_value`, which are campaign-authoring fields.
+An offer carrying only those two prices nothing, and the gate now says so out
+loud, because inferring a live price from an authoring field would let an
+unreviewed edit move what a customer pays.
+
+### The client's preference is a tie-break, not an override
+
+`select_promotion_quote` takes a `preferred_ref` — the offer the browser says
+it wants. It may break a tie between offers the server itself found eligible;
+it may not introduce one, and it may not beat a cheaper offer. Both directions
+are checked, because this is the field a tampered client would reach for.
+
+### A scheduled campaign is projected as "active"
+
+`project_legacy` writes `status: "active"` into `promotion_records` for a
+campaign that is merely `scheduled`. Anything trusting that field alone would
+show — and price — an offer before it starts. What actually holds the line is
+`start_at` on the projected record, so the gate reads the record the Kiosk
+reads and prices against it on both sides of the start:
+
+```text
+publish starting 2026-08-20, quote on 08-13   not eligible  promotion_not_started
+publish starting 2026-08-20, quote on 08-21   eligible      50
+```
+
+The behaviour is correct as long as every reader evaluates the window. It is
+recorded here rather than changed, because the flag is what the Admin console
+lists on and narrowing it is a product decision, not a test's.
+
+### Publication
+
+A campaign starting later is published as `scheduled`, not forced live —
+publishing is a request to go on air, not an instruction to go on air now. A
+payload the authoring rules refuse leaves nothing behind: the campaign list is
+identical before and after the rejection, so an operator never has half a
+campaign they cannot see.
+
+### Mutation
+
+```text
+the client's preference outranks the price
+  FAILED test_a_preference_cannot_beat_a_cheaper_offer            (23 passed)
+an offer may raise the price above the catalog price
+  FAILED test_an_offer_that_raises_the_price_is_not_honoured      (23 passed)
+the last day ends at midnight instead of end of day
+  FAILED test_the_last_day_of_an_offer_lasts_until_the_end_of_that_day
+  FAILED test_the_boundary_is_read_in_the_offers_timezone_not_the_servers
+                                                                  (22 passed)
+revert
+  24 passed
+```
+
+Each mutation failed exactly the rule it broke and left the rest passing.
+
+### Still open for this capability
+
+Push copy resolution and the notification surface; content edits under
+concurrent publication (the version conflict is proven, the publish race is
+not); the Admin and Kiosk generated-client consumer ledger. The gate is not
+passed.

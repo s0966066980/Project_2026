@@ -138,6 +138,14 @@ rather than a capability failing to own its implementation.
 data authority, PostgreSQL, restart and consumer evidence per capability. The
 execution plan's count stays at 1/10.
 
+Gate evidence has since been written for four more capabilities — Identity
+(UPGRADE-015), Ordering (016), Member (017) and Campaign & Promotion (018),
+55 checks against the live PostgreSQL, each rule mutation-verified. Every one
+of those entries ends in "the gate is not passed" and says what is still
+missing, so the count is unchanged at 1/10. Three product defects surfaced
+along the way: duplicate revocation audit events, a checkout 500 on an
+out-of-period item, and Guest checkout blocked by a Member outage.
+
 ### Still partially delivered
 
 Frontend decomposition (17, 18), E2E breadth (20), AI provider ports and the
