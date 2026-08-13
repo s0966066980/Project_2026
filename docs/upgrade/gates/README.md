@@ -277,8 +277,8 @@ Pilot Admission list next to the Configuration Authority.
 
 ### Still open for this capability
 
-PostgreSQL migration/backfill/integrity/concurrency and the Admin/Kiosk
-consumer ledger. The gate is not passed.
+PostgreSQL migration/backfill and the Admin/Kiosk consumer ledger remain. The
+scoped integrity/concurrency proof is recorded below; the gate is not passed.
 
 ## UPGRADE-018 — Campaign & promotion capability gate
 
@@ -625,6 +625,22 @@ docker/scripts/test.sh                                        passed
 
 This does not yet prove the live interaction/intervention pipeline against
 PostgreSQL touch data or the Admin/Kiosk consumer ledger; those remain open.
+
+## UPGRADE-030 — Member PostgreSQL scoped registration integrity
+
+Member registration now has a real PostgreSQL concurrency check: two
+simultaneous registrations for the same phone and tenant both complete without
+an integrity error, leave exactly one scoped member row, preserve the optional
+consent flags, and leave exactly one member-preferences row.
+
+```text
+pytest tests/test_member_postgres_integrity.py (PostgreSQL 18.4)       1 passed
+full backend suite                                                   468 passed, 47 skipped
+docker/scripts/test.sh                                               passed
+```
+
+The remaining Member gate work is migration/backfill authority and the
+Admin/Kiosk consumer ledger.
 
 ## UPGRADE-027 — Member consent policy
 
