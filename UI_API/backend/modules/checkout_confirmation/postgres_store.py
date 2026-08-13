@@ -60,3 +60,36 @@ class PostgresCheckoutStore(SQLiteCheckoutStore):
             raise
         finally:
             c.close()
+
+    def pending_outbox(self, *, limit: int = 100):
+        with self.tx() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM checkout_outbox
+                WHERE published_at IS NULL AND dead_lettered_at IS NULL
+                  AND available_at <= NOW()
+                  AND (locked_until IS NULL OR locked_until <= NOW())
+                ORDER BY available_at, created_at
+                FOR UPDATE SKIP LOCKED
+                LIMIT ?
+                """,
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+            for row in rows:
+                conn.execute(
+                    "UPDATE checkout_outbox SET attempt_count=attempt_count+1, locked_by=?, locked_until=NOW() + INTERVAL '60 seconds' WHERE event_id=?",
+                    ("checkout-dispatcher", row["event_id"]),
+                )
+        return [
+            {
+                "tenant_id": str(row["tenant_id"]),
+                "store_id": str(row["store_id"]),
+                "event_id": str(row["event_id"]),
+                "event_type": row["event_type"],
+                "aggregate_id": str(row["aggregate_id"]),
+                "payload": row["payload_json"] if isinstance(row["payload_json"], dict) else json.loads(row["payload_json"]),
+                "attempt_count": int(row["attempt_count"] or 0),
+                "max_attempts": int(row["max_attempts"] or 5),
+            }
+            for row in rows
+        ]

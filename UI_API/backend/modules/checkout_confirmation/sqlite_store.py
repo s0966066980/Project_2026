@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from models.worker_jobs import compute_backoff_seconds
+
 from .module import CheckoutError
 
 SCHEMA = """
@@ -16,7 +18,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS checkout_one_active_quote ON checkout_quotes(t
 CREATE TABLE IF NOT EXISTS checkout_confirmation_attempts(tenant_id TEXT NOT NULL,store_id TEXT NOT NULL,idempotency_key TEXT NOT NULL,quote_id TEXT NOT NULL,outcome_type TEXT NOT NULL,outcome_json TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(tenant_id,store_id,idempotency_key));
 CREATE TABLE IF NOT EXISTS checkout_pickup_sequences(tenant_id TEXT NOT NULL,store_id TEXT NOT NULL,last_number INTEGER NOT NULL CHECK(last_number > 0),PRIMARY KEY(tenant_id,store_id));
 CREATE TABLE IF NOT EXISTS confirmed_orders(tenant_id TEXT NOT NULL,store_id TEXT NOT NULL,order_id TEXT NOT NULL,quote_id TEXT NOT NULL,session_id TEXT NOT NULL,pickup_number INTEGER NOT NULL,status TEXT NOT NULL,lines_json TEXT NOT NULL,pricing_json TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(tenant_id,store_id,order_id),UNIQUE(tenant_id,store_id,quote_id));
-CREATE TABLE IF NOT EXISTS checkout_outbox(tenant_id TEXT NOT NULL,store_id TEXT NOT NULL,event_id TEXT NOT NULL,event_type TEXT NOT NULL,aggregate_id TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,published_at TEXT,PRIMARY KEY(tenant_id,store_id,event_id));
+CREATE TABLE IF NOT EXISTS checkout_outbox(tenant_id TEXT NOT NULL,store_id TEXT NOT NULL,event_id TEXT NOT NULL,event_type TEXT NOT NULL,aggregate_id TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,published_at TEXT,available_at TEXT NOT NULL,attempt_count INTEGER NOT NULL DEFAULT 0,max_attempts INTEGER NOT NULL DEFAULT 5,locked_by TEXT,locked_until TEXT,last_error TEXT NOT NULL DEFAULT '',dead_lettered_at TEXT,PRIMARY KEY(tenant_id,store_id,event_id));
 """
 
 
@@ -41,6 +43,20 @@ class SQLiteCheckoutStore:
             columns = {row["name"] for row in c.execute("PRAGMA table_info(confirmed_orders)").fetchall()}
             if "pickup_number" not in columns:
                 c.execute("ALTER TABLE confirmed_orders ADD COLUMN pickup_number INTEGER NOT NULL DEFAULT 0")
+            outbox_columns = {row["name"] for row in c.execute("PRAGMA table_info(checkout_outbox)").fetchall()}
+            additions = {
+                "available_at": "TEXT NOT NULL DEFAULT ''",
+                "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+                "max_attempts": "INTEGER NOT NULL DEFAULT 5",
+                "locked_by": "TEXT",
+                "locked_until": "TEXT",
+                "last_error": "TEXT NOT NULL DEFAULT ''",
+                "dead_lettered_at": "TEXT",
+            }
+            for name, definition in additions.items():
+                if name not in outbox_columns:
+                    c.execute(f"ALTER TABLE checkout_outbox ADD COLUMN {name} {definition}")
+            c.execute("UPDATE checkout_outbox SET available_at=created_at WHERE available_at=''")
 
     def _connect(self):
         c = sqlite3.connect(self.path)
@@ -193,7 +209,7 @@ class SQLiteCheckoutStore:
                         "device_id": str(scope.device_id) if scope.device_id else "",
                     }
                     c.execute(
-                        "INSERT INTO checkout_outbox VALUES(?,?,?,'OrderConfirmed',?,?,?,NULL)",
+                        "INSERT INTO checkout_outbox (tenant_id,store_id,event_id,event_type,aggregate_id,payload_json,created_at,published_at) VALUES(?,?,?,'OrderConfirmed',?,?,?,NULL)",
                         (t, s, str(uuid4()), oid, json.dumps(event, separators=(",", ":")), now),
                     )
                     result = {
@@ -232,11 +248,29 @@ class SQLiteCheckoutStore:
         return int(row["last_number"])
 
     def pending_outbox(self, *, limit: int = 100):
-        with self._connect() as conn:
+        now = _now()
+        with self.tx() as conn:
             rows = conn.execute(
-                "SELECT tenant_id,store_id,event_id,event_type,aggregate_id,payload_json FROM checkout_outbox WHERE published_at IS NULL ORDER BY created_at LIMIT ?",
-                (max(1, min(int(limit), 500)),),
+                """
+                SELECT * FROM checkout_outbox
+                WHERE published_at IS NULL AND dead_lettered_at IS NULL
+                  AND available_at <= ? AND (locked_until IS NULL OR locked_until <= ?)
+                ORDER BY available_at, created_at LIMIT ?
+                """,
+                (now.isoformat(), now.isoformat(), max(1, min(int(limit), 500))),
             ).fetchall()
+            claimed_rows = []
+            for row in rows:
+                conn.execute(
+                    "UPDATE checkout_outbox SET attempt_count=attempt_count+1, locked_by=?, locked_until=? WHERE event_id=?",
+                    ("checkout-dispatcher", (now + timedelta(seconds=60)).isoformat(), row["event_id"]),
+                )
+                claimed_rows.append(
+                    conn.execute(
+                        "SELECT * FROM checkout_outbox WHERE event_id=?",
+                        (row["event_id"],),
+                    ).fetchone()
+                )
         return [
             {
                 "tenant_id": str(row["tenant_id"]),
@@ -245,16 +279,41 @@ class SQLiteCheckoutStore:
                 "event_type": row["event_type"],
                 "aggregate_id": str(row["aggregate_id"]),
                 "payload": _json(row["payload_json"]),
+                "attempt_count": int(row["attempt_count"] or 0),
+                "max_attempts": int(row["max_attempts"] or 5),
             }
-            for row in rows
+            for row in claimed_rows
         ]
 
     def mark_outbox_published(self, *, event_id: str):
         with self.tx() as conn:
             conn.execute(
-                "UPDATE checkout_outbox SET published_at=? WHERE event_id=? AND published_at IS NULL",
+                "UPDATE checkout_outbox SET published_at=?, locked_by=NULL, locked_until=NULL, last_error='' WHERE event_id=? AND published_at IS NULL",
                 (_now().isoformat(), event_id),
             )
+
+    def mark_outbox_failed(self, *, event_id: str, safe_error: str, retryable: bool = True):
+        now = _now()
+        with self.tx() as conn:
+            row = conn.execute("SELECT * FROM checkout_outbox WHERE event_id=?", (event_id,)).fetchone()
+            if row is None:
+                return None
+            attempt = int(row["attempt_count"] or 0)
+            max_attempts = int(row["max_attempts"] or 5)
+            error = str(safe_error or "checkout_outbox_dispatch_failed")[:500]
+            if not retryable or attempt >= max_attempts:
+                conn.execute(
+                    "UPDATE checkout_outbox SET dead_lettered_at=?, locked_by=NULL, locked_until=NULL, last_error=? WHERE event_id=?",
+                    (now.isoformat(), error, event_id),
+                )
+            else:
+                available = now + timedelta(seconds=compute_backoff_seconds(attempt))
+                conn.execute(
+                    "UPDATE checkout_outbox SET available_at=?, locked_by=NULL, locked_until=NULL, last_error=? WHERE event_id=?",
+                    (available.isoformat(), error, event_id),
+                )
+            updated = conn.execute("SELECT * FROM checkout_outbox WHERE event_id=?", (event_id,)).fetchone()
+        return dict(updated) if updated else None
 
     @staticmethod
     def _quote(q):

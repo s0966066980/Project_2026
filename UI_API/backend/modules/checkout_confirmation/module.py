@@ -22,6 +22,7 @@ class CheckoutStore(Protocol):
     def outcome(self, **values) -> dict[str, Any]: ...
     def pending_outbox(self, *, limit: int) -> list[dict[str, Any]]: ...
     def mark_outbox_published(self, *, event_id: str) -> None: ...
+    def mark_outbox_failed(self, *, event_id: str, safe_error: str, retryable: bool = True) -> dict[str, Any] | None: ...
 
 
 class Pricing(Protocol):
@@ -68,20 +69,35 @@ class CheckoutConfirmationModule:
         return self._store.outcome(scope=scope, quote_id=quote_id, idempotency_key=idempotency_key)
 
     def dispatch_outbox(self, *, consumer, limit: int = 100) -> dict[str, Any]:
-        completed, failed = [], []
+        completed, failed, dead_lettered = [], [], []
         for event in self._store.pending_outbox(limit=limit):
             try:
                 consumer(event)
                 self._store.mark_outbox_published(event_id=event["event_id"])
                 completed.append(event["event_id"])
-            except Exception:
+            except Exception as exc:
                 # A failed event stays unpublished and is retried on the next dispatch, but that
-                # retry is invisible without a log line: nothing else surfaces why a customer's
-                # order never reached their member history.
+                # retry is bounded and visible. A dead-lettered event never blocks later orders.
                 _logger.exception(
                     "checkout_outbox_dispatch_failed",
-                    extra={"event_id": event.get("event_id"), "event_type": event.get("event_type")},
+                    extra={
+                        "event_id": event.get("event_id"),
+                        "event_type": event.get("event_type"),
+                        "safe_error": str(exc)[:200],
+                    },
                 )
                 observability_service.increment_metric("checkout_outbox_dispatch_failed_total")
-                failed.append(event["event_id"])
-        return {"published_event_ids": completed, "failed_event_ids": failed}
+                result = self._store.mark_outbox_failed(
+                    event_id=event["event_id"],
+                    safe_error=str(exc)[:200],
+                    retryable=True,
+                )
+                if result and result.get("dead_lettered_at") is not None:
+                    dead_lettered.append(event["event_id"])
+                else:
+                    failed.append(event["event_id"])
+        return {
+            "published_event_ids": completed,
+            "failed_event_ids": failed,
+            "dead_lettered_event_ids": dead_lettered,
+        }

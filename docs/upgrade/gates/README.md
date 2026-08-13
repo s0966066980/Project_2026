@@ -529,3 +529,18 @@ The test uses one injected clock for enqueue, claim, retry, and reclaim, so a
 host-clock-dependent event cannot make the evidence pass by accident.
 Production outbox seeding still defaults to the current UTC time; the optional
 `available_at` is a deterministic adapter/test boundary.
+
+## UPGRADE-022 — Reliable Checkout confirmation outbox delivery
+
+The active `checkout_outbox` path used by Checkout confirmation now claims
+events with a lease, retries transient consumer failures with bounded backoff,
+and dead-letters events after their attempt budget. Published events clear the
+lease and are not delivered again. SQLite keeps the compatibility bootstrap;
+PostgreSQL uses row locking with `SKIP LOCKED`, and migration `0029` adds the
+durability fields and claim index.
+
+```text
+pytest tests/test_checkout_outbox_reliability.py tests/test_checkout_contract.py  5 passed
+full backend suite                                                               456 passed, 44 skipped
+docker/scripts/test.sh                                                           passed
+```
