@@ -2557,7 +2557,6 @@ Project_2026/
 ├── docker/
 │   ├── compose.yaml
 │   ├── compose.ai.yaml
-│   ├── compose.ai-gpu.yaml
 │   └── compose.pilot.yaml
 ├── docs/
 │   ├── architecture/

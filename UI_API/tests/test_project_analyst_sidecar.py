@@ -112,18 +112,22 @@ def test_a_repeated_evidence_path_is_refused():
 def test_every_profile_reports_its_readiness_including_the_unready_ones(client):
     body = client.get("/profiles").json()
     ids = {entry["id"] for entry in body["profiles"]}
-    assert ids == {"codex", "claude", "grok"}
+    assert ids == {"codex", "claude", "grok", "ollama"}
 
 
 def test_a_profile_without_a_mounted_credential_is_not_selectable(client):
     """The closed state, which is what this deployment is actually in.
 
-    No credentials are mounted, so every profile must be unready with a reason
-    an operator can act on rather than an empty selector.
+    No credentials are mounted, so every CLI profile must be unready with a
+    reason an operator can act on rather than an empty selector. `ollama` is
+    excluded because it has no credential to mount — its readiness depends on
+    a running local host, which is checked separately below.
     """
 
     body = client.get("/profiles").json()
     for entry in body["profiles"]:
+        if entry["id"] == "ollama":
+            continue
         assert entry["ready"] is False
         assert entry["reason"] in {
             "cli_not_installed",
@@ -320,3 +324,164 @@ def test_the_sidecar_image_does_not_copy_the_repository():
     copies = [line.split() for line in dockerfile.splitlines() if line.startswith("COPY ")]
     sources = {parts[1] for parts in copies}
     assert sources <= {"project_analyst/", "project_analyst/requirements.txt"}
+
+
+# --- The local profile ------------------------------------------------------
+
+
+class _LocalHost:
+    """A stand-in for the local model host, answering exactly what a test says."""
+
+    def __init__(self, *, tags=None, version="0.12.11", generate=None, fail=None):
+        self.tags = {"models": [{"name": "qwen3.5:4b"}]} if tags is None else tags
+        self.version = version
+        self.generate = generate
+        self.fail = fail
+        self.calls: list[tuple[str, dict | None]] = []
+
+    def __call__(self, definition, path, payload, timeout):
+        self.calls.append((path, payload))
+        if self.fail is not None:
+            raise self.fail
+        if path == "/api/tags":
+            return self.tags
+        if path == "/api/version":
+            return {"version": self.version}
+        if path == "/api/generate":
+            return {"response": self.generate}
+        raise AssertionError(path)
+
+
+def _local(monkeypatch, host: _LocalHost) -> _LocalHost:
+    monkeypatch.setattr(profiles, "local_request", host)
+    return host
+
+
+def _ollama_entry(client) -> dict:
+    return next(entry for entry in client.get("/profiles").json()["profiles"] if entry["id"] == "ollama")
+
+
+def test_the_local_profile_is_ready_without_any_credential(client, monkeypatch):
+    """The point of the profile: no vendor credential, so it can actually run.
+
+    Every CLI profile on this runtime reports `credential_missing`, which left
+    the Admin selector empty and the analysis unreachable. A model served from
+    inside the appliance has nothing to mount.
+    """
+
+    _local(monkeypatch, _LocalHost())
+
+    entry = _ollama_entry(client)
+
+    assert entry["ready"] is True
+    assert entry["reason"] == ""
+    assert "qwen3.5:4b" in entry["version"], "the report cannot say which model produced it"
+
+
+def test_a_local_host_that_does_not_answer_is_not_selectable(client, monkeypatch):
+    _local(monkeypatch, _LocalHost(fail=OSError("connection refused")))
+
+    entry = _ollama_entry(client)
+
+    assert entry["ready"] is False
+    assert entry["reason"] == "local_llm_unreachable"
+
+
+def test_a_missing_model_names_the_model_that_is_missing(client, monkeypatch):
+    """`local_llm_model_missing` alone leaves the operator guessing which one."""
+
+    _local(monkeypatch, _LocalHost(tags={"models": [{"name": "something-else:1b"}]}))
+
+    entry = _ollama_entry(client)
+
+    assert entry["ready"] is False
+    assert entry["reason"] == "local_llm_model_missing:qwen3.5:4b"
+
+
+def test_an_unreadable_version_does_not_make_a_working_host_unready(client, monkeypatch):
+    class _NoVersion(_LocalHost):
+        def __call__(self, definition, path, payload, timeout):
+            if path == "/api/version":
+                raise OSError("no version endpoint")
+            return super().__call__(definition, path, payload, timeout)
+
+    _local(monkeypatch, _NoVersion())
+
+    entry = _ollama_entry(client)
+
+    assert entry["ready"] is True
+    assert entry["version"] == "qwen3.5:4b"
+
+
+def test_a_local_analysis_produces_the_same_common_result(client, monkeypatch):
+    host = _local(
+        monkeypatch,
+        _LocalHost(
+            generate='{"findings":[{"severity":"warning","title":"Config drift",'
+            '"detail":"","evidence_paths":["UI_API/backend/config.py"]}]}'
+        ),
+    )
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["profile"] == "ollama"
+    assert body["findings"][0]["title"] == "Config drift"
+    assert body["evidence_references"] == ["UI_API/backend/config.py"]
+
+    generate = next(payload for path, payload in host.calls if path == "/api/generate")
+    assert generate["stream"] is False
+    assert generate["format"] == "json", "free text would fail the contract probe every time"
+    assert generate["options"]["num_predict"] > 0, "a local model has to be told when to stop"
+
+
+def test_a_local_analysis_still_refuses_evidence_that_was_never_supplied(client, monkeypatch):
+    """The local provider gets no more trust than a vendor CLI."""
+
+    _local(
+        monkeypatch,
+        _LocalHost(
+            generate='{"findings":[{"severity":"blocked","title":"Leak","detail":"","evidence_paths":["/etc/shadow"]}]}'
+        ),
+    )
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "provider_cited_unsupplied_evidence"
+
+
+def test_an_unready_local_profile_is_refused_rather_than_substituted(client, monkeypatch):
+    _local(monkeypatch, _LocalHost(fail=OSError("connection refused")))
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "profile_not_ready:local_llm_unreachable"
+
+
+def test_a_local_host_that_hangs_is_reported_as_a_timeout_not_a_failure(client, monkeypatch):
+    """An operator told "invocation failed" goes looking for the wrong thing."""
+
+    class _Hangs(_LocalHost):
+        def __call__(self, definition, path, payload, timeout):
+            if path == "/api/generate":
+                raise TimeoutError("timed out")
+            return super().__call__(definition, path, payload, timeout)
+
+    _local(monkeypatch, _Hangs())
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 504
+    assert response.json()["detail"] == "provider_timed_out"
+
+
+def test_a_local_refusal_never_describes_the_host_it_runs_on(client, monkeypatch):
+    _local(monkeypatch, _LocalHost(fail=OSError("connect to 10.4.2.9:11434 failed: /home/oliver/.ollama")))
+
+    entry = _ollama_entry(client)
+
+    assert "10.4.2.9" not in entry["reason"]
+    assert "/home/" not in entry["reason"]

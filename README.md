@@ -47,13 +47,12 @@ Compose stack 分成三層，所有指令都需要同一組 `-f` 參數：
 | --- | --- |
 | `docker/compose.yaml` | PostgreSQL、migration、app、worker |
 | `docker/compose.ai.yaml` | Ollama 與 CPU R1-Omni |
-| `docker/compose.ai-gpu.yaml` | 可選的 NVIDIA GPU 覆蓋 |
 
 把這組參數定義一次再重複使用。**啟動與關閉必須用完全相同的 overlay 組合**，用變數可以直接避免這個常見錯誤：
 
 ```bash
 export COMPOSE="docker compose --env-file .env -f docker/compose.yaml -f docker/compose.ai.yaml"
-export COMPOSE="$COMPOSE -f docker/compose.ai-gpu.yaml"   # 僅在使用 GPU 時追加
+export COMPOSE="$COMPOSE"   # 僅在使用 GPU 時追加
 ```
 
 之後：

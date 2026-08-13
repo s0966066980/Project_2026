@@ -1119,3 +1119,87 @@ pytest -q (DATABASE_BACKEND=postgresql)  532 passed,   9 skipped   (PostgreSQL)
 frontend vitest                          135 passed
 mypy, ruff check, ruff format            clean
 ```
+
+## UPGRADE-045 — A local profile for the project brain, and GPU as a requirement
+
+Two requests, one root: the project brain had never been connected to Ollama,
+and the AI services were only optionally on the GPU.
+
+### The brain was not "disconnected from Ollama" — it never had a local profile
+
+`project_analyst/profiles.py` knew three providers, all CLI-shaped: a pinned
+binary, a version range, and a mounted vendor credential. On this runtime all
+three report `cli_not_installed`, so the Admin selector was empty and the
+analysis was unreachable. There was no Ollama profile to be disconnected from.
+
+A local model is the one provider that can be ready without reaching outside
+the appliance, which is what Local-First is supposed to mean, so it is now a
+first-class profile rather than a fallback the CLI profiles degrade into:
+
+```text
+codex    ready=False  reason='cli_not_installed'
+claude   ready=False  reason='cli_not_installed'
+grok     ready=False  reason='cli_not_installed'
+ollama   ready=True   version='qwen3.5:4b 0.32.5'
+```
+
+Readiness is "the host answers and carries the model", not "a credential is
+mounted" — there is nothing to mount. The reason code names the missing model
+(`local_llm_model_missing:qwen3.5:4b`) because `local_llm_model_missing` alone
+leaves an operator guessing which one to pull.
+
+Everything else the sidecar guarantees is unchanged, and the local provider
+gets no more trust than a vendor CLI: the response must be the common result
+shape, every cited path must have been in the snapshot, an unready profile is
+refused rather than substituted, and a refusal never describes the host. A
+real end-to-end run against the running Ollama:
+
+```text
+POST /analyze {profile: ollama}   2.1s
+  [warning] Debug mode enabled in production-like configuration
+  [warning] Security enforcement disabled
+  evidence: UI_API/backend/config.py
+```
+
+The sidecar reaches Ollama by compose service name, so it still has no route
+to anything outside the appliance. It gained no volume, no database and no
+credential. Twelve checks in `tests/test_project_analyst_sidecar.py`, which is
+44 passing.
+
+`format: json` and a token budget are not incidental. `_findings_from` refuses
+anything that is not the common result, and a small local model asked for free
+text reliably wraps its JSON in prose; without a budget it loops on its own
+output. Both are asserted, not assumed.
+
+### GPU is now required, not preferred
+
+`compose.ai-gpu.yaml` was an optional overlay. It is deleted; `gpus: all` and
+`R1_OMNI_DEVICE: cuda` live in `compose.ai.yaml`, and every command that named
+the overlay has been updated. `setup.sh --cpu` now refuses instead of quietly
+producing a GPU stack under a CPU flag.
+
+The important half is the healthcheck. Ollama does not fail when its GPU
+disappears — it reports the CUDA device it saw at boot and falls back to CPU
+inside llama-server, which is exactly the incident above. The healthcheck now
+asserts device access on every interval:
+
+```text
+test: nvidia-smi -L >/dev/null 2>&1 && ollama list >/dev/null 2>&1
+
+with the GPU (the running container)   exit 0
+without it (same image, no device)     exit 127
+```
+
+`ollama list` says the daemon answers; `nvidia-smi` says the container can
+still reach the GPU it was granted. Device access can be revoked from a
+running container after a driver update or a `systemctl daemon-reload`, and
+nothing else in the stack reports it.
+
+### Verification
+
+```text
+pytest -q                                487 passed,  63 skipped   (SQLite)
+pytest -q (DATABASE_BACKEND=postgresql)  541 passed,   9 skipped   (PostgreSQL)
+mypy, ruff check, ruff format            clean
+six services                             healthy
+```

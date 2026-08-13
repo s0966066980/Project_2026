@@ -7,7 +7,6 @@ cd "$REPO"
 COMPOSE_FILES=(
   -f docker/compose.yaml
   -f docker/compose.ai.yaml
-  -f docker/compose.ai-gpu.yaml
 )
 
 dc() {

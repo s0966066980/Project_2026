@@ -71,12 +71,21 @@ services:
   ollama:
     image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
     restart: unless-stopped
+    # The GPU is required, not preferred. Ollama does not refuse to start
+    # without one: it reports the CUDA device it saw at boot, then falls back
+    # to CPU inside llama-server and says nothing. On 2026-08-13 that turned a
+    # one-second reply into a two-minute timeout with no error anywhere.
+    gpus: all
     volumes:
       - ollama_models:/root/.ollama
     ports:
       - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     healthcheck:
-      test: ["CMD", "ollama", "list"]
+      # Both halves matter. `ollama list` says the daemon answers; `nvidia-smi`
+      # says the container can still reach the GPU it was granted. Device
+      # access can be revoked from a running container — after a driver update
+      # or a systemd daemon-reload — and nothing else reports it.
+      test: ["CMD-SHELL", "nvidia-smi -L >/dev/null 2>&1 && ollama list >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 30
@@ -86,11 +95,15 @@ services:
     build:
       context: ..
       dockerfile: docker/R1-Omni.Dockerfile
-      target: cpu
-    image: project-2026-r1-omni:cpu
+      target: gpu
+    image: project-2026-r1-omni:gpu
     restart: unless-stopped
+    gpus: all
     environment:
-      R1_OMNI_DEVICE: cpu
+      # cuda, not auto: emotion inference on CPU is slow enough to miss the
+      # interaction it is describing, so an unavailable GPU has to fail here
+      # rather than quietly produce late evidence.
+      R1_OMNI_DEVICE: cuda
       R1_OMNI_PRELOAD: "true"
       R1_OMNI_MODEL_ROOT: /models
       R1_OMNI_ALLOWED_VIDEO_DIR: /tmp/project-2026-media
@@ -102,7 +115,7 @@ services:
       - "127.0.0.1:${R1_OMNI_PORT:-7890}:7890"
     shm_size: 2gb
     healthcheck:
-      start_period: 20m
+      start_period: 10m
 
 volumes:
   ai_cache:

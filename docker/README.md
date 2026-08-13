@@ -63,7 +63,6 @@ R1_MODELS_PATH=/srv/project-2026/models
 | --- | --- |
 | `compose.yaml` | PostgreSQL、migration、app、worker 與 test profile |
 | `compose.ai.yaml` | AI dependencies、Ollama 與 CPU R1-Omni |
-| `compose.ai-gpu.yaml` | 將 Ollama／R1 切換為 NVIDIA GPU |
 | `compose.pilot.yaml` | Local Pilot 硬化契約；必須放在最後一個 `-f` |
 
 GPU 手動啟動：
@@ -71,9 +70,7 @@ GPU 手動啟動：
 ```bash
 docker compose --env-file .env \
   -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  up -d --wait
+  -f docker/compose.ai.yaml  up -d --wait
 ```
 
 CPU 手動啟動：
@@ -89,8 +86,7 @@ docker compose --env-file .env \
 
 ```bash
 APP_GIT_REVISION=$(git rev-parse --short HEAD) docker compose --env-file .env \
-  -f docker/compose.yaml -f docker/compose.ai.yaml -f docker/compose.ai-gpu.yaml \
-  build
+  -f docker/compose.yaml -f docker/compose.ai.yaml  build
 ```
 
 手動 Compose 不會替你拉取模型；需要時執行：
@@ -133,23 +129,17 @@ Named volumes 保存：
 ```bash
 docker compose --env-file .env \
   -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  up --build -d --wait
+  -f docker/compose.ai.yaml  up --build -d --wait
 ```
 
 ```bash
 docker compose --env-file .env \
   -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  ps
+  -f docker/compose.ai.yaml  ps
 
 docker compose --env-file .env \
   -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  logs -f app worker ollama r1-omni
+  -f docker/compose.ai.yaml  logs -f app worker ollama r1-omni
 ```
 
 ## 驗證腳本
@@ -163,7 +153,7 @@ docker/scripts/test-ai.sh
 
 ## 安全邊界
 
-`compose.yaml`、`compose.ai.yaml` 與 `compose.ai-gpu.yaml` 合起來是 development/local profile：`APP_ENV=development`、`SECURITY_ENFORCED=false`、diagnostic routes 開啟、PostgreSQL URL 內嵌預設密碼。**它不是 Pilot，也不能用來宣告 Local Pilot Readiness。**
+`compose.yaml` 與 `compose.ai.yaml` 合起來是 development/local profile：`APP_ENV=development`、`SECURITY_ENFORCED=false`、diagnostic routes 開啟、PostgreSQL URL 內嵌預設密碼。**它不是 Pilot，也不能用來宣告 Local Pilot Readiness。**
 
 ## Local Pilot 硬化 profile
 
@@ -215,9 +205,7 @@ export PILOT_MIGRATION_DATABASE_URL_FILE=~/.config/project-2026/migration_databa
 
 docker compose --env-file .env \
   -f docker/compose.yaml \
-  -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
-  -f docker/compose.pilot.yaml \
+  -f docker/compose.ai.yaml  -f docker/compose.pilot.yaml \
   up -d --wait
 ```
 

@@ -21,8 +21,7 @@ usage() {
   bash docker/scripts/setup.sh [選項]
 
 選項：
-  --cpu              使用 CPU AI stack（預設使用 NVIDIA GPU）
-  --gpu              明確使用 NVIDIA GPU（相容舊指令；目前為預設）
+  --gpu              明確使用 NVIDIA GPU（相容舊指令；GPU 現為唯一支援的設定）
   --no-install       不安裝主機套件，只檢查現有 Docker/Compose
   --skip-r1-check    不檢查 R1-Omni 本地權重（權重缺少時 R1 服務不會健康）
   -h, --help         顯示說明
@@ -39,7 +38,9 @@ die() {
 
 for arg in "$@"; do
   case "$arg" in
-    --cpu) GPU=false ;;
+    # AI 服務已固定使用 GPU。以前 --cpu 會換上一組 CPU 覆蓋檔；現在沒有這組
+    # 檔案了，若沿用舊旗標而不出聲，會起出一個 GPU stack 卻讓人以為是 CPU。
+    --cpu) die "AI 服務已固定使用 NVIDIA GPU，--cpu 不再支援。" ;;
     --gpu) GPU=true ;;
     --no-install) INSTALL_DEPS=false ;;
     --skip-r1-check) SKIP_R1_CHECK=true ;;
@@ -97,7 +98,7 @@ install_nvidia_toolkit() {
   [[ "$GPU" == true ]] || return
 
   command -v nvidia-smi >/dev/null 2>&1 \
-    || die "預設安裝使用 GPU，但找不到 nvidia-smi。請先安裝 NVIDIA driver，或使用 --cpu。"
+    || die "AI 服務需要 NVIDIA GPU，但找不到 nvidia-smi。請先安裝 NVIDIA driver。"
 
   if run_root docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"nvidia"'; then
     echo "[GPU] Docker NVIDIA runtime 已設定。"
@@ -185,10 +186,8 @@ if [[ "$created_env" == true || -z "$current_pg_password" || "$current_pg_passwo
   env_set POSTGRES_PASSWORD "$(openssl rand -hex 24)"
 fi
 
+# Ollama 與 R1-Omni 的 GPU 設定就在 compose.ai.yaml 裡，沒有可選的覆蓋檔。
 COMPOSE_FILES=(-f "$DOCKER_DIR/compose.yaml" -f "$DOCKER_DIR/compose.ai.yaml")
-if [[ "$GPU" == true ]]; then
-  COMPOSE_FILES+=(-f "$DOCKER_DIR/compose.ai-gpu.yaml")
-fi
 
 port_in_use() {
   local port="$1"

@@ -9,10 +9,16 @@
 #     -f docker/compose.project-analyst.yaml \
 #     up -d --wait
 #
-# Provider credentials are optional here on purpose. Without them every profile
-# reports `credential_missing` and is not selectable, which is the correct
-# closed state — an analyst sidecar with no credentials must refuse, never fall
-# back to some other provider or to running in the App process.
+# Provider credentials are optional here on purpose. Without them every CLI
+# profile reports `credential_missing` and is not selectable, which is the
+# correct closed state — an analyst sidecar with no credentials must refuse,
+# never fall back to some other provider or to running in the App process.
+#
+# The `ollama` profile is the exception, and deliberately so: a model served
+# from inside the appliance needs no vendor credential, so it is ready on a
+# runtime where every CLI profile is not. It is a first-class profile, not a
+# fallback — the sidecar still refuses if the caller names a profile that is
+# not ready, and never substitutes one provider for another.
 #
 # To supply one, point the matching PROJECT_ANALYST_*_CREDENTIAL_FILE at a
 # host-external file owned by uid 10002 with mode 0600 and uncomment its secret.
@@ -59,7 +65,15 @@ services:
       PROJECT_ANALYST_TIMEOUT_SECONDS: "${PROJECT_ANALYST_TIMEOUT_SECONDS:-300}"
       PROJECT_ANALYST_SECRET_ROOT: /run/secrets
       PROJECT_ANALYST_HOME: /tmp/project-analyst
+      # The local profile. Reached by compose service name, so this stays
+      # inside the appliance — the sidecar still has no route to anything else.
+      OLLAMA_BASE_URL: ${PROJECT_ANALYST_OLLAMA_BASE_URL:-http://ollama:11434}
+      PROJECT_ANALYST_LOCAL_MODEL: ${OLLAMA_MODEL:-qwen3.5:4b}
 
+    # Not a dependency for the same reason the app is not: the ordering system
+    # runs without project analysis, and a slow model pull must not hold the
+    # sidecar's own start.
+    #
     # Deliberately absent, and each absence is a decision:
     #   volumes:      no repository, no app_data, no runtime data of any kind.
     #                 Everything analysable arrives in the request body.

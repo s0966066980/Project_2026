@@ -27,6 +27,11 @@ ANALYSIS_TIMEOUT_SECONDS = int(os.getenv("PROJECT_ANALYST_TIMEOUT_SECONDS", "300
 
 MAX_FINDINGS = 60
 
+# A local model has to be told when to stop. The common result is a bounded
+# list of findings, so a budget that fits it comfortably is also the budget
+# that stops a small model looping on its own JSON.
+LOCAL_MAX_TOKENS = int(os.getenv("PROJECT_ANALYST_LOCAL_MAX_TOKENS", "2048"))
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -75,6 +80,52 @@ def _findings_from(payload: str, allowed_paths: set[str]) -> list[AnalysisFindin
     return findings
 
 
+def _run_cli(definition: profiles.ProfileDefinition, snapshot_json: str) -> str:
+    code, output = profiles._run(
+        (definition.command, "--print", _prompt(snapshot_json)),
+        timeout=ANALYSIS_TIMEOUT_SECONDS,
+    )
+    if code == 124:
+        raise HTTPException(status_code=504, detail="provider_timed_out")
+    if code != 0:
+        raise HTTPException(status_code=502, detail="provider_invocation_failed")
+    return output
+
+
+def _run_local(definition: profiles.LocalProfileDefinition, snapshot_json: str) -> str:
+    """Ask the local model host for one analysis.
+
+    `format: json` is not a formality here: `_findings_from` refuses anything
+    that is not the common result shape, and a small local model asked for
+    free text will reliably wrap its JSON in prose. Streaming is off because
+    the result is only useful whole.
+    """
+
+    import json as _json
+    import urllib.error
+
+    payload = {
+        "model": profiles.local_model(definition),
+        "prompt": _prompt(snapshot_json),
+        "stream": False,
+        "format": "json",
+        "think": False,
+        "options": {"temperature": 0, "num_predict": LOCAL_MAX_TOKENS},
+    }
+    try:
+        body = profiles.local_request(definition, "/api/generate", payload, ANALYSIS_TIMEOUT_SECONDS)
+    except TimeoutError as error:
+        raise HTTPException(status_code=504, detail="provider_timed_out") from error
+    except (urllib.error.URLError, OSError, ValueError, _json.JSONDecodeError) as error:
+        # A URLError wrapping a socket timeout is still a timeout, and an
+        # operator reading "invocation failed" would go looking for the wrong
+        # thing.
+        if isinstance(getattr(error, "reason", None), TimeoutError):
+            raise HTTPException(status_code=504, detail="provider_timed_out") from error
+        raise HTTPException(status_code=502, detail="provider_invocation_failed") from error
+    return str(body.get("response") or "")
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Project Analyst Sidecar", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -93,21 +144,17 @@ def create_app() -> FastAPI:
         except KeyError as error:
             raise HTTPException(status_code=422, detail="unknown_profile") from error
 
-        status = profiles.evaluate(definition)
+        local = isinstance(definition, profiles.LocalProfileDefinition)
+        status = profiles.evaluate_local(definition) if local else profiles.evaluate(definition)
         if not status.ready:
             # No fallback. The caller asked for this provider; another one's
             # answer would be a different claim wearing the same label.
             raise HTTPException(status_code=409, detail=f"profile_not_ready:{status.reason}")
 
         snapshot_json = request.snapshot.model_dump_json()
-        code, output = profiles._run(
-            (definition.command, "--print", _prompt(snapshot_json)),
-            timeout=ANALYSIS_TIMEOUT_SECONDS,
+        output = (
+            _run_local(definition, snapshot_json) if local else _run_cli(definition, snapshot_json)
         )
-        if code == 124:
-            raise HTTPException(status_code=504, detail="provider_timed_out")
-        if code != 0:
-            raise HTTPException(status_code=502, detail="provider_invocation_failed")
 
         allowed_paths = {item.path for item in request.snapshot.evidence}
         return AnalysisResult(

@@ -56,7 +56,6 @@ R1-Omni/models/
 docker compose --env-file .env \
   -f docker/compose.yaml \
   -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
   up --build -d --wait r1-omni
 ```
 

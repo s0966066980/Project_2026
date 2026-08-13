@@ -91,7 +91,6 @@ bash docker/scripts/setup.sh --cpu
 docker compose --env-file .env \
   -f docker/compose.yaml \
   -f docker/compose.ai.yaml \
-  -f docker/compose.ai-gpu.yaml \
   logs -f app worker migrate
 ```
 

@@ -528,7 +528,7 @@ GPU stack：
 
 ```bash
 APP_GIT_REVISION=$(git rev-parse --short HEAD) docker compose --env-file .env \
-  -f docker/compose.yaml -f docker/compose.ai.yaml -f docker/compose.ai-gpu.yaml \
+  -f docker/compose.yaml -f docker/compose.ai.yaml \
   up --build -d --wait
 ```
 

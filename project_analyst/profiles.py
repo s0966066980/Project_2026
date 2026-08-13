@@ -1,4 +1,4 @@
-"""Discovery and readiness for the three Project Analyst Profiles.
+"""Discovery and readiness for the Project Analyst Profiles.
 
 ADR-0037: a profile is ready only when its CLI version satisfies the pinned
 range, its automation credential is valid, non-interactive execution works, and
@@ -14,9 +14,12 @@ thing a report of this kind has to be able to say.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,15 +47,52 @@ class ProfileDefinition:
     secret_name: str
 
 
+@dataclass(frozen=True)
+class LocalProfileDefinition:
+    """A local model served over HTTP, with no CLI and no credential.
+
+    The three CLI profiles all need a vendor credential, so on a runtime with
+    none mounted every profile reports `credential_missing` and the selector is
+    empty — the state this project shipped in. A local model is the one
+    provider that can be ready without reaching outside the appliance, which is
+    what "Local-First" is supposed to mean, so it is a first-class profile
+    rather than a fallback the others degrade into.
+    """
+
+    id: str
+    base_url_env: str
+    default_base_url: str
+    model_env: str
+    default_model: str
+
+
 PROFILES: tuple[ProfileDefinition, ...] = (
     ProfileDefinition("codex", "codex", ("--version",), (0, 40), (1, 0), "project_analyst_codex"),
     ProfileDefinition("claude", "claude", ("--version",), (1, 0), (3, 0), "project_analyst_claude"),
     ProfileDefinition("grok", "grok", ("--version",), (0, 1), (1, 0), "project_analyst_grok"),
 )
 
+LOCAL_PROFILES: tuple[LocalProfileDefinition, ...] = (
+    LocalProfileDefinition(
+        id="ollama",
+        base_url_env="OLLAMA_BASE_URL",
+        default_base_url="http://ollama:11434",
+        model_env="PROJECT_ANALYST_LOCAL_MODEL",
+        default_model="qwen3.5:4b",
+    ),
+)
 
-def profile_by_id(profile_id: str) -> ProfileDefinition:
-    for definition in PROFILES:
+
+def local_base_url(definition: LocalProfileDefinition) -> str:
+    return (os.getenv(definition.base_url_env) or definition.default_base_url).rstrip("/")
+
+
+def local_model(definition: LocalProfileDefinition) -> str:
+    return os.getenv(definition.model_env) or definition.default_model
+
+
+def profile_by_id(profile_id: str) -> ProfileDefinition | LocalProfileDefinition:
+    for definition in (*PROFILES, *LOCAL_PROFILES):
         if definition.id == profile_id:
             return definition
     raise KeyError(profile_id)
@@ -166,4 +206,60 @@ def discover() -> list[ProfileStatus]:
     the version drifted, or the credential was never mounted.
     """
 
-    return [evaluate(definition) for definition in PROFILES]
+    return [evaluate(definition) for definition in PROFILES] + [
+        evaluate_local(definition) for definition in LOCAL_PROFILES
+    ]
+
+
+def local_request(definition: LocalProfileDefinition, path: str, payload: dict | None, timeout: float) -> dict:
+    """One JSON call to the local model host.
+
+    Every failure becomes a bounded reason code at the call site. The raw
+    error never reaches the caller: this sidecar's refusals must not describe
+    the host it runs on.
+    """
+
+    url = f"{local_base_url(definition)}{path}"
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(  # noqa: S310 - fixed http scheme from configuration
+        url, data=data, headers={"Content-Type": "application/json"}, method="GET" if data is None else "POST"
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        body = json.loads(response.read().decode("utf-8"))
+    if not isinstance(body, dict):
+        raise ValueError("local_llm_response_unreadable")
+    return body
+
+
+def evaluate_local(definition: LocalProfileDefinition) -> ProfileStatus:
+    """A local profile is ready when the host answers and carries the model."""
+
+    endpoint = local_base_url(definition)
+    wanted = local_model(definition)
+
+    def refuse(reason: str, version: str = "") -> ProfileStatus:
+        return ProfileStatus(id=definition.id, command=endpoint, ready=False, version=version, reason=reason)
+
+    try:
+        tags = local_request(definition, "/api/tags", None, PROBE_TIMEOUT_SECONDS)
+    except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
+        return refuse("local_llm_unreachable")
+
+    models = tags.get("models")
+    if not isinstance(models, list):
+        return refuse("local_llm_response_unreadable")
+    installed = {str(row.get("name") or "") for row in models if isinstance(row, dict)}
+    if wanted not in installed:
+        # Naming the missing model is safe — it is a public model tag chosen by
+        # this deployment — and it is the difference between an operator
+        # pulling one image and an operator guessing.
+        return refuse(f"local_llm_model_missing:{wanted}")
+
+    try:
+        version = str(local_request(definition, "/api/version", None, PROBE_TIMEOUT_SECONDS).get("version") or "")
+    except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
+        # The model is there and the host answers; an unreadable version line
+        # is not a reason to refuse, only a gap in what the report can cite.
+        version = ""
+
+    return ProfileStatus(id=definition.id, command=endpoint, ready=True, version=f"{wanted} {version}".strip())
