@@ -1074,15 +1074,30 @@ async function loadProjectBrain() {
       ? `就緒設定檔 ${ready.length} 個；不會自動切換。${blocked ? ` 未就緒 — ${blocked}` : ''}`
       : `目前沒有就緒的分析設定檔。${blocked ? ` 原因 — ${blocked}` : ''}`,
   );
+  // An enabled button that can only produce a 422 is worse than a disabled
+  // one: the operator learns nothing from the failure.
+  const analyzeButton = g('projectBrainAnalyze');
+  if (analyzeButton) analyzeButton.disabled = ready.length === 0;
   renderProjectBrainReport(data.latest);
 }
 
 async function analyzeProjectBrain() {
   const button = g('projectBrainAnalyze');
+  const profile = val('projectBrainModel');
+  // With no ready profile the selector is empty, so this used to post
+  // `{profile: ""}` and come back 422 — a validation error where the operator
+  // needed the reason the status line already knows (`cli_not_installed`,
+  // `credential_missing`). Say that instead of sending a request that cannot
+  // succeed.
+  if (!profile) {
+    const reason = g('projectBrainModelStatus')?.textContent || '目前沒有就緒的分析設定檔。';
+    setText('projectBrainReport', `無法分析：${reason}`);
+    return;
+  }
   if (button) button.disabled = true;
   setText('projectBrainReport', '正在建立唯讀快照並分析…');
   try {
-    const data = await adminProjectBrainClient.analyze(val('projectBrainModel'));
+    const data = await adminProjectBrainClient.analyze(profile);
     renderProjectBrainReport(data);
   } catch (error) {
     setText('projectBrainReport', `分析失敗：${error.message}`);

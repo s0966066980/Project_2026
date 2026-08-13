@@ -121,12 +121,14 @@ class OllamaAdapter:
                 request.response_tag,
                 request.model_name,
                 num_predict=request.max_tokens,
+                timeout_seconds=request.timeout_seconds,
             )
         else:
             raw_obj = ai_services.ask_ollama_raw_text(
                 request.system_prompt,
                 request.user_prompt,
                 request.model_name,
+                timeout_seconds=request.timeout_seconds,
             )
         latency_ms = (time.perf_counter() - started) * 1000.0
         if not isinstance(raw_obj, dict):

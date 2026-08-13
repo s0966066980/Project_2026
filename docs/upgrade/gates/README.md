@@ -1034,3 +1034,88 @@ created inside a `pytest.raises` that unexpectedly succeeded was left in
 PostgreSQL, and then failed the same test on its next run for a reason
 unrelated to the code. That is not hypothetical: it happened here and cost a
 diagnosis. Drafts now register themselves as they are created.
+
+## Incident — local LLM unusable, 2026-08-13
+
+Reported as two symptoms: the Admin LLM test failed against local Ollama, and
+the AI paths that depend on it did not work. Three separate causes, one
+environmental and two in the code.
+
+### The GPU was granted and then silently lost
+
+Ollama's scheduler reported a healthy CUDA device with 23 GiB free, while the
+inference process behind it said something else:
+
+```text
+sched.go   msg="gpu memory" id=0 library=CUDA available="23.0 GiB"
+ggml_cuda_init: failed to initialize CUDA: no CUDA-capable device is detected
+common_param: system_info: n_threads = 4 (n_threads_batch = 4) / 20
+```
+
+The container had been created with `gpus: all`, `NVIDIA_VISIBLE_DEVICES=all`
+and the device nodes were present inside it, but CUDA initialisation failed
+anyway — the cgroup device access had been revoked from the running container
+after it started, which typically follows a `systemctl daemon-reload` or a
+driver update. Ollama fell back to CPU on 4 of 20 threads without saying so,
+and a 4B model behind a 6,000-character prompt could not finish inside two
+minutes.
+
+Recreating the container restored it (`offloaded 34/34 layers to GPU`):
+
+| Path | Before | After |
+| --- | --- | --- |
+| `POST /api/v1/diagnostics/ask` | 120s, timed out | 1.9s cold, 1.0s warm |
+| `connectivity_test` (both providers) | 7.6s local probe | 1.5s, `all_ok` |
+
+This is worth remembering as a diagnostic: **Ollama reporting GPU memory is
+not evidence that it is using the GPU.** Only `ggml_cuda_init` and the
+`offloaded N/N layers` line say that. A GPU that disappears from a running
+container is invisible from the outside and shows up only as slowness.
+
+### The local adapter discarded the caller's timeout
+
+`NvidiaNimAdapter` passed `request.timeout_seconds` to `requests`.
+`OllamaAdapter` never did: `ask_ollama` and `ask_ollama_raw_text` always used
+`OLLAMA_TIMEOUT` (120s). So the connectivity probe asking for 15s and the
+Admin diagnostic asking for 60s both waited two minutes, while the browser's
+own 15s client bound had already given up — the operator saw a failure with no
+reason, and the server finished long afterwards and returned HTTP 200 to
+nobody.
+
+Both entry points now take the caller's bound, floored at one second so a
+zero cannot become an instant abort, and fall back to the deployment default
+only when no bound is stated. `tests/test_llm_local_adapter_bounds.py`, four
+checks, mutation-verified four ways:
+
+```text
+discard the bound on the JSON path         FAILED (2)
+discard the bound on the free-text path    FAILED (1)
+ignore a stated bound entirely             FAILED (3)
+pass a zero bound straight through         FAILED (1)
+revert                                     4 passed
+```
+
+The warm-up and streaming calls keep the deployment default: neither has a
+caller-declared bound to honour.
+
+### An Admin button that could only produce a 422
+
+`POST /api/v1/project-brain/analyze` was returning 422 on every click. The
+route was right to refuse: no Project Analyst profile is ready on this runtime
+(all report `cli_not_installed`), so the profile selector renders empty and
+the page posted `{"profile": ""}`.
+
+The defect was the surface. The button stayed enabled with nothing to select,
+and the operator got a bare validation error instead of the reason the status
+line beside it already displayed. The button is now disabled while no profile
+is ready, and clicking with an empty selection reports the blocking reason
+rather than sending a request that cannot succeed.
+
+### Verification
+
+```text
+pytest -q                                478 passed,  63 skipped   (SQLite)
+pytest -q (DATABASE_BACKEND=postgresql)  532 passed,   9 skipped   (PostgreSQL)
+frontend vitest                          135 passed
+mypy, ruff check, ruff format            clean
+```

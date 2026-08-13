@@ -172,6 +172,22 @@ def _parse_llm_json_response(content: str, response_tag: str = "") -> dict:
     return {"error": "找不到 JSON 格式的輸出", "raw_content": content}
 
 
+def _ollama_timeout(timeout_seconds: float | None) -> float:
+    """Honour the caller's bound; fall back to the deployment default.
+
+    The caller states a bound because it knows what its own consumer will wait
+    for: the Admin connectivity probe allows 15s, the Admin diagnostic 60s. The
+    local adapter used to discard both and always wait `OLLAMA_TIMEOUT`, so a
+    browser that had already given up left the server generating for two
+    minutes and the operator saw a failure with no reason attached.
+    """
+
+    default = float(config.get("OLLAMA_TIMEOUT", 120) or 120)
+    if timeout_seconds is None:
+        return default
+    return max(1.0, float(timeout_seconds))
+
+
 def _ask_ollama_local(
     system_prompt: str,
     user_prompt: str,
@@ -179,6 +195,7 @@ def _ask_ollama_local(
     model_name: str = "",
     temperature: float | None = None,
     num_predict: int | None = None,
+    timeout_seconds: float | None = None,
 ) -> dict:
     """呼叫本機 Ollama 並強制擷取 JSON。"""
     enforced_system = _enforced_json_system_prompt(system_prompt)
@@ -196,7 +213,7 @@ def _ask_ollama_local(
     }
     try:
         response = _get_ollama_session().post(
-            config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120))
+            config.OLLAMA_API_URL, json=payload, timeout=_ollama_timeout(timeout_seconds)
         )
         response.raise_for_status()
         content = response.json().get("response", "")
@@ -211,11 +228,22 @@ def _ask_ollama_local(
 
 
 def ask_ollama(
-    system_prompt: str, user_prompt: str, response_tag: str = "", model_name: str = "", num_predict: int | None = None
+    system_prompt: str,
+    user_prompt: str,
+    response_tag: str = "",
+    model_name: str = "",
+    num_predict: int | None = None,
+    timeout_seconds: float | None = None,
 ) -> dict:
     """本地 Ollama 專用入口。語音、AI 推播、介入分析一律使用這條路徑。"""
     return _ask_ollama_local(
-        system_prompt, user_prompt, response_tag, model_name, temperature=None, num_predict=num_predict
+        system_prompt,
+        user_prompt,
+        response_tag,
+        model_name,
+        temperature=None,
+        num_predict=num_predict,
+        timeout_seconds=timeout_seconds,
     )
 
 
@@ -264,7 +292,9 @@ def parse_llm_json(content: str, tag: str = "") -> dict:
     return _parse_llm_json_response(content, tag)
 
 
-def ask_ollama_raw_text(system_prompt: str, user_prompt: str, model_name: str = "") -> dict:
+def ask_ollama_raw_text(
+    system_prompt: str, user_prompt: str, model_name: str = "", timeout_seconds: float | None = None
+) -> dict:
     """自由文字回應（不強制 JSON），供管理後台測試頁使用。"""
     payload = {
         "model": model_name or config.get("MODEL_NAME", "llama3.2"),
@@ -279,7 +309,7 @@ def ask_ollama_raw_text(system_prompt: str, user_prompt: str, model_name: str = 
     try:
         t0 = time.time()
         response = _get_ollama_session().post(
-            config.OLLAMA_API_URL, json=payload, timeout=int(config.get("OLLAMA_TIMEOUT", 120))
+            config.OLLAMA_API_URL, json=payload, timeout=_ollama_timeout(timeout_seconds)
         )
         response.raise_for_status()
         text = _strip_think_blocks(response.json().get("response", ""))
