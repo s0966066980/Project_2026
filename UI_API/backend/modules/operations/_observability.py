@@ -39,6 +39,10 @@ REQUIRED_METRICS = (
     "llm_provider_requests_total",
     "llm_task_total",
     "emotion_evidence_total",
+    # Checkout priced a cart as a Guest because Member could not answer. Core
+    # ordering must not fail for an Operational dependency, but an operator
+    # still needs to know it happened.
+    "checkout_member_lookup_degraded_total",
     "intervention_outcomes_total",
     "order_outbox_pending",
     "queue_backlog",

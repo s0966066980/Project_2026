@@ -6,6 +6,7 @@ from uuid import UUID
 import config
 from capabilities import catalog
 from capabilities.member import member_service
+from capabilities.operations_configuration import interface as operations
 from models.commercial_scope import LEGACY_DEFAULT_DEVICE_ID, CommercialScope
 from modules.cart import CartModule, PostgresCartStore, SQLiteCartStore
 from modules.checkout_confirmation import _pricing_service as checkout_pricing_service
@@ -29,8 +30,28 @@ class ProductionPricing:
             for row in lines
         ]
         return checkout_pricing_service.price_checkout_cart(
-            submitted, [], is_member=bool(member_service.get_session_member(session_id, scope)), scope=scope
+            submitted, [], is_member=self._is_member(session_id, scope), scope=scope
         )
+
+    @staticmethod
+    def _is_member(session_id, scope) -> bool:
+        """Ask Member, and price as a Guest if it cannot answer.
+
+        Ordering is Core and Member is Operational (CONTEXT.md, Capability
+        Criticality). Letting a member-store outage propagate out of pricing
+        made checkout fail for Guests too, which inverts that declaration —
+        an Optional-tier dependency was deciding whether anyone could buy
+        anything. Guest pricing is the safe answer: it never applies a member
+        discount the customer has not proven they are entitled to.
+        """
+
+        try:
+            return bool(member_service.get_session_member(session_id, scope))
+        except Exception:  # noqa: BLE001 - any Member failure must degrade, not block
+            operations.observability_service.increment_metric(
+                "checkout_member_lookup_degraded_total", status="unavailable"
+            )
+            return False
 
 
 class ProductionFulfillment:

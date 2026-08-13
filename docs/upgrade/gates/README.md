@@ -217,3 +217,64 @@ revert
 Transactional outbox atomicity, retry and dead-letter evidence; restart during
 confirmation; cart revision conflicts under concurrency; and the full touch and
 voice E2E, which needs the target Kiosk. The gate is not passed.
+
+## UPGRADE-017 — Member capability gate
+
+```text
+pytest tests/test_member_capability_gate.py   11 passed   (PostgreSQL 18.4)
+```
+
+Registration and login including not-found and malformed numbers; the masked
+form; a tenant-scoped lookup hash; key failure refusing rather than returning
+something plausible; session binding, clearing and store isolation.
+
+### The promise that outranks the rest — and the defect against it
+
+Guest ordering is Core; Member is Operational. Breaking the member store and
+walking a Guest through checkout found that it was not true:
+
+```text
+POST /api/v1/checkout/prepare
+  -> CheckoutConfirmationModule.prepare
+  -> runtime.ProductionPricing.price
+  -> capabilities.member.get_session_member   RuntimeError
+  -> checkout fails for a Guest
+```
+
+Pricing asked Member whether the session belonged to a member so it could apply
+member pricing, and let the failure escape. An Operational dependency was
+deciding whether anyone could buy anything, which inverts the criticality
+declaration in `CONTEXT.md`.
+
+Pricing now treats an unanswerable Member as "not a member" — the safe answer,
+because it never grants a discount the customer has not proven — and counts
+`checkout_member_lookup_degraded_total` so the degradation is visible instead
+of silent. The metric had to be registered first: `increment_metric` refuses
+unregistered names, which caught the omission immediately.
+
+Mutation: letting the failure escape again failed exactly that test and left
+the other ten passing.
+
+### A Pilot finding, not a test failure
+
+`members` stores the number in three columns — `phone`, `phone_encrypted`,
+`phone_lookup_hash`. On this runtime:
+
+```text
+plaintext phone: 21    encrypted: 0    total rows: 21
+```
+
+`MEMBER_IDENTITY_READ_MODE` defaults to `legacy` and `MEMBER_IDENTITY_DUAL_WRITE`
+to false, so the protection exists and is never taken. The test proves the
+mechanism works when enabled — ciphertext written, decryptable, masked form
+distinct — rather than flipping a deployment decision on the owner's behalf.
+
+**Member PII protection is off in this runtime.** That is acceptable for a
+development runtime and is not acceptable for Pilot, so it belongs on the Local
+Pilot Admission list next to the Configuration Authority.
+
+### Still open for this capability
+
+Consent version and retention, history-consent behaviour, PostgreSQL
+migration/backfill/integrity/concurrency, and the Admin/Kiosk consumer ledger.
+The gate is not passed.
