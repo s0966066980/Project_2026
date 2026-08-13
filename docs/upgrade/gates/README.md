@@ -379,10 +379,10 @@ Each mutation failed exactly the rule it broke and left the rest passing.
 
 ### Still open for this capability
 
-The external notification surface, content edits under concurrent publication
-(the version conflict is proven, the publish race is not), and the Admin and
-Kiosk generated-client consumer ledger remain. The local notification-copy
-batch worker contract is recorded below; the gate is not passed.
+The external notification surface, content edits under concurrent publication,
+and the Admin and Kiosk generated-client consumer ledger remain. The durable
+publish race is recorded below, as is the local notification-copy batch
+worker contract; the gate is not passed.
 
 ## UPGRADE-034 — Campaign notification-copy batch worker
 
@@ -397,8 +397,24 @@ full backend suite                                               472 passed, 50 
 docker/scripts/test.sh                                           passed
 ```
 
-Provider delivery, the live notification surface, publish race, and
-Admin/Kiosk consumer evidence remain open.
+Provider delivery, the live notification surface, and Admin/Kiosk consumer
+evidence remain open.
+
+## UPGRADE-037 — Campaign PostgreSQL publish race
+
+The production PostgreSQL campaign repository now has executable evidence for
+the publish race: two publishers forced to observe the same draft version
+produce exactly one winner and one `campaign_version_conflict`, leaving one
+durable current version rather than silently overwriting each other.
+
+```text
+pytest tests/test_campaign_postgres_publish_race.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               472 passed, 53 skipped
+docker/scripts/test.sh                                           passed
+```
+
+External notification delivery, the live notification surface, and the
+Admin/Kiosk generated-client consumer ledger remain open.
 
 ## UPGRADE-019 — Knowledge/RAG capability gate
 
