@@ -446,10 +446,26 @@ revert
 
 ### Still open for this capability
 
-Ingestion and duplicate-document handling at the store level, index rebuild
-and retirement cleanup, governance and the malicious-document path, and
-end-to-end retrieval against a real index on the target hardware. The gate is
+Index rebuild and retirement cleanup, governance and the malicious-document
+path, and end-to-end retrieval against a real index on the target hardware
+remain. PostgreSQL duplicate-document handling is recorded below; the gate is
 not passed.
+
+## UPGRADE-032 — Knowledge PostgreSQL duplicate-document handling
+
+The production PostgreSQL publication store now has executable evidence for
+the duplicate-document policy: a near duplicate is refused unless the editor
+explicitly overrides the warning, while an exact duplicate remains refused
+even with that override.
+
+```text
+pytest tests/test_knowledge_postgres_duplicates.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               468 passed, 50 skipped
+docker/scripts/test.sh                                           passed
+```
+
+Index rebuild and retirement cleanup, governance, malicious-document handling,
+and real-index retrieval on target hardware remain open.
 
 ## UPGRADE-020 — Recommendation capability gate
 
