@@ -1,6 +1,7 @@
 # P7 Legacy Closure Inventory — repository evidence
 
-> 2026-08-12 snapshot, updated after the unversioned surface was withdrawn.
+> 2026-08-13 snapshot, updated after Checkout outbox reliability and the
+> unversioned surface withdrawal.
 > This document records repository checks only; it does not promote
 > target-device, customer-evidence, provider, or Pilot gates.
 
@@ -19,7 +20,7 @@
 | Admin/Kiosk capability clients | Campaign, Knowledge/RAG, Operations, Recommendation, Member (including export/detail/write/delete), diagnostics, push-copy, Project Analyst, and Kiosk v1 calls are owned by `frontend/shared/api/capabilityClients.js`; feature modules no longer assemble `/api/v1` URLs | Passed |
 | Identity shims | Unused `services/admin_access_service.py` and `services/admin_identity_service.py` removed | Passed |
 | Single published prefix | Unversioned `/api/*` withdrawn; `admin_identity_routes.py` deleted and `core_routes.py` reduced to page entry points ([ADR-0062](../adr/0062-serve-one-versioned-http-prefix.md)) | Passed |
-| Capability layer inventory | Eight capability interfaces still read `services`/`repositories`, frozen in `CAPABILITIES_STILL_ON_LEGACY_LAYERS` and allowed only to shrink | Open — 8 of 10 |
+| Capability layer inventory | All ten capability interfaces no longer read `services`/`repositories`; `CAPABILITIES_STILL_ON_LEGACY_LAYERS` is empty and the boundary is enforced with no allowlist | Passed — code-ownership boundary |
 | Python quality | Backend Ruff; capability/Optimization mypy (44 files) | Passed |
 
 The exact candidate static/security suite covers these ownership checks; the
@@ -37,10 +38,10 @@ answer 404 in a commercial runtime, not contracts.
 
 ## Remaining P7 work
 
-1. Move the eight capability interfaces off `services`/`repositories` so each
-   owns its data, emptying `CAPABILITIES_STILL_ON_LEGACY_LAYERS`. This is the
-   substance of P7 now that the transport prefix is settled; collapsing a URL
-   says nothing about who owns the rows behind it.
+1. Complete the Module Independence ledgers: prove data authority, PostgreSQL,
+   restart, E2E, consumer-zero, and per-module evidence. Emptying
+   `CAPABILITIES_STILL_ON_LEGACY_LAYERS` proves code ownership only; collapsing a
+   URL says nothing about who owns the rows behind it.
 2. Remove the horizontal `services/repositories/modules` files as each
    capability takes ownership, along with the compatibility shims that remain
    under `services/` (for example `admin_authorization_service.py`, which
