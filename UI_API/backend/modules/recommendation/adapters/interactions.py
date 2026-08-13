@@ -176,7 +176,7 @@ def _safe_ui_context(record: dict) -> dict:
 def _privacy_event_vector(record: dict) -> dict:
     if not config.get("PRIVACY_STORE_EVENT_VECTOR_ONLY", True):
         return record
-    return {
+    vector = {
         "session_id": str(record.get("session_id") or "unknown"),
         "page_id": str(record.get("page_id") or "unknown"),
         "event_type": str(record.get("event_type") or "unknown"),
@@ -193,6 +193,12 @@ def _privacy_event_vector(record: dict) -> dict:
         "metadata": _safe_metadata(record.get("metadata")),
         "ui_context": _safe_ui_context(record),
     }
+    event_id = str(record.get("event_id") or "").strip()
+    if event_id:
+        # The id is an opaque deduplication key, not customer content. Keep it
+        # so the PostgreSQL adapter's scoped upsert can make replay idempotent.
+        vector["event_id"] = event_id[:128]
+    return vector
 
 
 def _require_device_scope(scope: CommercialScope) -> UUID:

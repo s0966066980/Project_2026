@@ -578,10 +578,25 @@ counted.
 ### Still open for this capability
 
 Runtime interaction and intervention pipeline publication, the effectiveness
-report against real touch data in PostgreSQL, and the Kiosk consumer ledger.
-The repository-level contracts for normalization, intervention decisions,
-experiment assignment, and deduplicated funnel reporting are covered below;
-the capability gate is not passed.
+report against real touch data in PostgreSQL, and the Kiosk consumer ledger
+remain open. PostgreSQL interaction storage and replay idempotency are
+recorded below; the capability gate is not passed.
+
+## UPGRADE-035 — Recommendation PostgreSQL interaction storage
+
+The production PostgreSQL interaction adapter now has executable evidence for
+scoped storage and replay: an event is readable only within its commercial
+scope, replaying the same opaque `event_id` updates the existing row instead
+of creating a second row, and privacy projection removes secret metadata.
+
+```text
+pytest tests/test_recommendation_postgres_interactions.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               472 passed, 51 skipped
+docker/scripts/test.sh                                           passed
+```
+
+Runtime publication/intervention, effectiveness against real touch data, and
+the Kiosk consumer ledger remain open.
 
 ## UPGRADE-021 — Reliable worker and order outbox delivery
 
