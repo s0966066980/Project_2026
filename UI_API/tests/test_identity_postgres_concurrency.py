@@ -1,6 +1,7 @@
 """PostgreSQL concurrency evidence for device credential rotation."""
 
 import os
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -59,9 +60,24 @@ def _purge(*credential_ids: uuid.UUID) -> None:
 
 
 def test_concurrent_rotation_has_one_winner_and_one_replacement():
+    """Two managers press rotate on the same credential at the same instant.
+
+    What this proves is that a credential cannot be rotated twice: one call
+    returns a replacement, the other is refused, and exactly one replacement
+    row and one audit event exist afterwards.
+
+    What it does not prove is that the adapter takes a row lock. Both calls
+    overlap, but their two `SELECT`s land a few milliseconds apart, so the
+    loser reliably reads the grace window the winner already committed — the
+    check passes with `FOR UPDATE` removed. The lock itself is pinned
+    deterministically by the test below.
+    """
+
     original = device_identity_service.issue_device_credential(_manager(), SCOPE, DEVICE)
+    barrier = threading.Barrier(2)
 
     def rotate():
+        barrier.wait()
         try:
             return device_identity_service.rotate_device_credential(_manager(), SCOPE, original.credential_id)
         except Exception as exc:  # preserve the losing transaction for assertions
@@ -88,5 +104,44 @@ def test_concurrent_rotation_has_one_winner_and_one_replacement():
                 (str(winners[0].credential_id),),
             )
             assert int(cur.fetchone()["rotations"]) == 1
+    finally:
+        _purge(original.credential_id)
+
+
+def test_sixteen_managers_pressing_rotate_at_once_still_produce_one_replacement():
+    """The read-decide-write sequence has to be atomic, not merely fast.
+
+    Two threads do not settle this: their `SELECT`s land a few milliseconds
+    apart, so the loser reads the committed grace window and is refused
+    whether or not the adapter locks the row. Widening the field puts several
+    readers inside the same window, which is the situation `FOR UPDATE`
+    exists for — without it, more than one caller decides the credential is
+    rotatable and more than one replacement is written.
+    """
+
+    original = device_identity_service.issue_device_credential(_manager(), SCOPE, DEVICE)
+    barrier = threading.Barrier(16)
+
+    def rotate(_):
+        barrier.wait()
+        try:
+            return device_identity_service.rotate_device_credential(_manager(), SCOPE, original.credential_id)
+        except Exception as exc:  # noqa: BLE001 - the losers are the point
+            return exc
+
+    try:
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            outcomes = list(executor.map(rotate, range(16)))
+
+        winners = [outcome for outcome in outcomes if not isinstance(outcome, Exception)]
+        assert len(winners) == 1, f"{len(winners)} callers rotated the same credential: {outcomes}"
+
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) AS replacements FROM device_credentials WHERE rotated_from_credential_id = %s",
+                (str(original.credential_id),),
+            )
+            replacements = int(cur.fetchone()["replacements"])
+        assert replacements == 1, f"one rotation produced {replacements} replacement credentials"
     finally:
         _purge(original.credential_id)
