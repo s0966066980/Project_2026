@@ -167,3 +167,53 @@ exists and is revoked.
 PostgreSQL unique/foreign-key/concurrency evidence, Admin and Kiosk
 generated-client consumer evidence, and the Pilot authority items. The gate is
 not passed.
+
+## UPGRADE-016 — Ordering transaction authority
+
+The roadmap states the invariants Ordering may never break. Each is checked
+through the published API against the database that actually stores orders — a
+fake store cannot answer "did this produce two rows", which is the question.
+
+Run against the live PostgreSQL 18.4:
+
+```text
+pytest tests/test_ordering_transaction_authority.py   8 passed
+```
+
+| Invariant | How it holds |
+| --- | --- |
+| client price ≠ trusted price | The cart stores intentions, not an invoice: `unit_price`, `price` and `total` sent by the browser are dropped before pricing sees them, and the quote's subtotal is the published catalog price |
+| promotion is server validated | A total below the subtotal has to name the offer on a line; the observed discount carried `applied_offer_id` |
+| duplicate checkout ≠ duplicate order | Same key replays; **a different key on the same quote still returns the same order**, and `confirmed_orders` holds one row. The quote is the anchor, not the header |
+| payment pending ≠ paid | A confirmed order is `payment_pending`; HTTP 200 from checkout is not money received |
+| the answer can be lost | `GET /api/v1/checkout/outcome/{quote_id}` returns the same order after the reply is dropped |
+
+The one-order guarantee is not application logic that could drift — the
+database enforces it:
+
+```text
+confirmed_orders_tenant_id_store_id_quote_id_key  UNIQUE (tenant_id, store_id, quote_id)
+```
+
+That constraint is the evidence, and it is stronger than a mutation would be.
+Dropping a unique constraint from a live orders table to watch a test go red is
+not a trade worth making.
+
+### Mutation
+
+The dangerous direction is a system claiming money it has not received, so that
+is the one that was broken on purpose:
+
+```text
+order status 'payment_pending' -> 'paid'
+  FAILED test_a_confirmed_order_is_pending_payment_and_never_paid
+  7 passed  (the other invariants correctly unaffected)
+revert
+  8 passed
+```
+
+### Still open for this capability
+
+Transactional outbox atomicity, retry and dead-letter evidence; restart during
+confirmation; cart revision conflicts under concurrency; and the full touch and
+voice E2E, which needs the target Kiosk. The gate is not passed.
