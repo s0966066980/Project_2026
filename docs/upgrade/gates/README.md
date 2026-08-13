@@ -509,9 +509,11 @@ counted.
 
 ### Still open for this capability
 
-Interaction and intervention pipelines, experiment assignment, the
-effectiveness report against real touch data in PostgreSQL, and the Kiosk
-consumer ledger. The gate is not passed.
+Runtime interaction and intervention pipeline publication, the effectiveness
+report against real touch data in PostgreSQL, and the Kiosk consumer ledger.
+The repository-level contracts for normalization, intervention decisions,
+experiment assignment, and deduplicated funnel reporting are covered below;
+the capability gate is not passed.
 
 ## UPGRADE-021 — Reliable worker and order outbox delivery
 
@@ -603,6 +605,26 @@ pytest tests/test_campaign_capability_gate.py              27 passed
 full backend suite                                        462 passed, 46 skipped
 docker/scripts/test.sh                                    passed
 ```
+
+## UPGRADE-029 — Recommendation interaction and analytics contracts
+
+Recommendation now has repository-level evidence for the remaining pure
+interaction and analytics contracts: experiment assignment stays disabled
+until both switches are ready and is deterministic when enabled; interaction
+metrics are normalized and clamped while UI context is preserved; repeated
+payment failures produce a high-level staff intervention that disables
+promotion; and effectiveness reporting scopes events, deduplicates touch and
+purchase ids, preserves provisional attributions, and reports sample-size
+warnings and variant comparisons.
+
+```text
+pytest tests/test_recommendation_analytics_capability.py       6 passed
+full backend suite                                            468 passed, 46 skipped
+docker/scripts/test.sh                                        passed
+```
+
+This does not yet prove the live interaction/intervention pipeline against
+PostgreSQL touch data or the Admin/Kiosk consumer ledger; those remain open.
 
 ## UPGRADE-027 — Member consent policy
 
