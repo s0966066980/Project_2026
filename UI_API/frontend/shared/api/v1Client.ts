@@ -65,7 +65,11 @@ export function createApiV1Client(options: ApiV1ClientOptions = {}) {
       try {
         const timeout = new Promise<never>((_resolve, reject) => {
           timeoutHandle = timers.setTimeout(() => {
-            controller.abort();
+            // Abort with the reason, not bare. Both the fetch rejection and
+            // this one race to surface, and a bare abort rejects with
+            // "signal is aborted without reason" — which is what an operator
+            // saw instead of being told the request had hit its bound.
+            controller.abort(new Error(`request timed out after ${timeoutMs}ms`));
             reject(new Error(`request timed out after ${timeoutMs}ms`));
           }, timeoutMs);
         });
@@ -82,7 +86,7 @@ export function createApiV1Client(options: ApiV1ClientOptions = {}) {
           response.json(),
           new Promise<never>((_resolve, reject) => {
             bodyTimeoutHandle = timers.setTimeout(() => {
-              controller.abort();
+              controller.abort(new Error(`response body timed out after ${timeoutMs}ms`));
               reject(new Error(`response body timed out after ${timeoutMs}ms`));
             }, timeoutMs);
           }),

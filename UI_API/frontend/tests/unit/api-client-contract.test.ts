@@ -6,6 +6,34 @@ import { ApiV1Error, createApiV1Client } from '../../shared/api/v1Client.ts';
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
+/** Drives the client's own clock so a bounded wait can be observed without spending it. */
+function createTestTimers() {
+  let sequence = 0;
+  const pending = new Map<number, { at: number; run: () => void }>();
+  let now = 0;
+  return {
+    timers: {
+      setTimeout: ((run: () => void, delay = 0) => {
+        const handle = ++sequence;
+        pending.set(handle, { at: now + delay, run });
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: ((handle: unknown) => {
+        pending.delete(handle as number);
+      }) as unknown as typeof clearTimeout,
+    },
+    async advance(ms: number) {
+      now += ms;
+      for (const [handle, entry] of [...pending.entries()]) {
+        if (entry.at > now) continue;
+        pending.delete(handle);
+        entry.run();
+      }
+      for (let tick = 0; tick < 8; tick += 1) await Promise.resolve();
+    },
+  };
+}
+
 describe('public API v1 client contract', () => {
   it('adds request metadata and bearer authentication to a request', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok({ data: { status: 'ok' }, meta: { request_id: 'r', timestamp: 't' } }));
@@ -183,5 +211,49 @@ describe('public API v1 client contract', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('project brain analysis bounds', () => {
+  it('gives an analysis a bound above the app it is calling, not the 8s default', async () => {
+    // Every layer beneath the browser is sized for a model reading the whole
+    // project: the sidecar allows 300s and the app 330s. The browser kept the
+    // default and aborted first, so a run that was proceeding normally came
+    // back as "signal is aborted without reason".
+    const { createProjectBrainClient } = await import('../../shared/api/capabilityClients.js');
+    const timers = createTestTimers();
+    const fetchImpl = vi.fn(() => new Promise<never>(() => {}));
+    const client = createProjectBrainClient({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      timers: timers.timers,
+    });
+
+    const pending = client.analyze('ollama');
+    const settled = pending.then(() => 'resolved').catch((error: Error) => error.message);
+
+    await timers.advance(330_000);
+    expect(await Promise.race([settled, Promise.resolve('still running')])).toBe('still running');
+
+    await timers.advance(30_000);
+    await expect(settled).resolves.toContain('timed out after 360000ms');
+  });
+
+  it('says the request timed out rather than that a signal was aborted', async () => {
+    // The fetch rejection and the timeout rejection race. A bare
+    // `controller.abort()` makes the fetch reject with a DOMException reading
+    // "signal is aborted without reason", and that message is what reached
+    // the operator.
+    const abortReasons: unknown[] = [];
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) => new Promise<never>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => {
+        abortReasons.push((init.signal as AbortSignal).reason);
+        reject((init.signal as AbortSignal).reason);
+      });
+    }));
+    const client = createApiV1Client({ fetchImpl: fetchImpl as unknown as typeof fetch, retryCount: 0, timeoutMs: 100 });
+
+    await expect(client.get('/slow')).rejects.toThrow('timed out after 100ms');
+    expect(String(abortReasons[0])).toContain('timed out after 100ms');
+    expect(String(abortReasons[0])).not.toContain('without reason');
   });
 });

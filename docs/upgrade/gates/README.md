@@ -1203,3 +1203,91 @@ pytest -q (DATABASE_BACKEND=postgresql)  541 passed,   9 skipped   (PostgreSQL)
 mypy, ruff check, ruff format            clean
 six services                             healthy
 ```
+
+## UPGRADE-046 — Making the local profile actually complete an analysis
+
+Reported as `分析失敗：signal is aborted without reason`. Wiring the profile
+was not enough; three things stood between it and a finished report.
+
+### The browser was the only layer not sized for the work
+
+```text
+browser            8s   ← aborted here
+app  → sidecar   330s
+sidecar → model  300s
+```
+
+A real analysis takes **41 seconds**. Every layer beneath the browser was
+already sized for that; the project-brain client kept the 8s default, so the
+run was killed while proceeding normally. It now allows 360s — just above the
+app's bound, so when something genuinely hangs the failure that surfaces is
+the server's, with a reason attached.
+
+And the message was empty because `controller.abort()` was called bare: the
+fetch rejection and the timeout rejection race, and a bare abort rejects with
+the DOMException `signal is aborted without reason`. The abort now carries the
+reason, so the timeout wins the race with something an operator can act on.
+
+### Ollama silently truncates a prompt that does not fit
+
+`num_ctx` defaults to 4096 whatever the model supports — qwen3.5:4b supports
+262,144 — and anything longer is cut without a word. The prompt lost its
+instructions and the model answered with something that was not the contract,
+surfacing as `provider_response_not_json`. The window is now always stated and
+sized from the prompt.
+
+### A 4B model cannot read a 186,000-character snapshot in one pass
+
+Measured, not assumed:
+
+| Prompt | Result |
+| --- | --- |
+| whole snapshot, 186k chars | not the contract, at any context size |
+| `CONTEXT.md` alone, 80k chars, ctx 16k | truncated → not the contract |
+| `Project_2026_Execution_Plan.md`, 39k chars, ctx 64k | valid, 16.2s |
+| `route_registry.py`, 3.4k chars | valid, 2.8s |
+
+So the local profile splits the snapshot and analyses one file per request,
+merging into one result. **The cost is real and stated in the code**: each
+file is judged alone, so a finding that only exists in the relationship
+between two files is out of reach for this profile. A vendor profile with a
+large context still sees the whole snapshot.
+
+Two smaller findings fell out of running it for real:
+
+- The model cites `CONTEXT.md#Local_Pilot_Readiness` — the right file, more
+  precisely than asked. The fragment is now dropped before the allowlist
+  check. That canonicalises a path; it does not widen the allowlist, and a
+  path still unknown afterwards is still refused.
+- One file of seven (the execution plan) reliably answers with something the
+  contract refuses. Failing the whole run would discard six good analyses;
+  dropping it silently would make an unread file look like a clean pass. It
+  becomes a `warning` finding naming the file. **Only a garbled shape is
+  recoverable this way** — a provider citing evidence it was never given still
+  fails the run, because softening that would let fabricated attribution into
+  a report whose whole value is that every finding traces to supplied
+  evidence.
+
+### End to end, against the running stack
+
+```text
+analyze(profile="ollama")   45.3s   15 findings across 7 files
+  [healthy] Project Core Brain Read-Only Constraints Enforced   CONTEXT.md
+  [warning] Production Readiness Not Achieved                   README.md
+  [blocked] Missing Pilot Configuration Authority Evidence      README.md
+  [warning] 本機設定檔的回覆不符合報告格式，此檔案未納入分析      Project_2026_Execution_Plan.md
+  …
+```
+
+### Verification
+
+```text
+pytest -q                                492 passed,  63 skipped   (SQLite)
+pytest -q (DATABASE_BACKEND=postgresql)  546 passed,   9 skipped   (PostgreSQL)
+frontend vitest                          137 passed
+mypy, ruff                               clean
+```
+
+Nine new sidecar checks and two frontend ones, the frontend pair
+mutation-verified: restoring the 8s default and restoring the bare abort each
+failed exactly their own check.

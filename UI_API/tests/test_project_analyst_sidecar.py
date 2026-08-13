@@ -485,3 +485,117 @@ def test_a_local_refusal_never_describes_the_host_it_runs_on(client, monkeypatch
 
     assert "10.4.2.9" not in entry["reason"]
     assert "/home/" not in entry["reason"]
+
+
+def test_the_local_profile_reads_one_file_at_a_time(client, monkeypatch):
+    """A 4B model cannot take the whole snapshot in one pass.
+
+    The real snapshot is ~186,000 characters. Handed all of it, the model
+    returns something that is not the contract at all; handed one file, it
+    answers correctly. The caller still receives one merged result.
+    """
+
+    host = _local(
+        monkeypatch,
+        _LocalHost(generate='{"findings":[{"severity":"healthy","title":"Fine","detail":"","evidence_paths":[]}]}'),
+    )
+    evidence = [
+        {"path": "README.md", "size_bytes": 4, "text": "docs"},
+        {"path": "AGENTS.md", "size_bytes": 4, "text": "docs"},
+        {"path": "UI_API/backend/capabilities/manifest.py", "size_bytes": 4, "text": "x=1"},
+    ]
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot(evidence=evidence)})
+
+    assert response.status_code == 200, response.text
+    generates = [payload for path, payload in host.calls if path == "/api/generate"]
+    assert len(generates) == 3, "the snapshot was not split per file"
+    for payload in generates:
+        assert payload["options"]["num_ctx"] > 0, (
+            "Ollama defaults num_ctx to 4096 and silently truncates; the window has to be stated"
+        )
+    assert response.json()["evidence_references"] == sorted(item["path"] for item in evidence)
+
+
+def test_a_citation_with_a_section_anchor_is_the_same_file(client, monkeypatch):
+    """`CONTEXT.md#Local_Pilot_Readiness` points at a file that was supplied."""
+
+    _local(
+        monkeypatch,
+        _LocalHost(
+            generate='{"findings":[{"severity":"warning","title":"Drift",'
+            '"detail":"","evidence_paths":["UI_API/backend/config.py#Section_One"]}]}'
+        ),
+    )
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["findings"][0]["evidence_paths"] == ["UI_API/backend/config.py"]
+
+
+def test_an_anchor_cannot_smuggle_in_a_file_that_was_never_supplied(client, monkeypatch):
+    """Dropping the fragment canonicalises a path; it does not widen the allowlist."""
+
+    _local(
+        monkeypatch,
+        _LocalHost(
+            generate='{"findings":[{"severity":"blocked","title":"Leak",'
+            '"detail":"","evidence_paths":["/etc/shadow#Section"]}]}'
+        ),
+    )
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "provider_cited_unsupplied_evidence"
+
+
+def test_one_unreadable_file_is_reported_rather_than_failing_the_whole_run(client, monkeypatch):
+    """Six good files must not be discarded by the seventh, and must not hide it.
+
+    On the real project this is not hypothetical: the execution plan reliably
+    produces a response the contract refuses, while every other file analyses
+    cleanly.
+    """
+
+    class _OneBadFile(_LocalHost):
+        def __call__(self, definition, path, payload, timeout):
+            if path == "/api/generate" and "AGENTS.md" in payload["prompt"]:
+                return {"response": "this is prose, not the contract"}
+            return super().__call__(definition, path, payload, timeout)
+
+    _local(
+        monkeypatch,
+        _OneBadFile(generate='{"findings":[{"severity":"healthy","title":"Fine","detail":"","evidence_paths":[]}]}'),
+    )
+    evidence = [
+        {"path": "README.md", "size_bytes": 4, "text": "docs"},
+        {"path": "AGENTS.md", "size_bytes": 4, "text": "docs"},
+    ]
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot(evidence=evidence)})
+
+    assert response.status_code == 200, response.text
+    findings = response.json()["findings"]
+    assert any(finding["title"] == "Fine" for finding in findings), "a good file was discarded"
+    unreadable = [finding for finding in findings if finding["evidence_paths"] == ["AGENTS.md"]]
+    assert unreadable, "the file that could not be read vanished from the report"
+    assert unreadable[0]["severity"] == "warning"
+
+
+def test_a_file_too_large_for_the_context_is_named_not_dropped(client, monkeypatch):
+    """Silent truncation is what produced an unparseable answer in the first place."""
+
+    from project_analyst import service
+
+    monkeypatch.setattr(service, "LOCAL_CONTEXT_MAX_TOKENS", 64)
+    _local(monkeypatch, _LocalHost(generate='{"findings":[]}'))
+
+    response = client.post("/analyze", json={"profile": "ollama", "snapshot": _snapshot()})
+
+    assert response.status_code == 200, response.text
+    finding = response.json()["findings"][0]
+    assert finding["severity"] == "warning"
+    assert finding["evidence_paths"] == ["UI_API/backend/config.py"]
+    assert "64" in finding["detail"], "the limit the file exceeded is not stated"

@@ -30,7 +30,19 @@ MAX_FINDINGS = 60
 # A local model has to be told when to stop. The common result is a bounded
 # list of findings, so a budget that fits it comfortably is also the budget
 # that stops a small model looping on its own JSON.
-LOCAL_MAX_TOKENS = int(os.getenv("PROJECT_ANALYST_LOCAL_MAX_TOKENS", "2048"))
+LOCAL_MAX_TOKENS = int(os.getenv("PROJECT_ANALYST_LOCAL_MAX_TOKENS", "1024"))
+
+# Ollama defaults `num_ctx` to 4096 whatever the model can do, and silently
+# truncates anything longer — so a prompt that does not fit loses its
+# instructions and the model answers with something that is not the contract.
+# The window is therefore always stated, and sized from the prompt.
+LOCAL_CONTEXT_MAX_TOKENS = int(
+    os.getenv("PROJECT_ANALYST_LOCAL_CONTEXT_TOKENS", "65536")
+)
+
+# Conservative for a snapshot that mixes source, English and Chinese prose.
+# Under-estimating truncates; over-estimating only costs a larger window.
+LOCAL_CHARS_PER_TOKEN = 3
 
 
 def _now() -> str:
@@ -44,7 +56,9 @@ def _prompt(snapshot_json: str) -> str:
         '{"findings":[{"severity":"healthy|warning|blocked","title":"...",'
         '"detail":"...","evidence_paths":["..."]}]}\n'
         "Report only what the snapshot supports. Never claim to have changed "
-        "any file, database or system. Never request or emit secrets.\n\n"
+        "any file, database or system. Never request or emit secrets.\n"
+        "Cite evidence_paths exactly as they appear in the snapshot: no anchors, "
+        "no line numbers, no fragments.\n\n"
         f"SNAPSHOT:\n{snapshot_json}"
     )
 
@@ -61,22 +75,35 @@ def _findings_from(payload: str, allowed_paths: set[str]) -> list[AnalysisFindin
     try:
         document = json.loads(payload)
     except json.JSONDecodeError as error:
-        raise HTTPException(status_code=502, detail="provider_response_not_json") from error
+        raise HTTPException(
+            status_code=502, detail="provider_response_not_json"
+        ) from error
     if not isinstance(document, dict) or not isinstance(document.get("findings"), list):
         raise HTTPException(status_code=502, detail="provider_response_schema_mismatch")
 
     findings: list[AnalysisFinding] = []
     for raw in document["findings"][:MAX_FINDINGS]:
         if not isinstance(raw, dict):
-            raise HTTPException(status_code=502, detail="provider_response_schema_mismatch")
+            raise HTTPException(
+                status_code=502, detail="provider_response_schema_mismatch"
+            )
         try:
             finding = AnalysisFinding.model_validate(raw)
         except ValueError as error:
-            raise HTTPException(status_code=502, detail="provider_response_schema_mismatch") from error
-        unknown = [path for path in finding.evidence_paths if path not in allowed_paths]
+            raise HTTPException(
+                status_code=502, detail="provider_response_schema_mismatch"
+            ) from error
+        # A provider that cites `CONTEXT.md#Some_Section` is pointing at a file
+        # it was given, more precisely than asked. Dropping the fragment
+        # canonicalises the same path; it does not accept a different claim,
+        # and a path still unknown afterwards is still refused.
+        cited = [path.split("#", 1)[0] for path in finding.evidence_paths]
+        unknown = [path for path in cited if path not in allowed_paths]
         if unknown:
-            raise HTTPException(status_code=502, detail="provider_cited_unsupplied_evidence")
-        findings.append(finding)
+            raise HTTPException(
+                status_code=502, detail="provider_cited_unsupplied_evidence"
+            )
+        findings.append(finding.model_copy(update={"evidence_paths": cited}))
     return findings
 
 
@@ -92,13 +119,15 @@ def _run_cli(definition: profiles.ProfileDefinition, snapshot_json: str) -> str:
     return output
 
 
-def _run_local(definition: profiles.LocalProfileDefinition, snapshot_json: str) -> str:
-    """Ask the local model host for one analysis.
+def _generate_local(
+    definition: profiles.LocalProfileDefinition, prompt: str, context_tokens: int
+) -> str:
+    """One call to the local model host.
 
-    `format: json` is not a formality here: `_findings_from` refuses anything
-    that is not the common result shape, and a small local model asked for
-    free text will reliably wrap its JSON in prose. Streaming is off because
-    the result is only useful whole.
+    `format: json` is not a formality: `_findings_from` refuses anything that
+    is not the common result shape, and a small local model asked for free
+    text will reliably wrap its JSON in prose. Streaming is off because the
+    result is only useful whole.
     """
 
     import json as _json
@@ -106,14 +135,20 @@ def _run_local(definition: profiles.LocalProfileDefinition, snapshot_json: str) 
 
     payload = {
         "model": profiles.local_model(definition),
-        "prompt": _prompt(snapshot_json),
+        "prompt": prompt,
         "stream": False,
         "format": "json",
         "think": False,
-        "options": {"temperature": 0, "num_predict": LOCAL_MAX_TOKENS},
+        "options": {
+            "temperature": 0,
+            "num_predict": LOCAL_MAX_TOKENS,
+            "num_ctx": context_tokens,
+        },
     }
     try:
-        body = profiles.local_request(definition, "/api/generate", payload, ANALYSIS_TIMEOUT_SECONDS)
+        body = profiles.local_request(
+            definition, "/api/generate", payload, ANALYSIS_TIMEOUT_SECONDS
+        )
     except TimeoutError as error:
         raise HTTPException(status_code=504, detail="provider_timed_out") from error
     except (urllib.error.URLError, OSError, ValueError, _json.JSONDecodeError) as error:
@@ -122,12 +157,85 @@ def _run_local(definition: profiles.LocalProfileDefinition, snapshot_json: str) 
         # thing.
         if isinstance(getattr(error, "reason", None), TimeoutError):
             raise HTTPException(status_code=504, detail="provider_timed_out") from error
-        raise HTTPException(status_code=502, detail="provider_invocation_failed") from error
+        raise HTTPException(
+            status_code=502, detail="provider_invocation_failed"
+        ) from error
     return str(body.get("response") or "")
 
 
+def _local_findings(
+    definition: profiles.LocalProfileDefinition, request: AnalysisRequest
+) -> list[AnalysisFinding]:
+    """Analyse the snapshot one evidence file at a time, then merge.
+
+    A vendor CLI is handed the whole snapshot at once. A 4B model cannot do
+    that: the real snapshot is ~186,000 characters, and asked to read it in
+    one pass the model returns something that is not the contract at all. The
+    same model reading one file at a time answers correctly, so the local
+    profile splits the work and the caller still receives one merged result.
+
+    The cost is real and worth stating: each file is judged alone, so findings
+    that only exist in the relationship between two files are out of reach
+    here. That is a property of the profile, not a bug to be papered over — a
+    vendor profile with a large context does see the whole snapshot.
+    """
+
+    findings: list[AnalysisFinding] = []
+    for evidence in request.snapshot.evidence:
+        single = request.snapshot.model_copy(update={"evidence": [evidence]})
+        prompt = _prompt(single.model_dump_json())
+        needed = len(prompt) // LOCAL_CHARS_PER_TOKEN + LOCAL_MAX_TOKENS
+        if needed > LOCAL_CONTEXT_MAX_TOKENS:
+            # Silently truncating is what produced an unparseable answer in
+            # the first place. A file the profile cannot read is reported as a
+            # gap in the report rather than left to look like a clean pass.
+            findings.append(
+                AnalysisFinding(
+                    severity="warning",
+                    title="本機設定檔無法分析此檔案：超出可用的上下文長度",
+                    detail=(
+                        f"{evidence.path} 需要約 {needed} tokens，超過本機設定檔的 "
+                        f"{LOCAL_CONTEXT_MAX_TOKENS}。此檔案未被閱讀，本次報告不涵蓋它。"
+                    ),
+                    evidence_paths=[evidence.path],
+                )
+            )
+            continue
+
+        output = _generate_local(
+            definition, prompt, min(LOCAL_CONTEXT_MAX_TOKENS, max(4096, needed))
+        )
+        try:
+            findings.extend(_findings_from(output, {evidence.path}))
+        except HTTPException as refused:
+            # Only a garbled *shape* is recoverable. A model citing a file it
+            # was never given is making a claim about something outside the
+            # snapshot, and softening that into a warning would let fabricated
+            # attribution into a report whose whole value is that every
+            # finding traces to supplied evidence.
+            if refused.detail == "provider_cited_unsupplied_evidence":
+                raise
+            # A small model garbling one file must not discard the ones that
+            # passed, and must not vanish either: the report names the file it
+            # could not read, so a clean-looking pass is never a file nobody
+            # analysed.
+            findings.append(
+                AnalysisFinding(
+                    severity="warning",
+                    title="本機設定檔的回覆不符合報告格式，此檔案未納入分析",
+                    detail=f"{evidence.path}：{refused.detail}",
+                    evidence_paths=[evidence.path],
+                )
+            )
+        if len(findings) >= MAX_FINDINGS:
+            break
+    return findings[:MAX_FINDINGS]
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Project Analyst Sidecar", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="Project Analyst Sidecar", docs_url=None, redoc_url=None, openapi_url=None
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -145,23 +253,31 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=422, detail="unknown_profile") from error
 
         local = isinstance(definition, profiles.LocalProfileDefinition)
-        status = profiles.evaluate_local(definition) if local else profiles.evaluate(definition)
+        status = (
+            profiles.evaluate_local(definition)
+            if local
+            else profiles.evaluate(definition)
+        )
         if not status.ready:
             # No fallback. The caller asked for this provider; another one's
             # answer would be a different claim wearing the same label.
-            raise HTTPException(status_code=409, detail=f"profile_not_ready:{status.reason}")
-
-        snapshot_json = request.snapshot.model_dump_json()
-        output = (
-            _run_local(definition, snapshot_json) if local else _run_cli(definition, snapshot_json)
-        )
+            raise HTTPException(
+                status_code=409, detail=f"profile_not_ready:{status.reason}"
+            )
 
         allowed_paths = {item.path for item in request.snapshot.evidence}
+        if local:
+            findings = _local_findings(definition, request)
+        else:
+            findings = _findings_from(
+                _run_cli(definition, request.snapshot.model_dump_json()), allowed_paths
+            )
+
         return AnalysisResult(
             profile=definition.id,
             observed_at=_now(),
             git_revision=request.snapshot.git_revision,
-            findings=_findings_from(output, allowed_paths),
+            findings=findings,
             evidence_references=sorted(allowed_paths),
         )
 
