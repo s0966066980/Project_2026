@@ -364,3 +364,71 @@ Push copy resolution and the notification surface; content edits under
 concurrent publication (the version conflict is proven, the publish race is
 not); the Admin and Kiosk generated-client consumer ledger. The gate is not
 passed.
+
+## UPGRADE-019 — Knowledge/RAG capability gate
+
+```text
+pytest tests/test_knowledge_rag_capability_gate.py   20 passed
+```
+
+Retrieval is exercised against a fake provider on purpose. The question this
+gate asks is what the capability does with what a provider returns — drop a
+weak hit, fall back, refuse — and a real embedded index would answer a
+different question (whether Chroma works) while making every assertion
+non-deterministic. The publication store is faked for the same reason: the
+rule under test is what reaches the index, not how rows are stored.
+
+What counts as an answer: a hit below the policy threshold is not returned at
+all, a hit exactly at it is; an unscored row is dropped rather than ranked
+first, because a row that cannot be compared cannot be trusted; `strict`
+admits less than `balanced`; an empty index answers empty instead of failing.
+An unsupported method, `top_k` or policy is refused by name **before** the
+provider is called.
+
+Degradation: a failing strategy falls back down its chain and the answer says
+both what was asked for and what actually ran, so a worse answer is never
+mistaken for a good one. A caller that opts out of fallback gets the failure
+and exactly one attempt. When every strategy in the chain fails, retrieval
+raises — an unavailable provider must not become a confident empty answer.
+
+The published index: a publication reaches the querying process chunk for
+chunk, carrying tenant, store and attempt id; repairing the same publication
+twice indexes it once. An artifact that does not match its item is refused and
+nothing is partially applied. The dangerous case of the three is not the
+unparseable one — it is valid JSON of the right shape and one document short,
+which would answer from a document belonging to a different chunk.
+
+The prohibition: **RAG may not write ordering.** Every import in
+`modules/knowledge_publication`, `modules/retrieval_check`,
+`modules/retrieval_configuration` and `capabilities/knowledge_rag` is parsed
+and checked against the ordering roots at any nesting depth. A second rule
+asserts those roots still exist — ordering was reorganised once already in
+this project, and a guard naming the old layout would keep passing while
+checking nothing. That rule earned itself immediately: it rejected three
+module names from the first draft of this list.
+
+### Mutation
+
+```text
+present a hit below the threshold as an answer
+  FAILED …below_the_relevance_threshold_is_not_an_answer
+  FAILED …with_no_score_is_dropped_rather_than_ranked_first
+  FAILED …a_stricter_policy_admits_less                      (17 passed)
+fall back without recording that it happened
+  FAILED …falls_back_and_says_that_it_did                    (19 passed)
+index an artifact that does not match its item
+  FAILED …does_not_match_its_item_is_refused[not-a-list]
+  FAILED …does_not_match_its_item_is_refused[wrong-length]   (18 passed)
+turn an unavailable provider into an empty answer
+  FAILED …a_caller_that_refuses_fallback_gets_the_failure
+  FAILED …raises_rather_than_inventing_an_answer             (18 passed)
+revert
+  20 passed
+```
+
+### Still open for this capability
+
+Ingestion and duplicate-document handling at the store level, index rebuild
+and retirement cleanup, governance and the malicious-document path, and
+end-to-end retrieval against a real index on the target hardware. The gate is
+not passed.
