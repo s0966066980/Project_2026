@@ -629,8 +629,8 @@ counted.
 
 Runtime interaction and intervention pipeline publication, the effectiveness
 report against real touch data in PostgreSQL, and the Kiosk consumer ledger
-remain open. PostgreSQL interaction storage and replay idempotency are
-recorded below; the capability gate is not passed.
+remain open. PostgreSQL interaction storage, replay idempotency, and Kiosk
+route publication are recorded below; the capability gate is not passed.
 
 ## UPGRADE-035 — Recommendation PostgreSQL interaction storage
 
@@ -647,6 +647,22 @@ docker/scripts/test.sh                                           passed
 
 Runtime publication/intervention, effectiveness against real touch data, and
 the Kiosk consumer ledger remain open.
+
+## UPGRADE-039 — Recommendation PostgreSQL interaction route publication
+
+The Kiosk interaction route now has executable PostgreSQL evidence: a request
+passes through the versioned route, resolves the default commercial scope,
+normalizes and persists one interaction event, and privacy projection removes
+secret metadata.
+
+```text
+pytest tests/test_recommendation_postgres_interaction_route.py (PostgreSQL 18.4)  1 passed
+full backend suite                                                   472 passed, 55 skipped
+docker/scripts/test.sh                                               passed
+```
+
+Runtime recommendation/intervention publication, effectiveness against real
+touch data, and the Kiosk consumer ledger remain open.
 
 ## UPGRADE-021 — Reliable worker and order outbox delivery
 
