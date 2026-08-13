@@ -12,7 +12,6 @@ from modules.recommendation.adapters.interactions import (
 )
 from repositories import postgres_utils
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(

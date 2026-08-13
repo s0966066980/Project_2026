@@ -124,6 +124,16 @@ def compute_session_stats(logs: list[dict[str, Any]]) -> dict[str, Any]:
     return stats_service.compute_session_stats(logs)
 
 
+def scenario_from_log(log: dict[str, Any]) -> str:
+    return stats_service.scenario_from_log(log)
+
+
+def build_intervention_stats(
+    logs: list[dict[str, Any]], events: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    return stats_service.build_intervention_stats(logs, events)
+
+
 def operations_overview_runtime() -> Any:
     """Return the operations overview adapter for legacy DTO composition."""
 
@@ -151,6 +161,8 @@ __all__ = [
     "get_session_logs",
     "delete_session_log",
     "compute_session_stats",
+    "scenario_from_log",
+    "build_intervention_stats",
     "readiness_snapshot",
     "build_metadata",
     "service_health_runtime",

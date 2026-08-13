@@ -664,6 +664,23 @@ docker/scripts/test.sh                                               passed
 Runtime recommendation/intervention publication, effectiveness against real
 touch data, and the Kiosk consumer ledger remain open.
 
+## UPGRADE-040 — Recommendation PostgreSQL intervention route publication
+
+The Kiosk intervention routes now have executable PostgreSQL evidence: a
+barrier-state request creates one scoped intervention outcome, and a following
+intervention-result request updates that same outcome with customer feedback
+and scenario enrichment. The route also exposed and now uses the missing
+Operations statistics capability wrappers instead of failing at runtime.
+
+```text
+pytest tests/test_recommendation_postgres_intervention_route.py (PostgreSQL 18.4)  1 passed
+full backend suite                                                              472 passed, 56 skipped
+docker/scripts/test.sh                                                          passed
+```
+
+Effectiveness against real touch data, runtime recommendation quality, and the
+Kiosk consumer ledger remain open.
+
 ## UPGRADE-021 — Reliable worker and order outbox delivery
 
 The worker's durable job and outbox contracts now have executable evidence for
