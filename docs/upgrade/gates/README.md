@@ -446,10 +446,10 @@ revert
 
 ### Still open for this capability
 
-Index rebuild and retirement cleanup, governance and the malicious-document
-path, and end-to-end retrieval against a real index on the target hardware
-remain. PostgreSQL duplicate-document handling is recorded below; the gate is
-not passed.
+Store-level retirement state, index rebuild, governance and the
+malicious-document path, and end-to-end retrieval against a real index on the
+target hardware remain. PostgreSQL duplicate-document handling and artifact
+cleanup are recorded below; the gate is not passed.
 
 ## UPGRADE-032 — Knowledge PostgreSQL duplicate-document handling
 
@@ -466,6 +466,23 @@ docker/scripts/test.sh                                           passed
 
 Index rebuild and retirement cleanup, governance, malicious-document handling,
 and real-index retrieval on target hardware remain open.
+
+## UPGRADE-033 — Knowledge publication artifact cleanup
+
+The publication artifact adapter now has deterministic contract evidence for
+the runtime portion of rebuild/cleanup: every chunk receives scoped metadata,
+successful artifacts can be cleaned completely, and a partial build removes
+the already-registered chunk ids in reverse order before surfacing a transient
+failure.
+
+```text
+pytest tests/test_knowledge_artifacts.py                         2 passed
+full backend suite                                               470 passed, 50 skipped
+docker/scripts/test.sh                                           passed
+```
+
+The live index provider, store-level retirement state transitions, and target
+hardware retrieval remain open.
 
 ## UPGRADE-020 — Recommendation capability gate
 
