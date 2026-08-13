@@ -67,6 +67,7 @@ class JobStore(Protocol):
         event_type: str,
         payload: dict[str, Any],
         max_attempts: int = 5,
+        available_at: datetime | None = None,
     ) -> None: ...
 
     def claim_outbox(
@@ -233,8 +234,10 @@ class InMemoryJobStore:
         event_type: str,
         payload: dict[str, Any],
         max_attempts: int = 5,
+        available_at: datetime | None = None,
     ) -> None:
         with self._lock:
+            scheduled_at = available_at or datetime.now(timezone.utc)
             self._outbox[outbox_id] = {
                 "id": outbox_id,
                 "tenant_id": tenant_id,
@@ -244,7 +247,7 @@ class InMemoryJobStore:
                 "payload": dict(payload),
                 "attempt_count": 0,
                 "max_attempts": max_attempts,
-                "available_at": datetime.now(timezone.utc),
+                "available_at": scheduled_at,
                 "locked_by": None,
                 "locked_until": None,
                 "last_error": "",

@@ -67,6 +67,7 @@ class PostgresJobStore:
         event_type: str,
         payload: dict[str, Any],
         max_attempts: int = 5,
+        available_at: datetime | None = None,
     ) -> None:
         worker_job_repository.seed_outbox(
             outbox_id=outbox_id,
@@ -76,6 +77,7 @@ class PostgresJobStore:
             event_type=event_type,
             payload=payload,
             max_attempts=max_attempts,
+            available_at=available_at,
         )
 
     def claim_outbox(

@@ -512,3 +512,20 @@ counted.
 Interaction and intervention pipelines, experiment assignment, the
 effectiveness report against real touch data in PostgreSQL, and the Kiosk
 consumer ledger. The gate is not passed.
+
+## UPGRADE-021 — Reliable worker and order outbox delivery
+
+The worker's durable job and outbox contracts now have executable evidence for
+retry with bounded backoff, visibility-timeout reclaim after a worker crash,
+dead-lettering after the attempt budget, and idempotent outbox acknowledgement.
+
+```text
+pytest tests/test_worker_reliability.py   4 passed
+full backend suite                         453 passed, 44 skipped
+docker/scripts/test.sh                     passed
+```
+
+The test uses one injected clock for enqueue, claim, retry, and reclaim, so a
+host-clock-dependent event cannot make the evidence pass by accident.
+Production outbox seeding still defaults to the current UTC time; the optional
+`available_at` is a deterministic adapter/test boundary.

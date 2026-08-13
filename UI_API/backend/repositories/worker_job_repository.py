@@ -85,8 +85,10 @@ def seed_outbox(
     event_type: str,
     payload: dict[str, Any],
     max_attempts: int = 5,
+    available_at: datetime | None = None,
 ) -> None:
     now = datetime.now(timezone.utc)
+    scheduled_at = available_at or now
     with postgres_utils.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -104,7 +106,7 @@ def seed_outbox(
                 event_type,
                 _jsonb(payload),
                 max_attempts,
-                now,
+                scheduled_at,
             ),
         )
         conn.commit()
