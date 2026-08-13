@@ -164,9 +164,27 @@ exists and is revoked.
 
 ### Still open for this capability
 
-PostgreSQL unique/foreign-key/concurrency evidence, Admin and Kiosk
-generated-client consumer evidence, and the Pilot authority items. The gate is
-not passed.
+PostgreSQL concurrency evidence, Admin and Kiosk generated-client consumer
+evidence, and the Pilot authority items remain. The unique/foreign-key
+constraint proof is recorded below; the gate is not passed.
+
+## UPGRADE-031 — Identity PostgreSQL uniqueness and foreign keys
+
+Identity now has real PostgreSQL constraint evidence: a duplicate `key_id` is
+rejected by the unique constraint, and a credential referencing an unknown
+device is rejected by the composite foreign key. The existing lifecycle suite
+continues to prove issue, session, rotation, revocation, expiry and safe audit
+behavior.
+
+```text
+pytest tests/test_identity_credential_lifecycle.py \\
+       tests/test_identity_postgres_constraints.py (PostgreSQL 18.4)  14 passed
+full backend suite                                               468 passed, 49 skipped
+docker/scripts/test.sh                                           passed
+```
+
+PostgreSQL concurrency, generated-client consumer evidence, and Pilot
+authority items remain open.
 
 ## UPGRADE-016 — Ordering transaction authority
 
