@@ -361,10 +361,9 @@ Each mutation failed exactly the rule it broke and left the rest passing.
 
 ### Still open for this capability
 
-Push copy resolution and the notification surface; content edits under
-concurrent publication (the version conflict is proven, the publish race is
-not); the Admin and Kiosk generated-client consumer ledger. The gate is not
-passed.
+The notification surface; content edits under concurrent publication (the
+version conflict is proven, the publish race is not); and the Admin and Kiosk
+generated-client consumer ledger. The gate is not passed.
 
 ## UPGRADE-019 — Knowledge/RAG capability gate
 
@@ -589,6 +588,19 @@ npm test -- --run tests/unit/health-admin.test.ts          14 passed
 frontend full unit suite                                  131 passed
 frontend typecheck + syntax                               passed
 full backend suite                                        456 passed, 46 skipped
+docker/scripts/test.sh                                    passed
+```
+
+## UPGRADE-028 — Campaign authored push-copy resolution
+
+Campaign evidence now covers the authored push-copy path: campaign wording is
+served only while its referenced offer is live, expired wording falls back to
+the base copy, missing authored copy falls back to the menu description, and
+member-only offers are excluded from guest push-copy resolution.
+
+```text
+pytest tests/test_campaign_capability_gate.py              27 passed
+full backend suite                                        462 passed, 46 skipped
 docker/scripts/test.sh                                    passed
 ```
 

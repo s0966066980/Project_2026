@@ -30,6 +30,13 @@ from modules.promotion.application import (
 )
 from modules.promotion.contracts import PromotionContext
 from repositories import postgres_utils
+from services.push_copy_service import (
+    STATUS_BASE,
+    STATUS_CAMPAIGN,
+    STATUS_DESCRIPTION,
+    active_offer_ids,
+    resolve_copy,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.contract]
 
@@ -259,6 +266,35 @@ def test_an_unusable_timezone_does_not_take_pricing_down():
     result = evaluate_promotion(_promotion(timezone="Mars/Olympus_Mons", ends_at="2099-01-01"), _context())
 
     assert result.eligible is True
+
+
+# --- authored push copy ----------------------------------------------------
+
+
+def test_campaign_copy_is_used_only_while_its_offer_is_live():
+    entry = {
+        "campaign_copy": "活動中的促購文案",
+        "campaign_offer_id": "offer-1",
+        "base_copy": "常青文案",
+    }
+    item = {"description": "菜單描述"}
+
+    assert resolve_copy(item, entry, live_offer_ids={"offer-1"}) == ("活動中的促購文案", STATUS_CAMPAIGN)
+    assert resolve_copy(item, entry, live_offer_ids=set()) == ("常青文案", STATUS_BASE)
+
+
+def test_push_copy_falls_back_to_description_when_no_authored_copy_exists():
+    assert resolve_copy({"description": "真實菜單描述"}, {}, live_offer_ids=set()) == (
+        "真實菜單描述",
+        STATUS_DESCRIPTION,
+    )
+
+
+def test_member_only_live_offers_are_not_visible_to_guest_push_copy():
+    offers = [{"offer_id": "guest-offer"}, {"offer_id": "member-offer", "member_only": True}]
+
+    assert active_offer_ids(offers, audience="guest") == {"guest-offer"}
+    assert active_offer_ids(offers, audience="member") == {"guest-offer", "member-offer"}
 
 
 # --- persistence -----------------------------------------------------------
