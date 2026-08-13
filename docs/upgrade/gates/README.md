@@ -561,3 +561,17 @@ pytest tests/test_cart_revision_concurrency.py (PostgreSQL 18.4)  1 passed
 full backend suite                                             456 passed, 45 skipped
 docker/scripts/test.sh                                         passed
 ```
+
+## UPGRADE-024 — PostgreSQL Checkout outbox claim state
+
+The PostgreSQL Checkout outbox adapter now returns the row after its claim
+update, so the consumer sees the incremented `attempt_count` and current
+`max_attempts` just like the SQLite adapter. The real PostgreSQL integration
+test inserts a uniquely identified event, claims it through the adapter, and
+asserts `attempt_count == 1`; the event is removed after the assertion.
+
+```text
+pytest tests/test_postgres_checkout_outbox_claim.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               456 passed, 46 skipped
+docker/scripts/test.sh                                           passed
+```

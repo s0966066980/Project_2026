@@ -52,7 +52,7 @@ Project Completion:               NOT ACHIEVED
 | P4 Optimization Lab | REPOSITORY PATH PASSED（local Ollama）；customer-evidence path deferred | customer-evidence authorization／encrypted-at-rest deployment evidence |
 | P5.1 Identity／Operations | REPOSITORY CONVERGENCE EVIDENCED；external gate open | Pilot authority／PostgreSQL production／auth evidence仍待外部 |
 | P5.2 Member／Campaign／Recommendation | REPOSITORY CONVERGENCE EVIDENCED；external gate open | consumer evidence仍待逐項收斂 |
-| P5.3 Ordering & Checkout | REPOSITORY CONVERGENCE EVIDENCED；external gate open | 完整觸控語音 E2E、confirmation restart 與 Pilot evidence仍待逐項收斂；outbox/retry/dead-letter、cart revision concurrency 已有 repository evidence |
+| P5.3 Ordering & Checkout | REPOSITORY CONVERGENCE EVIDENCED；external gate open | 完整觸控語音 E2E、confirmation restart 與 Pilot evidence仍待逐項收斂；outbox/retry/dead-letter、PostgreSQL claim state、cart revision concurrency 已有 repository evidence |
 | P6 Knowledge/RAG → Voice → Emotion | REPOSITORY CONVERGENCE EVIDENCED；external gate open | provider／hardware／retention evidence仍待逐項收斂 |
 | P7 Legacy Closure | STATIC/LOCAL CANDIDATE EVIDENCED；closure gate open | HTTP compatibility removal 已完成；horizontal 層收斂與外部成品矩陣仍未通過 |
 

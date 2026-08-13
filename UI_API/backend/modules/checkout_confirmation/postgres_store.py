@@ -75,10 +75,14 @@ class PostgresCheckoutStore(SQLiteCheckoutStore):
                 """,
                 (max(1, min(int(limit), 500)),),
             ).fetchall()
+            claimed_rows = []
             for row in rows:
                 conn.execute(
                     "UPDATE checkout_outbox SET attempt_count=attempt_count+1, locked_by=?, locked_until=NOW() + INTERVAL '60 seconds' WHERE event_id=?",
                     ("checkout-dispatcher", row["event_id"]),
+                )
+                claimed_rows.append(
+                    conn.execute("SELECT * FROM checkout_outbox WHERE event_id=?", (row["event_id"],)).fetchone()
                 )
         return [
             {
@@ -91,5 +95,5 @@ class PostgresCheckoutStore(SQLiteCheckoutStore):
                 "attempt_count": int(row["attempt_count"] or 0),
                 "max_attempts": int(row["max_attempts"] or 5),
             }
-            for row in rows
+            for row in claimed_rows
         ]
