@@ -149,8 +149,8 @@ def revoke_device_credential(credential_id: object, revoked_at: datetime) -> boo
         cur.execute(
             """
             UPDATE device_credentials
-            SET status = 'revoked', revoked_at = COALESCE(revoked_at, %s), updated_at = NOW()
-            WHERE id = %s
+            SET status = 'revoked', revoked_at = %s, updated_at = NOW()
+            WHERE id = %s AND revoked_at IS NULL
             RETURNING id
             """,
             (revoked_at, credential_id),

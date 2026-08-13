@@ -229,10 +229,13 @@ def revoke_device_credential(
     record = device_identity_repository.find_scoped_device_credential(credential_id, scope.tenant_id, scope.store_id)
     if record is None:
         return False
-    revoked = device_identity_repository.revoke_device_credential(credential_id, now or datetime.now(timezone.utc))
-    if revoked:
+    # Revoking is idempotent for the caller and single-shot for the audit
+    # trail. Recording an event per call made one revocation read as three,
+    # which is a security record saying something that did not happen.
+    transitioned = device_identity_repository.revoke_device_credential(credential_id, now or datetime.now(timezone.utc))
+    if transitioned:
         _record_device_event("device_credential_revoked", record)
-    return revoked
+    return True
 
 
 def touch_device_principal(principal: DevicePrincipal, app_version: str) -> None:

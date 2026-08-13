@@ -117,3 +117,53 @@ The CI job derives the previous migration from the directory listing rather
 than naming it, so the step does not rot the next time a migration lands, and
 asserts exactly one migration remains before applying it — otherwise the step
 would pass while rehearsing nothing.
+
+## UPGRADE-015 — Identity credential lifecycle
+
+The Module Independence Gate for Identity asks for issue, rotate, revoke and
+expiry; store isolation; wrong-device and wrong-store refusal; session replay
+and expiry; and an audit trail that is complete without carrying the secret.
+
+None of it is provable on SQLite. `authenticate_device_session` returns `None`
+outright when PostgreSQL is not in use, so every negative case would have
+passed for the wrong reason. The twelve checks skip unless the run is really on
+PostgreSQL, and they remove the rows they create.
+
+Run against the live PostgreSQL 18.4:
+
+```text
+pytest tests/test_identity_credential_lifecycle.py   12 passed
+```
+
+Covered: a session opens and names its device; a wrong secret is refused; an
+unknown key and a wrong secret are refused in the same words, so the refusal
+does not say which half was wrong; an expired credential stops opening
+sessions; rotation issues a new secret and closes the old one past its grace
+window; revocation ends the credential and the sessions it had already opened;
+a manager from another store cannot issue, and cannot revoke; a device outside
+the scope is refused; the stored credential is a hash; the audit trail records
+the events without the raw credential.
+
+### A defect the gate found
+
+Revoking an already-revoked credential returned `True` and wrote another
+`device_credential_revoked` event every time. Three clicks produced three
+revocation records for one revocation — a security trail describing actions
+nobody took.
+
+```text
+before   revoke x3 -> True, True, True   audit: device_credential_revoked x3
+after    revoke x3 -> True, True, True   audit: device_credential_revoked x1
+```
+
+The adapter now transitions only a credential that is still active, and the
+event is recorded only on that transition. The API answer stays `True` because
+the credential is revoked, which is what the caller asked for; returning
+`False` would have made the route answer 404 "not found" for a credential that
+exists and is revoked.
+
+### Still open for this capability
+
+PostgreSQL unique/foreign-key/concurrency evidence, Admin and Kiosk
+generated-client consumer evidence, and the Pilot authority items. The gate is
+not passed.
