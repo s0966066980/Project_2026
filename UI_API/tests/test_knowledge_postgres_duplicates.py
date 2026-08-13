@@ -25,8 +25,17 @@ class _Jobs:
         return f"job-{attempt_id}"
 
 
-def _draft(module, *, title: str, content: str, override_near_duplicate: bool = False):
-    return module.create_draft(
+def _draft(module, created_ids: list[str], *, title: str, content: str, override_near_duplicate: bool = False):
+    """Create a draft and record it for cleanup in the same breath.
+
+    Registering the id at the call site does not survive the calls that are
+    *expected* to raise: if the guard under test stops working, the draft is
+    created, `pytest.raises` fails, and an unrecorded row is left behind — one
+    that then trips this same test on its next run for a reason that has
+    nothing to do with the code. The store is the caller's list either way.
+    """
+
+    item = module.create_draft(
         scope=LEGACY_DEFAULT_SCOPE,
         category="store_and_hours",
         content_type="question_answer",
@@ -35,34 +44,39 @@ def _draft(module, *, title: str, content: str, override_near_duplicate: bool = 
         actor=ACTOR,
         override_near_duplicate=override_near_duplicate,
     )
+    created_ids.append(item["item_id"])
+    return item
 
 
 def test_postgres_duplicate_document_policy_requires_explicit_override_and_rejects_exact_match():
     module = KnowledgePublicationModule(store=PostgresPublicationStore(), jobs=_Jobs())
-    created = _draft(
-        module,
-        title="Opening hours",
-        content="Question: when do we open?\n\nAnswer: every day from 10:00 to 22:00.",
-    )
-    created_ids = [created["item_id"]]
+    created_ids: list[str] = []
     similar = "Question: when do we open?\n\nAnswer: every day from 10:00 to 22:30."
 
     try:
+        _draft(
+            module,
+            created_ids,
+            title="Opening hours",
+            content="Question: when do we open?\n\nAnswer: every day from 10:00 to 22:00.",
+        )
+
         with pytest.raises(PublicationError) as near_duplicate:
-            _draft(module, title="Opening hours (similar)", content=similar)
+            _draft(module, created_ids, title="Opening hours (similar)", content=similar)
         assert near_duplicate.value.args[0] == "near_duplicate"
 
-        allowed = _draft(
+        _draft(
             module,
+            created_ids,
             title="Opening hours (similar)",
             content=similar,
             override_near_duplicate=True,
         )
-        created_ids.append(allowed["item_id"])
 
         with pytest.raises(PublicationError) as exact_duplicate:
             _draft(
                 module,
+                created_ids,
                 title="Opening hours (copy)",
                 content=similar,
                 override_near_duplicate=True,

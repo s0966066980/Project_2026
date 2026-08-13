@@ -115,6 +115,19 @@ def test_effectiveness_report_reads_postgres_touch_and_attribution_facts():
         assert report.purchases == 1
         assert report.attributed_revenue == 120
         assert report.breakdowns == [{"variant_id": "control", "impressions": 1, "clicks": 1, "add_to_carts": 0}]
+
+        # The funnel is deduplicated, so say so with data that would double
+        # without it: the same impression seen twice and the same order item
+        # attributed twice are still one impression and one purchase. With
+        # only distinct rows above, dropping the deduplication changes nothing
+        # and the claim would rest on nobody having tried.
+        replayed_events = events + [dict(row) for row in events if row.get("event_id") == impression_event_id]
+        replayed_attributions = attributions + [dict(row) for row in attributions]
+        replayed = build_effectiveness_report(replayed_events, replayed_attributions, filters={"placement": "menu"})
+
+        assert replayed.impressions == 1, "one impression seen twice was counted twice"
+        assert replayed.purchases == 1, "one order item attributed twice was counted twice"
+        assert replayed.breakdowns == report.breakdowns
     finally:
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))

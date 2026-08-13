@@ -72,3 +72,31 @@ def test_a_partial_build_deletes_already_written_chunks_before_failing():
         artifacts.build(attempt=ATTEMPT, item=ITEM)
 
     assert provider.deleted == ["kp:attempt-1:c2", "kp:attempt-1:c1"]
+
+
+def test_a_cleanup_the_provider_refuses_is_not_reported_as_done():
+    """Retirement is only complete when the documents are really gone.
+
+    `delete_document` returning False means the index still holds the chunk.
+    Swallowing that would mark an item retired while its content stays
+    answerable, which is the one outcome retirement exists to prevent.
+    """
+
+    artifact = RagPublicationArtifacts(provider=_Provider()).build(attempt=ATTEMPT, item=ITEM)
+    provider = _Provider(fail_delete=True)
+    artifacts = RagPublicationArtifacts(provider=provider)
+
+    with pytest.raises(TransientPublicationError) as refused:
+        artifacts.cleanup(artifact_ref=artifact["artifact_ref"])
+
+    assert "artifact_cleanup_failed" in str(refused.value)
+    assert provider.deleted == []
+
+
+def test_an_artifact_reference_that_is_not_a_document_list_is_refused():
+    artifacts = RagPublicationArtifacts(provider=_Provider())
+
+    with pytest.raises(RuntimeError) as refused:
+        artifacts.cleanup(artifact_ref="not json at all")
+
+    assert "invalid_publication_artifact_ref" in str(refused.value)
