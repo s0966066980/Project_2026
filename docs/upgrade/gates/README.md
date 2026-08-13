@@ -804,6 +804,17 @@ reads both durable sources to produce the deduplicated funnel and revenue.
 pytest tests/test_recommendation_postgres_effectiveness.py (PostgreSQL 18.4)  1 passed
 ```
 
+## UPGRADE-044 — Campaign PostgreSQL edit/publish race
+
+Campaign authoring now has PostgreSQL evidence for an editor revising a draft
+while another operator publishes that same draft: exactly one optimistic
+concurrency winner is retained, the other receives `campaign_version_conflict`,
+and the durable campaign remains on a single version path.
+
+```text
+pytest tests/test_campaign_postgres_edit_publish_race.py (PostgreSQL 18.4)  1 passed
+```
+
 ## UPGRADE-029 — Recommendation interaction and analytics contracts
 
 Recommendation now has repository-level evidence for the remaining pure
