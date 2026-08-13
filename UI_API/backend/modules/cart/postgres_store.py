@@ -43,6 +43,15 @@ class PostgresCartStore(SQLiteCartStore):
         # PostgreSQL schema is managed only by explicit migration commands.
         pass
 
+    def _insert_cart_if_missing(self, conn, *, tenant, store, session_id, at):
+        conn.execute(
+            "INSERT INTO ordering_carts VALUES (?,?,?,0,'open',?,?) ON CONFLICT (tenant_id,store_id,session_id) DO NOTHING",
+            (tenant, store, session_id, at, at),
+        )
+
+    def _cart_lock_clause(self) -> str:
+        return " FOR UPDATE"
+
     def _connect(self):
         return _Conn(postgres_utils.connect())
 

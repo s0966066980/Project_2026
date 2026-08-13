@@ -52,7 +52,7 @@ Project Completion:               NOT ACHIEVED
 | P4 Optimization Lab | REPOSITORY PATH PASSED（local Ollama）；customer-evidence path deferred | customer-evidence authorization／encrypted-at-rest deployment evidence |
 | P5.1 Identity／Operations | REPOSITORY CONVERGENCE EVIDENCED；external gate open | Pilot authority／PostgreSQL production／auth evidence仍待外部 |
 | P5.2 Member／Campaign／Recommendation | REPOSITORY CONVERGENCE EVIDENCED；external gate open | consumer evidence仍待逐項收斂 |
-| P5.3 Ordering & Checkout | REPOSITORY CONVERGENCE EVIDENCED；external gate open | 完整觸控語音 E2E、transactional/outbox 與 Pilot evidence仍待逐項收斂 |
+| P5.3 Ordering & Checkout | REPOSITORY CONVERGENCE EVIDENCED；external gate open | 完整觸控語音 E2E、confirmation restart 與 Pilot evidence仍待逐項收斂；outbox/retry/dead-letter、cart revision concurrency 已有 repository evidence |
 | P6 Knowledge/RAG → Voice → Emotion | REPOSITORY CONVERGENCE EVIDENCED；external gate open | provider／hardware／retention evidence仍待逐項收斂 |
 | P7 Legacy Closure | STATIC/LOCAL CANDIDATE EVIDENCED；closure gate open | HTTP compatibility removal 已完成；horizontal 層收斂與外部成品矩陣仍未通過 |
 
@@ -336,8 +336,8 @@ PostgreSQL migration/backfill、consumer telemetry zero 與 Admin/Kiosk E2E ledg
 
 **目前狀態：IN PROGRESS（repository boundary convergence）**。Ordering／Checkout
 route 與 pricing/order adapters 已由 capability surface 進入；PostgreSQL-backed
-candidate restart/readiness 已完成，transactional/outbox/dead-letter 與觸控／語音
-E2E 證據尚未完成。
+candidate readiness 已完成，checkout outbox retry/dead-letter 與 cart revision
+concurrency 已有 repository evidence；confirmation restart 與觸控／語音 E2E 證據尚未完成。
 
 把 Entry、Session、Cart、Quote、Confirmation、Order、Payment Pending 收斂成一個 Ordering transaction deep module：伺服器端唯一的定價與可售性重驗、quote 與 order 權威、跨能力只用 published contracts、保留 idempotency、Confirmation Outcome Unknown、transactional outbox 與人工付款邊界，最後刪除 legacy route/service/repository。
 

@@ -214,9 +214,11 @@ revert
 
 ### Still open for this capability
 
-Transactional outbox atomicity, retry and dead-letter evidence; restart during
-confirmation; cart revision conflicts under concurrency; and the full touch and
-voice E2E, which needs the target Kiosk. The gate is not passed.
+Transactional confirmation atomicity and restart during confirmation remain;
+the full touch and voice E2E also needs the target Kiosk. Checkout outbox
+retry/dead-letter evidence is recorded in UPGRADE-022, and cart revision
+conflicts under PostgreSQL concurrency are recorded in UPGRADE-023. The gate is
+not passed.
 
 ## UPGRADE-017 — Member capability gate
 
@@ -543,4 +545,19 @@ durability fields and claim index.
 pytest tests/test_checkout_outbox_reliability.py tests/test_checkout_contract.py  5 passed
 full backend suite                                                               456 passed, 44 skipped
 docker/scripts/test.sh                                                           passed
+```
+
+## UPGRADE-023 — PostgreSQL cart revision concurrency
+
+PostgreSQL cart replacement now locks the existing cart row with `FOR UPDATE`.
+First-writer creation uses `ON CONFLICT DO NOTHING` before the same locked read,
+so two requests carrying the same stale revision cannot overwrite one another.
+The integration test runs two threads against PostgreSQL and requires exactly
+one commit plus one `cart_revision_conflict`; it then verifies revision 1 and
+the committed lines.
+
+```text
+pytest tests/test_cart_revision_concurrency.py (PostgreSQL 18.4)  1 passed
+full backend suite                                             456 passed, 45 skipped
+docker/scripts/test.sh                                         passed
 ```

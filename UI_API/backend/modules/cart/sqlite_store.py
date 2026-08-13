@@ -92,21 +92,30 @@ class SQLiteCartStore:
             ],
         }
 
+    def _insert_cart_if_missing(self, conn, *, tenant, store, session_id, at):
+        conn.execute("INSERT INTO ordering_carts VALUES (?,?,?,0,'open',?,?)", (tenant, store, session_id, at, at))
+
+    def _cart_lock_clause(self) -> str:
+        return ""
+
     def replace(self, *, scope, session_id, expected_revision, lines):
         tenant, store, at = str(scope.tenant_id), str(scope.store_id), _now()
         with self.transaction() as conn:
             row = conn.execute(
-                "SELECT revision,status FROM ordering_carts WHERE tenant_id=? AND store_id=? AND session_id=?",
+                "SELECT revision,status FROM ordering_carts WHERE tenant_id=? AND store_id=? AND session_id=?"
+                + self._cart_lock_clause(),
                 (tenant, store, session_id),
             ).fetchone()
             if row is None:
-                conn.execute(
-                    "INSERT INTO ordering_carts VALUES (?,?,?,0,'open',?,?)", (tenant, store, session_id, at, at)
-                )
-                current = 0
-                status = "open"
-            else:
-                current, status = int(row["revision"]), row["status"]
+                self._insert_cart_if_missing(conn, tenant=tenant, store=store, session_id=session_id, at=at)
+                row = conn.execute(
+                    "SELECT revision,status FROM ordering_carts WHERE tenant_id=? AND store_id=? AND session_id=?"
+                    + self._cart_lock_clause(),
+                    (tenant, store, session_id),
+                ).fetchone()
+            if row is None:
+                raise CartError("cart_unavailable")
+            current, status = int(row["revision"]), row["status"]
             if status != "open":
                 raise CartError("cart_closed")
             if current != expected_revision:
