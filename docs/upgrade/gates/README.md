@@ -277,9 +277,8 @@ Pilot Admission list next to the Configuration Authority.
 
 ### Still open for this capability
 
-Consent version and retention, history-consent behaviour, PostgreSQL
-migration/backfill/integrity/concurrency, and the Admin/Kiosk consumer ledger.
-The gate is not passed.
+PostgreSQL migration/backfill/integrity/concurrency and the Admin/Kiosk
+consumer ledger. The gate is not passed.
 
 ## UPGRADE-018 — Campaign & promotion capability gate
 
@@ -590,6 +589,21 @@ npm test -- --run tests/unit/health-admin.test.ts          14 passed
 frontend full unit suite                                  131 passed
 frontend typecheck + syntax                               passed
 full backend suite                                        456 passed, 46 skipped
+docker/scripts/test.sh                                    passed
+```
+
+## UPGRADE-027 — Member consent policy
+
+Member registration now keeps necessary terms separate from the two optional
+consents. Without order-history consent, detailed history is neither stored
+for completed or abandoned orders nor projected to the customer; without
+personalization consent, preference aggregates, usuals, and push context are
+not updated or projected. Each optional consent can still be enabled
+independently.
+
+```text
+pytest tests/test_member_consent_policy.py                 3 passed
+full backend suite                                        459 passed, 46 skipped
 docker/scripts/test.sh                                    passed
 ```
 

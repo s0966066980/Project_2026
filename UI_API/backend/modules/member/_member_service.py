@@ -211,6 +211,8 @@ def get_session_member(session_id: str, scope: CommercialScope | None = None) ->
 
 def _public_member(member: dict) -> dict:
     _with_member_commercial_defaults(member)
+    history_allowed = bool(member.get("order_history_consent", False))
+    personalization_allowed = bool(member.get("personalization_consent", False))
     return {
         "member_id": str(member.get("member_id") or member.get("id") or ""),
         "phone": member.get("phone", ""),
@@ -221,8 +223,8 @@ def _public_member(member: dict) -> dict:
         "privacy_version": member.get("privacy_version", ""),
         "order_history_consent": bool(member.get("order_history_consent", False)),
         "personalization_consent": bool(member.get("personalization_consent", False)),
-        "usuals": build_usuals(member),
-        "history": build_history(member),
+        "usuals": build_usuals(member) if personalization_allowed else [],
+        "history": build_history(member) if history_allowed else [],
     }
 
 
@@ -513,6 +515,8 @@ def member_top_ids(member: dict, n: int = 5) -> list:
 
 
 def member_push_context(member: dict) -> str:
+    if not bool(member.get("personalization_consent", False)):
+        return ""
     usuals = build_usuals(member, limit=3)
     names = "、".join(u["name"] for u in usuals if u.get("name"))
     if not names:
@@ -627,22 +631,24 @@ def finalize_checkout(
     member["visit_count"] = int(member.get("visit_count", 0)) + 1
     member["total_spend"] = int(member.get("total_spend", 0)) + int(total or 0)
     member["last_visit_at"] = timestamp
-    _update_member_preference_stats(member, _cart_item_rows(final_cart_ids, cart_items), timestamp)
-    _append_member_order(
-        member,
-        {
-            "timestamp": timestamp,
-            "cart_ids": _expanded_cart_ids(final_cart_ids, cart_items),
-            "cart_items": cart_items if isinstance(cart_items, list) else [],
-            "total": int(total or 0),
-            "order_status": "completed",
-            "is_completed": True,
-            "recommendation_success": bool(recommendation_success),
-            # Backward-compatible field for admin recommendation metrics.
-            "is_success": bool(recommendation_success),
-        },
-        scope,
-    )
+    if bool(member.get("personalization_consent", False)):
+        _update_member_preference_stats(member, _cart_item_rows(final_cart_ids, cart_items), timestamp)
+    if bool(member.get("order_history_consent", False)):
+        _append_member_order(
+            member,
+            {
+                "timestamp": timestamp,
+                "cart_ids": _expanded_cart_ids(final_cart_ids, cart_items),
+                "cart_items": cart_items if isinstance(cart_items, list) else [],
+                "total": int(total or 0),
+                "order_status": "completed",
+                "is_completed": True,
+                "recommendation_success": bool(recommendation_success),
+                # Backward-compatible field for admin recommendation metrics.
+                "is_success": bool(recommendation_success),
+            },
+            scope,
+        )
     clear_session(session_id, scope)
     return member
 
@@ -659,20 +665,21 @@ def record_abandoned_order(
     if not member or not normalized_cart_ids:
         return None
     member["last_visit_at"] = datetime.now().isoformat()
-    _append_member_order(
-        member,
-        {
-            "timestamp": datetime.now().isoformat(),
-            "cart_ids": normalized_cart_ids,
-            "total": int(total or 0),
-            "order_status": "cancelled",
-            "is_completed": False,
-            "cancel_reason": str(reason or ""),
-            "recommendation_success": False,
-            "is_success": False,
-        },
-        scope,
-    )
+    if bool(member.get("order_history_consent", False)):
+        _append_member_order(
+            member,
+            {
+                "timestamp": datetime.now().isoformat(),
+                "cart_ids": normalized_cart_ids,
+                "total": int(total or 0),
+                "order_status": "cancelled",
+                "is_completed": False,
+                "cancel_reason": str(reason or ""),
+                "recommendation_success": False,
+                "is_success": False,
+            },
+            scope,
+        )
     clear_session(session_id, scope)
     return member
 
