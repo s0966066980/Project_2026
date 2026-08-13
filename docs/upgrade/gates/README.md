@@ -767,9 +767,19 @@ the base copy, missing authored copy falls back to the menu description, and
 member-only offers are excluded from guest push-copy resolution.
 
 ```text
-pytest tests/test_campaign_capability_gate.py              27 passed
-full backend suite                                        462 passed, 46 skipped
-docker/scripts/test.sh                                    passed
+pytest tests/test_recommendation_postgres_intervention_route.py (PostgreSQL 18.4)  1 passed
+full backend suite                                                           472 passed, 56 skipped
+docker/scripts/test.sh                                                       passed
+```
+
+## UPGRADE-041 — PostgreSQL Checkout confirmation atomicity
+
+Checkout confirmation now has executable PostgreSQL evidence for its all-or-
+nothing write boundary: when a later order item violates a database constraint,
+the order, its items, and its confirmation outbox event are all rolled back.
+
+```text
+pytest tests/test_ordering_postgres_transaction_atomicity.py (PostgreSQL 18.4)  1 passed
 ```
 
 ## UPGRADE-029 — Recommendation interaction and analytics contracts
