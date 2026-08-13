@@ -1,9 +1,9 @@
 """PostgreSQL evidence for the campaign publish optimistic-concurrency boundary."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -13,12 +13,10 @@ from modules.promotion.contracts import CampaignConflictError
 from repositories import postgres_utils
 from repositories.campaign_repository import CampaignRepository
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="campaign publish race evidence requires PostgreSQL",
     )
 )

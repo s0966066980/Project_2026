@@ -40,7 +40,10 @@ def test_checkout_outbox_failure_is_backed_off_and_reclaimed_after_lock_expires(
     assert failed["available_at"] > failed["created_at"]
 
     with store.tx() as conn:
-        conn.execute("UPDATE checkout_outbox SET available_at=? WHERE event_id=?", (datetime.now(timezone.utc).isoformat(), "event-1"))
+        conn.execute(
+            "UPDATE checkout_outbox SET available_at=? WHERE event_id=?",
+            (datetime.now(timezone.utc).isoformat(), "event-1"),
+        )
     reclaimed = store.pending_outbox(limit=1)
     assert reclaimed[0]["attempt_count"] == 2
 
@@ -65,7 +68,10 @@ def test_published_checkout_outbox_clears_lease_and_is_not_delivered_again(tmp_p
 
     assert store.pending_outbox(limit=1) == []
     with store._connect() as conn:
-        row = conn.execute("SELECT published_at, locked_by, locked_until, last_error FROM checkout_outbox WHERE event_id=?", ("event-1",)).fetchone()
+        row = conn.execute(
+            "SELECT published_at, locked_by, locked_until, last_error FROM checkout_outbox WHERE event_id=?",
+            ("event-1",),
+        ).fetchone()
     assert row["published_at"] is not None
     assert row["locked_by"] is None
     assert row["locked_until"] is None

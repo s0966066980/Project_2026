@@ -5,7 +5,6 @@ import pytest
 from modules.knowledge_publication.module import TransientPublicationError
 from modules.knowledge_publication.runtime import RagPublicationArtifacts
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.contract]
 
 

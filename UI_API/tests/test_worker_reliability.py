@@ -38,7 +38,8 @@ def test_failed_job_retries_with_backoff_then_enters_dead_letter():
         scheduled_at=now,
     )
 
-    failure = lambda _job: JobHandlerResult(success=False, retryable=True, safe_error="temporary")
+    def failure(_job):
+        return JobHandlerResult(success=False, retryable=True, safe_error="temporary")
 
     first = process_one_job(store=store, now=now, handler=failure)
     assert first is not None
@@ -107,7 +108,9 @@ def test_outbox_retry_and_dead_letter_keep_event_available_only_until_budget_exh
         max_attempts=2,
         available_at=now,
     )
-    set_outbox_delivery_handler(lambda _event: OutboxDeliveryResult(success=False, retryable=True, safe_error="offline"))
+    set_outbox_delivery_handler(
+        lambda _event: OutboxDeliveryResult(success=False, retryable=True, safe_error="offline")
+    )
     try:
         first = deliver_one_outbox(store=store, now=now)
         assert first is not None
@@ -137,7 +140,7 @@ def test_published_outbox_is_idempotent_and_does_not_repeat_side_effect():
     )
     calls = []
     set_outbox_delivery_handler(
-        lambda event: (calls.append(event["id"]) or OutboxDeliveryResult(success=True, delivery_id="delivery-1"))
+        lambda event: calls.append(event["id"]) or OutboxDeliveryResult(success=True, delivery_id="delivery-1")
     )
     try:
         assert deliver_one_outbox(store=store) is not None

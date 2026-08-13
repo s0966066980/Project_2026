@@ -128,9 +128,7 @@ def scenario_from_log(log: dict[str, Any]) -> str:
     return stats_service.scenario_from_log(log)
 
 
-def build_intervention_stats(
-    logs: list[dict[str, Any]], events: list[dict[str, Any]] | None = None
-) -> dict[str, Any]:
+def build_intervention_stats(logs: list[dict[str, Any]], events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return stats_service.build_intervention_stats(logs, events)
 
 

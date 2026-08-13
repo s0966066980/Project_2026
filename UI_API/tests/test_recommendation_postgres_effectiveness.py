@@ -114,9 +114,7 @@ def test_effectiveness_report_reads_postgres_touch_and_attribution_facts():
         assert report.clicks == 1
         assert report.purchases == 1
         assert report.attributed_revenue == 120
-        assert report.breakdowns == [
-            {"variant_id": "control", "impressions": 1, "clicks": 1, "add_to_carts": 0}
-        ]
+        assert report.breakdowns == [{"variant_id": "control", "impressions": 1, "clicks": 1, "add_to_carts": 0}]
     finally:
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))

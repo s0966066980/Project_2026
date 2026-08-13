@@ -9,12 +9,10 @@ from modules.knowledge_publication.module import KnowledgePublicationModule, Pub
 from modules.knowledge_publication.postgres_store import PostgresPublicationStore
 from repositories import postgres_utils
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="knowledge duplicate evidence requires PostgreSQL",
     )
 )

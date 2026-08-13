@@ -1,8 +1,8 @@
 """PostgreSQL uniqueness and foreign-key evidence for device identity."""
 
-from datetime import datetime, timedelta, timezone
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from psycopg.errors import ForeignKeyViolation, UniqueViolation
@@ -13,7 +13,6 @@ from models.commercial_scope import CommercialScope
 from modules.identity._device_identity_service import hash_device_secret
 from modules.identity.adapters import device_identity as device_identity_repository
 from repositories import postgres_utils
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(

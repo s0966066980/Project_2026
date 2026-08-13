@@ -1,16 +1,14 @@
 """PostgreSQL integrity evidence for scoped Member registration."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from capabilities.member import member_service
 from models.commercial_scope import CommercialScope
-from modules.member import _pii
 from repositories import postgres_utils
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(

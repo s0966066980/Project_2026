@@ -91,7 +91,9 @@ class PostgresCheckoutStore(SQLiteCheckoutStore):
                 "event_id": str(row["event_id"]),
                 "event_type": row["event_type"],
                 "aggregate_id": str(row["aggregate_id"]),
-                "payload": row["payload_json"] if isinstance(row["payload_json"], dict) else json.loads(row["payload_json"]),
+                "payload": row["payload_json"]
+                if isinstance(row["payload_json"], dict)
+                else json.loads(row["payload_json"]),
                 "attempt_count": int(row["attempt_count"] or 0),
                 "max_attempts": int(row["max_attempts"] or 5),
             }

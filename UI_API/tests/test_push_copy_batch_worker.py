@@ -8,7 +8,6 @@ import pytest
 from models.worker_jobs import BackgroundJob, JobStatus
 from services import worker_handlers
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.contract]
 
 

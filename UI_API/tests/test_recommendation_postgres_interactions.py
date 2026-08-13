@@ -15,8 +15,7 @@ from repositories import postgres_utils
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="recommendation interaction evidence requires PostgreSQL",
     )
 )

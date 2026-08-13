@@ -247,11 +247,13 @@ revert
 
 ### Still open for this capability
 
-Transactional confirmation atomicity and restart during confirmation remain;
-the full touch and voice E2E also needs the target Kiosk. Checkout outbox
-retry/dead-letter evidence is recorded in UPGRADE-022, and cart revision
-conflicts under PostgreSQL concurrency are recorded in UPGRADE-023. The gate is
-not passed.
+The full touch and voice E2E needs the target Kiosk, and the Admin/Kiosk
+generated-client consumer ledger is not written. Everything else this section
+listed as open has since been evidenced: transactional confirmation atomicity
+in UPGRADE-041, restart during confirmation in UPGRADE-042, outbox
+retry/dead-letter in UPGRADE-022, and cart revision conflicts under PostgreSQL
+concurrency in UPGRADE-023. The gate is still not passed, and what is left is
+now hardware and consumer evidence rather than backend behaviour.
 
 ## UPGRADE-017 — Member capability gate
 
@@ -782,6 +784,17 @@ the order, its items, and its confirmation outbox event are all rolled back.
 pytest tests/test_ordering_postgres_transaction_atomicity.py (PostgreSQL 18.4)  1 passed
 ```
 
+Mutation: committing the order before its items are written — the exact
+regression this claims to catch — failed the check, and reverting returned it
+to green.
+
+One caveat on the evidence as written. The outbox half of the assertion joins
+`order_outbox` to `orders`, and `order_outbox_aggregate_id_fkey` cascades from
+`orders(id)`. With no order row surviving, no outbox row can survive either, so
+that second assertion is guaranteed by the schema rather than by the code under
+test. The rollback of the order is proven; "the outbox event rolled back too"
+rests on the foreign key, which is the stronger guarantee but a different one.
+
 ## UPGRADE-042 — PostgreSQL Checkout outbox restart recovery
 
 The Checkout confirmation outbox now has PostgreSQL recovery evidence across a
@@ -882,3 +895,43 @@ frontend typecheck + syntax                                                     
 full backend suite                                                                      456 passed, 46 skipped
 docker/scripts/test.sh                                                                  passed
 ```
+
+## Verification pass — 2026-08-13
+
+The whole suite, re-run at `2f10774` plus the lint repair below.
+
+```text
+pytest -q                              472 passed,  60 skipped   (SQLite)
+pytest -q  (DATABASE_BACKEND=postgresql) 523 passed,   9 skipped   (PostgreSQL 18.4)
+mypy                                   no issues in 63 source files
+ruff check . && ruff format --check .  clean, after the repair below
+```
+
+The nine remaining skips on PostgreSQL are all `tests/test_redis_shared_integration.py`,
+which needs `REDIS_URL`.
+
+Three things this pass corrected rather than reported as passing:
+
+**Lint was not clean.** `ruff check .` reported 12 findings (10 unsorted import
+blocks, one unused import, one lambda assignment) and `ruff format --check`
+wanted 14 files reformatted — all of them newly added test files. CI runs both
+over the whole tree, so this would have failed on push. Fixed; the lambda
+became a `def` rather than being auto-fixed away.
+
+**The running stack was not healthy.** `app` was `unhealthy` and `/ready`
+returned 503 with `database: failed, migration: failed`. The cause was not a
+defect in the code: migration `0029_checkout_outbox_reliability` had been
+applied to the database while the running container still carried an image
+built before it existed, so the app correctly refused to call itself ready
+against a schema ahead of its own source. Rebuilding `app` and `worker` cleared
+it — `ready: true`, all four required checks ok, `schema_version` now
+`0029_checkout_outbox_reliability`. Worth keeping: the readiness check caught a
+real half-applied deployment, which is exactly what it is for.
+
+**Most new entries carry no mutation.** Of the 36 entries in this file, 7
+record a mutation. The 21 added in the most recent batch record only "N
+passed". A check that has never been seen to fail is not known to work, and
+that is this project's own standard — UPGRADE-002 says so in as many words.
+UPGRADE-041 has since been mutation-verified (above) and the vacuous half of
+its assertion recorded. The rest still need the same treatment before they
+count as evidence.

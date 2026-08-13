@@ -16,8 +16,7 @@ from repositories.campaign_repository import CampaignRepository
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="campaign edit/publish race evidence requires PostgreSQL",
     )
 )

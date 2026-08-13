@@ -1,8 +1,8 @@
 """PostgreSQL concurrency evidence for device credential rotation."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -11,12 +11,10 @@ from models.admin_identity import AdminPrincipal
 from models.commercial_scope import CommercialScope
 from repositories import postgres_utils
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="identity concurrency evidence requires PostgreSQL",
     )
 )
@@ -80,8 +78,7 @@ def test_concurrent_rotation_has_one_winner_and_one_replacement():
 
         with postgres_utils.connect() as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT count(*) AS replacements FROM device_credentials "
-                "WHERE rotated_from_credential_id = %s",
+                "SELECT count(*) AS replacements FROM device_credentials WHERE rotated_from_credential_id = %s",
                 (str(original.credential_id),),
             )
             assert int(cur.fetchone()["replacements"]) == 1

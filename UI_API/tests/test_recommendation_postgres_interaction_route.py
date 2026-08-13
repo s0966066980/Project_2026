@@ -11,12 +11,10 @@ from models.commercial_scope import LEGACY_DEFAULT_SCOPE
 from modules.recommendation.adapters.interactions import get_interaction_events_scoped
 from repositories import postgres_utils
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.security]
 pytestmark.append(
     pytest.mark.skipif(
-        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql"
-        or not postgres_utils.use_postgres(),
+        str(os.environ.get("DATABASE_BACKEND", "")).strip() != "postgresql" or not postgres_utils.use_postgres(),
         reason="recommendation route evidence requires PostgreSQL",
     )
 )
@@ -30,7 +28,7 @@ def test_kiosk_interaction_route_publishes_one_scoped_privacy_safe_event():
         "event_type": "click",
         "button_id": "offer-1",
         "metadata": {"secret": "must-not-persist", "source": "route-gate"},
-            "ui_context": {"service_open": True},
+        "ui_context": {"service_open": True},
     }
 
     with TestClient(app) as client:

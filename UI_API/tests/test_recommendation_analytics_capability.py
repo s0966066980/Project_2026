@@ -7,7 +7,6 @@ from modules.recommendation import _experiment_service as experiment_service
 from modules.recommendation._interaction_event import normalize_interaction_event
 from modules.recommendation._intervention import decide_intervention
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.contract]
 
 
