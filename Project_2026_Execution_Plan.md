@@ -215,7 +215,7 @@ Repository evidence：`UI_API/tests/test_optimization_lab.py`、`UI_API/tests/te
 ### 3.8 獨立 repository fixes
 
 - **Issue #47 `/docs`**：採較小暴露面的 Option 1；`APP_ENV` 為 staging／pilot／production 時關閉 `/docs`、`/redoc`、`/openapi.json`，development／test 保留。`docker/scripts/verify-pilot-security.sh` 已將三者納入 404 probe，並有正向／負向測試。
-- **Issue #48 Dockerfile layer**：`base`／`application`／`runtime` 與 source-free `ai-base` 分離；AI dependency install 發生在 `COPY UI_API/` 前，runtime target 置於 AI stage 前以避免 legacy builder 為 CPU runtime 安裝 AI stack。source-only layering 結構測試與 CPU `runtime` target build 已通過；完整 AI candidate 的兩次 cache evidence 仍需在可承受完整 AI build 的環境取得。
+- **Issue #48 Dockerfile layer**：`base`／`application`／`runtime` 與 source-free `ai-base` 分離；AI dependency install 發生在 `COPY UI_API/` 前，runtime target 置於 AI stage 前以避免 legacy builder 為 CPU runtime 安裝 AI stack。兩次完整 AI candidate build 已完成；第二次只改 `UI_API/` source 時，`requirements-ai.txt` COPY 與 pip install 層均維持 `CACHED`，只有 source/application layer 重建。
 
 ### 3.9 P4→P7 repository convergence — local-only path
 
@@ -433,7 +433,7 @@ P7 full-candidate verification: PARTIAL — local candidate executable rows pass
 | Issue | 內容 | 標籤 |
 | --- | --- | --- |
 | #47 | Pilot profile 下 `/docs`、`/redoc`、`/openapi.json` 已在 commercial runtime 關閉；development/test 保留，security probe 已納入三個 404。 | `ready-for-human`；待 owner 回填決策並關閉 |
-| #48 | `base`／`application`／`runtime` 與 source-free `ai-base` 已分離；目前 worktree CPU runtime candidate 已重建並取得 digest `sha256:c171c8d12a75b49d780fc5735e193cdd61507d1636b2b105020f2e366143f4f4`，test candidate digest `sha256:207fa27df9d5f13761297cb5c7cd31b9729ade2ab278afc0f5bf03785fd81345`，source-only layering 與 Dockerfile-specific ignore/docs-copy 回歸測試通過。完整 AI candidate 的兩次 cache evidence 尚未取得。 | `ready-for-agent`；AI cache evidence pending |
+| #48 | `base`／`application`／`runtime` 與 source-free `ai-base` 已分離；兩次完整 AI candidate build 的 app manifests 為 `sha256:8d0f2f449a4e15077850de2fcfcc7a55f4cc25325b228fa2a7036d3e6c0e62f2` 與 `sha256:403955b5d5b4ce36a53644b77aae10181fdc9e6789e9e83ae9b6cbc8495b48db`。第二次 source-only build 中 `requirements-ai.txt` COPY 與 pip install 層均為 `CACHED`，`test_dockerfile_layering.py` 與 `docker/scripts/test-ai.sh` 通過。 | `ready-for-agent`；repository evidence complete |
 
 ---
 
