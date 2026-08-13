@@ -463,10 +463,10 @@ revert
 
 ### Still open for this capability
 
-Store-level retirement state, index rebuild, governance and the
-malicious-document path, and end-to-end retrieval against a real index on the
-target hardware remain. PostgreSQL duplicate-document handling and artifact
-cleanup are recorded below; the gate is not passed.
+Index rebuild, governance and the malicious-document path, and end-to-end
+retrieval against a real index on the target hardware remain. PostgreSQL
+duplicate-document handling, artifact cleanup, and retirement state are
+recorded below; the gate is not passed.
 
 ## UPGRADE-032 — Knowledge PostgreSQL duplicate-document handling
 
@@ -481,8 +481,9 @@ full backend suite                                               468 passed, 50 
 docker/scripts/test.sh                                           passed
 ```
 
-Index rebuild and retirement cleanup, governance, malicious-document handling,
-and real-index retrieval on target hardware remain open.
+Index rebuild, retirement cleanup, governance, malicious-document handling,
+and real-index retrieval on target hardware remain open; retirement evidence
+is recorded below.
 
 ## UPGRADE-033 — Knowledge publication artifact cleanup
 
@@ -499,7 +500,25 @@ docker/scripts/test.sh                                           passed
 ```
 
 The live index provider, store-level retirement state transitions, and target
-hardware retrieval remain open.
+hardware retrieval remain open; the PostgreSQL retirement transition is
+recorded below.
+
+## UPGRADE-036 — Knowledge PostgreSQL retirement cleanup
+
+The production PostgreSQL publication store now has executable evidence for
+retirement: the published pointer is removed, the knowledge version becomes
+retired, the artifact cleanup is completed exactly once, and the retirement
+and cleanup audit events remain durable. Resuming an already completed cleanup
+does not delete the artifact a second time.
+
+```text
+pytest tests/test_knowledge_postgres_retirement.py (PostgreSQL 18.4)  1 passed
+full backend suite                                               472 passed, 52 skipped
+docker/scripts/test.sh                                           passed
+```
+
+Index rebuild, governance, malicious-document handling, and real-index
+retrieval on target hardware remain open.
 
 ## UPGRADE-020 — Recommendation capability gate
 
