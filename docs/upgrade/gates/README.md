@@ -379,9 +379,26 @@ Each mutation failed exactly the rule it broke and left the rest passing.
 
 ### Still open for this capability
 
-The notification surface; content edits under concurrent publication (the
-version conflict is proven, the publish race is not); and the Admin and Kiosk
-generated-client consumer ledger. The gate is not passed.
+The external notification surface, content edits under concurrent publication
+(the version conflict is proven, the publish race is not), and the Admin and
+Kiosk generated-client consumer ledger remain. The local notification-copy
+batch worker contract is recorded below; the gate is not passed.
+
+## UPGRADE-034 — Campaign notification-copy batch worker
+
+The notification-copy batch worker now has executable evidence for its local
+processing contract: one failed item does not abort the remaining items, a
+partial batch succeeds with per-item failures recorded, and a batch is marked
+failed only when every item fails.
+
+```text
+pytest tests/test_push_copy_batch_worker.py                     2 passed
+full backend suite                                               472 passed, 50 skipped
+docker/scripts/test.sh                                           passed
+```
+
+Provider delivery, the live notification surface, publish race, and
+Admin/Kiosk consumer evidence remain open.
 
 ## UPGRADE-019 — Knowledge/RAG capability gate
 
