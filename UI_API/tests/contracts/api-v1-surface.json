@@ -19,14 +19,6 @@
         "user_id"
       ]
     },
-    "AnalyzeRequest": {
-      "properties": [
-        "profile"
-      ],
-      "required": [
-        "profile"
-      ]
-    },
     "ApiMeta": {
       "properties": [
         "request_id",
@@ -1399,12 +1391,6 @@
       "request_schema": "",
       "response_schema": "PaginatedResponse_OrderSummaryDTO_"
     },
-    "GET /api/v1/project-brain/status": {
-      "operation_id": "status_api_v1_project_brain_status_get",
-      "parameters": [],
-      "request_schema": "",
-      "response_schema": ""
-    },
     "GET /api/v1/promotions": {
       "operation_id": "v1_list_promotions",
       "parameters": [
@@ -1766,18 +1752,6 @@
       ],
       "request_schema": "OrderTransitionRequest",
       "response_schema": "ApiResponse_OrderSummaryDTO_"
-    },
-    "POST /api/v1/project-brain/analyze": {
-      "operation_id": "analyze_api_v1_project_brain_analyze_post",
-      "parameters": [],
-      "request_schema": "AnalyzeRequest",
-      "response_schema": ""
-    },
-    "POST /api/v1/project-brain/proposals": {
-      "operation_id": "proposals_api_v1_project_brain_proposals_post",
-      "parameters": [],
-      "request_schema": "",
-      "response_schema": ""
     },
     "POST /api/v1/promotions": {
       "operation_id": "v1_create_promotion",

@@ -91,7 +91,7 @@ export function createSettingsAdmin({ apiBaseUrl, adminHeaders, getElement, load
     });
     if (tab === 'history') loadHistory();
     if (tab === 'ai') refreshRuntimeState();
-    if (tab === 'brain') globalThis.loadProjectBrain?.();
+    if (tab === 'brain') globalThis.loadDiagnosticWorkbench?.();
     // 兩個分頁都需要這份資料：推薦詞管理要列表，推播規則要可選的類別清單。
     if (tab === 'copy' || tab === 'push') loadCopy();
     // 進分頁就先看一次批次狀態：上一次的產生可能仍在背景跑，關過分頁也要能接回進度。

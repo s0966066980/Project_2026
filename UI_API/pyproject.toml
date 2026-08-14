@@ -55,7 +55,6 @@ markers = [
   "integration: requires a real database, Redis, or an external process",
   "postgres: requires PostgreSQL specifically",
   "redis: requires Redis specifically",
-  "slow: builds real repositories or runs sidecar processes",
   "hardware: requires the target Kiosk device; never runs in CI",
 ]
 

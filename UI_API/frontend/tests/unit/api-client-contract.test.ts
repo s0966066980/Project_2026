@@ -214,30 +214,7 @@ describe('public API v1 client contract', () => {
   });
 });
 
-describe('project brain analysis bounds', () => {
-  it('gives an analysis a bound above the app it is calling, not the 8s default', async () => {
-    // Every layer beneath the browser is sized for a model reading the whole
-    // project: the sidecar allows 300s and the app 330s. The browser kept the
-    // default and aborted first, so a run that was proceeding normally came
-    // back as "signal is aborted without reason".
-    const { createProjectBrainClient } = await import('../../shared/api/capabilityClients.js');
-    const timers = createTestTimers();
-    const fetchImpl = vi.fn(() => new Promise<never>(() => {}));
-    const client = createProjectBrainClient({
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      timers: timers.timers,
-    });
-
-    const pending = client.analyze('ollama');
-    const settled = pending.then(() => 'resolved').catch((error: Error) => error.message);
-
-    await timers.advance(330_000);
-    expect(await Promise.race([settled, Promise.resolve('still running')])).toBe('still running');
-
-    await timers.advance(30_000);
-    await expect(settled).resolves.toContain('timed out after 360000ms');
-  });
-
+describe('bounded request failures', () => {
   it('says the request timed out rather than that a signal was aborted', async () => {
     // The fetch rejection and the timeout rejection race. A bare
     // `controller.abort()` makes the fetch reject with a DOMException reading

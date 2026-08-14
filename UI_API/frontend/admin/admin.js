@@ -17,7 +17,6 @@ import {
   createEmotionClient,
   createOperationsClient,
   createOptimizationClient,
-  createProjectBrainClient,
   createVoiceEvidenceClient,
 } from '../shared/api/capabilityClients.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
@@ -34,7 +33,6 @@ const adminOperationsClient = createOperationsClient({ baseUrl: API, headers: ()
 const adminEmotionClient = createEmotionClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminDiagnosticClient = createDiagnosticClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminOptimizationClient = createOptimizationClient({ baseUrl: API, headers: () => adminHeaders() });
-const adminProjectBrainClient = createProjectBrainClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminVoiceEvidenceClient = createVoiceEvidenceClient({ baseUrl: API, headers: () => adminHeaders() });
 const diagnosticWorkbench = createDiagnosticWorkbench({ client: adminOptimizationClient });
 const voiceEvidenceAdmin = createVoiceEvidenceAdmin({ client: adminVoiceEvidenceClient });
@@ -1032,95 +1030,10 @@ g('emotion2-model')?.addEventListener('change', () => {
 // they cite. Model reasoning and CLI output are never persisted (ADR-0038), so
 // there is no prose blob to render — and a stale report says so, because a
 // failed rescan that still looks current is the failure nobody notices.
-function renderProjectBrainReport(report) {
-  const target = g('projectBrainReport');
-  if (!target) return;
-  if (!report) { target.textContent = '尚無報告；按「重新分析專案」才會建立。'; return; }
-
-  const result = report.result || {};
-  const stale = report.status === 'stale'
-    ? `⚠ 這份報告已過期（${fmtDate(report.stale_since)}）：${report.stale_reason || '重新分析失敗'}\n\n`
-    : '';
-  const findings = (result.findings || []).length
-    ? (result.findings || []).map(finding => {
-        const cited = (finding.evidence_paths || []).join('、');
-        return `[${finding.severity}] ${finding.title}${finding.detail ? `\n  ${finding.detail}` : ''}${cited ? `\n  依據：${cited}` : ''}`;
-      }).join('\n\n')
-    : '—';
-
-  target.textContent =
-    `${stale}時間：${fmtDate(report.recorded_at)}\n分析設定檔：${result.profile || '—'}\n版本：${result.git_revision || '—'}\n\n${findings}`;
-}
-
-async function loadProjectBrainAnalysis() {
-  let data;
-  try { data = await adminProjectBrainClient.status(); }
-  catch (error) { setText('projectBrainModelStatus', `讀取失敗（${error.status || 0}）`); return; }
-  const select = g('projectBrainModel');
-  const profiles = data.models || [];
-  if (select) {
-    const previous = select.value;
-    select.textContent = '';
-    // Only ready profiles are selectable, and no profile is ever chosen for the
-    // operator: an analysis names the provider that produced it (ADR-0037).
-    profiles.filter(profile => profile.ready).forEach(profile => {
-      const option = document.createElement('option');
-      option.value = profile.id;
-      option.textContent = `${profile.id}${profile.version ? ` ${profile.version}` : ''}`;
-      select.appendChild(option);
-    });
-    if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
-  }
-
-  const ready = profiles.filter(profile => profile.ready);
-  // An unready profile is shown with its reason rather than hidden. An empty
-  // selector tells an operator nothing; `credential_missing` tells them what to do.
-  const blocked = profiles.filter(profile => !profile.ready)
-    .map(profile => `${profile.id || '未知'}：${profile.reason || '未就緒'}`).join('；');
-  setText(
-    'projectBrainModelStatus',
-    ready.length
-      ? `就緒設定檔 ${ready.length} 個；不會自動切換。${blocked ? ` 未就緒 — ${blocked}` : ''}`
-      : `目前沒有就緒的分析設定檔。${blocked ? ` 原因 — ${blocked}` : ''}`,
-  );
-  // An enabled button that can only produce a 422 is worse than a disabled
-  // one: the operator learns nothing from the failure.
-  const analyzeButton = g('projectBrainAnalyze');
-  if (analyzeButton) analyzeButton.disabled = ready.length === 0;
-  renderProjectBrainReport(data.latest);
-}
-
-async function analyzeProjectBrain() {
-  const button = g('projectBrainAnalyze');
-  const profile = val('projectBrainModel');
-  // With no ready profile the selector is empty, so this used to post
-  // `{profile: ""}` and come back 422 — a validation error where the operator
-  // needed the reason the status line already knows (`cli_not_installed`,
-  // `credential_missing`). Say that instead of sending a request that cannot
-  // succeed.
-  if (!profile) {
-    const reason = g('projectBrainModelStatus')?.textContent || '目前沒有就緒的分析設定檔。';
-    setText('projectBrainReport', `無法分析：${reason}`);
-    return;
-  }
-  if (button) button.disabled = true;
-  setText('projectBrainReport', '正在建立唯讀快照並分析…');
-  try {
-    const data = await adminProjectBrainClient.analyze(profile);
-    renderProjectBrainReport(data);
-  } catch (error) {
-    setText('projectBrainReport', `分析失敗：${error.message}`);
-    // A failed rescan leaves the previous report in place and marked stale, so
-    // reload rather than leaving the surface showing only the error.
-    loadProjectBrain().catch(() => {});
-  }
-  finally { if (button) button.disabled = false; }
-}
-
 // The workbench is the primary brain surface. Project Analyst remains available
 // below it as an advanced, read-only engineering view.
-async function loadProjectBrain() {
-  await Promise.allSettled([diagnosticWorkbench.load(), loadProjectBrainAnalysis()]);
+async function loadDiagnosticWorkbench() {
+  await diagnosticWorkbench.load();
 }
 
 
@@ -1143,7 +1056,7 @@ window.resetEmotionConsolePrompt = resetEmotionConsolePrompt;
 window.startEmotionConsoleTest = startEmotionConsoleTest;
 window.stopEmotionConsoleTest = stopEmotionConsoleTest;
 window.clearEmotionConsoleRecords = clearEmotionConsoleRecords;
-window.loadProjectBrain = loadProjectBrain;
+window.loadDiagnosticWorkbench = loadDiagnosticWorkbench;
 window.onTestProviderChange = onTestProviderChange;
 window.onTestNimModelChange = onTestNimModelChange;
 window.sendTestMsg   = sendTestMsg;
@@ -1175,8 +1088,6 @@ document.getElementById('availabilityStatusFilter')?.addEventListener('change', 
 document.getElementById('healthRefreshBtn')?.addEventListener('click', loadAdminHealth);
 campaignAdmin.bind();
 settingsAdmin.bind();
-g('projectBrainAnalyze')?.addEventListener('click', analyzeProjectBrain);
-g('projectBrainRefresh')?.addEventListener('click', loadProjectBrain);
 bindLayoutPreference(g);
 voiceEvidenceAdmin.bind();
 [

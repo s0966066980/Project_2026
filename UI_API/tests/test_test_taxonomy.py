@@ -23,7 +23,11 @@ TESTS_ROOT = UI_API_ROOT / "tests"
 # A test file must be reachable by at least one of these. The rest of the
 # declared markers (postgres, redis, hardware) describe what a test needs from
 # the environment and are additive.
-LAYER_MARKERS = {"unit", "contract", "architecture", "security", "integration", "slow"}
+# `slow` was here until 2026-08-14. It meant "builds a real repository or runs
+# a sidecar process", and the only tests it described belonged to the Project
+# Analyst Sidecar, removed in ADR-0066. A marker that survives the work it
+# described is exactly the decoration this file exists to prevent.
+LAYER_MARKERS = {"unit", "contract", "architecture", "security", "integration"}
 
 # pytest ships these; they are not the project's taxonomy and are not declared.
 BUILTIN_MARKERS = {

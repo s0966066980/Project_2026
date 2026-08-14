@@ -62,6 +62,12 @@ function element(root, id) {
   return root?.getElementById?.(id) || document.getElementById(id);
 }
 
+/** The value of a form control, or '' when the control is absent.
+ * @param {Document | undefined} root @param {string} id */
+function inputValue(root, id) {
+  return /** @type {HTMLInputElement | HTMLSelectElement | null} */ (element(root, id))?.value ?? '';
+}
+
 /** @param {string} day */
 function localDayBounds(day) {
   const start = new Date(`${day}T00:00:00`);
@@ -119,9 +125,9 @@ export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
     try {
       const response = await client.list({
         ...localDayBounds(selectedDay()),
-        terminal_status: text(element(root, 'voiceEvidenceTerminalFilter')?.value),
-        failure_type: text(element(root, 'voiceEvidenceFailureFilter')?.value),
-        rag_outcome: text(element(root, 'voiceEvidenceRagFilter')?.value),
+        terminal_status: text(inputValue(root, 'voiceEvidenceTerminalFilter')),
+        failure_type: text(inputValue(root, 'voiceEvidenceFailureFilter')),
+        rag_outcome: text(inputValue(root, 'voiceEvidenceRagFilter')),
         limit: 50,
         ...(state.cursor || {}),
       });

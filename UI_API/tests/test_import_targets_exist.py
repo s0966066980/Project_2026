@@ -35,7 +35,6 @@ FIRST_PARTY = {
     "integrations",
     "models",
     "modules",
-    "project_analysis",
     "prompts",
     "realtime",
     "repositories",

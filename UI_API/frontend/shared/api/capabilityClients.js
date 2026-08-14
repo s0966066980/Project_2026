@@ -278,22 +278,6 @@ export function createPushCopyClient(options = {}) {
   };
 }
 
-/** Versioned Project Analyst status/analyse surface; provider credentials remain external. */
-export function createProjectBrainClient(options = {}) {
-  const client = v1(options);
-  // An analysis is a model reading the whole project snapshot. Every layer
-  // beneath this one is already sized for that — the sidecar allows 300s and
-  // the app allows 330s — but the browser kept the 8s default and aborted
-  // first, so the operator got "signal is aborted without reason" for a run
-  // that was proceeding normally. The bound here sits just above the app's so
-  // that when something really does hang, the failure that surfaces is the
-  // server's, with a reason attached.
-  const analysisClient = v1({ ...options, timeoutMs: options.analysisTimeoutMs ?? 360_000, retryCount: 0 });
-  return {
-    status: () => client.get('/project-brain/status').then(payload),
-    analyze: profile => analysisClient.post('/project-brain/analyze', { profile }).then(payload),
-  };
-}
 
 /** Versioned Daily Operations Diagnostic Workbench surface. */
 export function createOptimizationClient(options = {}) {

@@ -23,7 +23,6 @@ from routes import (
     v1_operations_routes,
     v1_optimization_lab_routes,
     v1_ordering_routes,
-    v1_project_brain_routes,
     v1_promotion_banner_routes,
     v1_push_copy_routes,
     v1_recommendation_event_routes,
@@ -81,7 +80,6 @@ ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("admin", v1_voice_evidence_routes),
     RouteRegistration("ai", v1_emotion_routes),
     RouteRegistration("admin", v1_push_copy_routes),
-    RouteRegistration("admin", v1_project_brain_routes),
     RouteRegistration("admin", v1_optimization_lab_routes),
     RouteRegistration("public", v1_catalog_routes),
     # Serves HTML pages and the WebSocket, neither of which carries a version.

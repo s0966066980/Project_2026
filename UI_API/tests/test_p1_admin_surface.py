@@ -92,4 +92,7 @@ def test_admin_emotion_surface_has_no_legacy_intervention_or_evidence_workflows(
     }
     assert {token for token in forbidden if token in combined} == set()
     assert "即時影音情緒測試" in combined
-    assert "專案核心大腦" in combined
+    # The Project Core Brain panel was here. It is gone with the capability
+    # (ADR-0066), and the surface must not grow it back by accident — a hidden
+    # panel for a subsystem nobody can run is the failure this file guards.
+    assert "專案核心大腦" not in combined

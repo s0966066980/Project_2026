@@ -31,7 +31,6 @@ _ROUTE_TO_CAPABILITY = {
     "v1_admin_operations_routes": "operations_configuration",
     "v1_diagnostic_routes": "operations_configuration",
     "v1_push_copy_routes": "campaign_promotion",
-    "v1_project_brain_routes": "operations_configuration",
     "v1_member_routes": "member",
     "v1_device_identity_routes": "identity_access",
     "v1_interaction_routes": "recommendation_analytics",
@@ -78,10 +77,9 @@ def test_capability_routes_do_not_import_legacy_horizontal_implementations() -> 
 
 def test_production_routes_have_no_legacy_service_or_repository_imports() -> None:
     development_only = {"demo_routes", "diagnostic_routes", "debug_routes"}
-    external_sidecar = {"project_brain_routes"}
     violations: list[str] = []
     for path in ROUTE_ROOT.glob("*.py"):
-        if path.stem in development_only or path.stem in external_sidecar:
+        if path.stem in development_only:
             continue
         for imported in _imports(path):
             if imported.startswith(("modules.", "repositories.", "services.")) or imported in {

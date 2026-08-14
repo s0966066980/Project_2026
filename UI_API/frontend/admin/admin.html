@@ -2355,16 +2355,6 @@ tbody tr:hover td { background: #f8fafd; }
             <div class="diagnostic-form-actions"><button id="diagnosticCandidateSave" class="btn" type="button">儲存預覽並重新驗證</button><button id="diagnosticCandidateConfirm" class="btn btn-primary" type="button">確認送入 RAG 發布</button><button id="diagnosticCandidateAbandon" class="btn" type="button">放棄候選</button></div>
           </section>
         </section>
-        <hr class="settings-rule">
-        <section>
-          <div class="section-title">進階：專案核心大腦（專案分析）</div>
-          <p class="setting-help">這是原本的 Project Core Brain，專門讀取 Git、測試與容器狀態；它與每日營運診斷分開，仍保持唯讀，也不會自動切換模型。</p>
-          <p class="setting-help">隔離機制已就緒：在指定 commit 上建立拋棄式 clone，只能新增 <code>docs/proposals/</code> 文件或 <code>extensions/&lt;name&gt;/</code> 獨立模組，不能修改既有檔案，只產出 patch 不套用，不 commit、不 push，工作區保持不變。</p>
-          <div class="setting-row"><label class="setting-label" for="projectBrainModel">就緒分析設定檔</label><div class="setting-field"><select id="projectBrainModel" class="setting-input"></select><div id="projectBrainModelStatus" class="setting-help"></div></div></div>
-          <div style="display:flex;gap:8px;margin:12px 0"><button id="projectBrainAnalyze" class="refresh-btn settings-primary" type="button">重新分析專案</button><button id="projectBrainRefresh" class="refresh-btn" type="button">查看最近報告</button></div>
-          <pre id="projectBrainReport" class="raw-json" style="white-space:pre-wrap;max-height:520px;overflow:auto">尚無報告</pre>
-          <pre id="projectBrainProposal" class="raw-json" style="white-space:pre-wrap;max-height:420px;overflow:auto">產生提案內容需要就緒的分析設定檔；目前沒有掛載 provider 憑證。</pre>
-        </section>
       </div>
 
       <div class="settings-panel" data-settings-panel="layout" hidden>
