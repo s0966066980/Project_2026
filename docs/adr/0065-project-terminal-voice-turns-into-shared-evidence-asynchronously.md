@@ -1,0 +1,5 @@
+# Project terminal Voice Turns into shared evidence asynchronously
+
+Status: accepted
+
+Voice Turn remains authoritative for the customer interaction, while the independent Voice Evidence Capability has sole authority over the one store-scoped Voice Interaction Evidence record shared by Admin Voice Evidence Review and Daily Operations Diagnostic Workbench. Every backend-accepted terminal Voice Turn emits a durable outbox consequence, and an idempotent projector keyed by `voice_turn_id` masks personal data before creating that evidence. Admin uses the capability's HTTP API and Optimization Lab consumes its bounded in-process interface; neither caller owns, copies, or directly queries evidence storage. Evidence persistence never delays or rewrites the customer-visible Voice Turn outcome; temporary failure retries, unresolved failure is operationally visible, and workbench searches disclose projection lag instead of treating absent projections as proof of zero voice activity. This preserves module data authority and customer availability at the cost of explicit eventual consistency.

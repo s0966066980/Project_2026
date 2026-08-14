@@ -77,6 +77,10 @@ _ANALYZER_SECTION_KEYS = frozenset(
         "rag_observations",
     }
 )
+_DEFAULT_DIAGNOSTIC_QUESTION_NAME = "今日語音診斷"
+_DEFAULT_DIAGNOSTIC_QUESTION_PROMPT = "診斷今日語音對話"
+_DIAGNOSTIC_QUESTION_NAME_LIMIT = 120
+_DIAGNOSTIC_QUESTION_PROMPT_LIMIT = 4_000
 
 
 def _now() -> datetime:
@@ -182,7 +186,39 @@ def _scope_ids(scope: CommercialScope) -> tuple[str, str]:
     return str(scope.tenant_id), str(scope.store_id)
 
 
+def _diagnostic_question_fields(display_name: object, prompt: object) -> tuple[str, str]:
+    name = _text(display_name, limit=_DIAGNOSTIC_QUESTION_NAME_LIMIT)
+    instruction = _text(prompt, limit=_DIAGNOSTIC_QUESTION_PROMPT_LIMIT)
+    if not name or not instruction:
+        raise OptimizationLabError("diagnostic_question_fields_required")
+    return name, instruction
+
+
 class OptimizationStore(Protocol):
+    def ensure_default_diagnostic_question(self, *, scope: CommercialScope, record: dict[str, Any]) -> None: ...
+
+    def list_diagnostic_questions(self, *, scope: CommercialScope) -> list[dict[str, Any]]: ...
+
+    def create_diagnostic_question(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    def get_diagnostic_question(self, *, scope: CommercialScope, question_id: str) -> dict[str, Any] | None: ...
+
+    def update_diagnostic_question(
+        self, *, scope: CommercialScope, question_id: str, record: dict[str, Any]
+    ) -> dict[str, Any] | None: ...
+
+    def delete_diagnostic_question(self, *, scope: CommercialScope, question_id: str) -> bool: ...
+
+    def create_candidate(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    def get_pending_candidate(self, *, scope: CommercialScope) -> dict[str, Any] | None: ...
+
+    def get_candidate(self, *, scope: CommercialScope, candidate_id: str) -> dict[str, Any] | None: ...
+
+    def update_candidate(
+        self, *, scope: CommercialScope, candidate_id: str, record: dict[str, Any]
+    ) -> dict[str, Any] | None: ...
+
     def create_evidence(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]: ...
 
     def list_evidence(
@@ -201,7 +237,11 @@ class OptimizationStore(Protocol):
 
     def save_report(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]: ...
 
+    def update_report(self, *, scope: CommercialScope, report_id: str, record: dict[str, Any]) -> dict[str, Any]: ...
+
     def get_report(self, *, scope: CommercialScope, report_id: str) -> dict[str, Any] | None: ...
+
+    def latest_report(self, *, scope: CommercialScope) -> dict[str, Any] | None: ...
 
     def record_egress_audit(self, *, scope: CommercialScope, record: dict[str, Any]) -> None: ...
 
@@ -229,6 +269,31 @@ class ProviderAuthorization(Protocol):
     ) -> str: ...
 
 
+class KnowledgePort(Protocol):
+    def list_items(self, *, scope: CommercialScope) -> dict[str, Any]: ...
+
+    def get_item(self, *, scope: CommercialScope, item_id: str) -> dict[str, Any]: ...
+
+    def create_draft(self, **kwargs: Any) -> dict[str, Any]: ...
+
+    def revise_draft(self, **kwargs: Any) -> dict[str, Any]: ...
+
+    def request_publication(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
+class VoiceEvidenceCapability(Protocol):
+    def snapshot(
+        self,
+        *,
+        scope: CommercialScope,
+        observed_from: str,
+        observed_to: str,
+        cutoff_at: str | None = None,
+    ) -> list[dict[str, Any]]: ...
+
+    def reconciliation(self, *, scope: CommercialScope, observed_from: str, observed_to: str) -> dict[str, Any]: ...
+
+
 class DenyProviderAuthorization:
     def authorize(self, **_: Any) -> str:
         raise OptimizationLabError("customer_evidence_authorization_required")
@@ -245,7 +310,8 @@ class SyntheticAnalyzer:
     def analyze(self, *, snapshot: dict[str, Any], profile: AnalyzerProfile) -> dict[str, Any]:
         evidence = list(snapshot.get("evidence") or [])
         failures = [row for row in evidence if row.get("voice_outcome") == "failed"]
-        rag_hits = sum(1 for row in evidence if bool((row.get("rag_hit") or {}).get("hit")))
+        rag_hits = sum(1 for row in evidence if _effective_rag_outcome(row) == "hit")
+        rag_misses = sum(1 for row in evidence if _effective_rag_outcome(row) == "miss")
         return {
             "provider_observations": {
                 "analyzer": profile.profile_id,
@@ -260,7 +326,7 @@ class SyntheticAnalyzer:
                 "failed": len(failures),
                 "retry_or_correction": sum(1 for row in evidence if row.get("retry_outcome") not in {"", "none"}),
             },
-            "rag_observations": {"hits": rag_hits, "misses": max(0, len(evidence) - rag_hits)},
+            "rag_observations": {"hits": rag_hits, "misses": rag_misses},
         }
 
 
@@ -304,14 +370,19 @@ class OllamaAnalyzer:
                 "objects: api_connectivity {status,evidence_count}, commercial_outcomes "
                 "{voice_evidence_count}, voice_outcomes {completed,failed,retry_or_correction}, "
                 "rag_observations {hits,misses}. Use bounded numeric counts and short status "
-                "values. Never return transcript, assistant text, identifiers, recommendations, "
-                "prompts, settings, or production mutations."
+                "values. Follow the supplied diagnostic_question_prompt as the analysis instruction, "
+                "but never expand evidence scope, override offline safety, or publish changes. "
+                "Never return transcript, assistant text, identifiers, recommendations, settings, "
+                "or production mutations."
             ),
             user_prompt=json.dumps(
                 {
                     "store_date": snapshot.get("store_date"),
                     "timezone": snapshot.get("timezone"),
                     "partial": bool(snapshot.get("partial")),
+                    "diagnostic_question_prompt": str((snapshot.get("diagnostic_question") or {}).get("prompt") or "")[
+                        :4000
+                    ],
                     "evidence": evidence,
                 },
                 ensure_ascii=False,
@@ -393,7 +464,7 @@ class AnalyzerRegistry:
                 ready=self._local_ready and "ollama" in self._analyzers,
                 models=(self._local_model,) if self._local_ready and self._local_model else (),
                 efforts=("standard",),
-                data_scopes=("synthetic_only",),
+                data_scopes=("synthetic_only", "customer_evidence"),
                 reason=(
                     "local_ollama_unavailable"
                     if not self._local_ready
@@ -456,7 +527,11 @@ def _classify_findings(evidence: list[dict[str, Any]], *, offline_accepted: bool
             classification = "Product Pipeline"
         else:
             classification = "Insufficient Evidence"
-        contradictory = any(row.get("voice_outcome") == "success" for row in evidence if row in rows)
+        # A successful voice turn with a RAG miss is the knowledge-gap signal
+        # itself; success is contradictory only for runtime failure findings.
+        contradictory = failure != "rag_miss" and any(
+            row.get("voice_outcome") == "success" for row in evidence if row in rows
+        )
         count = len(rows)
         # Synthetic fixtures are allowed to prove reproducibility only when a
         # future offline evaluator explicitly records that result. Merely being
@@ -486,6 +561,58 @@ def _classify_findings(evidence: list[dict[str, Any]], *, offline_accepted: bool
     return findings
 
 
+def _diagnostic_answer(
+    evidence: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    *,
+    offline_accepted: bool,
+    candidate_available: bool = False,
+) -> str:
+    if not evidence:
+        return "當日沒有可分析的語音互動證據。"
+    if not findings:
+        return f"已分析 {len(evidence)} 筆語音互動，目前沒有可歸類的問題。"
+    if any(finding["evidence_level"] == "Observation Signal" for finding in findings):
+        return f"已分析 {len(evidence)} 筆語音互動，先列為觀察訊號；目前證據不足以提出變更建議。"
+    if not offline_accepted:
+        return f"已分析 {len(evidence)} 筆語音互動，發現重複模式，但尚未通過離線驗證，暫不提供變更建議。"
+    if candidate_available:
+        return f"已分析 {len(evidence)} 筆語音互動，發現可處理的 RAG 知識缺口。需要我幫你將分析結果加入 RAG 嗎？"
+    return f"已分析 {len(evidence)} 筆語音互動，找到可進一步處理的重複模式。"
+
+
+def _optimization_evidence(row: dict[str, Any]) -> dict[str, Any]:
+    """Translate the Voice Evidence capability contract into analyzer input."""
+
+    terminal_status = str(row.get("terminal_status") or "unknown")
+    rag_outcome = str(row.get("rag_outcome") or "not_run")
+    failure_type = str(row.get("failure_type") or "")
+    if not failure_type and rag_outcome == "miss":
+        failure_type = "rag_miss"
+    return {
+        "evidence_id": str(row.get("evidence_id") or ""),
+        "observed_at": str(row.get("observed_at") or ""),
+        "transcript_masked": str(row.get("transcript_masked") or "")[:500],
+        "assistant_text_masked": str(row.get("assistant_text_masked") or "")[:500],
+        "rag_hit": {"hit": rag_outcome == "hit", "outcome": rag_outcome},
+        "rag_outcome": rag_outcome,
+        "voice_outcome": "success" if terminal_status == "completed" else "failed",
+        "failure_type": failure_type,
+        "retry_outcome": str(row.get("retry_outcome") or "none"),
+        "projection_status": str(row.get("projection_status") or "projected"),
+    }
+
+
+def _effective_rag_outcome(row: dict[str, Any]) -> str:
+    outcome = str(row.get("rag_outcome") or "").lower()
+    if outcome in {"hit", "miss", "not_run"}:
+        return outcome
+    legacy = row.get("rag_hit")
+    if isinstance(legacy, dict) and "hit" in legacy:
+        return "hit" if bool(legacy.get("hit")) else "miss"
+    return "not_run"
+
+
 class OptimizationLabModule:
     def __init__(
         self,
@@ -494,16 +621,70 @@ class OptimizationLabModule:
         analyzers: AnalyzerRegistry | None = None,
         offline_evaluator: OfflineEvaluator | None = None,
         provider_authorization: ProviderAuthorization | None = None,
+        knowledge: KnowledgePort | None = None,
+        evidence_capability: VoiceEvidenceCapability | None = None,
         clock: Callable[[], datetime] | None = None,
     ):
         self._store = store
         self._analyzers = analyzers or AnalyzerRegistry()
         self._offline = offline_evaluator or NeverAcceptedOfflineEvaluator()
         self._authorization = provider_authorization or DenyProviderAuthorization()
+        self._knowledge = knowledge
+        self._evidence_capability = evidence_capability
         self._clock = clock or _now
 
     def profiles(self) -> list[dict[str, Any]]:
         return [profile.as_dict() for profile in self._analyzers.profiles()]
+
+    def list_diagnostic_questions(self, *, scope: CommercialScope) -> list[dict[str, Any]]:
+        tenant_id, store_id = _scope_ids(scope)
+        self._store.ensure_default_diagnostic_question(
+            scope=scope,
+            record={
+                "question_id": f"diagnostic_default_{tenant_id}_{store_id}",
+                "display_name": _DEFAULT_DIAGNOSTIC_QUESTION_NAME,
+                "prompt": _DEFAULT_DIAGNOSTIC_QUESTION_PROMPT,
+                "created_at": _iso(self._clock()),
+                "updated_at": _iso(self._clock()),
+            },
+        )
+        return self._store.list_diagnostic_questions(scope=scope)
+
+    def create_diagnostic_question(self, *, scope: CommercialScope, display_name: str, prompt: str) -> dict[str, Any]:
+        display_name, prompt = _diagnostic_question_fields(display_name, prompt)
+        now = _iso(self._clock())
+        return self._store.create_diagnostic_question(
+            scope=scope,
+            record={
+                "question_id": f"diagnostic_{uuid4().hex}",
+                "display_name": display_name,
+                "prompt": prompt,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+    def update_diagnostic_question(
+        self,
+        *,
+        scope: CommercialScope,
+        question_id: str,
+        display_name: str,
+        prompt: str,
+    ) -> dict[str, Any]:
+        display_name, prompt = _diagnostic_question_fields(display_name, prompt)
+        updated = self._store.update_diagnostic_question(
+            scope=scope,
+            question_id=str(question_id),
+            record={"display_name": display_name, "prompt": prompt, "updated_at": _iso(self._clock())},
+        )
+        if updated is None:
+            raise OptimizationLabError("diagnostic_question_not_found")
+        return updated
+
+    def delete_diagnostic_question(self, *, scope: CommercialScope, question_id: str) -> None:
+        if not self._store.delete_diagnostic_question(scope=scope, question_id=str(question_id)):
+            raise OptimizationLabError("diagnostic_question_not_found")
 
     def ingest_evidence(self, *, scope: CommercialScope, payload: dict[str, Any], synthetic: bool) -> dict[str, Any]:
         raw = dict(payload or {})
@@ -548,7 +729,18 @@ class OptimizationLabModule:
         model: str,
         effort: str,
         data_scope: str = "synthetic_only",
+        question_id: str | None = None,
     ) -> dict[str, Any]:
+        pending_candidate = self._store.get_pending_candidate(scope=scope)
+        if pending_candidate is not None:
+            raise OptimizationLabError("pending_candidate_requires_abandonment")
+        if question_id:
+            question = self._store.get_diagnostic_question(scope=scope, question_id=str(question_id))
+        else:
+            questions = self.list_diagnostic_questions(scope=scope)
+            question = questions[0] if questions else None
+        if question is None:
+            raise OptimizationLabError("diagnostic_question_not_found")
         try:
             selected_date = date.fromisoformat(str(store_date))
             zone = ZoneInfo(str(timezone_name))
@@ -569,20 +761,47 @@ class OptimizationLabModule:
             data_scope=data_scope,
         )
         authorization_id = ""
-        if data_scope == "customer_evidence":
+        if data_scope == "customer_evidence" and profile.provider not in {"Ollama", "synthetic"}:
             authorization_id = self._authorization.authorize(
                 scope=scope,
                 profile=profile,
                 model=model,
                 effort=effort,
             )
-        evidence = self._store.list_evidence(
-            scope=scope,
-            start_at=_iso(start_local.astimezone(timezone.utc)),
-            end_at=_iso(end_local.astimezone(timezone.utc)),
-            cutoff_at=_iso(cutoff),
-            synthetic_only=data_scope == "synthetic_only",
-        )
+        start_at = _iso(start_local.astimezone(timezone.utc))
+        end_at = _iso(end_local.astimezone(timezone.utc))
+        if data_scope == "customer_evidence" and self._evidence_capability is not None:
+            reconciliation = self._evidence_capability.reconciliation(
+                scope=scope,
+                observed_from=start_at,
+                observed_to=end_at,
+            )
+            evidence = [
+                _optimization_evidence(row)
+                for row in self._evidence_capability.snapshot(
+                    scope=scope,
+                    observed_from=start_at,
+                    observed_to=end_at,
+                    cutoff_at=_iso(cutoff),
+                )
+            ]
+        else:
+            evidence = self._store.list_evidence(
+                scope=scope,
+                start_at=start_at,
+                end_at=end_at,
+                cutoff_at=_iso(cutoff),
+                synthetic_only=data_scope == "synthetic_only",
+            )
+            reconciliation = {
+                "status": "ready" if evidence else "true_zero",
+                "backend_accepted": len(evidence),
+                "found": len(evidence),
+                "adopted": len(evidence),
+                "excluded": 0,
+                "awaiting_projection": 0,
+                "permanent_projection_failure": 0,
+            }
         snapshot = self._store.create_snapshot(
             scope=scope,
             record={
@@ -596,11 +815,33 @@ class OptimizationLabModule:
                 "expires_at": _iso(now + timedelta(days=30)),
             },
         )
-        analyzer_result = analyzer.analyze(snapshot={**snapshot, "evidence": evidence}, profile=profile)
-        offline_accepted = bool(self._offline.evaluate(snapshot={**snapshot, "evidence": evidence}))
+        analysis_snapshot = {
+            **snapshot,
+            "diagnostic_question": {
+                "question_id": str(question["question_id"]),
+                "display_name": str(question["display_name"]),
+                "prompt": str(question["prompt"]),
+            },
+            "evidence": evidence,
+        }
+        analyzer_result = analyzer.analyze(snapshot=analysis_snapshot, profile=profile)
+        offline_accepted = bool(self._offline.evaluate(snapshot=analysis_snapshot))
         findings = _classify_findings(evidence, offline_accepted=offline_accepted)
+        question_snapshot = {
+            "question_id": str(question["question_id"]),
+            "display_name": str(question["display_name"]),
+            "prompt": str(question["prompt"]),
+        }
+        candidate = self._build_knowledge_candidate(
+            scope=scope,
+            report_id=f"report_{uuid4().hex}",
+            question=question_snapshot,
+            findings=findings,
+            offline_accepted=offline_accepted,
+            now=now,
+        )
         report = {
-            "report_id": f"report_{uuid4().hex}",
+            "report_id": candidate["report_id"] if candidate else f"report_{uuid4().hex}",
             "snapshot_id": snapshot["snapshot_id"],
             "store_date": selected_date.isoformat(),
             "timezone": str(timezone_name),
@@ -610,7 +851,25 @@ class OptimizationLabModule:
             "selected_effort": effort,
             "data_scope": data_scope,
             "evidence_count": len(evidence),
+            "evidence_summary": {
+                **reconciliation,
+                "count": len(evidence),
+                "level": (
+                    next((finding["evidence_level"] for finding in findings if finding.get("evidence_level")), None)
+                    or ("No Evidence" if reconciliation["status"] == "true_zero" else reconciliation["status"])
+                ),
+            },
             "evidence_ids": [str(row["evidence_id"]) for row in evidence],
+            "diagnostic_question": question_snapshot,
+            "dialogue": {
+                "question": question_snapshot["prompt"],
+                "answer": _diagnostic_answer(
+                    evidence,
+                    findings,
+                    offline_accepted=offline_accepted,
+                    candidate_available=bool(candidate),
+                ),
+            },
             "sections": [
                 {
                     "id": "api_connectivity",
@@ -658,6 +917,10 @@ class OptimizationLabModule:
             "status": "partial" if is_current else "complete",
         }
         stored = self._store.save_report(scope=scope, record=report)
+        if candidate:
+            self._store.create_candidate(scope=scope, record=candidate)
+            report["knowledge_change_candidate"] = candidate
+            stored = self._store.update_report(scope=scope, report_id=stored["report_id"], record=report)
         if data_scope == "customer_evidence":
             self._store.record_egress_audit(
                 scope=scope,
@@ -677,11 +940,193 @@ class OptimizationLabModule:
             )
         return stored
 
+    def _build_knowledge_candidate(
+        self,
+        *,
+        scope: CommercialScope,
+        report_id: str,
+        question: dict[str, str],
+        findings: list[dict[str, Any]],
+        offline_accepted: bool,
+        now: datetime,
+    ) -> dict[str, Any] | None:
+        eligible = next(
+            (
+                finding
+                for finding in findings
+                if finding.get("classification") == "RAG Knowledge Gap"
+                and finding.get("evidence_level") == "Reference Guidance"
+                and finding.get("offline_acceptance") == "passed"
+            ),
+            None,
+        )
+        if eligible is None:
+            return None
+        items = []
+        if self._knowledge is not None:
+            items = list((self._knowledge.list_items(scope=scope) or {}).get("items") or [])
+        failure = str(eligible.get("failure_type") or "rag_miss")
+        existing = next(
+            (
+                item
+                for item in items
+                if failure in str(item.get("content") or "").lower()
+                or question["prompt"] in str(item.get("content") or "")
+            ),
+            None,
+        )
+        proposed = {
+            "title": f"{question['display_name']}：{failure}",
+            "category": "other",
+            "content_type": "question_answer",
+            "content": (
+                f"問題：{question['prompt']}\n\n"
+                f"觀察：在 {eligible['occurrences']} 筆語音互動中出現 {failure}。\n\n"
+                "建議：請補充可供門市知識庫檢索的正式答案，並由管理員確認後發布。"
+            ),
+        }
+        return {
+            "candidate_id": f"candidate_{uuid4().hex}",
+            "report_id": report_id,
+            "status": "pending",
+            "action": "update" if existing else "create",
+            "target_item_id": str(existing.get("item_id")) if existing else None,
+            "expected_row_revision": existing.get("row_revision") if existing else None,
+            "existing": {
+                key: existing.get(key)
+                for key in ("item_id", "row_revision", "title", "category", "content_type", "content")
+            }
+            if existing
+            else None,
+            "proposed": proposed,
+            "offline_acceptance": "passed",
+            "evidence_ids": list(eligible.get("evidence_ids") or []),
+            "created_at": _iso(now),
+            "expires_at": _iso(now + timedelta(days=30)),
+        }
+
     def get_report(self, *, scope: CommercialScope, report_id: str) -> dict[str, Any]:
         report = self._store.get_report(scope=scope, report_id=report_id)
         if report is None:
             raise OptimizationLabError("report_not_found")
         return report
+
+    def latest_report(self, *, scope: CommercialScope) -> dict[str, Any] | None:
+        return self._store.latest_report(scope=scope)
+
+    def pending_candidate(self, *, scope: CommercialScope) -> dict[str, Any] | None:
+        return self._store.get_pending_candidate(scope=scope)
+
+    def abandon_candidate(self, *, scope: CommercialScope, candidate_id: str) -> dict[str, Any]:
+        candidate = self._store.get_candidate(scope=scope, candidate_id=str(candidate_id))
+        if candidate is None or candidate.get("status") != "pending":
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        abandoned = {**candidate, "status": "abandoned", "abandoned_at": _iso(self._clock())}
+        updated = self._store.update_candidate(scope=scope, candidate_id=str(candidate_id), record=abandoned)
+        if updated is None:
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        return updated
+
+    def edit_candidate(
+        self,
+        *,
+        scope: CommercialScope,
+        candidate_id: str,
+        title: str,
+        category: str,
+        content_type: str,
+        content: str,
+    ) -> dict[str, Any]:
+        candidate = self._store.get_candidate(scope=scope, candidate_id=str(candidate_id))
+        if candidate is None or candidate.get("status") != "pending":
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        values = {
+            "title": _text(title, limit=160),
+            "category": _text(category, limit=64),
+            "content_type": _text(content_type, limit=64),
+            "content": _text(content, limit=200_000),
+        }
+        if not all(values.values()):
+            raise OptimizationLabError("knowledge_candidate_fields_required")
+        evidence = [
+            self._store.get_evidence(scope=scope, evidence_id=evidence_id)
+            for evidence_id in candidate.get("evidence_ids") or []
+        ]
+        accepted = bool(
+            self._offline.evaluate(
+                snapshot={"candidate": values, "evidence": [row for row in evidence if row is not None]}
+            )
+        )
+        updated = {
+            **candidate,
+            "proposed": values,
+            "offline_acceptance": "passed" if accepted else "unverified",
+            "edited_at": _iso(self._clock()),
+        }
+        saved = self._store.update_candidate(scope=scope, candidate_id=str(candidate_id), record=updated)
+        if saved is None:
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        return saved
+
+    def confirm_candidate(self, *, scope: CommercialScope, candidate_id: str, actor: str) -> dict[str, Any]:
+        candidate = self._store.get_candidate(scope=scope, candidate_id=str(candidate_id))
+        if candidate is None or candidate.get("status") != "pending":
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        if candidate.get("offline_acceptance") != "passed":
+            raise OptimizationLabError("knowledge_candidate_not_accepted")
+        if self._knowledge is None:
+            raise OptimizationLabError("knowledge_publication_unavailable")
+        proposed = dict(candidate.get("proposed") or {})
+        try:
+            if candidate.get("action") == "update":
+                item_id = str(candidate.get("target_item_id") or "")
+                current = self._knowledge.get_item(scope=scope, item_id=item_id)
+                if current.get("row_revision") != candidate.get("expected_row_revision"):
+                    stale = {**candidate, "status": "stale", "stale_at": _iso(self._clock())}
+                    self._store.update_candidate(scope=scope, candidate_id=str(candidate_id), record=stale)
+                    raise OptimizationLabError("knowledge_candidate_stale")
+                raw_item = self._knowledge.revise_draft(
+                    scope=scope,
+                    item_id=item_id,
+                    expected_row_revision=int(candidate["expected_row_revision"]),
+                    category=proposed["category"],
+                    content_type=proposed["content_type"],
+                    title=proposed["title"],
+                    content=proposed["content"],
+                    actor=actor,
+                )
+            else:
+                raw_item = self._knowledge.create_draft(
+                    scope=scope,
+                    category=proposed["category"],
+                    content_type=proposed["content_type"],
+                    title=proposed["title"],
+                    content=proposed["content"],
+                    actor=actor,
+                )
+            item = {
+                key: raw_item.get(key)
+                for key in ("item_id", "row_revision", "title", "category", "content_type", "status")
+                if key in raw_item
+            }
+            publication = self._knowledge.request_publication(
+                scope=scope, item_ids=[str(item["item_id"])], actor=actor, retry_failures_only=False
+            )
+        except OptimizationLabError:
+            raise
+        except Exception as exc:
+            raise OptimizationLabError("knowledge_publication_failed") from exc
+        confirmed = {
+            **candidate,
+            "status": "confirmed",
+            "confirmed_at": _iso(self._clock()),
+            "knowledge_item": item,
+            "publication": publication,
+        }
+        saved = self._store.update_candidate(scope=scope, candidate_id=str(candidate_id), record=confirmed)
+        if saved is None:
+            raise OptimizationLabError("knowledge_candidate_not_found")
+        return saved
 
     def expand_evidence(
         self,

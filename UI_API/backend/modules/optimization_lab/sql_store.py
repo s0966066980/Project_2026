@@ -42,6 +42,220 @@ class SQLOptimizationLabStore:
         finally:
             connection.close()
 
+    def ensure_default_diagnostic_question(self, *, scope: CommercialScope, record: dict[str, Any]) -> None:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            marker = connection.execute(
+                """
+                SELECT question_id FROM optimization_diagnostic_question_bootstrap
+                WHERE tenant_id = ? AND store_id = ?
+                """,
+                (tenant_id, store_id),
+            ).fetchone()
+            if marker is not None:
+                return
+            connection.execute(
+                """
+                INSERT INTO optimization_diagnostic_question_bootstrap (
+                    tenant_id, store_id, question_id, seeded_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (tenant_id, store_id, record["question_id"], record["created_at"]),
+            )
+            connection.execute(
+                """
+                INSERT INTO optimization_diagnostic_questions (
+                    question_id, tenant_id, store_id, display_name, prompt,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["question_id"],
+                    tenant_id,
+                    store_id,
+                    record["display_name"],
+                    record["prompt"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+
+    def list_diagnostic_questions(self, *, scope: CommercialScope) -> list[dict[str, Any]]:
+        tenant_id, store_id = _scope_ids(scope)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT question_id, tenant_id, store_id, display_name, prompt, created_at, updated_at
+                FROM optimization_diagnostic_questions
+                WHERE tenant_id = ? AND store_id = ?
+                ORDER BY updated_at DESC, question_id ASC
+                """,
+                (tenant_id, store_id),
+            ).fetchall()
+            return [_decode(row) or {} for row in rows]
+        finally:
+            connection.close()
+
+    def create_diagnostic_question(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO optimization_diagnostic_questions (
+                    question_id, tenant_id, store_id, display_name, prompt,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["question_id"],
+                    tenant_id,
+                    store_id,
+                    record["display_name"],
+                    record["prompt"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+        return {**record, "tenant_id": tenant_id, "store_id": store_id}
+
+    def get_diagnostic_question(self, *, scope: CommercialScope, question_id: str) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        connection = self._connect()
+        try:
+            return _decode(
+                connection.execute(
+                    """
+                    SELECT question_id, tenant_id, store_id, display_name, prompt, created_at, updated_at
+                    FROM optimization_diagnostic_questions
+                    WHERE tenant_id = ? AND store_id = ? AND question_id = ?
+                    """,
+                    (tenant_id, store_id, str(question_id)),
+                ).fetchone()
+            )
+        finally:
+            connection.close()
+
+    def update_diagnostic_question(
+        self, *, scope: CommercialScope, question_id: str, record: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE optimization_diagnostic_questions
+                SET display_name = ?, prompt = ?, updated_at = ?
+                WHERE tenant_id = ? AND store_id = ? AND question_id = ?
+                """,
+                (
+                    record["display_name"],
+                    record["prompt"],
+                    record["updated_at"],
+                    tenant_id,
+                    store_id,
+                    str(question_id),
+                ),
+            )
+            if not cursor.rowcount:
+                return None
+        return self.get_diagnostic_question(scope=scope, question_id=str(question_id))
+
+    def delete_diagnostic_question(self, *, scope: CommercialScope, question_id: str) -> bool:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            cursor = connection.execute(
+                """
+                DELETE FROM optimization_diagnostic_questions
+                WHERE tenant_id = ? AND store_id = ? AND question_id = ?
+                """,
+                (tenant_id, store_id, str(question_id)),
+            )
+            return bool(cursor.rowcount)
+
+    def create_candidate(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO optimization_knowledge_candidates (
+                    candidate_id, tenant_id, store_id, report_id, status,
+                    candidate_json, created_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["candidate_id"],
+                    tenant_id,
+                    store_id,
+                    record["report_id"],
+                    record["status"],
+                    json.dumps(record, ensure_ascii=False, sort_keys=True),
+                    record["created_at"],
+                    record["expires_at"],
+                ),
+            )
+        return record
+
+    def get_pending_candidate(self, *, scope: CommercialScope) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT candidate_json FROM optimization_knowledge_candidates
+                WHERE tenant_id = ? AND store_id = ? AND status = 'pending'
+                ORDER BY created_at DESC, candidate_id DESC
+                LIMIT 1
+                """,
+                (tenant_id, store_id),
+            ).fetchone()
+            if row is None:
+                return None
+            value = row["candidate_json"] if hasattr(row, "keys") else row[0]
+            return json.loads(value) if isinstance(value, str) else dict(value)
+        finally:
+            connection.close()
+
+    def get_candidate(self, *, scope: CommercialScope, candidate_id: str) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT candidate_json FROM optimization_knowledge_candidates
+                WHERE tenant_id = ? AND store_id = ? AND candidate_id = ?
+                """,
+                (tenant_id, store_id, str(candidate_id)),
+            ).fetchone()
+            if row is None:
+                return None
+            value = row["candidate_json"] if hasattr(row, "keys") else row[0]
+            return json.loads(value) if isinstance(value, str) else dict(value)
+        finally:
+            connection.close()
+
+    def update_candidate(
+        self, *, scope: CommercialScope, candidate_id: str, record: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE optimization_knowledge_candidates
+                SET status = ?, candidate_json = ?
+                WHERE tenant_id = ? AND store_id = ? AND candidate_id = ?
+                """,
+                (
+                    record["status"],
+                    json.dumps(record, ensure_ascii=False, sort_keys=True),
+                    tenant_id,
+                    store_id,
+                    str(candidate_id),
+                ),
+            )
+            if not cursor.rowcount:
+                return None
+        return record
+
     def create_evidence(self, *, scope: CommercialScope, record: dict[str, Any]) -> dict[str, Any]:
         tenant_id, store_id = _scope_ids(scope)
         with self._transaction() as connection:
@@ -177,6 +391,38 @@ class SQLOptimizationLabStore:
             row = connection.execute(
                 "SELECT report_json FROM optimization_reports WHERE tenant_id = ? AND store_id = ? AND report_id = ?",
                 (tenant_id, store_id, str(report_id)),
+            ).fetchone()
+            if row is None:
+                return None
+            value = row["report_json"] if hasattr(row, "keys") else row[0]
+            return json.loads(value) if isinstance(value, str) else dict(value)
+        finally:
+            connection.close()
+
+    def update_report(self, *, scope: CommercialScope, report_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        tenant_id, store_id = _scope_ids(scope)
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                UPDATE optimization_reports SET report_json = ?
+                WHERE tenant_id = ? AND store_id = ? AND report_id = ?
+                """,
+                (json.dumps(record, ensure_ascii=False, sort_keys=True), tenant_id, store_id, str(report_id)),
+            )
+        return record
+
+    def latest_report(self, *, scope: CommercialScope) -> dict[str, Any] | None:
+        tenant_id, store_id = _scope_ids(scope)
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT report_json FROM optimization_reports
+                WHERE tenant_id = ? AND store_id = ?
+                ORDER BY created_at DESC, report_id DESC
+                LIMIT 1
+                """,
+                (tenant_id, store_id),
             ).fetchone()
             if row is None:
                 return None

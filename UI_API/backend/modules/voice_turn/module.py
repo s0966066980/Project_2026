@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 
 from models.commercial_scope import CommercialScope
@@ -64,12 +65,24 @@ class Effects(Protocol):
     def record_history(self, **values: Any) -> None: ...
 
 
+class TerminalEvidenceOutbox(Protocol):
+    def enqueue_terminal_turn(self, **values: Any) -> None: ...
+
+
 TERMINAL = {"completed", "transcription_failed", "assistant_failed", "playback_failed"}
 
 
 class VoiceTurnModule:
     def __init__(
-        self, *, store: VoiceTurnStore, stt: STT, assistant: Assistant, menu: Menu, tts: TTS, effects: Effects
+        self,
+        *,
+        store: VoiceTurnStore,
+        stt: STT,
+        assistant: Assistant,
+        menu: Menu,
+        tts: TTS,
+        effects: Effects,
+        terminal_evidence_outbox: TerminalEvidenceOutbox | None = None,
     ):
         self._store = store
         self._stt = stt
@@ -77,6 +90,7 @@ class VoiceTurnModule:
         self._menu = menu
         self._tts = tts
         self._effects = effects
+        self._terminal_evidence_outbox = terminal_evidence_outbox
 
     def accept(
         self,
@@ -289,6 +303,7 @@ class VoiceTurnModule:
                 },
                 terminal=True,
             )
+            self._enqueue_terminal_evidence(scope=scope, turn=turn)
         return self._result(turn)
 
     def _playback_fail(self, *, scope, voice_turn_id):
@@ -317,6 +332,7 @@ class VoiceTurnModule:
             },
             terminal=True,
         )
+        self._enqueue_terminal_evidence(scope=scope, turn=turn)
         return self._result(turn)
 
     def _fail(self, *, scope, voice_turn_id, expected, status, reason):
@@ -330,7 +346,30 @@ class VoiceTurnModule:
             payload={"status": "error", "code": status},
             terminal=True,
         )
+        self._enqueue_terminal_evidence(scope=scope, turn=turn)
         return self._result(turn)
+
+    def _enqueue_terminal_evidence(self, *, scope: CommercialScope, turn: dict[str, Any]) -> None:
+        if self._terminal_evidence_outbox is None:
+            return
+        try:
+            self._terminal_evidence_outbox.enqueue_terminal_turn(
+                scope=scope,
+                terminal={
+                    "voice_turn_id": turn["voice_turn_id"],
+                    "observed_at": turn.get("completed_at") or turn.get("updated_at"),
+                    "status": turn["status"],
+                    "user_text": turn.get("transcript", ""),
+                    "assistant_text": turn.get("assistant_text", ""),
+                    "playback_status": turn.get("playback_status", ""),
+                    "safe_reason": turn.get("safe_reason", ""),
+                },
+            )
+        except Exception:  # noqa: BLE001 - evidence must not block the voice turn
+            logging.getLogger(__name__).exception(
+                "voice_evidence_enqueue_failed",
+                extra={"voice_turn_id": turn.get("voice_turn_id")},
+            )
 
     @staticmethod
     def _validate_draft(draft: Any, candidates: list[dict[str, Any]]) -> None:

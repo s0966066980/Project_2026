@@ -14,6 +14,36 @@ class SQLiteOptimizationLabStore(SQLOptimizationLabStore):
         try:
             connection.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS optimization_diagnostic_question_bootstrap (
+                    tenant_id TEXT NOT NULL,
+                    store_id TEXT NOT NULL,
+                    question_id TEXT NOT NULL,
+                    seeded_at TEXT NOT NULL,
+                    PRIMARY KEY (tenant_id, store_id)
+                );
+                CREATE TABLE IF NOT EXISTS optimization_diagnostic_questions (
+                    question_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    store_id TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    prompt TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS optimization_diagnostic_questions_scope
+                    ON optimization_diagnostic_questions (tenant_id, store_id, updated_at);
+                CREATE TABLE IF NOT EXISTS optimization_knowledge_candidates (
+                    candidate_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    store_id TEXT NOT NULL,
+                    report_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    candidate_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS optimization_knowledge_candidates_pending
+                    ON optimization_knowledge_candidates (tenant_id, store_id, status, created_at);
                 CREATE TABLE IF NOT EXISTS optimization_evidence (
                     evidence_id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL,

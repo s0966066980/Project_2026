@@ -257,3 +257,42 @@ describe('project brain analysis bounds', () => {
     expect(String(abortReasons[0])).not.toContain('without reason');
   });
 });
+
+describe('daily diagnostic workbench client contract', () => {
+  it('keeps question, diagnosis, and candidate operations under the versioned optimization surface', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => ok({ data: { questions: [], profiles: [], report: null, candidate: null } }));
+    const { createOptimizationClient } = await import('../../shared/api/capabilityClients.js');
+    const client = createOptimizationClient({ baseUrl: 'http://api.example', fetchImpl, retryCount: 0 });
+
+    await client.questions();
+    await client.updateQuestion('question/1', { display_name: '名稱', prompt: 'Prompt' });
+    await client.simulate({ store_date: '2026-08-13' });
+    await client.confirmCandidate('candidate/1');
+
+    expect(fetchImpl.mock.calls.map(call => [call[0], (call[1] as RequestInit).method])).toEqual([
+      ['http://api.example/api/v1/optimization/questions', undefined],
+      ['http://api.example/api/v1/optimization/questions/question%2F1', 'PUT'],
+      ['http://api.example/api/v1/optimization/simulations', 'POST'],
+      ['http://api.example/api/v1/optimization/candidate/candidate%2F1/confirm', 'POST'],
+    ]);
+  });
+});
+
+describe('voice evidence client contract', () => {
+  it('keeps metadata search under the versioned voice evidence surface', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => ok({ data: { records: [], page: {} } }));
+    const { createVoiceEvidenceClient } = await import('../../shared/api/capabilityClients.js');
+    const client = createVoiceEvidenceClient({ baseUrl: 'http://api.example', fetchImpl, retryCount: 0 });
+
+    await client.list({
+      observed_from: '2026-08-14T00:00:00+08:00',
+      observed_to: '2026-08-15T00:00:00+08:00',
+      terminal_status: 'completed',
+      limit: 50,
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toContain('http://api.example/api/v1/voice-evidence?');
+    expect(fetchImpl.mock.calls[0]?.[0]).toContain('terminal_status=completed');
+    expect(fetchImpl.mock.calls[0]?.[0]).not.toContain('transcript');
+  });
+});

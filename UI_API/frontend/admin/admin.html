@@ -405,6 +405,74 @@ tbody tr:hover td { background: #f8fafd; }
   display:grid; grid-template-columns:1fr 1fr; gap:0 36px; align-items:start;
 }
 @media (max-width:900px) { .settings-grid { grid-template-columns:1fr; } }
+/* Daily Operations Diagnostic Workbench */
+.diagnostic-hero { display:flex; justify-content:space-between; gap:20px; align-items:center; padding:22px; border:1px solid #ddd0fb; border-radius:16px; background:linear-gradient(135deg,#fbf9ff,#f1ecff); }
+.diagnostic-eyebrow { color:#7c3aed; font-size:10px; font-weight:900; letter-spacing:.12em; }
+.diagnostic-hero h2 { margin-top:7px; color:#24134f; font-size:clamp(20px,2vw,27px); line-height:1.3; }
+.diagnostic-hero p { max-width:760px; margin-top:8px; color:#5d5475; font-size:13px; line-height:1.65; }
+.diagnostic-hero-mark { width:52px; height:52px; display:grid; place-items:center; flex:0 0 auto; border-radius:15px; color:#7c3aed; background:#fff; font-size:21px; box-shadow:0 5px 18px rgba(124,58,237,.14); }
+.diagnostic-status { min-height:20px; margin:12px 2px 0; color:#49617d; font-size:12px; line-height:1.5; }
+.diagnostic-status.attention { color:#a3481d; font-weight:700; }
+.diagnostic-layout { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); gap:16px; margin-top:16px; }
+.diagnostic-card { padding:18px; border:1px solid #e0e6f0; border-radius:14px; background:#fff; box-shadow:0 2px 10px rgba(26,34,51,.04); }
+.diagnostic-card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
+.diagnostic-card-heading .section-title { margin-bottom:5px; }
+.diagnostic-count, .diagnostic-result-badge, .diagnostic-candidate-badge { flex:0 0 auto; padding:5px 9px; border-radius:999px; color:#5c35aa; background:#f0eaff; font-size:11px; font-weight:800; }
+.diagnostic-candidate-badge { color:#925112; background:#fff1d7; }
+.diagnostic-muted-icon { color:#7c3aed; padding-top:2px; }
+.diagnostic-question-list { display:grid; gap:8px; max-height:258px; overflow:auto; margin:12px 0 16px; padding-right:2px; }
+.diagnostic-question-card { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px; border:1px solid #e4e8f0; border-radius:10px; background:#fbfcfe; }
+.diagnostic-question-card strong { color:#263653; font-size:13px; }
+.diagnostic-question-card p { margin-top:5px; color:#687892; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.diagnostic-card-actions, .diagnostic-form-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.diagnostic-card-actions .btn { min-height:36px; padding:5px 10px; }
+.diagnostic-question-form, .diagnostic-controls, .diagnostic-candidate-form { display:grid; grid-template-columns:116px minmax(0,1fr); align-items:center; gap:9px 12px; }
+.diagnostic-question-form label, .diagnostic-controls label, .diagnostic-candidate-form label { color:#52617a; font-size:11px; font-weight:800; }
+.diagnostic-question-form textarea { resize:vertical; }
+.diagnostic-form-actions { grid-column:1 / -1; justify-content:flex-end; margin-top:3px; }
+.diagnostic-run-button { width:100%; margin-top:17px; }
+.diagnostic-boundary-note { display:flex; gap:7px; align-items:flex-start; margin-top:12px; color:#687892; font-size:11px; line-height:1.5; }
+.diagnostic-boundary-note i { color:#7c3aed; margin-top:2px; }
+.diagnostic-empty { padding:18px 8px; color:#8494b0; font-size:12px; text-align:center; }
+.diagnostic-result-card, .diagnostic-candidate-card { margin-top:16px; }
+.diagnostic-dialogue { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:12px; margin-top:14px; }
+.diagnostic-bubble { min-height:98px; padding:14px; border-radius:12px; }
+.diagnostic-bubble-question { border:1px solid #dfe6f2; background:#f8fafd; }
+.diagnostic-bubble-answer { border:1px solid #d8cdf7; background:#fbf9ff; }
+.diagnostic-bubble-label { display:block; color:#7b879a; font-size:10px; font-weight:900; letter-spacing:.06em; }
+.diagnostic-bubble p { margin-top:9px; color:#253653; font-size:14px; line-height:1.65; white-space:pre-wrap; overflow-wrap:anywhere; }
+.diagnostic-summary-grid { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:12px; margin-top:12px; }
+.diagnostic-summary-grid article { padding:13px; border:1px solid #e4e8f0; border-radius:10px; background:#fff; }
+.diagnostic-summary-grid article > span { display:block; color:#66758d; font-size:11px; font-weight:800; }
+.diagnostic-summary-grid article > span i { color:#7c3aed; margin-right:5px; }
+.diagnostic-summary-grid strong { display:block; margin-top:8px; color:#263653; font-size:13px; line-height:1.5; }
+.diagnostic-summary-grid ul { display:grid; gap:6px; margin-top:8px; padding-left:17px; color:#263653; font-size:12px; line-height:1.45; }
+.diagnostic-summary-grid li { display:flex; justify-content:space-between; gap:8px; }
+.diagnostic-summary-grid li span { color:#687892; white-space:nowrap; }
+.diagnostic-candidate-form { margin-top:14px; }
+.diagnostic-candidate-form textarea { resize:vertical; }
+@media (max-width:900px) { .diagnostic-layout, .diagnostic-dialogue, .diagnostic-summary-grid { grid-template-columns:1fr; } }
+@media (max-width:600px) { .diagnostic-hero { align-items:flex-start; padding:16px; } .diagnostic-hero-mark { display:none; } .diagnostic-card { padding:14px; } .diagnostic-question-form, .diagnostic-controls, .diagnostic-candidate-form { grid-template-columns:1fr; gap:6px; } .diagnostic-form-actions { margin-top:7px; } .diagnostic-question-card { flex-direction:column; } }
+/* Admin Voice Evidence metadata page */
+.voice-evidence-page { padding:22px; }
+.voice-evidence-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; padding:22px; border:1px solid #cfe0f5; border-radius:16px; background:linear-gradient(135deg,#f7fbff,#eef5ff); }
+.voice-evidence-hero h1 { margin-top:6px; color:#172b4d; font-size:clamp(22px,2.4vw,30px); line-height:1.3; }
+.voice-evidence-hero p { max-width:720px; margin-top:8px; color:#536783; font-size:13px; line-height:1.65; }
+.voice-evidence-hero-mark { width:52px; height:52px; display:grid; place-items:center; flex:0 0 auto; border-radius:15px; color:#2563a9; background:#fff; font-size:21px; box-shadow:0 5px 18px rgba(37,99,169,.14); }
+.voice-evidence-toolbar { display:flex; align-items:end; gap:10px; flex-wrap:wrap; margin-top:16px; padding:16px; border:1px solid #e0e6f0; border-radius:14px; background:#fff; }
+.voice-evidence-filter { display:grid; gap:5px; min-width:145px; }
+.voice-evidence-filter label { color:#52617a; font-size:11px; font-weight:800; }
+.voice-evidence-filter select, .voice-evidence-filter input { min-height:40px; }
+.voice-evidence-status { min-height:22px; margin:12px 2px 0; color:#49617d; font-size:12px; line-height:1.5; }
+.voice-evidence-status.attention { color:#a3481d; font-weight:700; }
+.voice-evidence-status.loading { color:#52637d; }
+.voice-evidence-card { margin-top:12px; padding:18px; border:1px solid #e0e6f0; border-radius:14px; background:#fff; box-shadow:0 2px 10px rgba(26,34,51,.04); }
+.voice-evidence-card h2 { color:#263653; font-size:15px; }
+.voice-evidence-note { margin-top:5px; color:#687892; font-size:12px; line-height:1.6; }
+.voice-evidence-table { margin-top:14px; }
+.voice-evidence-table code { color:#355477; font-size:11px; overflow-wrap:anywhere; }
+.voice-evidence-more { display:block; margin:14px auto 0; }
+@media (max-width:600px) { .voice-evidence-page { padding:14px; } .voice-evidence-hero { padding:16px; } .voice-evidence-hero-mark { display:none; } .voice-evidence-toolbar { align-items:stretch; flex-direction:column; } .voice-evidence-filter { min-width:0; } }
 /* ── RAG page ── */
 #page-rag {
   display:block;
@@ -1301,7 +1369,7 @@ tbody tr:hover td { background: #f8fafd; }
     <div class="sidebar-brand-sub">管理後台</div>
   </div>
   <nav class="sidebar-nav">
-    <div class="nav-section-label" data-nav-pages="stats,availability,members">每日工作</div>
+    <div class="nav-section-label" data-nav-pages="stats,availability,members,voice-evidence">每日工作</div>
     <button class="nav-item active" data-page="stats" type="button" aria-current="page">
       <i class="fas fa-chart-line"></i> 營運總覽
     </button>
@@ -1310,6 +1378,9 @@ tbody tr:hover td { background: #f8fafd; }
     </button>
     <button class="nav-item" data-page="members" type="button">
       <i class="fas fa-user"></i> 會員服務台
+    </button>
+    <button class="nav-item" data-page="voice-evidence" type="button">
+      <i class="fas fa-wave-square"></i> 語音紀錄
     </button>
     <div class="nav-section-label" data-nav-pages="promotions,health">營運管理</div>
     <button class="nav-item" data-page="promotions" type="button">
@@ -1588,6 +1659,37 @@ tbody tr:hover td { background: #f8fafd; }
 
   </div>
 
+  <!-- Voice Evidence metadata page -->
+  <section id="page-voice-evidence" class="voice-evidence-page" style="display:none">
+    <header class="voice-evidence-hero">
+      <div>
+        <p class="overview-eyebrow">VOICE INTERACTION EVIDENCE</p>
+        <h1>語音紀錄</h1>
+        <p>查看指定門市日期的去識別化語音回合 metadata。此頁不顯示對話全文、原始音訊、顧客身份，也不提供編輯、刪除或匯出。</p>
+      </div>
+      <div class="voice-evidence-hero-mark" aria-hidden="true"><i class="fas fa-wave-square"></i></div>
+    </header>
+    <div class="voice-evidence-toolbar" aria-label="語音紀錄篩選">
+      <div class="voice-evidence-filter"><label for="voiceEvidenceDate">門市日期</label><input id="voiceEvidenceDate" class="setting-input" type="date"></div>
+      <div class="voice-evidence-filter"><label for="voiceEvidenceTerminalFilter">終端結果</label><select id="voiceEvidenceTerminalFilter" class="setting-input"><option value="">全部</option><option value="completed">完成</option><option value="transcription_failed">STT 失敗</option><option value="assistant_failed">助理失敗</option><option value="playback_failed">播放失敗</option></select></div>
+      <div class="voice-evidence-filter"><label for="voiceEvidenceFailureFilter">失敗類型</label><input id="voiceEvidenceFailureFilter" class="setting-input" type="search" maxlength="80" placeholder="例如 stt_unavailable"></div>
+      <div class="voice-evidence-filter"><label for="voiceEvidenceRagFilter">RAG 結果</label><select id="voiceEvidenceRagFilter" class="setting-input"><option value="">全部</option><option value="hit">命中</option><option value="miss">未命中</option><option value="not_run">尚未執行</option></select></div>
+      <button id="voiceEvidenceRefresh" class="btn btn-primary" type="button"><i class="fas fa-sync-alt" aria-hidden="true"></i> 重新整理</button>
+    </div>
+    <div id="voiceEvidenceStatus" class="voice-evidence-status" role="status" aria-live="polite"></div>
+    <section class="voice-evidence-card" aria-labelledby="voiceEvidenceTitle">
+      <h2 id="voiceEvidenceTitle">語音回合 metadata</h2>
+      <p class="voice-evidence-note">「已保留去識別化內容」只代表能力邊界內存在遮罩後摘要，不會在此頁展開內容。</p>
+      <div class="adm-table-wrap voice-evidence-table">
+        <table>
+          <thead><tr><th>觀測時間</th><th>Voice Turn</th><th>終端結果</th><th>失敗類型</th><th>RAG</th><th>內容狀態</th><th>投影狀態</th></tr></thead>
+          <tbody id="voiceEvidenceBody"><tr><td colspan="7" class="adm-empty">尚未載入</td></tr></tbody>
+        </table>
+      </div>
+      <button id="voiceEvidenceLoadMore" class="btn voice-evidence-more" type="button" hidden>載入更多</button>
+    </section>
+  </section>
+
   <section id="page-health" class="health-page" style="display:none">
     <div class="health-toolbar">
       <div>
@@ -1749,7 +1851,7 @@ tbody tr:hover td { background: #f8fafd; }
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="voice">語音輸入輸出<span class="settings-unsaved" hidden>未儲存</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="prompt">系統指令與關鍵詞<span class="settings-unsaved" hidden>未儲存</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="diagnostic">模型診斷</button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="brain">專案核心大腦</button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="brain">營運診斷工作台</button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="layout">版面設定</button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="history">變更歷史</button>
       </div>
@@ -2224,16 +2326,75 @@ tbody tr:hover td { background: #f8fafd; }
       <!-- ══════════ 版面設定（個人偏好，存瀏覽器） ══════════ -->
       <div class="settings-panel" data-settings-panel="brain" hidden>
         <section>
-          <div class="section-title">專案狀態分析</div>
-          <p class="setting-help">開啟時只顯示最近一次報告；只有按下分析才會重新讀取唯讀狀態。分析在獨立的 project-analyst sidecar 執行，不具寫入、部署或資料修改權限，也不會自動改用其他設定檔。</p>
-          <div class="setting-row"><label class="setting-label" for="projectBrainModel">就緒分析設定檔</label><div class="setting-field"><select id="projectBrainModel" class="setting-input"></select><div id="projectBrainModelStatus" class="setting-help"></div></div></div>
-          <div style="display:flex;gap:8px;margin:12px 0"><button id="projectBrainAnalyze" class="refresh-btn settings-primary" type="button">重新分析專案</button><button id="projectBrainRefresh" class="refresh-btn" type="button">查看最近報告</button></div>
-          <pre id="projectBrainReport" class="raw-json" style="white-space:pre-wrap;max-height:520px;overflow:auto">尚無報告</pre>
+          <div class="diagnostic-hero">
+            <div>
+              <div class="diagnostic-eyebrow">DAILY OPERATIONS REVIEW</div>
+              <h2>把今日語音互動整理成可確認的營運行動</h2>
+              <p>問題是可重用的診斷題庫；結果會保存問題快照，只有通過重複證據與離線驗證的 RAG 知識缺口，才會出現候選確認流程。</p>
+            </div>
+            <div class="diagnostic-hero-mark"><i class="fas fa-wave-square" aria-hidden="true"></i></div>
+          </div>
+          <div id="diagnosticStatus" class="diagnostic-status" role="status" aria-live="polite"></div>
+
+          <div class="diagnostic-layout">
+            <section class="diagnostic-card diagnostic-library">
+              <div class="diagnostic-card-heading"><div><div class="section-title">診斷問題題庫</div><p class="setting-help">每個門市獨立保存；刪除不會重建，既有報告仍保留原始快照。</p></div><span id="diagnosticQuestionCount" class="diagnostic-count">—</span></div>
+              <div id="diagnosticQuestionList" class="diagnostic-question-list"></div>
+              <form id="diagnosticQuestionForm" class="diagnostic-question-form">
+                <label for="diagnosticQuestionName">問題名稱</label>
+                <input id="diagnosticQuestionName" class="setting-input" required maxlength="120" placeholder="例如：今日語音診斷">
+                <label for="diagnosticQuestionPrompt">完整 Prompt</label>
+                <textarea id="diagnosticQuestionPrompt" class="setting-input" required maxlength="4000" rows="4" placeholder="例如：診斷今日語音對話"></textarea>
+                <div class="diagnostic-form-actions"><button id="diagnosticQuestionSave" class="btn btn-primary" type="submit">新增問題</button><button class="btn" type="reset">清除</button></div>
+              </form>
+            </section>
+
+            <section class="diagnostic-card diagnostic-run-card">
+              <div class="diagnostic-card-heading"><div><div class="section-title">執行每日診斷</div><p class="setting-help">預設今天；目前日期可能是部分資料，分析器與模型可在執行前調整。</p></div><i class="fas fa-sliders-h diagnostic-muted-icon" aria-hidden="true"></i></div>
+              <div class="diagnostic-controls">
+                <label for="diagnosticQuestion">診斷問題</label><select id="diagnosticQuestion" class="setting-input"></select>
+                <label for="diagnosticDate">門市日期</label><input id="diagnosticDate" class="setting-input" type="date">
+                <label for="diagnosticDataScope">資料模式</label><select id="diagnosticDataScope" class="setting-input"><option value="customer_evidence">正式語音證據</option><option value="synthetic_only">合成測試資料</option></select>
+                <label for="diagnosticProfile">分析設定檔</label><select id="diagnosticProfile" class="setting-input"></select>
+                <label for="diagnosticModel">模型</label><input id="diagnosticModel" class="setting-input" maxlength="160" placeholder="由設定檔帶入，可調整">
+                <label for="diagnosticEffort">推理強度</label><select id="diagnosticEffort" class="setting-input"><option value="standard">標準</option><option value="focused">聚焦</option><option value="deep">深入</option></select>
+              </div>
+              <button id="diagnosticRun" class="btn btn-primary diagnostic-run-button" type="button"><i class="fas fa-play" aria-hidden="true"></i> 執行今日診斷</button>
+              <p class="diagnostic-boundary-note"><i class="fas fa-shield-alt" aria-hidden="true"></i> 只讀取每日營運診斷範圍；畫面顯示去識別化摘要，不直接展示原始語音或完整紀錄。</p>
+            </section>
+          </div>
+
+          <section class="diagnostic-card diagnostic-result-card">
+            <div class="diagnostic-card-heading"><div><div class="section-title">最近一次成功結果</div><p class="setting-help">結果以對話回答開頭，再補上可追查的結構化摘要。</p></div><span class="diagnostic-result-badge">只保留最新成功結果</span></div>
+            <div class="diagnostic-dialogue">
+              <div class="diagnostic-bubble diagnostic-bubble-question"><span class="diagnostic-bubble-label">問題快照</span><p id="diagnosticDialogueQuestion">尚無診斷結果</p></div>
+              <div class="diagnostic-bubble diagnostic-bubble-answer"><span class="diagnostic-bubble-label">分析回答</span><p id="diagnosticDialogueAnswer">執行診斷後，分析結果會顯示在這裡。</p></div>
+            </div>
+            <div class="diagnostic-summary-grid">
+              <article><span><i class="fas fa-chart-line" aria-hidden="true"></i> 證據狀態</span><strong id="diagnosticEvidence">尚無資料</strong></article>
+              <article><span><i class="fas fa-layer-group" aria-hidden="true"></i> 分類訊號</span><ul id="diagnosticFindings"><li><span>目前沒有可顯示的分類結果。</span></li></ul></article>
+            </div>
+          </section>
+
+          <section id="diagnosticCandidate" class="diagnostic-card diagnostic-candidate-card" hidden>
+            <div class="diagnostic-card-heading"><div><div id="diagnosticCandidateAction" class="section-title">RAG 知識變更候選</div><p class="setting-help">這不是直接寫入；儲存預覽後會重新執行離線驗證，確認時才進入既有發布流程。</p></div><span class="diagnostic-candidate-badge">待確認</span></div>
+            <div class="diagnostic-candidate-form">
+              <label for="diagnosticCandidateTitle">標題</label><input id="diagnosticCandidateTitle" class="setting-input" maxlength="160">
+              <label for="diagnosticCandidateCategory">分類</label><input id="diagnosticCandidateCategory" class="setting-input" maxlength="64">
+              <label for="diagnosticCandidateType">內容類型</label><input id="diagnosticCandidateType" class="setting-input" maxlength="64">
+              <label for="diagnosticCandidateContent">內容預覽</label><textarea id="diagnosticCandidateContent" class="setting-input" rows="7" maxlength="200000"></textarea>
+            </div>
+            <div class="diagnostic-form-actions"><button id="diagnosticCandidateSave" class="btn" type="button">儲存預覽並重新驗證</button><button id="diagnosticCandidateConfirm" class="btn btn-primary" type="button">確認送入 RAG 發布</button><button id="diagnosticCandidateAbandon" class="btn" type="button">放棄候選</button></div>
+          </section>
         </section>
         <hr class="settings-rule">
         <section>
-          <div class="section-title">進階：隔離提案</div>
+          <div class="section-title">進階：專案核心大腦（專案分析）</div>
+          <p class="setting-help">這是原本的 Project Core Brain，專門讀取 Git、測試與容器狀態；它與每日營運診斷分開，仍保持唯讀，也不會自動切換模型。</p>
           <p class="setting-help">隔離機制已就緒：在指定 commit 上建立拋棄式 clone，只能新增 <code>docs/proposals/</code> 文件或 <code>extensions/&lt;name&gt;/</code> 獨立模組，不能修改既有檔案，只產出 patch 不套用，不 commit、不 push，工作區保持不變。</p>
+          <div class="setting-row"><label class="setting-label" for="projectBrainModel">就緒分析設定檔</label><div class="setting-field"><select id="projectBrainModel" class="setting-input"></select><div id="projectBrainModelStatus" class="setting-help"></div></div></div>
+          <div style="display:flex;gap:8px;margin:12px 0"><button id="projectBrainAnalyze" class="refresh-btn settings-primary" type="button">重新分析專案</button><button id="projectBrainRefresh" class="refresh-btn" type="button">查看最近報告</button></div>
+          <pre id="projectBrainReport" class="raw-json" style="white-space:pre-wrap;max-height:520px;overflow:auto">尚無報告</pre>
           <pre id="projectBrainProposal" class="raw-json" style="white-space:pre-wrap;max-height:420px;overflow:auto">產生提案內容需要就緒的分析設定檔；目前沒有掛載 provider 憑證。</pre>
         </section>
       </div>

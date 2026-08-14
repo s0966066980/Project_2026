@@ -404,6 +404,20 @@
         "target_status"
       ]
     },
+    "CandidateEditRequest": {
+      "properties": [
+        "category",
+        "content",
+        "content_type",
+        "title"
+      ],
+      "required": [
+        "category",
+        "content",
+        "content_type",
+        "title"
+      ]
+    },
     "CartQuoteDTO": {
       "properties": [
         "currency",
@@ -610,6 +624,16 @@
       "required": [
         "credential",
         "key_id"
+      ]
+    },
+    "DiagnosticQuestionRequest": {
+      "properties": [
+        "display_name",
+        "prompt"
+      ],
+      "required": [
+        "display_name",
+        "prompt"
       ]
     },
     "EffectivenessBreakdownDTO": {
@@ -990,6 +1014,7 @@
         "effort",
         "model",
         "profile",
+        "question_id",
         "store_date",
         "timezone"
       ],
@@ -1070,6 +1095,14 @@
     "DELETE /api/v1/operations/session-stats": {
       "operation_id": "clear_session_stats_api_v1_operations_session_stats_delete",
       "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "DELETE /api/v1/optimization/questions/{question_id}": {
+      "operation_id": "delete_diagnostic_question_api_v1_optimization_questions__question_id__delete",
+      "parameters": [
+        "path:question_id!"
+      ],
       "request_schema": "",
       "response_schema": ""
     },
@@ -1312,8 +1345,26 @@
       "request_schema": "",
       "response_schema": ""
     },
+    "GET /api/v1/optimization/candidate": {
+      "operation_id": "pending_candidate_api_v1_optimization_candidate_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/optimization/latest": {
+      "operation_id": "latest_report_api_v1_optimization_latest_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
     "GET /api/v1/optimization/profiles": {
       "operation_id": "profiles_api_v1_optimization_profiles_get",
+      "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/optimization/questions": {
+      "operation_id": "diagnostic_questions_api_v1_optimization_questions_get",
       "parameters": [],
       "request_schema": "",
       "response_schema": ""
@@ -1450,6 +1501,21 @@
     "GET /api/v1/settings/versions": {
       "operation_id": "settings_versions_api_v1_settings_versions_get",
       "parameters": [],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "GET /api/v1/voice-evidence": {
+      "operation_id": "list_voice_evidence_api_v1_voice_evidence_get",
+      "parameters": [
+        "query:after_evidence_id",
+        "query:after_observed_at",
+        "query:failure_type",
+        "query:limit",
+        "query:observed_from!",
+        "query:observed_to!",
+        "query:rag_outcome",
+        "query:terminal_status"
+      ],
       "request_schema": "",
       "response_schema": ""
     },
@@ -1657,10 +1723,32 @@
       "request_schema": "MenuPriceProjectionRequest",
       "response_schema": "ApiResponse_list_MenuPriceProjectionDTO__"
     },
+    "POST /api/v1/optimization/candidate/{candidate_id}/abandon": {
+      "operation_id": "abandon_candidate_api_v1_optimization_candidate__candidate_id__abandon_post",
+      "parameters": [
+        "path:candidate_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
+    "POST /api/v1/optimization/candidate/{candidate_id}/confirm": {
+      "operation_id": "confirm_candidate_api_v1_optimization_candidate__candidate_id__confirm_post",
+      "parameters": [
+        "path:candidate_id!"
+      ],
+      "request_schema": "",
+      "response_schema": ""
+    },
     "POST /api/v1/optimization/evidence": {
       "operation_id": "ingest_fixture_api_v1_optimization_evidence_post",
       "parameters": [],
       "request_schema": "EvidenceFixture",
+      "response_schema": ""
+    },
+    "POST /api/v1/optimization/questions": {
+      "operation_id": "create_diagnostic_question_api_v1_optimization_questions_post",
+      "parameters": [],
+      "request_schema": "DiagnosticQuestionRequest",
       "response_schema": ""
     },
     "POST /api/v1/optimization/simulations": {
@@ -1829,6 +1917,22 @@
         "path:member_ref!"
       ],
       "request_schema": "",
+      "response_schema": ""
+    },
+    "PUT /api/v1/optimization/candidate/{candidate_id}": {
+      "operation_id": "edit_candidate_api_v1_optimization_candidate__candidate_id__put",
+      "parameters": [
+        "path:candidate_id!"
+      ],
+      "request_schema": "CandidateEditRequest",
+      "response_schema": ""
+    },
+    "PUT /api/v1/optimization/questions/{question_id}": {
+      "operation_id": "update_diagnostic_question_api_v1_optimization_questions__question_id__put",
+      "parameters": [
+        "path:question_id!"
+      ],
+      "request_schema": "DiagnosticQuestionRequest",
       "response_schema": ""
     },
     "PUT /api/v1/rag/knowledge/{item_id}": {

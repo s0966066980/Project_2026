@@ -27,6 +27,7 @@ from routes import (
     v1_promotion_banner_routes,
     v1_push_copy_routes,
     v1_recommendation_event_routes,
+    v1_voice_evidence_routes,
     v1_voice_routes,
 )
 
@@ -77,6 +78,7 @@ ROUTE_REGISTRY: tuple[RouteRegistration, ...] = (
     RouteRegistration("public", v1_recommendation_event_routes),
     RouteRegistration("ai", v1_ai_push_routes),
     RouteRegistration("ai", v1_voice_routes),
+    RouteRegistration("admin", v1_voice_evidence_routes),
     RouteRegistration("ai", v1_emotion_routes),
     RouteRegistration("admin", v1_push_copy_routes),
     RouteRegistration("admin", v1_project_brain_routes),

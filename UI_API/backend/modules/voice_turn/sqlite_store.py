@@ -214,6 +214,30 @@ class SQLiteVoiceTurnStore:
             ).fetchone()
         return int((row["total"] if row else 0) or 0)
 
+    def terminal_turns(self, *, limit: int = 500) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM voice_turns WHERE completed_at IS NOT NULL ORDER BY completed_at, voice_turn_id LIMIT ?",
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+        result = []
+        for row in rows:
+            value = self._row(row)
+            value["tenant_id"] = row["tenant_id"]
+            value["store_id"] = row["store_id"]
+            value["terminal"] = {
+                "voice_turn_id": row["voice_turn_id"],
+                "observed_at": row["completed_at"] or row["updated_at"],
+                "status": row["status"],
+                "user_text": row["transcript"],
+                "assistant_text": row["assistant_text"],
+                "playback_status": row["playback_status"],
+                "safe_reason": row["safe_reason"],
+                "rag_outcome": "not_run",
+            }
+            result.append(value)
+        return result
+
     @staticmethod
     def _append_event(conn, tenant_id, store_id, voice_turn_id, event_type, payload, terminal, at):
         sequence = int(
@@ -252,4 +276,7 @@ class SQLiteVoiceTurnStore:
             "tts_format": row["tts_format"],
             "playback_status": row["playback_status"],
             "safe_reason": row["safe_reason"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "completed_at": row["completed_at"],
         }

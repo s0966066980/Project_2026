@@ -13,6 +13,9 @@ from models.llm import LLMRequest
 from modules.operations import _llm_routing as llm_routing_service
 from modules.recommendation._service import coerce_cart_actions
 from modules.runtime_persistence.runtime import sqlite_database_path
+from modules.voice_evidence.module import VoiceEvidenceModule
+from modules.voice_evidence.postgres_store import PostgresVoiceEvidenceStore
+from modules.voice_evidence.sqlite_store import SQLiteVoiceEvidenceOutbox, SQLiteVoiceEvidenceStore
 from repositories import postgres_utils, session_repository
 from services import llm_gateway_service
 from services.stt_service import get_stt
@@ -173,6 +176,8 @@ def default_module() -> VoiceTurnModule:
     with _LOCK:
         if _DEFAULT is None or _KEY != key:
             store = PostgresVoiceTurnStore() if use_postgres else SQLiteVoiceTurnStore(path)
+            evidence_store = PostgresVoiceEvidenceStore() if use_postgres else SQLiteVoiceEvidenceStore(path)
+            evidence_outbox = SQLiteVoiceEvidenceOutbox(evidence_store)
             _DEFAULT = VoiceTurnModule(
                 store=store,
                 stt=ProductionSTT(),
@@ -180,9 +185,36 @@ def default_module() -> VoiceTurnModule:
                 menu=ProductionMenu(),
                 tts=ProductionTTS(),
                 effects=ProductionEffects(),
+                terminal_evidence_outbox=evidence_outbox,
             )
             _KEY = key
         return _DEFAULT
+
+
+def project_pending_evidence(*, limit: int = 100) -> dict[str, int]:
+    """Drain a bounded batch of terminal Voice Turn evidence consequences."""
+
+    use_postgres = postgres_utils.use_postgres()
+    path = sqlite_database_path()
+    evidence_store = PostgresVoiceEvidenceStore() if use_postgres else SQLiteVoiceEvidenceStore(path)
+    outbox = SQLiteVoiceEvidenceOutbox(evidence_store)
+    return VoiceEvidenceModule(store=evidence_store).process_pending(outbox=outbox, limit=limit)
+
+
+def backfill_voice_evidence(*, limit: int = 500) -> dict[str, int | str]:
+    """Enqueue the single bounded backfill for still-retained terminal turns."""
+
+    use_postgres = postgres_utils.use_postgres()
+    path = sqlite_database_path()
+    voice_store = PostgresVoiceTurnStore() if use_postgres else SQLiteVoiceTurnStore(path)
+    evidence_store = PostgresVoiceEvidenceStore() if use_postgres else SQLiteVoiceEvidenceStore(path)
+    outbox = SQLiteVoiceEvidenceOutbox(evidence_store)
+    return VoiceEvidenceModule(store=evidence_store).backfill_terminal_turns(
+        outbox=outbox,
+        turns=voice_store.terminal_turns(limit=limit),
+        run_key="terminal-voice-turns-v1",
+        limit=limit,
+    )
 
 
 def reset_default_for_tests() -> None:

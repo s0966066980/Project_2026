@@ -7,6 +7,8 @@ import { createSettingsAdmin } from './modules/settingsAdmin.js';
 import { createMemberServiceDeskAdmin } from './modules/memberServiceDeskAdmin.js';
 import { createRagAdmin } from './modules/ragAdmin.js';
 import { createOperationsOverviewAdmin } from './modules/operationsOverviewAdmin.js';
+import { createDiagnosticWorkbench } from './modules/diagnosticWorkbench.js';
+import { createVoiceEvidenceAdmin } from './modules/voiceEvidenceAdmin.js';
 import { applyAdminNavigation } from './modules/adminNavigation.js';
 import { bindLayoutPreference, initZoom } from './modules/layoutPreference.js';
 import { createCatalogClient } from '../shared/api/catalogClient.js';
@@ -14,7 +16,9 @@ import {
   createDiagnosticClient,
   createEmotionClient,
   createOperationsClient,
+  createOptimizationClient,
   createProjectBrainClient,
+  createVoiceEvidenceClient,
 } from '../shared/api/capabilityClients.js';
 import { adminHeaders, createAdminAuthController } from './features/auth/adminAuth.js';
 import { llmTestErrorMessage } from './features/apiErrors.js';
@@ -29,7 +33,11 @@ const adminCatalogClient = createCatalogClient({ baseUrl: API, headers: () => ad
 const adminOperationsClient = createOperationsClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminEmotionClient = createEmotionClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminDiagnosticClient = createDiagnosticClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminOptimizationClient = createOptimizationClient({ baseUrl: API, headers: () => adminHeaders() });
 const adminProjectBrainClient = createProjectBrainClient({ baseUrl: API, headers: () => adminHeaders() });
+const adminVoiceEvidenceClient = createVoiceEvidenceClient({ baseUrl: API, headers: () => adminHeaders() });
+const diagnosticWorkbench = createDiagnosticWorkbench({ client: adminOptimizationClient });
+const voiceEvidenceAdmin = createVoiceEvidenceAdmin({ client: adminVoiceEvidenceClient });
 
 // 在任何畫面繪製前先套用個人的介面縮放偏好，避免先閃一下預設大小再跳動。
 initZoom();
@@ -95,8 +103,8 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     document.querySelectorAll('[id^="page-"]').forEach(el => {
       el.style.display = el.id === `page-${page}` ? '' : 'none';
     });
-    const titles  = { stats: '營運總覽', settings: '功能設定', recommendations: '推薦成效', promotions: '活動管理', availability: '供應狀態', health: '維運健康', rag: 'RAG 智慧工作室', emotion: '情緒分析', members: '會員管理' };
-    const icons   = { stats: 'fa-chart-line', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', promotions: 'fa-ticket-alt', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users' };
+    const titles  = { stats: '營運總覽', settings: '功能設定', recommendations: '推薦成效', promotions: '活動管理', availability: '供應狀態', health: '維運健康', rag: 'RAG 智慧工作室', emotion: '情緒分析', members: '會員管理', 'voice-evidence': '語音紀錄' };
+    const icons   = { stats: 'fa-chart-line', settings: 'fa-sliders-h', recommendations: 'fa-bullseye', promotions: 'fa-ticket-alt', availability: 'fa-store', health: 'fa-heartbeat', rag: 'fa-database', emotion: 'fa-eye', members: 'fa-users', 'voice-evidence': 'fa-wave-square' };
     const titleEl = document.getElementById('page-title');
     const iconEl  = document.getElementById('topbar-icon');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -115,6 +123,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (page === 'rag') ragAdmin.loadPage();
     if (page === 'emotion') { loadEmotionConsole(); }
     if (page === 'members') loadMembers();
+    if (page === 'voice-evidence') voiceEvidenceAdmin.refresh();
     // 模型診斷與即時影音測試已併入功能設定／情緒分析頁，測試頁不再存在。
     if (page === 'settings') { loadOllamaModels(); loadVoicePromptDefault(); }
     if (page !== 'emotion') stopEmotionConsoleTest();
@@ -1043,7 +1052,7 @@ function renderProjectBrainReport(report) {
     `${stale}時間：${fmtDate(report.recorded_at)}\n分析設定檔：${result.profile || '—'}\n版本：${result.git_revision || '—'}\n\n${findings}`;
 }
 
-async function loadProjectBrain() {
+async function loadProjectBrainAnalysis() {
   let data;
   try { data = await adminProjectBrainClient.status(); }
   catch (error) { setText('projectBrainModelStatus', `讀取失敗（${error.status || 0}）`); return; }
@@ -1108,6 +1117,12 @@ async function analyzeProjectBrain() {
   finally { if (button) button.disabled = false; }
 }
 
+// The workbench is the primary brain surface. Project Analyst remains available
+// below it as an advanced, read-only engineering view.
+async function loadProjectBrain() {
+  await Promise.allSettled([diagnosticWorkbench.load(), loadProjectBrainAnalysis()]);
+}
+
 
 // ── expose to inline handlers
 window.saveRagSettings = ragAdmin.saveSettings;
@@ -1163,6 +1178,7 @@ settingsAdmin.bind();
 g('projectBrainAnalyze')?.addEventListener('click', analyzeProjectBrain);
 g('projectBrainRefresh')?.addEventListener('click', loadProjectBrain);
 bindLayoutPreference(g);
+voiceEvidenceAdmin.bind();
 [
   'recommendationEventTypeFilter',
   'recommendationSurfaceFilter',

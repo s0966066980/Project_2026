@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from capabilities.identity_access import scope_from_admin_principal
@@ -35,11 +35,32 @@ class SimulationRequest(BaseModel):
     profile: str = Field(min_length=1, max_length=32)
     model: str = Field(min_length=1, max_length=160)
     effort: str = Field(min_length=1, max_length=40)
-    data_scope: str = Field(default="synthetic_only", max_length=32)
+    data_scope: str = Field(default="customer_evidence", max_length=32)
+    question_id: str = Field(default="", max_length=160)
+
+
+class DiagnosticQuestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str = Field(min_length=1, max_length=120)
+    prompt: str = Field(min_length=1, max_length=4_000)
+
+
+class CandidateEditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=160)
+    category: str = Field(min_length=1, max_length=64)
+    content_type: str = Field(min_length=1, max_length=64)
+    content: str = Field(min_length=1, max_length=200_000)
 
 
 def _error(error: OptimizationLabError) -> HTTPException:
-    status = 404 if error.code in {"report_not_found", "evidence_expired"} else 422
+    status = 404 if error.code in {"report_not_found", "evidence_expired", "knowledge_candidate_not_found"} else 422
+    if error.code == "knowledge_candidate_stale":
+        status = 409
+    if error.code in {"knowledge_publication_unavailable", "knowledge_publication_failed"}:
+        status = 503
     if error.code in {"local_ollama_analysis_failed", "local_ollama_unavailable"}:
         status = 503
     if error.code in {"customer_evidence_authorization_required", "step_up_required"}:
@@ -49,6 +70,124 @@ def _error(error: OptimizationLabError) -> HTTPException:
 
 def create_router(_deps: dict[str, Any] | None = None, *, prefix: str = "/api/v1/optimization") -> APIRouter:
     router = APIRouter(prefix=prefix, tags=["optimization-lab"])
+
+    @router.get("/questions")
+    async def diagnostic_questions(request: Request):
+        principal = authorize_admin_request(request, "optimization.summary")
+        scope = scope_from_admin_principal(principal)
+        return {
+            "questions": await asyncio.to_thread(
+                optimization_runtime.default_module().list_diagnostic_questions, scope=scope
+            )
+        }
+
+    @router.post("/questions", status_code=status.HTTP_201_CREATED)
+    async def create_diagnostic_question(request: Request, body: DiagnosticQuestionRequest):
+        principal = authorize_admin_request(request, "optimization.manage")
+        scope = scope_from_admin_principal(principal)
+        try:
+            question = await asyncio.to_thread(
+                optimization_runtime.default_module().create_diagnostic_question,
+                scope=scope,
+                display_name=body.display_name,
+                prompt=body.prompt,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return {"question": question}
+
+    @router.put("/questions/{question_id}")
+    async def update_diagnostic_question(request: Request, question_id: str, body: DiagnosticQuestionRequest):
+        principal = authorize_admin_request(request, "optimization.manage")
+        scope = scope_from_admin_principal(principal)
+        try:
+            question = await asyncio.to_thread(
+                optimization_runtime.default_module().update_diagnostic_question,
+                scope=scope,
+                question_id=question_id,
+                display_name=body.display_name,
+                prompt=body.prompt,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return {"question": question}
+
+    @router.delete("/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_diagnostic_question(request: Request, question_id: str):
+        principal = authorize_admin_request(request, "optimization.manage")
+        scope = scope_from_admin_principal(principal)
+        try:
+            await asyncio.to_thread(
+                optimization_runtime.default_module().delete_diagnostic_question,
+                scope=scope,
+                question_id=question_id,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.get("/latest")
+    async def latest_report(request: Request):
+        principal = authorize_admin_request(request, "optimization.summary")
+        scope = scope_from_admin_principal(principal)
+        report = await asyncio.to_thread(optimization_runtime.default_module().latest_report, scope=scope)
+        return {"report": report}
+
+    @router.get("/candidate")
+    async def pending_candidate(request: Request):
+        principal = authorize_admin_request(request, "optimization.summary")
+        scope = scope_from_admin_principal(principal)
+        candidate = await asyncio.to_thread(optimization_runtime.default_module().pending_candidate, scope=scope)
+        return {"candidate": candidate}
+
+    @router.post("/candidate/{candidate_id}/abandon")
+    async def abandon_candidate(request: Request, candidate_id: str):
+        principal = authorize_admin_request(request, "optimization.summary")
+        scope = scope_from_admin_principal(principal)
+        try:
+            candidate = await asyncio.to_thread(
+                optimization_runtime.default_module().abandon_candidate,
+                scope=scope,
+                candidate_id=candidate_id,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return {"candidate": candidate}
+
+    @router.put("/candidate/{candidate_id}")
+    async def edit_candidate(request: Request, candidate_id: str, body: CandidateEditRequest):
+        principal = authorize_admin_request(request, "optimization.summary")
+        scope = scope_from_admin_principal(principal)
+        try:
+            candidate = await asyncio.to_thread(
+                optimization_runtime.default_module().edit_candidate,
+                scope=scope,
+                candidate_id=candidate_id,
+                title=body.title,
+                category=body.category,
+                content_type=body.content_type,
+                content=body.content,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return {"candidate": candidate}
+
+    @router.post("/candidate/{candidate_id}/confirm")
+    async def confirm_candidate(request: Request, candidate_id: str):
+        write_principal = authorize_admin_request(request, "rag.write")
+        authorize_admin_request(request, "rag.publish")
+        scope = scope_from_admin_principal(write_principal)
+        actor = str(getattr(write_principal, "user_id", "admin"))
+        try:
+            candidate = await asyncio.to_thread(
+                optimization_runtime.default_module().confirm_candidate,
+                scope=scope,
+                candidate_id=candidate_id,
+                actor=actor,
+            )
+        except OptimizationLabError as error:
+            raise _error(error) from error
+        return {"candidate": candidate}
 
     @router.get("/profiles")
     async def profiles(request: Request):
@@ -88,6 +227,7 @@ def create_router(_deps: dict[str, Any] | None = None, *, prefix: str = "/api/v1
                 model=body.model,
                 effort=body.effort,
                 data_scope=body.data_scope,
+                question_id=body.question_id or None,
             )
         except OptimizationLabError as error:
             raise _error(error) from error

@@ -287,3 +287,32 @@ export function createProjectBrainClient(options = {}) {
     analyze: profile => analysisClient.post('/project-brain/analyze', { profile }).then(payload),
   };
 }
+
+/** Versioned Daily Operations Diagnostic Workbench surface. */
+export function createOptimizationClient(options = {}) {
+  const client = v1(options);
+  return {
+    questions: () => client.get('/optimization/questions').then(payload),
+    createQuestion: body => client.post('/optimization/questions', body).then(payload),
+    updateQuestion: (questionId, body) => client.put(`/optimization/questions/${encodeURIComponent(questionId)}`, body).then(payload),
+    deleteQuestion: questionId => client.request(`/optimization/questions/${encodeURIComponent(questionId)}`, { method: 'DELETE' }).then(payload),
+    profiles: () => client.get('/optimization/profiles').then(payload),
+    latest: () => client.get('/optimization/latest').then(payload),
+    candidate: () => client.get('/optimization/candidate').then(payload),
+    simulate: body => client.post('/optimization/simulations', body).then(payload),
+    abandonCandidate: candidateId => client.post(`/optimization/candidate/${encodeURIComponent(candidateId)}/abandon`).then(payload),
+    editCandidate: (candidateId, body) => client.put(`/optimization/candidate/${encodeURIComponent(candidateId)}`, body).then(payload),
+    confirmCandidate: candidateId => client.post(`/optimization/candidate/${encodeURIComponent(candidateId)}/confirm`).then(payload),
+  };
+}
+
+/** Versioned read-only Voice Evidence metadata surface. */
+export function createVoiceEvidenceClient(options = {}) {
+  const client = v1(options);
+  return {
+    list: params => {
+      const query = new URLSearchParams(params || {});
+      return client.get(`/voice-evidence?${query.toString()}`).then(payload);
+    },
+  };
+}

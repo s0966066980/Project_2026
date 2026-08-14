@@ -4,6 +4,7 @@ const PAGE_PERMISSIONS = Object.freeze({
   recommendations: ['recommendations.effectiveness.read'],
   availability: ['catalog.availability.read'],
   members: ['members.read'],
+  'voice-evidence': ['voice.evidence.summary'],
   settings: ['settings.write'],
   rag: ['rag.read'],
   emotion: ['settings.write'],
