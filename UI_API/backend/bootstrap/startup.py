@@ -82,6 +82,34 @@ async def _background_init_once():
 
     tasks.append(_cleanup_voice_turns())
 
+    async def _backfill_and_project_voice_evidence():
+        """Backfill first, then drain. These two used to be separate tasks.
+
+        `asyncio.gather` ran them concurrently, so the projection finished
+        before the backfill had enqueued anything and every backfilled turn sat
+        pending until the next restart — which then raced it again. Sequencing
+        them is the whole fix; the drain is idempotent, so running it after an
+        empty backfill costs nothing.
+        """
+
+        try:
+            from modules.voice_turn.runtime import backfill_voice_evidence
+
+            result = await asyncio.to_thread(backfill_voice_evidence)
+            print(f"✅ Voice Evidence bounded backfill: {result}")
+        except Exception as e:
+            print(f"⚠️ Voice Evidence backfill 失敗（不影響服務，會保留待處理狀態）: {e}")
+
+        try:
+            from modules.voice_turn.runtime import project_pending_evidence
+
+            projected = await asyncio.to_thread(project_pending_evidence, limit=500)
+            print(f"✅ Voice Evidence projection: {projected}")
+        except Exception as e:
+            print(f"⚠️ Voice Evidence projection 失敗（會由 outbox 重試）: {e}")
+
+    tasks.append(_backfill_and_project_voice_evidence())
+
     async def _dispatch_checkout_outbox():
         try:
             from modules.checkout_confirmation.runtime import dispatch_outbox
