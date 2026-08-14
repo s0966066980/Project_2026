@@ -1125,7 +1125,9 @@
     },
     "DELETE /api/v1/recommendation_events": {
       "operation_id": "clear_recommendation_events_api_v1_recommendation_events_delete",
-      "parameters": [],
+      "parameters": [
+        "query:older_than_days"
+      ],
       "request_schema": "",
       "response_schema": ""
     },

@@ -190,59 +190,6 @@ export function createRecommendationEventsAdmin({
 
   }
 
-  function renderRecommendationCountRows(containerId, groupedCounts, labelMap, emptyText) {
-    const box = getElement(containerId);
-    if (!box) return;
-    const rows = Object.entries(groupedCounts || {})
-      .map(([key, counts]) => ({
-        key,
-        counts,
-        total: Object.values(counts || {}).reduce((sum, value) => sum + Number(value || 0), 0),
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-    if (!rows.length) {
-      box.innerHTML = `<div class="adm-empty">${escapeHtml(emptyText)}</div>`;
-      return;
-    }
-    box.innerHTML = '<div class="recommendation-row head"><b>名稱</b><span>有效曝光</span><span>點擊推薦</span><span>加入購物車</span><span>完成購買</span><span>忽略推薦</span></div>'
-      + rows.map(row => '<div class="recommendation-row">'
-        + `<b>${escapeHtml(recommendationLabel(labelMap, row.key))}</b>`
-        + `<span>${recommendationCount(row.counts, 'recommendation_shown')}</span>`
-        + `<span>${recommendationCount(row.counts, 'recommendation_clicked')}</span>`
-        + `<span>${recommendationCount(row.counts, 'recommendation_added_to_cart')}</span>`
-        + `<span>${recommendationCount(row.counts, 'recommendation_checked_out')}</span>`
-        + `<span>${recommendationCount(row.counts, 'recommendation_ignored')}</span>`
-        + '</div>')
-        .join('');
-  }
-
-  function renderRecommendationVariantRows(containerId, report) {
-    const box = getElement(containerId);
-    if (!box) return;
-    if (!report) {
-      box.innerHTML = '<div class="adm-empty">精準成效載入後才會顯示策略差異。</div>';
-      return;
-    }
-    const rows = strategyComparisonView(report);
-    if (!rows.length) {
-      box.innerHTML = '<div class="adm-empty">尚未啟用策略實驗或只有一個分組，因此沒有版本差異。</div>';
-      return;
-    }
-    box.innerHTML = rows.map(row => {
-      const difference = `${row.differencePoints >= 0 ? '+' : ''}${row.differencePoints} 個百分點`;
-      const tone = row.differencePoints > 0 ? 'positive' : (row.differencePoints < 0 ? 'negative' : 'neutral');
-      return '<article class="recommendation-comparison">'
-        + `<div class="recommendation-comparison-head"><b>${escapeHtml(row.variantLabel)} <span>對照</span> ${escapeHtml(row.controlLabel)}</b><strong class="${tone}">${escapeHtml(difference)}</strong></div>`
-        + '<div class="recommendation-comparison-metrics">'
-        + `<span><small>${escapeHtml(row.controlLabel)}購買率</small><b>${row.controlRate}%</b><em>${row.controlSample} 次有效曝光</em></span>`
-        + `<span><small>${escapeHtml(row.variantLabel)}購買率</small><b>${row.variantRate}%</b><em>${row.variantSample} 次有效曝光</em></span>`
-        + '</div>'
-        + `<p>${escapeHtml(row.conclusion || '僅顯示觀察差異。')}</p>`
-        + '</article>';
-    }).join('');
-  }
-
   function renderRecommendationSurfaceOptions(events) {
     const select = getElement('recommendationSurfaceFilter');
     if (!select) return;
@@ -300,10 +247,6 @@ export function createRecommendationEventsAdmin({
     const events = filteredRecommendationEvents();
     const stats = buildRecommendationStats(events);
     renderRecommendationKpis(events, stats);
-    renderRecommendationCountRows('recommendationSurfaceStats', stats.surfaceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦入口資料。');
-    renderRecommendationCountRows('recommendationSourceStats', stats.sourceCounts, RECOMMENDATION_SURFACE_LABELS, '尚無推薦來源資料。');
-    renderRecommendationCountRows('recommendationOfferStats', stats.offerCounts, {}, '尚無 offer 追蹤資料。');
-    renderRecommendationVariantRows('recommendationVariantStats', effectivenessReport);
     renderRecommendationEventTable(events);
   }
 
@@ -341,9 +284,43 @@ export function createRecommendationEventsAdmin({
     return recommendationEventsLoadPromise;
   }
 
+  /**
+   * Delete this store's older recommendation events.
+   *
+   * The default cutoff is the server's, and it is not "everything": the
+   * operations overview computes the push funnel from these same rows, so a
+   * full wipe would blank the numbers the operator had just been reading. The
+   * confirmation says what will actually go.
+   */
+  async function clearRecommendationEvents({ olderThanDays = 30 } = {}) {
+    const proceed = confirm(
+      `將刪除本店 ${olderThanDays} 天前的推薦事件，近 ${olderThanDays} 天保留。\n`
+      + '推播成功率是從同一批事件計算的，被刪除的區間之後無法再統計。\n\n確定要清除嗎？',
+    );
+    if (!proceed) return null;
+
+    const button = getElement('recommendationEventsClear');
+    if (button) button.disabled = true;
+    try {
+      const result = await recommendationClient.clear({ olderThanDays });
+      await loadRecommendationEvents();
+      return result;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  getElement('recommendationEventsClear')?.addEventListener('click', () => {
+    clearRecommendationEvents().catch(error => {
+      const summary = getElement('recommendationEventSummary');
+      if (summary) summary.textContent = `清除失敗：${error.message}`;
+    });
+  });
+
   return {
     loadTodaySummary,
     loadRecommendationEvents,
     renderRecommendationDashboard,
+    clearRecommendationEvents,
   };
 }

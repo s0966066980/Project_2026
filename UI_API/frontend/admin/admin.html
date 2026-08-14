@@ -1181,7 +1181,7 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-comparison-metrics b { color:#1a2233; font-variant-numeric:tabular-nums; }
 .recommendation-comparison-metrics em { grid-column:1 / -1; color:#9aa4b1; font-size:11px; font-style:normal; }
 .recommendation-comparison p { margin:12px 0 0; color:#66728a; font-size:12px; }
-.recommendation-events-card { background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); overflow:hidden; }
+.recommendation-events-card { margin:0 0 16px; background:#fff; border:1px solid #e7ebf0; border-radius:14px; box-shadow:0 1px 6px rgba(26,34,51,.05); overflow:hidden; }
 .recommendation-events-card .adm-table-wrap { max-height:calc(100dvh - 520px); overflow:auto; }
 .recommendation-tag { display:inline-flex; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:900; white-space:nowrap; background:#eef4ff; color:#2f67c7; }
 .recommendation-tag.member { background:#e6f7ef; color:#128257; }
@@ -1197,12 +1197,7 @@ tbody tr:hover td { background: #f8fafd; }
 .recommendation-notice.error { background:#fff0ef; border-color:#f2c1bd; color:#9e2f28; }
 .recommendation-filter-details { flex:1; min-width:min(100%,280px); }
 .recommendation-filter-details > summary,
-.recommendation-advanced > summary {
-  min-height:44px; display:flex; align-items:center; gap:9px; cursor:pointer; list-style:none;
-  color:#34425d; font-size:13px; font-weight:800;
-}
 .recommendation-filter-details > summary::-webkit-details-marker,
-.recommendation-advanced > summary::-webkit-details-marker { display:none; }
 .recommendation-filter-details[open] > summary { margin-bottom:10px; }
 .recommendation-journey {
   display:grid; grid-template-columns:repeat(7,auto); align-items:center; justify-content:center; gap:12px;
@@ -1214,14 +1209,6 @@ tbody tr:hover td { background: #f8fafd; }
   border-radius:50%; background:#e4edfc; color:#2f67c7;
 }
 .recommendation-journey > i { color:#9ba8bb; font-size:10px; }
-.recommendation-advanced { border:1px solid #dfe5ee; border-radius:14px; background:#f8fafd; overflow:hidden; }
-.recommendation-advanced > summary { justify-content:space-between; padding:13px 16px; background:#fff; }
-.recommendation-advanced > summary span { display:flex; flex-direction:column; gap:3px; }
-.recommendation-advanced > summary small { color:#77849a; font-size:11px; font-weight:500; }
-.recommendation-advanced > summary > i { transition:transform .2s ease; }
-.recommendation-advanced[open] > summary > i { transform:rotate(180deg); }
-.recommendation-advanced .recommendation-grid { padding:16px; }
-.recommendation-advanced .recommendation-events-card { margin:0 16px 16px; }
 .availability-page { display:flex; flex-direction:column; gap:16px; padding:24px 28px; overflow:auto; }
 .availability-layout { display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start; }
 .availability-form { display:flex; flex-direction:column; gap:12px; }
@@ -1604,35 +1591,17 @@ tbody tr:hover td { background: #f8fafd; }
       <span><b>4</b>完成購買</span>
     </div>
 
-    <details class="recommendation-advanced">
-      <summary><span><b>查看進階分析與事件明細</b><small>適合需要比較推薦入口、活動與策略的人員</small></span><i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
-    <div class="recommendation-grid">
-      <div class="card">
-        <div class="card-title"><i class="fas fa-window-restore"></i> 推薦入口成效</div>
-        <p class="recommendation-card-description">比較顧客在哪個畫面看到推薦後最常互動與購買，用來決定推薦應放在首頁、購物車或點餐協助等位置。</p>
-        <div id="recommendationSurfaceStats"></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><i class="fas fa-code-branch"></i> 推薦來源成效</div>
-        <p class="recommendation-card-description">比較推薦排序引擎、語音點餐推薦、選擇協助與門市備用推薦等產生路徑，用來找出哪種推薦機制最常被採用，並決定優先優化哪條路徑。</p>
-        <div id="recommendationSourceStats"></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><i class="fas fa-ticket-alt"></i> 活動優惠成效</div>
-        <div id="recommendationOfferStats"></div>
-      </div>
-      <div class="card recommendation-strategy-card">
-        <div class="card-title"><i class="fas fa-vials"></i> 策略實驗差異</div>
-        <p class="recommendation-card-description">在同類顧客流量中比較兩種選餐方式。控制組依候選餐點分數加權隨機挑選，保留多樣性；最高分排序組固定優先顯示最高分餐點。購買率百分點差用來觀察哪種方式較有效，樣本不足時不應當作定論。</p>
-        <div id="recommendationVariantStats"></div>
-      </div>
-    </div>
-
     <div class="recommendation-events-card">
       <div class="card-title" style="padding:16px 18px 0;margin-bottom:12px">
         <i class="fas fa-stream"></i> 最近推薦事件
         <span id="recommendationEventSummary" class="recommendation-muted" style="margin-left:auto"></span>
+        <button id="recommendationEventsClear" class="refresh-btn" type="button" style="margin-left:12px">
+          <i class="fas fa-broom" aria-hidden="true"></i> 清除舊紀錄
+        </button>
       </div>
+      <p class="recommendation-card-description" style="padding:0 18px 8px;margin:0">
+        清除 30 天前的推薦事件。近 30 天保留不動，因為推播成功率是從同一批事件算出來的。
+      </p>
       <div class="adm-table-wrap">
         <table>
           <thead>
@@ -1654,7 +1623,6 @@ tbody tr:hover td { background: #f8fafd; }
         </table>
       </div>
     </div>
-    </details>
   </section>
 
   </div>

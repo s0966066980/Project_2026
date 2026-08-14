@@ -229,7 +229,14 @@ export function createRecommendationEventClient(options = {}) {
   return {
     report: body => client.post('/recommendation_events', body).then(payload),
     list: (sessionId = '', limit = 200) => client.get(`/recommendation_events?${new URLSearchParams({ session_id: sessionId, limit: String(limit) })}`).then(payload),
-    clear: () => client.request('/recommendation_events', { method: 'DELETE' }).then(payload),
+    // The cutoff is explicit on the wire. The server defaults to keeping 30
+    // days because the operations overview reads the same rows.
+    clear: ({ olderThanDays = 30 } = {}) =>
+      client
+        .request(`/recommendation_events?older_than_days=${encodeURIComponent(String(olderThanDays))}`, {
+          method: 'DELETE',
+        })
+        .then(payload),
   };
 }
 

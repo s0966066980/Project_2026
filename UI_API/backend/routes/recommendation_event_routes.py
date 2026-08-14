@@ -1,10 +1,13 @@
 """推薦事件路由。"""
 
 import asyncio
+import functools
+from typing import Annotated
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Query, Request
 
 from capabilities.identity_access import scope_from_admin_principal, scope_from_device_principal
+from capabilities.operations_configuration import interface as operations
 from capabilities.recommendation_analytics import recommendation_event_repository, recommendation_event_service
 from utils.auth_utils import authorize_admin_request, check_rate_limit, require_kiosk_token
 
@@ -39,10 +42,40 @@ def create_router(deps: dict | None = None, *, prefix: str = "/api") -> APIRoute
         return {"status": "success", "events": events, **stats}
 
     @router.delete("/recommendation_events")
-    async def clear_recommendation_events(request: Request):
+    async def clear_recommendation_events(
+        request: Request,
+        older_than_days: Annotated[
+            int, Query(ge=0, le=3650)
+        ] = recommendation_event_repository.DEFAULT_CLEAR_RETAIN_DAYS,
+    ):
+        """Clear this store's recommendation events older than a cutoff.
+
+        The default keeps the last thirty days because the operations overview
+        computes the push funnel from these rows; `older_than_days=0` clears
+        everything, and has to be asked for.
+        """
+
         principal = authorize_admin_request(request, "recommendations.write")
         scope = scope_from_admin_principal(principal)
-        count = await asyncio.to_thread(recommendation_event_repository.clear_recommendation_events_scoped, scope)
-        return {"status": "success", "cleared": count}
+        count = await asyncio.to_thread(
+            functools.partial(
+                recommendation_event_repository.clear_recommendation_events_scoped,
+                scope,
+                older_than_days=int(older_than_days),
+            )
+        )
+        # Deleting operational history is an admin action, so it leaves one.
+        await asyncio.to_thread(
+            functools.partial(
+                operations.record_admin_action,
+                "recommendation_events_cleared",
+                target_type="recommendation_events",
+                target_id=str(scope.store_id),
+                request=request,
+                metadata={"older_than_days": int(older_than_days), "cleared": int(count)},
+                scope=scope,
+            )
+        )
+        return {"status": "success", "cleared": count, "older_than_days": int(older_than_days)}
 
     return router

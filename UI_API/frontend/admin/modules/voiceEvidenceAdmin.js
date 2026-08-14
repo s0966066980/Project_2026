@@ -57,17 +57,27 @@ export function buildVoiceEvidenceView({ records = [], page = {}, reconciliation
   };
 }
 
+/** @param {Document | undefined} root @param {string} id */
 function element(root, id) {
   return root?.getElementById?.(id) || document.getElementById(id);
 }
 
+/** @param {string} day */
 function localDayBounds(day) {
   const start = new Date(`${day}T00:00:00`);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { observed_from: start.toISOString(), observed_to: end.toISOString() };
 }
 
+/**
+ * Typed for the same reason as the view above: the defaults alone infer
+ * `{ root?: Document }` and `{}`, so `client`, the page cursor and a caught
+ * error all resolve to properties TypeScript says do not exist.
+ *
+ * @param {{ client?: any, root?: Document }} [input]
+ */
 export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
+  /** @type {{records: Record<string, any>[], page: Record<string, any>, reconciliation: Record<string, any>, error: string, loading: boolean, cursor: any}} */
   const state = { records: [], page: {}, reconciliation: {}, error: '', loading: false, cursor: null };
 
   function selectedDay() {
@@ -119,7 +129,7 @@ export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
       state.page = response.page || {};
       state.reconciliation = response.reconciliation || {};
       state.cursor = state.page.next_cursor || null;
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       state.error = error?.message || String(error);
       state.page = {};
     } finally {
@@ -129,7 +139,7 @@ export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
   }
 
   function bind() {
-    const date = element(root, 'voiceEvidenceDate');
+    const date = /** @type {HTMLInputElement | null} */ (element(root, 'voiceEvidenceDate'));
     if (date && !date.value) date.value = new Date().toISOString().slice(0, 10);
     element(root, 'voiceEvidenceRefresh')?.addEventListener('click', () => refresh());
     element(root, 'voiceEvidenceLoadMore')?.addEventListener('click', () => refresh({ append: true }));

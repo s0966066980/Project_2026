@@ -7,6 +7,7 @@
 import json
 import os
 import threading
+from datetime import datetime, timedelta, timezone
 
 import config
 from models.commercial_scope import (
@@ -18,6 +19,19 @@ from repositories import postgres_utils
 from utils.commercial_scope_config import resolve_commercial_scope
 
 RECOMMENDATION_EVENTS_PATH = os.path.join(config.LEARNING_DATA_DIR, "recommendation_events.json")
+
+# The operations overview computes the push funnel from these same rows, so a
+# clear that took everything would blank the statistics an operator had just
+# been reading. Thirty days keeps that window and removes what is behind it.
+DEFAULT_CLEAR_RETAIN_DAYS = 30
+
+
+def _clear_cutoff(retain_days: int) -> str:
+    """The ISO instant before which events may be deleted."""
+
+    return (datetime.now(timezone.utc) - timedelta(days=max(0, int(retain_days)))).isoformat()
+
+
 MAX_RECORDS = 5000
 
 _cache_lock = threading.Lock()
@@ -183,13 +197,30 @@ def _postgres_get_events(scope: CommercialScope, session_id: str = "", limit: in
     return list(reversed(rows))
 
 
-def _postgres_clear_events(scope: CommercialScope) -> int:
+def _postgres_clear_events(scope: CommercialScope, older_than_days: int) -> int:
+    """Delete this store's events, optionally keeping a recent window.
+
+    The cutoff compares against the `timestamp` column, which is TEXT holding
+    an ISO-8601 instant — not a `timestamptz` named `created_at`. Interval
+    arithmetic would not even parse here, so the boundary is computed in
+    Python and compared lexicographically, exactly as the JSON branch does.
+    """
+
     with postgres_utils.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM recommendation_events WHERE tenant_id = %s AND store_id = %s",
-                (scope.tenant_id, scope.store_id),
-            )
+            if older_than_days <= 0:
+                cur.execute(
+                    "DELETE FROM recommendation_events WHERE tenant_id = %s AND store_id = %s",
+                    (scope.tenant_id, scope.store_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    DELETE FROM recommendation_events
+                    WHERE tenant_id = %s AND store_id = %s AND "timestamp" < %s
+                    """,
+                    (scope.tenant_id, scope.store_id, _clear_cutoff(older_than_days)),
+                )
             count = cur.rowcount
         conn.commit()
     return count
@@ -303,19 +334,38 @@ def count_shown_scoped(
         return 0
 
 
-def clear_recommendation_events() -> int:
-    return clear_recommendation_events_scoped(resolve_commercial_scope())
+def clear_recommendation_events(older_than_days: int = DEFAULT_CLEAR_RETAIN_DAYS) -> int:
+    return clear_recommendation_events_scoped(resolve_commercial_scope(), older_than_days=older_than_days)
 
 
-def clear_recommendation_events_scoped(scope: CommercialScope) -> int:
+def clear_recommendation_events_scoped(
+    scope: CommercialScope, *, older_than_days: int = DEFAULT_CLEAR_RETAIN_DAYS
+) -> int:
+    """Delete this store's recommendation events older than a cutoff.
+
+    The cutoff exists because these rows are not only a log: the operations
+    overview computes the push funnel from the same events, so clearing
+    everything would blank the statistics an operator had just been reading.
+    Thirty days keeps the recent window that feeds those numbers and removes
+    the accumulation behind it.
+
+    `older_than_days=0` still clears everything, for the operator who really
+    means it — but that has to be asked for.
+    """
+
+    retain = max(0, int(older_than_days))
     if postgres_utils.use_postgres():
         try:
-            return _postgres_clear_events(scope)
+            return _postgres_clear_events(scope, retain)
         except Exception as exc:
             postgres_utils.handle_postgres_failure(exc)
     if not is_legacy_store_scope(scope):
         return 0
     rows = _read_list(RECOMMENDATION_EVENTS_PATH)
-    count = len(rows)
-    _write_list(RECOMMENDATION_EVENTS_PATH, [])
-    return count
+    if retain <= 0:
+        _write_list(RECOMMENDATION_EVENTS_PATH, [])
+        return len(rows)
+    cutoff = _clear_cutoff(retain)
+    kept = [row for row in rows if str(row.get("timestamp") or row.get("created_at") or "") >= cutoff]
+    _write_list(RECOMMENDATION_EVENTS_PATH, kept)
+    return len(rows) - len(kept)
