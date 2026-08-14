@@ -166,24 +166,25 @@ async function loadStats() {
     const data = await adminOperationsClient.sessionStats();
     if (data.status !== 'success') throw new Error('api error');
 
-    const total   = data.total_sessions ?? 0;
-    const clicks  = data.total_ai_push_cart_clicks ?? 0;
-    const success = data.success_sessions ?? 0;
-    const fail    = data.failure_sessions ?? 0;
-    const rate    = data.success_rate ?? 0;
-    const score   = data.cumulative_score ?? 0;
+    // The funnel, not a session log: impressions shown → carts they reached →
+    // orders that could be attributed back to one. The session log this used
+    // to read had no writer, so every number here was structurally zero.
+    const impressions = data.impressions ?? 0;
+    const clicks      = data.total_ai_push_cart_clicks ?? 0;
+    const success     = data.success_sessions ?? 0;
+    const fail        = data.failure_sessions ?? 0;
+    const rate        = data.success_rate ?? 0;
 
     // Donut
     const pct = Math.round(rate * 100);
     setText('d-rate', pct + '%');
     setText('d-success', String(success));
     setText('d-fail', String(fail));
-    setText('d-score', (score >= 0 ? '+' : '') + score);
     const fill = document.getElementById('donut-fill');
     if (fill) fill.setAttribute('stroke-dasharray', `${(pct / 100) * CIRC} ${CIRC}`);
 
     // Stat cards
-    setText('s-total',     String(total));
+    setText('s-total',     String(impressions));
     setText('s-clicks',    String(clicks));
     setText('s-success',   String(success));
 

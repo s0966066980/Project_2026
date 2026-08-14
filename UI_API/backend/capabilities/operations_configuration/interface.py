@@ -47,6 +47,22 @@ def readiness_snapshot() -> ReadinessSnapshot:
     return cast(ReadinessSnapshot, health_service.build_readiness())
 
 
+def push_funnel_stats(*, scope: Any, days: int = 30, sessions: int = 200) -> dict[str, Any]:
+    """The push funnel and the confirmed orders behind it.
+
+    Published here because a route may not reach into `modules/` directly, and
+    because the Admin overview is an Operations surface even though every
+    number in it is owned by another capability.
+    """
+
+    from modules.operations_overview import runtime
+
+    module = runtime.default_push_funnel_module()
+    since = runtime.since_days_ago(days=max(1, min(int(days), 31)))
+    funnel = module.funnel(scope=scope, since=since)
+    return {**funnel.as_dict(), "sessions": module.sessions(scope=scope, limit=max(1, min(int(sessions), 500)))}
+
+
 def operations_overview(*, scope: Any, days: int = 30) -> dict[str, Any]:
     from modules.operations_overview import runtime
 
@@ -152,6 +168,7 @@ __all__ = [
     "llm_readiness",
     "llm_connectivity_test",
     "llm_traffic_metrics",
+    "push_funnel_stats",
     "list_admin_audits",
     "build_admin_health",
     "record_admin_action",

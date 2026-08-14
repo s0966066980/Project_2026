@@ -7,6 +7,7 @@ the old ``/api`` endpoints remain only as a measured compatibility window.
 from __future__ import annotations
 
 import asyncio
+import functools
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -39,9 +40,20 @@ def create_router(_deps: dict | None = None) -> APIRouter:
 
     @router.get("/operations/session-stats")
     async def get_session_stats(request: Request):
-        authorize_admin_request(request, "operations.read")
-        logs = await asyncio.to_thread(operations.get_session_logs)
-        stats = operations.compute_session_stats(logs)
+        """The push funnel and the orders behind it.
+
+        This used to read `session_logs`, whose only writer —
+        `record_final_checkout` — had no callers anywhere in the application.
+        The table was therefore always empty and both the success rate and the
+        order detail table were structurally zero, whatever the store did.
+
+        Both now come from durable facts: commercial touches for the funnel,
+        the confirmed-order store for the rows.
+        """
+
+        principal = authorize_admin_request(request, "operations.read")
+        scope = scope_from_admin_principal(principal)
+        stats = await asyncio.to_thread(functools.partial(operations.push_funnel_stats, scope=scope))
         return {"status": "success", **stats}
 
     @router.get("/operations/logs")

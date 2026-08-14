@@ -87,7 +87,7 @@ export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
   const state = { records: [], page: {}, reconciliation: {}, error: '', loading: false, cursor: null };
 
   function selectedDay() {
-    return text(element(root, 'voiceEvidenceDate')?.value) || new Date().toISOString().slice(0, 10);
+    return text(inputValue(root, 'voiceEvidenceDate')) || new Date().toISOString().slice(0, 10);
   }
 
   function render() {

@@ -80,3 +80,84 @@ class OperationsOverviewModule:
             confirmed_order_amount=amount,
             currency=currency,
         )
+
+
+PUSH_FUNNEL_CAVEAT = "以曝光為分母：被顧客看見的推薦裡，有多少最後成為已確認訂單"
+PUSH_SESSION_CAVEAT = "每筆為一張已確認訂單，不是每一次點餐嘗試"
+
+
+@dataclass(frozen=True)
+class PushFunnel:
+    """Did the recommendation work, counted from what actually happened.
+
+    Every stage is a distinct durable fact rather than a derived guess:
+    impressions and add-to-carts are commercial touches the Kiosk reported,
+    orders are rows in the confirmed-order store, and an attributed order is
+    one the analytics capability could tie back to a specific impression.
+
+    This replaces a session-log projection whose only writer had no callers, so
+    the numbers it produced were structurally zero. The definitions live here
+    because the screen has to state them.
+    """
+
+    impressions: int
+    add_to_carts: int
+    orders: int
+    attributed_orders: int
+
+    # There is no `cumulative_score`. The old one was a running total kept in
+    # the session log, and the session log had no writer; inventing a score
+    # from funnel counts would put a number on the screen that means nothing.
+
+    @property
+    def success_rate(self) -> float:
+        return round(self.attributed_orders / self.impressions, 4) if self.impressions else 0.0
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total_sessions": self.orders,
+            "total_ai_push_cart_clicks": self.add_to_carts,
+            "success_sessions": self.attributed_orders,
+            "failure_sessions": max(0, self.impressions - self.attributed_orders),
+            "success_rate": self.success_rate,
+            "impressions": self.impressions,
+            "definitions": {
+                "success_rate": PUSH_FUNNEL_CAVEAT,
+                "sessions": PUSH_SESSION_CAVEAT,
+            },
+        }
+
+
+class PushFunnelStore(Protocol):
+    def count_touches(self, *, scope: CommercialScope, since: str, event_type: str) -> int: ...
+
+    def count_confirmed_orders(self, *, scope: CommercialScope, since: str) -> int: ...
+
+    def count_attributed_orders(self, *, scope: CommercialScope, since: str) -> int: ...
+
+    def recent_confirmed_orders(self, *, scope: CommercialScope, limit: int) -> list[dict[str, Any]]: ...
+
+
+class PushFunnelModule:
+    """The operations overview's push half, composed from its owners."""
+
+    def __init__(self, *, store: PushFunnelStore) -> None:
+        self._store = store
+
+    def funnel(self, *, scope: CommercialScope, since: str) -> PushFunnel:
+        return PushFunnel(
+            impressions=self._store.count_touches(scope=scope, since=since, event_type="impression"),
+            add_to_carts=self._store.count_touches(scope=scope, since=since, event_type="add_to_cart"),
+            orders=self._store.count_confirmed_orders(scope=scope, since=since),
+            attributed_orders=self._store.count_attributed_orders(scope=scope, since=since),
+        )
+
+    def sessions(self, *, scope: CommercialScope, limit: int = 200) -> list[dict[str, Any]]:
+        """One row per confirmed order, which is what the detail table means.
+
+        The old table listed session-log entries; there were none, so it was
+        always empty. A confirmed order is the durable fact closest to what an
+        operator is looking for when they open 點餐記錄明細.
+        """
+
+        return self._store.recent_confirmed_orders(scope=scope, limit=limit)

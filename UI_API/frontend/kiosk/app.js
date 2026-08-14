@@ -466,6 +466,22 @@ function trackedAddToCart(item, metadata = {}) {
       offer_ids: metadata.offer_ids || cartItem.offer_ids || [],
       metadata: { cart_source: metadata.source, offer_id: metadata.offer_id || cartItem.applied_offer_id || '' },
     });
+    // The commercial funnel's third stage. Impression and click were already
+    // reported; without this the operations overview could see that a
+    // recommendation was shown and pressed but never that it reached a cart,
+    // so "did the push work" had no answer on either side of the question.
+    // The impression id is what later attributes the order back to it.
+    sendCommercialTouch('add_to_cart', {
+      decision_id: String(cartItem?.decision_id || ''),
+      impression_id: String(metadata.impression_id || ''),
+      placement: String(metadata.source || ''),
+      item_id: String(cartItem?.id || ''),
+      campaign_id: String(metadata.offer_id || cartItem?.applied_offer_id || ''),
+      strategy: String(cartItem?.strategy || ''),
+      strategy_version: String(cartItem?.strategy_version || ''),
+      experiment_id: String(cartItem?.experiment_id || ''),
+      variant_id: String(cartItem?.variant_id || ''),
+    });
   }
   hideChoiceHesitationModal();
   cartManager.addToCart(cartItem);
@@ -934,7 +950,7 @@ const aiRecommendationController = (() => {
         experiment_id: String(currentRecommendationItem.experiment_id || ''),
         variant_id: String(currentRecommendationItem.variant_id || ''),
       });
-      showItemConfirmModal(currentRecommendationItem, 'ai_push');
+      showItemConfirmModal(currentRecommendationItem, 'ai_push', currentCommercialImpressionId);
       scheduleRecommendationRefresh(refreshDelayMs());
     });
     $('aiPushRefreshBtn')?.addEventListener('click', () => fetchRecommendation());
@@ -951,9 +967,14 @@ const aiRecommendationController = (() => {
 let itemConfirmSelectedItem   = null;
 let itemConfirmQuantity    = 1;
 let itemConfirmSource = 'menu_card';
+// The commercial impression this add belongs to, when the modal was opened
+// from a recommendation. It lives in the recommendation controller's closure,
+// so it travels here with the item instead of being read from module scope.
+let itemConfirmImpressionId = '';
 
-function showItemConfirmModal(item, source = 'menu_card') {
+function showItemConfirmModal(item, source = 'menu_card', impressionId = '') {
   itemConfirmSource = source;
+  itemConfirmImpressionId = String(impressionId || '');
   if (!item) return;
   itemConfirmSelectedItem = item;
   itemConfirmQuantity  = 1;
@@ -994,6 +1015,7 @@ function hideItemConfirmModal() {
   itemConfirmSelectedItem   = null;
   itemConfirmQuantity    = 1;
   itemConfirmSource = 'menu_card';
+  itemConfirmImpressionId = '';
   document.getElementById('itemConfirmModal')?.classList.add('hidden');
 }
 
@@ -1020,7 +1042,10 @@ useDomReady(() => {
   document.getElementById('itemConfirmAdd')?.addEventListener('click', () => {
     if (!itemConfirmSelectedItem) return;
     for (let i = 0; i < itemConfirmQuantity; i++) {
-      trackedAddToCart(itemConfirmSelectedItem, { source: itemConfirmSource });
+      trackedAddToCart(itemConfirmSelectedItem, {
+        source: itemConfirmSource,
+        impression_id: itemConfirmImpressionId,
+      });
     }
     hideItemConfirmModal();
   });

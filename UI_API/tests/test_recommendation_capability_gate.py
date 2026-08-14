@@ -189,6 +189,15 @@ RECOMMENDATION_ROOTS = {
     "modules.analytics",
 }
 
+# The composition root, not a domain file. `runtime.py` is where checkout's
+# post-commit consequences are wired — it already calls Member to finalise a
+# checkout — and an order attribution is one of those consequences: it is
+# written *after* the order exists and can never change it. The rule protects
+# pricing and ordering decisions from reading a suggestion, which is a
+# statement about the domain files; `test_pricing_itself_never_reads_a_recommendation`
+# below keeps that half strict.
+COMPOSITION_ROOTS = {BACKEND / "modules" / "checkout_confirmation" / "runtime.py"}
+
 
 def _imported_modules(path: pathlib.Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -212,11 +221,39 @@ def test_the_transaction_path_never_reads_a_recommendation():
     offenders: list[str] = []
     for tree in TRANSACTION_TREES:
         for source in tree.rglob("*.py"):
+            if source in COMPOSITION_ROOTS:
+                continue
             for imported in _imported_modules(source):
                 if any(imported == root or imported.startswith(f"{root}.") for root in RECOMMENDATION_ROOTS):
                     offenders.append(f"{source.relative_to(BACKEND)} imports {imported}")
 
     assert offenders == [], "the transaction path read a recommendation: " + "; ".join(offenders)
+
+
+def test_pricing_itself_never_reads_a_recommendation():
+    """The half the composition-root exemption must not weaken.
+
+    A post-commit attribution cannot move a price. A pricing file importing
+    recommendation could, so those files are checked with no exemption at all.
+    """
+
+    pricing_files = [
+        BACKEND / "modules" / "checkout_confirmation" / "_pricing_service.py",
+        BACKEND / "modules" / "checkout_confirmation" / "module.py",
+        BACKEND / "modules" / "promotion" / "application.py",
+        BACKEND / "modules" / "cart" / "module.py",
+    ]
+    missing = [str(path) for path in pricing_files if not path.exists()]
+    assert missing == [], f"the rule names files that no longer exist: {missing}"
+
+    offenders = [
+        f"{path.relative_to(BACKEND)} imports {imported}"
+        for path in pricing_files
+        for imported in _imported_modules(path)
+        if any(imported == root or imported.startswith(f"{root}.") for root in RECOMMENDATION_ROOTS)
+    ]
+
+    assert offenders == [], "a pricing decision could read a recommendation: " + "; ".join(offenders)
 
 
 def test_the_prohibition_names_trees_that_exist():

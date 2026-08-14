@@ -433,3 +433,55 @@ def sum_confirmed_amount_scoped(scope: CommercialScope, *, since: str) -> tuple[
     except Exception as exc:
         postgres_utils.handle_postgres_failure(exc)
         return 0, "TWD"
+
+
+def list_confirmed_orders_scoped(scope: CommercialScope, *, limit: int = 200) -> list[dict]:
+    """The store's confirmed orders, newest first.
+
+    `list_orders_scoped` reads `orders`, which nothing in this runtime writes —
+    confirmations land in `confirmed_orders`. Anything asking "what did this
+    store actually sell" has to read the table the writer uses, which is why
+    the Admin 點餐記錄明細 was empty while twelve real orders sat in the
+    database.
+    """
+
+    if not postgres_utils.use_postgres():
+        return []
+    safe_limit = max(1, min(int(limit), 500))
+    try:
+        with postgres_utils.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT order_id, session_id, status, pricing_json, lines_json, created_at, pickup_number
+                FROM confirmed_orders
+                WHERE tenant_id = %s AND store_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (scope.tenant_id, scope.store_id, safe_limit),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        postgres_utils.handle_postgres_failure(exc)
+        return []
+
+    orders = []
+    for row in rows:
+        pricing = row.get("pricing_json") or {}
+        lines = row.get("lines_json") or []
+        orders.append(
+            {
+                "order_id": str(row.get("order_id") or ""),
+                "session_id": str(row.get("session_id") or ""),
+                "status": str(row.get("status") or ""),
+                "timestamp": str(row.get("created_at") or ""),
+                "pickup_number": int(row.get("pickup_number") or 0),
+                "total": int(pricing.get("total") or 0),
+                "currency": str(pricing.get("currency") or "TWD"),
+                "items": [
+                    {"item_id": str(line.get("item_id") or ""), "quantity": int(line.get("quantity") or 0)}
+                    for line in (lines if isinstance(lines, list) else [])
+                ],
+            }
+        )
+    return orders

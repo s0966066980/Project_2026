@@ -1,7 +1,12 @@
 """Published Recommendation and Analytics application surface."""
 
 from capabilities.recommendation_analytics.contracts import EffectivenessReport, TouchReceipt
-from modules.analytics import TouchValidationError, build_effectiveness_report, record_touch
+from modules.analytics import (
+    TouchValidationError,
+    build_effectiveness_report,
+    build_order_attributions,
+    record_touch,
+)
 
 # These used to be call-time proxies into services/ and repositories/, which is
 # what kept this capability on the frozen legacy-layer list. The recommendation
@@ -35,6 +40,7 @@ __all__ = [
     "build_effectiveness_report",
     "decide",
     "list_events",
+    "build_order_attributions",
     "record_touch",
     "analytics_pipeline_service",
     "ai_push_service",
