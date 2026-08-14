@@ -585,7 +585,6 @@ const aiRecommendationController = (() => {
       barPresent: Boolean($('aiPushBar')),
       kioskActive: Boolean(isKioskActive()),
       documentVisible: !document.hidden,
-      voiceActive: isVoiceAssistantActive(),
       paymentOpen: Boolean(paymentOpen),
       cartOpen,
       eligibleItemCount: state.menuData.filter(item => item?.id && resolveItemPrice(item) > 0).length,

@@ -9,7 +9,6 @@
  *   barPresent: boolean,
  *   kioskActive: boolean,
  *   documentVisible: boolean,
- *   voiceActive: boolean,
  *   paymentOpen: boolean,
  *   cartOpen: boolean,
  *   eligibleItemCount: number,
@@ -19,7 +18,12 @@ export function recommendationEligibility(state) {
   if (!state.featureEnabled) return { eligible: false, reason: 'feature_disabled' };
   if (!state.barPresent) return { eligible: false, reason: 'surface_missing' };
   if (!state.kioskActive || !state.documentVisible) return { eligible: false, reason: 'kiosk_inactive' };
-  if (state.voiceActive) return { eligible: false, reason: 'voice_active' };
+  // Voice used to suppress the recommendation. They are separate features on
+  // separate parts of the screen — the reply bubble is anchored to the top at
+  // z-index 9000, the recommendation bar to the bottom at 50 — so nothing was
+  // being protected from anything. A customer talking to the assistant can
+  // still be shown a recommendation, and it still counts as an impression
+  // because it really was shown.
   if (state.paymentOpen) return { eligible: false, reason: 'payment_open' };
   if (state.cartOpen) return { eligible: false, reason: 'cart_open' };
   if (state.eligibleItemCount < 1) return { eligible: false, reason: 'no_eligible_items' };

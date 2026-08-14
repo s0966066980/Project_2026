@@ -16,6 +16,21 @@ function formatTime(value) {
   });
 }
 
+/**
+ * The evidence rows as the Admin browser shows them: metadata only, never
+ * conversation text.
+ *
+ * Typed because `records = []` alone infers `never[]`, which rejects every
+ * real row a caller passes.
+ *
+ * @param {{
+ *   records?: Record<string, any>[],
+ *   page?: Record<string, any>,
+ *   reconciliation?: Record<string, any>,
+ *   error?: string,
+ *   loading?: boolean,
+ * }} [input]
+ */
 export function buildVoiceEvidenceView({ records = [], page = {}, reconciliation = {}, error = '', loading = false } = {}) {
   const rows = (records || []).map(record => ({
     evidenceId: text(record.evidence_id),

@@ -12,7 +12,6 @@ const visibleMenu = {
   barPresent: true,
   kioskActive: true,
   documentVisible: true,
-  voiceActive: false,
   paymentOpen: false,
   cartOpen: false,
   eligibleItemCount: 1,
@@ -21,7 +20,13 @@ const visibleMenu = {
 describe('passive recommendation continuity', () => {
   it('temporarily hides only for explicit UI blockers', () => {
     expect(recommendationEligibility(visibleMenu)).toEqual({ eligible: true, reason: 'eligible' });
-    expect(recommendationEligibility({ ...visibleMenu, voiceActive: true }).reason).toBe('voice_active');
+    // Voice mode and the recommendation are separate features: the reply
+    // bubble sits at the top of the screen at z-index 9000, the recommendation
+    // bar at the bottom at 50, and suppressing one for the other protected
+    // nothing. `voiceActive` is no longer part of the state at all — passing
+    // it changes nothing, which is the assertion.
+    const whileTalking = { ...visibleMenu, voiceActive: true };
+    expect(recommendationEligibility(whileTalking)).toEqual({ eligible: true, reason: 'eligible' });
     expect(recommendationEligibility({ ...visibleMenu, cartOpen: true }).reason).toBe('cart_open');
     expect(recommendationEligibility({ ...visibleMenu, paymentOpen: true }).reason).toBe('payment_open');
   });

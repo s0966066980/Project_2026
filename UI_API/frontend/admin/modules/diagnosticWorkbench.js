@@ -32,6 +32,16 @@ function evidenceFrom(report) {
 /**
  * Converts the API report into stable UI language. Keeping this boundary pure makes
  * the browser contract testable without coupling tests to private DOM details.
+ *
+ * The parameters are typed because their defaults are not: TypeScript infers
+ * `null` from `report = null` and rejects every caller that passes a report.
+ *
+ * @param {{
+ *   questions?: any[],
+ *   report?: Record<string, any> | null,
+ *   candidate?: Record<string, any> | null,
+ *   error?: string,
+ * }} [input]
  */
 export function buildDiagnosticWorkbenchView({ questions = [], report = null, candidate = null, error = '' } = {}) {
   const snapshot = report?.diagnostic_question || {};
