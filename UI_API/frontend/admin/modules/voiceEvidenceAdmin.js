@@ -1,5 +1,7 @@
+/** @param {unknown} value */
 const text = value => String(value ?? '').trim();
 
+/** @type {Record<string, string>} */
 const TERMINAL_LABELS = Object.freeze({
   completed: '完成',
   transcription_failed: 'STT 失敗',
@@ -7,8 +9,10 @@ const TERMINAL_LABELS = Object.freeze({
   playback_failed: '播放失敗',
 });
 
+/** @type {Record<string, string>} */
 const RAG_LABELS = Object.freeze({ hit: '命中', miss: '未命中', not_run: '尚未執行' });
 
+/** @param {string | number | Date} value */
 function formatTime(value) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? text(value) || '—' : parsed.toLocaleString('zh-TW', {
@@ -32,7 +36,7 @@ function formatTime(value) {
  * }} [input]
  */
 export function buildVoiceEvidenceView({ records = [], page = {}, reconciliation = {}, error = '', loading = false } = {}) {
-  const rows = (records || []).map(record => ({
+  const rows = (records || []).map(/** @type {any} */ record => ({
     evidenceId: text(record.evidence_id),
     voiceTurnId: text(record.voice_turn_id) || '—',
     observedAt: formatTime(record.observed_at),
@@ -99,7 +103,7 @@ export function createVoiceEvidenceAdmin({ client, root = document } = {}) {
     }
     const body = element(root, 'voiceEvidenceBody');
     if (body) {
-      body.innerHTML = view.rows.map(row => `
+      body.innerHTML = view.rows.map(/** @type {any} */ row => `
         <tr>
           <td>${row.observedAt}</td>
           <td><code>${row.voiceTurnId}</code></td>

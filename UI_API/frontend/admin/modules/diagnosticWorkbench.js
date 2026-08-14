@@ -2,7 +2,9 @@
 // It talks to the capability client and renders only bounded report fields; it does
 // not know about storage tables or the private voice-evidence access mechanism.
 
+/** @param {unknown} value */
 const text = value => String(value ?? '').trim();
+/** @param {unknown} value */
 const escapeHtml = value => text(value)
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -10,13 +12,15 @@ const escapeHtml = value => text(value)
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#039;');
 
+/** @param {any} report */
 function findingsFrom(report) {
   const direct = report?.findings;
   if (Array.isArray(direct)) return direct;
-  const section = (report?.sections || []).find(item => item?.id === 'findings_and_guidance');
+  const section = (report?.sections || []).find((/** @type {any} */ item) => item?.id === 'findings_and_guidance');
   return Array.isArray(section?.data?.findings) ? section.data.findings : [];
 }
 
+/** @param {any} report */
 function evidenceFrom(report) {
   const count = Number(report?.evidence_count ?? report?.evidence_summary?.count ?? 0);
   const level = text(report?.evidence_summary?.level)
@@ -46,7 +50,7 @@ function evidenceFrom(report) {
 export function buildDiagnosticWorkbenchView({ questions = [], report = null, candidate = null, error = '' } = {}) {
   const snapshot = report?.diagnostic_question || {};
   const dialogue = report?.dialogue || {};
-  const findings = findingsFrom(report).map(finding => ({
+  const findings = findingsFrom(report).map((/** @type {any} */ finding) => ({
     label: text(finding.classification || finding.failure_type) || '未分類訊號',
     detail: `${Number(finding.occurrences || 0)} 次｜${text(finding.evidence_level) || '待確認'}`,
   }));
@@ -79,20 +83,37 @@ function today() {
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
+/** @param {Document | undefined} root @param {string} id */
 function element(root, id) {
   return root?.getElementById?.(id) || document.getElementById(id);
 }
 
+/** @param {Document | undefined} root @param {string} id @param {unknown} value */
 function setValue(root, id, value) {
-  const node = element(root, id);
-  if (node) node.value = value ?? '';
+  const node = /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null} */ (element(root, id));
+  if (node) node.value = String(value ?? '');
 }
 
+/** @param {Document | undefined} root @param {string} id */
 function getValue(root, id) {
-  return text(element(root, id)?.value);
+  return text(
+    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null} */ (element(root, id))?.value,
+  );
 }
 
+/**
+ * The defaults alone infer `never[]` and `null`, so every real question,
+ * profile, report and candidate the client returns is rejected. The state is
+ * typed here rather than at each of the fifty use sites.
+ *
+ * @param {{
+ *   client?: any,
+ *   root?: Document,
+ *   confirmAction?: (message: string) => boolean,
+ * }} input
+ */
 export function createDiagnosticWorkbench({ client, root = document, confirmAction = message => window.confirm(message) }) {
+  /** @type {{questions: any[], profiles: any[], report: any, candidate: any, error: string, loading: boolean, editingQuestionId: string}} */
   let state = { questions: [], profiles: [], report: null, candidate: null, error: '', loading: false, editingQuestionId: '' };
 
   function status(message = '', tone = '') {
@@ -106,9 +127,9 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
     const list = element(root, 'diagnosticQuestionList');
     const count = element(root, 'diagnosticQuestionCount');
     if (count) count.textContent = `${state.questions.length} 個`;
-    const select = element(root, 'diagnosticQuestion');
+    const select = /** @type {HTMLSelectElement & HTMLInputElement | null} */ (element(root, 'diagnosticQuestion'));
     if (select) {
-      select.innerHTML = state.questions.map(question => `<option value="${escapeHtml(question.question_id)}">${escapeHtml(question.display_name)}</option>`).join('');
+      select.innerHTML = state.questions.map((/** @type {any} */ question) => `<option value="${escapeHtml(question.question_id)}">${escapeHtml(question.display_name)}</option>`).join('');
       if (state.report?.diagnostic_question?.question_id) select.value = state.report.diagnostic_question.question_id;
     }
     if (!list) return;
@@ -116,7 +137,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
       list.innerHTML = '<div class="diagnostic-empty">尚未建立診斷問題。</div>';
       return;
     }
-    list.innerHTML = state.questions.map(question => `
+    list.innerHTML = state.questions.map((/** @type {any} */ question) => `
       <article class="diagnostic-question-card" data-question-id="${escapeHtml(question.question_id)}">
         <div><strong>${escapeHtml(question.display_name)}</strong><p>${escapeHtml(question.prompt)}</p></div>
         <div class="diagnostic-card-actions">
@@ -125,7 +146,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
         </div>
       </article>`).join('');
     list.querySelectorAll('.diagnostic-edit-question').forEach(button => button.addEventListener('click', () => {
-      const question = state.questions.find(item => item.question_id === button.dataset.questionId);
+      const question = state.questions.find((/** @type {any} */ item) => item.question_id === /** @type {HTMLElement} */ (button).dataset.questionId);
       if (!question) return;
       state.editingQuestionId = question.question_id;
       setValue(root, 'diagnosticQuestionName', question.display_name);
@@ -136,11 +157,11 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
     list.querySelectorAll('.diagnostic-delete-question').forEach(button => button.addEventListener('click', async () => {
       if (!confirmAction('刪除後不會再自動建立這個問題，既有報告仍會保留。確定刪除？')) return;
       try {
-        await client.deleteQuestion(button.dataset.questionId);
+        await client.deleteQuestion(/** @type {HTMLElement} */ (button).dataset.questionId);
         state.questions = (await client.questions()).questions || [];
         renderQuestions();
         status('問題已刪除。');
-      } catch (error) { status(`刪除失敗：${text(error.message)}`, 'attention'); }
+      } catch (/** @type {any} */ error) { status(`刪除失敗：${text(error.message)}`, 'attention'); }
     }));
   }
 
@@ -154,7 +175,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
     if (evidence) evidence.textContent = view.evidence.label;
     const findings = element(root, 'diagnosticFindings');
     if (findings) findings.innerHTML = view.findings.length
-      ? view.findings.map(item => `<li><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></li>`).join('')
+      ? view.findings.map((/** @type {any} */ item) => `<li><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></li>`).join('')
       : '<li><span>目前沒有可顯示的分類結果。</span></li>';
     const candidatePanel = element(root, 'diagnosticCandidate');
     if (candidatePanel) candidatePanel.hidden = !view.candidate.visible;
@@ -166,20 +187,20 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
       setValue(root, 'diagnosticCandidateContent', candidate.proposed?.content);
       const action = element(root, 'diagnosticCandidateAction');
       if (action) action.textContent = view.candidate.actionLabel;
-      const confirm = element(root, 'diagnosticCandidateConfirm');
+      const confirm = /** @type {HTMLButtonElement | null} */ (element(root, 'diagnosticCandidateConfirm'));
       if (confirm) confirm.disabled = !view.candidate.canConfirm;
     }
     status(view.status, view.statusTone);
   }
 
   function renderProfiles() {
-    const select = element(root, 'diagnosticProfile');
+    const select = /** @type {HTMLSelectElement & HTMLInputElement | null} */ (element(root, 'diagnosticProfile'));
     if (!select) return;
     const dataScope = getValue(root, 'diagnosticDataScope') || 'customer_evidence';
-    const profiles = state.profiles.filter(profile => (profile.data_scopes || []).includes(dataScope));
-    select.innerHTML = profiles.map(profile => `<option value="${escapeHtml(profile.id)}" data-ready="${profile.ready ? 'true' : 'false'}">${escapeHtml(profile.id)}${profile.ready ? '' : '（未就緒）'}</option>`).join('');
-    const model = element(root, 'diagnosticModel');
-    const selected = profiles.find(profile => profile.id === select.value) || profiles.find(profile => profile.ready);
+    const profiles = state.profiles.filter((/** @type {any} */ profile) => (profile.data_scopes || []).includes(dataScope));
+    select.innerHTML = profiles.map((/** @type {any} */ profile) => `<option value="${escapeHtml(profile.id)}" data-ready="${profile.ready ? 'true' : 'false'}">${escapeHtml(profile.id)}${profile.ready ? '' : '（未就緒）'}</option>`).join('');
+    const model = /** @type {HTMLSelectElement & HTMLInputElement | null} */ (element(root, 'diagnosticModel'));
+    const selected = profiles.find((/** @type {any} */ profile) => profile.id === select.value) || profiles.find((/** @type {any} */ profile) => profile.ready);
     if (selected) {
       select.value = selected.id;
       if (model && !getValue(root, 'diagnosticModel')) model.value = selected.models?.[0] || '';
@@ -200,12 +221,13 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
       state.error = '';
       renderQuestions(); renderProfiles(); renderReport();
       if (element(root, 'diagnosticDate') && !getValue(root, 'diagnosticDate')) setValue(root, 'diagnosticDate', today());
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       state.error = error.message || '無法載入診斷工作台';
       status(`載入失敗：${state.error}`, 'attention');
     } finally { state.loading = false; }
   }
 
+  /** @param {Event} event */
   async function saveQuestion(event) {
     event?.preventDefault?.();
     const displayName = getValue(root, 'diagnosticQuestionName');
@@ -219,7 +241,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
       const save = element(root, 'diagnosticQuestionSave'); if (save) save.textContent = '新增問題';
       state.questions = (await client.questions()).questions || [];
       renderQuestions(); status('問題已儲存，未來診斷會使用最新內容。');
-    } catch (error) { status(`儲存問題失敗：${text(error.message)}`, 'attention'); }
+    } catch (/** @type {any} */ error) { status(`儲存問題失敗：${text(error.message)}`, 'attention'); }
   }
 
   async function run() {
@@ -232,9 +254,9 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
     if (state.candidate?.status === 'pending') {
       if (!confirmAction('目前有待確認的 RAG 候選。開始新診斷前必須放棄它，確定繼續？')) return;
       try { await client.abandonCandidate(state.candidate.candidate_id); state.candidate = null; }
-      catch (error) { status(`無法放棄候選：${text(error.message)}`, 'attention'); return; }
+      catch (/** @type {any} */ error) { status(`無法放棄候選：${text(error.message)}`, 'attention'); return; }
     }
-    const button = element(root, 'diagnosticRun');
+    const button = /** @type {HTMLButtonElement | null} */ (element(root, 'diagnosticRun'));
     if (button) button.disabled = true;
     const previous = state.report;
     status('正在分析今日營運證據…');
@@ -249,7 +271,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
       state.candidate = response.knowledge_change_candidate || null;
       state.error = '';
       renderReport();
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       state.report = previous;
       state.error = text(error.message) || '分析失敗';
       renderReport();
@@ -267,7 +289,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
         content: getValue(root, 'diagnosticCandidateContent'),
       })).candidate;
       renderReport(); status('候選已更新，離線驗證已重新執行。');
-    } catch (error) { status(`候選預覽失敗：${text(error.message)}`, 'attention'); }
+    } catch (/** @type {any} */ error) { status(`候選預覽失敗：${text(error.message)}`, 'attention'); }
   }
 
   async function confirmCandidate() {
@@ -275,7 +297,7 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
     try {
       state.candidate = (await client.confirmCandidate(state.candidate.candidate_id)).candidate;
       renderReport(); status('已送入既有 RAG 發布流程。');
-    } catch (error) { status(`RAG 確認失敗：${text(error.message)}`, 'attention'); }
+    } catch (/** @type {any} */ error) { status(`RAG 確認失敗：${text(error.message)}`, 'attention'); }
   }
 
   element(root, 'diagnosticQuestionForm')?.addEventListener('submit', saveQuestion);
@@ -285,10 +307,10 @@ export function createDiagnosticWorkbench({ client, root = document, confirmActi
   element(root, 'diagnosticCandidateAbandon')?.addEventListener('click', async () => {
     if (!state.candidate || !confirmAction('放棄這份 RAG 候選？既有報告仍會保留。')) return;
     try { state.candidate = (await client.abandonCandidate(state.candidate.candidate_id)).candidate; renderReport(); status('候選已放棄。'); }
-    catch (error) { status(`放棄候選失敗：${text(error.message)}`, 'attention'); }
+    catch (/** @type {any} */ error) { status(`放棄候選失敗：${text(error.message)}`, 'attention'); }
   });
   element(root, 'diagnosticProfile')?.addEventListener('change', event => {
-    const selected = state.profiles.find(profile => profile.id === event.target.value);
+    const selected = state.profiles.find((/** @type {any} */ profile) => profile.id === /** @type {HTMLInputElement} */ (event.target).value);
     setValue(root, 'diagnosticModel', selected?.models?.[0] || '');
   });
   element(root, 'diagnosticDataScope')?.addEventListener('change', () => {
