@@ -9,6 +9,7 @@ Two documents govern this work and they are not interchangeable.
 
 | Question | Document |
 | --- | --- |
+| What is unfinished right now, and what was already measured about it? | [`next-update.md`](next-update.md) |
 | What is the strict completion state right now, and where is the evidence? | [`Project_2026_Execution_Plan.md`](../../Project_2026_Execution_Plan.md) |
 | What remains to become Commercial V1, in what order, behind which gates? | [`commercial-v1-plan.md`](commercial-v1-plan.md) |
 
@@ -26,6 +27,7 @@ Domain vocabulary stays in [`CONTEXT.md`](../../CONTEXT.md); decisions stay in
 docs/upgrade/
 ├── README.md              this file
 ├── commercial-v1-plan.md  the 45-item roadmap, 20 phases
+├── next-update.md         what the next session picks up, and the facts it needs
 ├── baseline.md            the frozen starting point and its measurements
 ├── gates/                 per-item gate evidence
 ├── architecture/          structure decisions taken during the upgrade
